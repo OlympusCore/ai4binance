@@ -1,0 +1,18 @@
+{
+  "recommendations": [
+    "charliermarsh.ruff",
+    "ms-python.mypy-type-checker",
+    "ms-python.debugpy",
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "tamasfe.even-better-toml"
+  ],
+  "unwantedRecommendations": [
+    "batisteo.vscode-django",
+    "donjayamanne.python-extension-pack",
+    "ms-python.black-formatter",
+    "ms-python.isort",
+    "ms-python.pylint",
+    "ms-toolsai.jupyter"
+  ]
+}

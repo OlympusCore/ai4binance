@@ -1,0 +1,4 @@
+interface:
+  display_name: "Factory"
+  short_description: "Route governed factory work"
+  default_prompt: "Use /factory to inspect STATE.md, route the next factory phase, and preserve AI4BINANCE fail-closed boundaries."

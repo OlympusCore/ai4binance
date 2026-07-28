@@ -1,0 +1,2 @@
+# Tek kaynak pyproject.toml'dir. Uygulama ve geliştirme ortamını kurar.
+-e .[dev]

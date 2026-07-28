@@ -1,0 +1,4 @@
+interface:
+  display_name: "Factory Review"
+  short_description: "Review completed factory work"
+  default_prompt: "Use /factory-review as a fresh reviewer to re-run the plan, tests, and break checks before completion."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "AI4BINANCE Validation First"
+  short_description: "Safe staged trading-platform development"
+  default_prompt: "Use $ai4binance-validation-first to implement this AI4BINANCE change with fail-closed validation."

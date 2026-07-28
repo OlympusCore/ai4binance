@@ -1,0 +1,4 @@
+interface:
+  display_name: "Factory Tests"
+  short_description: "Attach proof contracts to tasks"
+  default_prompt: "Use /factory-tests to add acceptance criteria and exact verification commands before coding."

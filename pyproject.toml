@@ -1,0 +1,75 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai4binance"
+version = "0.1.0"
+description = "Validation-first Binance Spot research and decision platform"
+readme = "README.md"
+requires-python = "==3.12.10"
+dependencies = [
+  "cryptography>=44,<49",
+  "pydantic>=2.10,<3",
+  "pydantic-settings>=2.7,<3",
+  "pyarrow>=18,<25",
+  "websockets>=14,<17",
+]
+
+[project.optional-dependencies]
+dev = [
+  "bandit>=1.8,<2",
+  "mypy>=1.14,<2",
+  "pytest>=8.3,<10",
+  "pytest-cov>=6,<8",
+  "ruff>=0.9,<1",
+]
+mcp = [
+  "mcp>=1.27,<2",
+]
+research = [
+  "optuna>=4.9,<5",
+]
+voice = [
+  "edge-tts>=7.2.8,<8",
+  "faster-whisper==1.2.1",
+  "numpy>=1.26,<3",
+  "sounddevice>=0.5.5,<0.6",
+  "truststore>=0.10,<1",
+]
+[project.scripts]
+ai4binance = "ai4binance.cli:main"
+ai4binance-mcp = "ai4binance.mcp.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+extend-exclude = [
+  ".pytest-audit-temp*",
+  ".pytest-money-audit-*",
+  ".pytest-tmp",
+  ".test-tmp",
+  "Artifacts/TestTemp",
+  "State/private",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "S", "C4", "PT", "RUF"]
+ignore = ["S101"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers -p no:cacheprovider --cov=ai4binance --cov-report=term-missing --cov-fail-under=90"
+tmp_path_retention_policy = "none"
+
+[tool.coverage.run]
+branch = true
+source = ["ai4binance"]

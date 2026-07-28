@@ -1,0 +1,53 @@
+"""Read-only voice command boundary."""
+
+from ai4binance.voice.gateway import (
+    LocalVoiceSession,
+    SpeakerVerification,
+    VoiceCommandGateway,
+    VoiceCommandResult,
+    VoiceIntent,
+    VoiceIntentParser,
+    assess_local_session,
+    assess_speaker,
+)
+from ai4binance.voice.runtime import (
+    EdgeTtsSpeaker,
+    FallbackSpeechOutput,
+    FasterWhisperTranscriber,
+    PrivateAccountStateReader,
+    SoundDeviceRecorder,
+    VoiceAssistantRuntime,
+    VoiceHealthStore,
+    VoiceReportScheduler,
+    VoiceResponseBuilder,
+    VoiceRuntimeHealth,
+    WindowsSapiSpeaker,
+    interactive_windows_user,
+    microphone_available,
+    wait_for_private_state,
+)
+
+__all__ = (
+    "EdgeTtsSpeaker",
+    "FallbackSpeechOutput",
+    "FasterWhisperTranscriber",
+    "LocalVoiceSession",
+    "PrivateAccountStateReader",
+    "SoundDeviceRecorder",
+    "SpeakerVerification",
+    "VoiceAssistantRuntime",
+    "VoiceCommandGateway",
+    "VoiceCommandResult",
+    "VoiceHealthStore",
+    "VoiceIntent",
+    "VoiceIntentParser",
+    "VoiceReportScheduler",
+    "VoiceResponseBuilder",
+    "VoiceRuntimeHealth",
+    "WindowsSapiSpeaker",
+    "assess_local_session",
+    "assess_speaker",
+    "interactive_windows_user",
+    "microphone_available",
+    "wait_for_private_state",
+)

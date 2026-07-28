@@ -1,0 +1,76 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "AI4BINANCE: CLI status",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "module": "ai4binance.cli",
+      "args": ["status"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "AI4BINANCE_ADVISORY_LLM_MODE": "RESEARCH_ONLY",
+        "AI4BINANCE_ALLOW_AUTO_LIVE_ORDERS": "false",
+        "LLAMA_SERVER_URL": "http://127.0.0.1:8080/completion",
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "PYTHONUTF8": "1"
+      },
+      "justMyCode": true,
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "AI4BINANCE: runtime once (read-only)",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "module": "ai4binance.cli",
+      "args": ["runtime-once"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "AI4BINANCE_ADVISORY_LLM_MODE": "RESEARCH_ONLY",
+        "AI4BINANCE_ALLOW_AUTO_LIVE_ORDERS": "false",
+        "LLAMA_SERVER_URL": "http://127.0.0.1:8080/completion",
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "PYTHONUTF8": "1"
+      },
+      "justMyCode": true,
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "AI4BINANCE: MCP evidence server",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "module": "ai4binance.mcp.server",
+      "args": ["--artifact-root", "${workspaceFolder}/Artifacts"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "AI4BINANCE_ADVISORY_LLM_MODE": "RESEARCH_ONLY",
+        "AI4BINANCE_ALLOW_AUTO_LIVE_ORDERS": "false",
+        "LLAMA_SERVER_URL": "http://127.0.0.1:8080/completion",
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "PYTHONUTF8": "1"
+      },
+      "justMyCode": true,
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "AI4BINANCE: current file",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "program": "${file}",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "AI4BINANCE_ADVISORY_LLM_MODE": "RESEARCH_ONLY",
+        "AI4BINANCE_ALLOW_AUTO_LIVE_ORDERS": "false",
+        "LLAMA_SERVER_URL": "http://127.0.0.1:8080/completion",
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "PYTHONUTF8": "1"
+      },
+      "justMyCode": true,
+      "console": "integratedTerminal"
+    }
+  ]
+}

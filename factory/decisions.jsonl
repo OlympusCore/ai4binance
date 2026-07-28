@@ -1,0 +1,2 @@
+{"timestamp":"2026-07-27","decision":"bootstrap_factory_contract_first","rationale":"Start with governed artifacts, skills, and validation before any autonomous execution loop.","status":"RESEARCH_ONLY","live_eligibility_status":"LIVE_ORDER_BLOCKED"}
+{"timestamp":"2026-07-27","decision":"use_background_shift","rationale":"Run future factory work only while the computer is on, the user session is active, and progress remains inspectable or interruptible.","status":"RESEARCH_ONLY","live_eligibility_status":"LIVE_ORDER_BLOCKED","background_mode":"BACKGROUND_SHIFT"}
