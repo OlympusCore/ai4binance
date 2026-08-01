@@ -75,8 +75,10 @@ from ai4binance.governance.supply_chain import (
     ExternalCapability,
     ExternalComponentManifest,
     ExternalResearchIntake,
+    ExternalSkillManifest,
     SupplyChainAssessment,
     assess_external_component,
+    assess_external_skill,
 )
 from ai4binance.governance.tool_gateway import (
     ToolExecutionRecord,
@@ -139,6 +141,7 @@ __all__ = [
     "ExternalCapability",
     "ExternalComponentManifest",
     "ExternalResearchIntake",
+    "ExternalSkillManifest",
     "FiveSWorkspaceEvidence",
     "GovernedArtifactEvidence",
     "GovernedArtifactReader",
@@ -188,6 +191,7 @@ __all__ = [
     "WorkflowPreview",
     "WorkflowPreviewStatus",
     "assess_external_component",
+    "assess_external_skill",
     "assess_five_s_workspace",
     "assess_hoshin_plan",
     "assess_kaizen_improvement",

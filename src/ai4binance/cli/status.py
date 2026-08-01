@@ -33,9 +33,11 @@ from ai4binance.governance import (
     recommend_agentic_skill_plan,
 )
 from ai4binance.opportunities import OpportunityInboxBuilder
+from ai4binance.privacy_boundary import scan_privacy_boundary
 from ai4binance.reporting import to_primitive
 from ai4binance.scanners import ScannerOrchestrator
 from ai4binance.schemas import MarketSnapshot
+from ai4binance.skills import audit_skill_root
 from ai4binance.universe import UniverseMarket, UniverseSymbol
 from ai4binance.validation import ValidationSummaryReader
 
@@ -115,6 +117,34 @@ def agentic_skills_payload(
             opposing_views=opposing_views,
         )
     return payload
+
+
+def skills_audit_payload(root: str | None = None) -> dict[str, object]:
+    skills_root = Path(root) if root else Path.cwd() / ".agents" / "skills"
+    report = audit_skill_root(skills_root)
+    return {
+        "command": "skills-audit",
+        "report": report,
+        "blockers": report.blockers,
+        "execution_allowed": False,
+        "installation_allowed": False,
+        "promotion_status": "RESEARCH_ONLY",
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+    }
+
+
+def privacy_boundary_payload(root: Path | None = None) -> dict[str, object]:
+    repo_root = root or Path.cwd()
+    report = scan_privacy_boundary(repo_root)
+    return {
+        "command": "privacy-boundary",
+        "report": report,
+        "status": report.status,
+        "blockers": report.blockers,
+        "execution_allowed": False,
+        "promotion_status": "RESEARCH_ONLY",
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+    }
 
 
 def scan_command_payload(

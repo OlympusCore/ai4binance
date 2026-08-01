@@ -44,6 +44,7 @@ State/*.html
 State/*.lock
 State/binance-accounting-local/
 State/private/
+skill-staging/
 Secrets/*
 !Secrets/.gitkeep
 Models/*

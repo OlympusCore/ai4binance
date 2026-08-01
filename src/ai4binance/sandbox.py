@@ -151,6 +151,7 @@ _FORBIDDEN_CALLS = frozenset(
     {"__import__", "compile", "eval", "exec", "getattr", "input", "open"}
 )
 _FORBIDDEN_NODES = (ast.Global, ast.Nonlocal)
+_SANDBOX_BACKEND_FAILURES = (RuntimeError, OSError, TimeoutError, ValueError)
 
 
 def validate_experiment_source(
@@ -226,7 +227,7 @@ class ExperimentSandbox:
         )
         try:
             output = self.backend.execute(manifest, source)
-        except Exception:
+        except _SANDBOX_BACKEND_FAILURES:
             return self._blocked(
                 experiment_id,
                 source_hash,

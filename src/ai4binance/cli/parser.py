@@ -175,6 +175,39 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Prefer multi-agent debate for pressure testing.",
     )
+    parser.add_argument(
+        "--skills-root",
+        default=None,
+        help="Skill directory or directory containing skill folders.",
+    )
+    parser.add_argument(
+        "--source-file",
+        default=None,
+        help="Offline JSON candidate file for skill-discovery commands.",
+    )
+    parser.add_argument(
+        "--max-candidates",
+        type=int,
+        default=10,
+        help="Maximum external skill discovery candidates per cycle.",
+    )
+    parser.add_argument(
+        "--min-score",
+        type=float,
+        default=0.85,
+        help="Minimum deterministic score for quarantined skill drafts.",
+    )
+    parser.add_argument(
+        "--interval-seconds",
+        type=float,
+        default=None,
+        help="Skill discovery daemon interval; defaults to Settings.",
+    )
+    parser.add_argument(
+        "--prompt-file",
+        default=None,
+        help="UTF-8 file containing raw prompt text for enterprise-intake.",
+    )
     return parser
 
 

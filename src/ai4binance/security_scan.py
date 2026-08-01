@@ -8,6 +8,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Protocol
 
+_SECURITY_SCANNER_FAILURES = (RuntimeError, OSError, TimeoutError, ValueError)
+
 
 class SecurityScanStatus(StrEnum):
     """Security scan lifecycle without automatic remediation authority."""
@@ -116,7 +118,7 @@ class SecurityScanService:
             )
         try:
             artifact = self.scanner.scan(request)
-        except Exception:
+        except _SECURITY_SCANNER_FAILURES:
             return SecurityScanArtifact(
                 scan_id=request.scan_id,
                 scanner_name=self.scanner.name,

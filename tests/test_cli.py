@@ -62,6 +62,8 @@ def test_cli_command_catalog_has_unique_names_and_safe_aliases() -> None:
     assert canonical_command("ops") == "opportunities"
     assert canonical_command("backtests") == "validation-summary"
     assert canonical_command("live-preview") == "live-preview-spot"
+    assert canonical_command("privacy-boundary") == "privacy-boundary"
+    assert canonical_command("qaqc-audit") == "quality-system-audit"
     assert canonical_command("scan", "spot") == "scan-spot"
     assert canonical_command("scan", "futures") == "scan-futures"
     assert canonical_command("scan", "all") == "scan-all"
@@ -84,6 +86,38 @@ def test_commands_cli_lists_grouped_user_friendly_help(
     assert "[validation]" in output
     assert "validation-summary" in output
     assert "LIVE_ORDER_BLOCKED" not in output
+
+
+def test_privacy_boundary_cli_reports_redacted_findings(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    profile_marker = "LOCAL-DEVICE-ALPHA"
+    (tmp_path / "Computer.md").write_text(
+        f"Device: {profile_marker}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "Docs").mkdir()
+    (tmp_path / "Docs" / "leak.md").write_text(
+        f"Copied local detail: {profile_marker}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["privacy-boundary"]) == 2
+
+    output = capsys.readouterr().out
+    payload = json.loads(output)
+    assert payload["command"] == "privacy-boundary"
+    assert payload["status"] == "BLOCKED"
+    assert payload["report"]["finding_count"] == 1
+    assert payload["report"]["findings"][0]["file_path"] == "Docs/leak.md"
+    assert "PERSONAL_INFO_OUTSIDE_COMPUTER_MD" in payload["blockers"]
+    assert profile_marker not in output
+    assert payload["execution_allowed"] is False
+    assert payload["promotion_status"] == "RESEARCH_ONLY"
+    assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
 
 
 def test_summary_alias_and_text_output_remain_fail_closed(
@@ -250,6 +284,104 @@ def test_agentic_skills_command_reports_catalog_and_safe_recommendation(
     assert plan["execution_allowed"] is False
     assert plan["promotion_status"] == "RESEARCH_ONLY"
     assert plan["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_skills_audit_command_reports_read_only_blockers(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    skill_dir = tmp_path / "risky-skill"
+    skill_dir.mkdir()
+    (skill_dir / "scripts").mkdir()
+    (skill_dir / "SKILL.md").write_text(
+        "\n".join(
+            (
+                "---",
+                "name: risky-skill",
+                "description: Use when reviewing skills.",
+                "allowed-tools: Bash(git:*) Read",
+                "---",
+                "# Risky Skill",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    assert main(["skills-audit", "--skills-root", str(tmp_path)]) == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["command"] == "skills-audit"
+    assert payload["report"]["skill_count"] == 1
+    assert "SKILL_SCRIPT_REVIEW_REQUIRED" in payload["blockers"]
+    assert payload["execution_allowed"] is False
+    assert payload["installation_allowed"] is False
+    assert payload["promotion_status"] == "RESEARCH_ONLY"
+    assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+    assert (
+        main(["skills-audit", "--skills-root", str(tmp_path), "--format", "text"]) == 2
+    )
+    output = capsys.readouterr().out
+    assert "Agent Skills audit" in output
+    assert "SKILL_SCRIPT_REVIEW_REQUIRED" in output
+
+
+def test_enterprise_intake_cli_outputs_summary_only_directive(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    prompt_file = tmp_path / "prompt.txt"
+    prompt_file.write_text(
+        "CODEX_PROMPT: apply holding governance. SECRET=hidden-value",
+        encoding="utf-8",
+    )
+
+    assert main(["enterprise-intake", "--prompt-file", str(prompt_file)]) == 0
+
+    output = capsys.readouterr().out
+    payload = json.loads(output)
+    assert payload["command"] == "enterprise-intake"
+    assert payload["status"] == "READY_FOR_GENERAL_MANAGER_REVIEW"
+    assert payload["prompt"]["raw_prompt_visibility"] == "GENERAL_MANAGER_ONLY"
+    assert payload["prompt"]["department_visibility"] == "DEPARTMENT_SUMMARY"
+    assert "hidden-value" not in output
+    assert "CODEX_PROMPT" not in output
+    assert payload["directive"]["execution_allowed"] is False
+    assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_enterprise_intake_cli_fails_closed_without_prompt_file(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert main(["enterprise-intake"]) == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "BLOCKED"
+    assert payload["blockers"] == ["ENTERPRISE_PROMPT_FILE_REQUIRED"]
+    assert payload["execution_allowed"] is False
+    assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_quality_system_audit_cli_reports_quality_department_review(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert main(["quality-system-audit"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["command"] == "quality-system-audit"
+    assert payload["status"] == "PASSED"
+    assert payload["blockers"] == []
+    assert payload["report"]["manager_id"] == "QualityDepartmentManager"
+    assert payload["execution_allowed"] is False
+    assert payload["promotion_status"] == "RESEARCH_ONLY"
+    assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_qaqc_audit_cli_alias_runs_quality_system_audit(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert main(["qaqc-audit", "--format", "text"]) == 0
+    output = capsys.readouterr().out
+    assert "quality-system-audit" in output
+    assert "PASSED" in output
+    assert "LIVE_ORDER_BLOCKED" in output
 
 
 def public_snapshot() -> MarketSnapshot:

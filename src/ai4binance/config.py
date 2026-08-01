@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     evidence_artifact_directory: Path = Path("Artifacts")
     second_brain_index_path: Path = Path("State/second-brain-index.json")
     runtime_state_path: Path = Path("State/runtime.json")
+    skill_discovery_state_path: Path = Path("State/skill-discovery.json")
+    skill_discovery_ledger_path: Path = Path("Logs/skill_discovery_events.jsonl")
+    skill_discovery_staging_directory: Path = Path("skill-staging/continuous-discovery")
+    skill_discovery_interval_seconds: float = 3_600.0
     private_runtime_state_path: Path = Path("State/private/account-management.json")
     management_ledger_path: Path = Path("Logs/wallet_management_events.jsonl")
     manual_approval_queue_path: Path = Path("State/manual-approvals.jsonl")
@@ -229,6 +233,13 @@ class Settings(BaseSettings):
     def validate_runtime_interval(cls, value: float) -> float:
         if not 5.0 <= value <= 3600.0:
             raise ValueError("runtime cycle interval must be between 5 and 3600")
+        return value
+
+    @field_validator("skill_discovery_interval_seconds")
+    @classmethod
+    def validate_skill_discovery_interval(cls, value: float) -> float:
+        if not 300.0 <= value <= 86_400.0:
+            raise ValueError("skill discovery interval must be between 300 and 86400")
         return value
 
     @field_validator("private_credentials_file")

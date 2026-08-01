@@ -12,6 +12,11 @@ __path__ = [str(Path(__file__).with_suffix(""))]
 
 from ai4binance.cli.accounting import run_accounting_command
 from ai4binance.cli.commands import command_catalog_payload
+from ai4binance.cli.enterprise import (
+    run_enterprise_intake,
+    run_quality_system_audit_command,
+    run_repository_cleanup_audit_command,
+)
 from ai4binance.cli.live import run_live_place_spot, run_live_preview_spot
 from ai4binance.cli.output import render_payload
 from ai4binance.cli.parser import (
@@ -27,6 +32,7 @@ from ai4binance.cli.research import (
     run_validate_research,
 )
 from ai4binance.cli.runtime import build_read_only_runtime, run_runtime_command
+from ai4binance.cli.skill_discovery import run_skill_discovery_command
 from ai4binance.cli.status import (
     agentic_skills_payload,
     agents_payload,
@@ -35,7 +41,9 @@ from ai4binance.cli.status import (
     manual_actions_payload,
     opportunities_payload,
     portfolio_command_payload,
+    privacy_boundary_payload,
     scan_command_payload,
+    skills_audit_payload,
     validation_summary_payload,
 )
 from ai4binance.cli.voice import run_voice_command
@@ -194,6 +202,44 @@ def main(
         )
         _print_payload(payload, output_format=parsed.output_format, command=command)
         return 0
+
+    if command == "skills-audit":
+        payload = skills_audit_payload(parsed.skills_root)
+        _print_payload(payload, output_format=parsed.output_format, command=command)
+        return 0 if not payload["blockers"] else 2
+
+    if command in {
+        "skill-discovery-once",
+        "skill-discovery-daemon",
+        "skill-discovery-status",
+    }:
+        return run_skill_discovery_command(
+            command,
+            settings,
+            output_format=parsed.output_format,
+            source_file=parsed.source_file,
+            max_candidates=parsed.max_candidates,
+            min_score=parsed.min_score,
+            interval_seconds=parsed.interval_seconds,
+            max_cycles=parsed.max_cycles,
+        )
+
+    if command == "privacy-boundary":
+        payload = privacy_boundary_payload()
+        _print_payload(payload, output_format=parsed.output_format, command=command)
+        return 0 if not payload["blockers"] else 2
+
+    if command == "enterprise-intake":
+        return run_enterprise_intake(
+            prompt_file=parsed.prompt_file,
+            output_format=parsed.output_format,
+        )
+
+    if command == "quality-system-audit":
+        return run_quality_system_audit_command(output_format=parsed.output_format)
+
+    if command == "repository-cleanup-audit":
+        return run_repository_cleanup_audit_command(output_format=parsed.output_format)
 
     if command in {
         "analyze-public",

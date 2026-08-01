@@ -1,6 +1,6 @@
 # Uyumluluk Matrisi — ELI5
 
-Son denetim: **2026-07-14**
+Son denetim: **güncel yerel kalite kapısı**
 
 Bu belge “dosya var mı?” değil, “kod var mı, test var mı, gerçek akışa bağlı mı
 ve gerekli dış kanıt mevcut mu?” sorularını ayrı ayrı değerlendirir.
@@ -21,6 +21,12 @@ ve gerekli dış kanıt mevcut mu?” sorularını ayrı ayrı değerlendirir.
 | Dependency-aware paralel orchestrator | `agents/orchestrator.py`, `agents/telemetry.py`, ilgili testler | TAMAM | Hard process-timeout yalnız izole backend ile mümkün |
 | Agent governance registry | `agents/catalog.py`, `agents/registry.py`, `test_agent_registry.py` | TAMAM | Hard-gate promotion kanıtı yok |
 | Agentic workflow pattern catalog | `governance/agentic_patterns.py`, `.agents/skills/agentic-workflow-patterns`, `test_agentic_patterns.py` | TAMAM | Pattern seçimi ve plan kontratı var; autonomous/live execution yok |
+| Enterprise holding governance | `enterprise/`, `Docs/HOLDING_GOVERNANCE.md`, `test_enterprise_*` | TAMAM | Genel Müdür/QAQC/work-order katmanı yönetim ve audit üretir; execution yetkisi vermez |
+| Agent lifecycle state machine | `enterprise/agent_lifecycle.py`, `test_enterprise_agent_lifecycle.py` | TAMAM | Typed `IDLE` → `PERCEIVE` → `REASON` → `PLAN` → `ACT` → `OBSERVE` → `HUMAN_CHECK` → terminal akış var; canlı yetki yok |
+| Privacy boundary / `Computer.md` | `privacy_boundary.py`, `enterprise/quality_audit.py`, `test_privacy_boundary.py`, `test_enterprise_quality_audit.py` | TAMAM | Yerel bilgisayar profili sadece `Computer.md` referansı ile kullanılır; başka dosyaya kopyalama QAQC blocker üretir |
+| QAQC system audit | `enterprise/quality_audit.py`, `cli/enterprise.py`, `test_enterprise_quality_audit.py` | TAMAM | `quality-system-audit` report-only kalır; `WRITTEN_APPROVAL_DOC_SYNC`, `RESEARCH_ONLY` ve `LIVE_ORDER_BLOCKED` sabittir |
+| MultiOps control plane | `multiops/`, `enterprise/multiops_control.py`, `test_multiops_contracts.py`, `test_enterprise_multiops_control.py` | KISMİ | AIOps/MLOps/LLMOps/RAGOps/AgentOps/DataOps/DevSecOps/TradeOps typed registry var; gerçek unattended runner yetkisi yok |
+| Agent skills governance | `skills/`, `governance/supply_chain.py`, `Docs/SKILLS_GOVERNANCE.md`, `test_skill_linter.py` | TAMAM | Dış skill/tool declaration karantina ve insan incelemesi gerektirir; live execution yok |
 | Public Spot REST acquisition | `exchange/client.py`, `data/acquisition.py`, ilgili testler | TAMAM | WebSocket streaming değil |
 | Binance Vision historical ingestion | `data/binance_vision.py`, `test_binance_vision.py` | TAMAM | Uzun dönem dataset'in gerçekten indirilmesi operatör işi |
 | Binance Vision bütünlük/güvenlik | SHA-256, host allowlist, HTTPS, bounded response | TAMAM | Upstream erişilebilirliği dış bağımlılık |

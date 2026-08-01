@@ -40,6 +40,65 @@ COMMAND_SPECS: tuple[CliCommandSpec, ...] = (
         "Recommend a governed workflow pattern for a bounded task.",
     ),
     CliCommandSpec(
+        "skills-audit",
+        "governance",
+        "Audit repo-local Agent Skills without installing or executing them.",
+        examples=(
+            "skills-audit --format text",
+            "skills-audit --skills-root .agents/skills",
+        ),
+    ),
+    CliCommandSpec(
+        "skill-discovery-once",
+        "governance",
+        "Run one quarantine-first external Agent Skill discovery cycle.",
+        examples=(
+            "skill-discovery-once --max-candidates 3 --format text",
+            "skill-discovery-once --source-file candidates.json",
+        ),
+    ),
+    CliCommandSpec(
+        "skill-discovery-daemon",
+        "governance",
+        "Run continuous skill discovery while the computer session is active.",
+        examples=("skill-discovery-daemon --max-cycles 1",),
+    ),
+    CliCommandSpec(
+        "skill-discovery-status",
+        "governance",
+        "Read the last continuous skill discovery state.",
+        examples=("skill-discovery-status --format text",),
+    ),
+    CliCommandSpec(
+        "privacy-boundary",
+        "governance",
+        "Scan for Computer.md-derived local personal details outside Computer.md.",
+        examples=("privacy-boundary --format text",),
+    ),
+    CliCommandSpec(
+        "enterprise-intake",
+        "governance",
+        "Convert a raw prompt file into a General Manager summary-only directive.",
+        examples=("enterprise-intake --prompt-file prompt.txt",),
+    ),
+    CliCommandSpec(
+        "quality-system-audit",
+        "governance",
+        "Run the QAQC enterprise system audit.",
+        aliases=("qaqc-audit",),
+        examples=("qaqc-audit --format text", "quality-system-audit --format text"),
+    ),
+    CliCommandSpec(
+        "repository-cleanup-audit",
+        "governance",
+        "Run the report-only repository cleanup and stability audit.",
+        aliases=("cleanup-audit",),
+        examples=(
+            "repository-cleanup-audit --format text",
+            "cleanup-audit --format json",
+        ),
+    ),
+    CliCommandSpec(
         "lean-governance",
         "governance",
         "Review operational excellence guardrails.",

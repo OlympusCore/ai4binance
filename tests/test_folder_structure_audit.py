@@ -78,3 +78,22 @@ def test_folder_audit_marks_protected_state_for_manual_review(
     assert entries[".venv"].recommendation == FolderRecommendation.KEEP
     assert entries["Secrets"].cleanup_probe_status == "NOT_APPLICABLE"
     assert all(entry.recommendation != "DELETE" for entry in report.folders)
+
+
+def test_folder_audit_classifies_skill_staging_as_quarantined_review_area(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "skill-staging").mkdir()
+    output = tmp_path / "Artifacts" / "folder-structure-audit"
+
+    report = FolderStructureAuditWriter(
+        FolderStructureAuditConfig(tmp_path, output)
+    ).run(clock=lambda: NOW)
+
+    entries = {entry.path: entry for entry in report.folders}
+    staging = entries["skill-staging"]
+    assert staging.classification == "QUARANTINED_SKILL_STAGING"
+    assert staging.recommendation == FolderRecommendation.REVIEW_MANUALLY
+    assert staging.gitignore_expected is True
+    assert staging.cleanup_probe_status == "NOT_APPLICABLE"
+    assert "manual review and PR approval" in staging.rationale

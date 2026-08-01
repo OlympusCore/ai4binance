@@ -15,8 +15,10 @@ from ai4binance.governance.supply_chain import (
     ExternalCapability,
     ExternalComponentManifest,
     ExternalResearchIntake,
+    ExternalSkillManifest,
     SupplyChainAssessment,
     assess_external_component,
+    assess_external_skill,
 )
 from ai4binance.research_catalog import CatalogStatus, ResearchCatalogEntry
 
@@ -109,6 +111,36 @@ def test_supply_chain_quarantines_missing_review_and_risky_capabilities() -> Non
         "EXTERNAL_HUMAN_APPROVAL_MISSING",
         "EXTERNAL_HIGH_RISK_CAPABILITY_DECLARED",
     )
+
+
+def test_external_skill_manifest_keeps_allowed_tools_and_scripts_quarantined() -> None:
+    skill = ExternalSkillManifest(
+        component=manifest(),
+        skill_name="agent-skills-example",
+        allowed_tools_declared="Bash(git:*) Read",
+        scripts_declared=True,
+        references_declared=True,
+    )
+    result = assess_external_skill(
+        skill,
+        license_compatible=True,
+        security_scan_passed=True,
+        sandbox_review_passed=True,
+        human_approved=True,
+    )
+
+    assert result.approved_for_isolated_experiment is False
+    assert result.quarantine_required is True
+    assert result.blockers == (
+        "EXTERNAL_ALLOWED_TOOLS_UNENFORCED",
+        "EXTERNAL_SKILL_SCRIPT_DECLARED",
+    )
+    assert result.execution_allowed is False
+    assert result.live_eligibility_status == "LIVE_ORDER_BLOCKED"
+    with pytest.raises(ValueError, match="cannot grant authority"):
+        replace(skill, installation_allowed=True)
+    with pytest.raises(ValueError, match="skill name"):
+        replace(skill, skill_name="Bad_Name")
 
 
 def test_external_research_intake_binds_pinned_evidence_without_authority() -> None:

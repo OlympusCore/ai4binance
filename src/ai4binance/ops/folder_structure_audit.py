@@ -295,6 +295,16 @@ def _classify_path(
             "protected local state; do not delete in a broad cleanup",
             True,
         )
+    if name == "skill-staging":
+        return (
+            "QUARANTINED_SKILL_STAGING",
+            FolderRecommendation.REVIEW_MANUALLY,
+            (
+                "continuous-discovery skill drafts and admission records; "
+                "keep quarantined until manual review and PR approval"
+            ),
+            True,
+        )
     if name in {"Logs", "Artifacts/TestTemp", "Artifacts/maintenance-archive"}:
         return (
             "GENERATED_RUNTIME_ARTIFACT",
@@ -583,13 +593,16 @@ def _build_recommendations(
     recommendations.append(
         FolderCleanupRecommendation(
             priority=5,
-            title="Review unclassified project folders manually",
+            title="Review manual-scope folders",
             paths=tuple(
                 folder.path
                 for folder in folders
                 if folder.recommendation is FolderRecommendation.REVIEW_MANUALLY
             ),
-            action="Assign owner or evidence purpose before any cleanup.",
+            action=(
+                "Assign owner, evidence purpose, or quarantine status before "
+                "any cleanup."
+            ),
             safety_notes=(
                 "Manual review prevents deleting research evidence or private state.",
             ),

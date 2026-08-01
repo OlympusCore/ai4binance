@@ -12,6 +12,7 @@ from ai4binance.research_catalog import CatalogStatus, ResearchCatalogEntry
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _GIT_COMMIT = re.compile(r"^[0-9a-f]{40}$")
+_SKILL_NAME = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$")
 
 
 class ExternalCapability(StrEnum):
@@ -99,6 +100,32 @@ class SupplyChainAssessment:
             raise ValueError("supply-chain assessment cannot grant authority")
 
 
+@dataclass(frozen=True, slots=True)
+class ExternalSkillManifest:
+    """External Agent Skill evidence bound to supply-chain review.
+
+    The Agent Skills `allowed-tools` field is treated as an advisory declaration,
+    not as an enforceable security gate.
+    """
+
+    component: ExternalComponentManifest
+    skill_name: str
+    allowed_tools_declared: str | None = None
+    scripts_declared: bool = False
+    references_declared: bool = False
+    execution_allowed: bool = False
+    installation_allowed: bool = False
+    live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
+
+    def __post_init__(self) -> None:
+        if not _SKILL_NAME.fullmatch(self.skill_name) or "--" in self.skill_name:
+            raise ValueError("external skill name is invalid")
+        if self.execution_allowed or self.installation_allowed:
+            raise ValueError("external skill manifest cannot grant authority")
+        if self.live_eligibility_status != "LIVE_ORDER_BLOCKED":
+            raise ValueError("external skill manifest must remain live-order blocked")
+
+
 def assess_external_component(
     manifest: ExternalComponentManifest,
     *,
@@ -119,6 +146,37 @@ def assess_external_component(
         blockers.append("EXTERNAL_HIGH_RISK_CAPABILITY_DECLARED")
     return SupplyChainAssessment(
         component_id=manifest.component_id,
+        approved_for_isolated_experiment=not blockers,
+        quarantine_required=bool(blockers),
+        blockers=tuple(blockers),
+    )
+
+
+def assess_external_skill(
+    manifest: ExternalSkillManifest,
+    *,
+    license_compatible: bool,
+    security_scan_passed: bool,
+    sandbox_review_passed: bool,
+    human_approved: bool,
+) -> SupplyChainAssessment:
+    base = assess_external_component(
+        manifest.component,
+        license_compatible=license_compatible,
+        security_scan_passed=security_scan_passed,
+        sandbox_review_passed=sandbox_review_passed,
+        human_approved=human_approved,
+    )
+    blockers = list(base.blockers)
+    if manifest.allowed_tools_declared:
+        blockers.append("EXTERNAL_ALLOWED_TOOLS_UNENFORCED")
+    if manifest.scripts_declared:
+        blockers.append("EXTERNAL_SKILL_SCRIPT_DECLARED")
+    if manifest.references_declared and not security_scan_passed:
+        blockers.append("EXTERNAL_SKILL_REFERENCES_UNREVIEWED")
+    blockers = list(dict.fromkeys(blockers))
+    return SupplyChainAssessment(
+        component_id=manifest.component.component_id,
         approved_for_isolated_experiment=not blockers,
         quarantine_required=bool(blockers),
         blockers=tuple(blockers),

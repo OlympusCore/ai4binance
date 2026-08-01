@@ -11,6 +11,8 @@ from types import MappingProxyType
 from typing import Protocol
 from urllib.parse import urlparse
 
+_PROVIDER_FAILURES = (RuntimeError, OSError, TimeoutError, ValueError)
+
 
 class ProviderHealthStatus(StrEnum):
     """Operational state of one read-only context provider."""
@@ -278,7 +280,7 @@ class MarketContextRegistry:
                 continue
             try:
                 fetched = provider.fetch(request)
-            except Exception:
+            except _PROVIDER_FAILURES:
                 blockers.append(f"MARKET_CONTEXT_FETCH_FAILED:{provider_id}")
                 continue
             for event in fetched:
@@ -311,7 +313,7 @@ class MarketContextRegistry:
     ) -> ProviderHealth:
         try:
             health = provider.health(checked_at)
-        except Exception:
+        except _PROVIDER_FAILURES:
             return ProviderHealth(
                 provider_id=provider.capability.provider_id,
                 checked_at=checked_at,

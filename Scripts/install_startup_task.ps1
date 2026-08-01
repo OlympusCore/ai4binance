@@ -1,10 +1,11 @@
 param(
-    [ValidateSet("Install", "RunRuntime", "RunVoice", "RunValidation", "RunAccounting", "RunAccountingWs")]
+    [ValidateSet("Install", "RunRuntime", "RunVoice", "RunValidation", "RunAccounting", "RunAccountingWs", "RunSkillDiscovery")]
     [string]$Mode = "Install",
     [switch]$EnableVoiceTask,
     [switch]$EnableValidationTask,
     [switch]$EnableAccountingTask,
-    [switch]$EnableAccountingWsTask
+    [switch]$EnableAccountingWsTask,
+    [switch]$EnableSkillDiscoveryTask
 )
 
 $ErrorActionPreference = "Stop"
@@ -95,28 +96,14 @@ function Start-BoundedService {
     $stderrPath = Join-Path $logDirectory "$Service.stderr.log"
     Rotate-LogFile -Path $stdoutPath
     Rotate-LogFile -Path $stderrPath
-    Write-ServiceHealth -Path $healthPath -Service $Service -Status "STARTING"
-    $process = Start-Process -FilePath $python `
-        -ArgumentList @("-m", "ai4binance.cli", $Command) `
-        -WorkingDirectory $root `
-        -WindowStyle Hidden `
-        -RedirectStandardOutput $stdoutPath `
-        -RedirectStandardError $stderrPath `
-        -PassThru
-    $trackedProcessId = Find-ServiceProcess -LauncherProcessId $process.Id -Command $Command
-    $trackedProcess = Get-Process -Id $trackedProcessId -ErrorAction SilentlyContinue
-    if ($null -eq $trackedProcess) {
-        $trackedProcess = $process
-        $trackedProcessId = $process.Id
+    Write-ServiceHealth -Path $healthPath -Service $Service -Status "RUNNING" -ProcessId $PID
+    Push-Location -LiteralPath $root
+    try {
+        & $python -m ai4binance.cli $Command 1>> $stdoutPath 2>> $stderrPath
+        $exitCode = [int]$LASTEXITCODE
+    } finally {
+        Pop-Location
     }
-    Write-ServiceHealth -Path $healthPath -Service $Service -Status "RUNNING" -ProcessId $trackedProcessId
-    while (-not $trackedProcess.WaitForExit(30000)) {
-        Write-ServiceHealth -Path $healthPath -Service $Service -Status "RUNNING" -ProcessId $trackedProcessId
-        $trackedProcess.Refresh()
-    }
-    $trackedProcess.WaitForExit()
-    $trackedProcess.Refresh()
-    $exitCode = if ($null -ne $trackedProcess.ExitCode) { [int]$trackedProcess.ExitCode } else { 0 }
     $finalStatus = if ($exitCode -eq 0) { "STOPPED" } else { "FAILED" }
     Write-ServiceHealth -Path $healthPath -Service $Service -Status $finalStatus -ExitCode $exitCode
     exit $exitCode
@@ -160,12 +147,16 @@ if ($Mode -eq "RunAccounting") {
 if ($Mode -eq "RunAccountingWs") {
     Start-BoundedService -Service "accounting-ws" -Command "accounting-ws-daemon"
 }
+if ($Mode -eq "RunSkillDiscovery") {
+    Start-BoundedService -Service "skill-discovery" -Command "skill-discovery-daemon"
+}
 
 $taskName = "AI4BINANCE-ReadOnly-Runtime"
 $voiceTaskName = "AI4BINANCE-Voice-Assistant"
 $validationTaskName = "AI4BINANCE-Research-Validation"
 $accountingTaskName = "AI4BINANCE-Accounting-Collector"
 $accountingWsTaskName = "AI4BINANCE-Accounting-WebSocket-Collector"
+$skillDiscoveryTaskName = "AI4BINANCE-Skill-Discovery"
 $credentials = Join-Path $root "Secrets\bnc.env"
 $privateState = Join-Path $stateDirectory "private"
 
@@ -211,7 +202,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "Could not restrict credential file ACLs."
 }
 
-$powerShell = Join-Path $PSHOME "powershell.exe"
+$powerShell = (Get-Command powershell.exe -ErrorAction Stop).Source
 $scriptPath = $PSCommandPath
 $action = New-ScheduledTaskAction `
     -Execute $powerShell `
@@ -307,6 +298,23 @@ if ($EnableAccountingWsTask) {
     Unregister-ScheduledTask -TaskName $accountingWsTaskName -Confirm:$false -ErrorAction SilentlyContinue
 }
 
+if ($EnableSkillDiscoveryTask) {
+    $skillDiscoveryAction = New-ScheduledTaskAction `
+        -Execute $powerShell `
+        -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$scriptPath`" -Mode RunSkillDiscovery" `
+        -WorkingDirectory $root
+    Register-ScheduledTask `
+        -TaskName $skillDiscoveryTaskName `
+        -Action $skillDiscoveryAction `
+        -Trigger $trigger `
+        -Principal $principal `
+        -Settings $settings `
+        -Description "AI4BINANCE quarantine-first continuous Agent Skill discovery" `
+        -Force | Out-Null
+} else {
+    Unregister-ScheduledTask -TaskName $skillDiscoveryTaskName -Confirm:$false -ErrorAction SilentlyContinue
+}
+
 Get-ScheduledTask -TaskName $taskName | Select-Object TaskName, State
 Get-ScheduledTask -TaskName $voiceTaskName -ErrorAction SilentlyContinue |
     Select-Object TaskName, State
@@ -315,4 +323,6 @@ Get-ScheduledTask -TaskName $validationTaskName -ErrorAction SilentlyContinue |
 Get-ScheduledTask -TaskName $accountingTaskName -ErrorAction SilentlyContinue |
     Select-Object TaskName, State
 Get-ScheduledTask -TaskName $accountingWsTaskName -ErrorAction SilentlyContinue |
+    Select-Object TaskName, State
+Get-ScheduledTask -TaskName $skillDiscoveryTaskName -ErrorAction SilentlyContinue |
     Select-Object TaskName, State

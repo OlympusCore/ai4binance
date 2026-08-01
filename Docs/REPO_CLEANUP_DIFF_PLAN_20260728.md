@@ -24,6 +24,25 @@ many files are untracked. No trading authority is widened by this plan.
   - `Tools`: 62.05 MB
   - `Data`: 19.63 MB
 
+## Artifact Hygiene Follow-up
+
+The cleanup policy now treats coverage outputs as generated quality artifacts:
+
+- `Scripts/quality.ps1` removes stale root coverage outputs before pytest.
+- The full quality gate writes coverage data to a unique file under
+  `Artifacts/TestTemp` for the current run.
+- `Scripts/cleanup_generated_artifacts.ps1` supports `Coverage` mode for
+  `.coverage`, `.coverage.*`, `coverage.xml`, and `htmlcov`.
+- `All` mode includes `Coverage`, `Caches`, `TestTempRetention`, and
+  `LogsArchive`.
+- Written approval permits `-ForceAcl` for stale `Artifacts/TestTemp` children
+  only. The script verifies the path is inside `Artifacts/TestTemp`, repairs
+  ownership/ACL, and then retries removal with PowerShell `Remove-Item`.
+- `Docs/FOLDER_OWNERSHIP.md` records coverage artifacts as `GENERATED`.
+
+This is artifact hygiene only. It does not change coverage thresholds, omit
+rules, trading authority, risk gates, or live eligibility.
+
 ## Safety Boundary
 
 - Do not read, copy, stage, or delete secret values.
@@ -62,7 +81,7 @@ Planned diff:
 - `Scripts/cleanup_generated_artifacts.ps1`
   - Keep dry-run as default.
   - Add explicit mode names for `Caches`, `TestTempRetention`, and
-    `LogsArchive`.
+    `LogsArchive`, and `Coverage`.
   - Persist dry-run manifests under ignored `Artifacts/maintenance-archive`.
 - `src/ai4binance/ops/folder_structure_audit.py`
   - Keep schema `1.1` fields:
@@ -78,7 +97,9 @@ Planned diff:
 
 Do not do automatically:
 
-- Do not force-take ownership of `.pytest_cache` without explicit approval.
+- Do not force-take ownership of `.pytest_cache` without a separate explicit
+  approval.
+- Do not use `-ForceAcl` outside stale direct children of `Artifacts/TestTemp`.
 - Do not delete `Logs` wholesale.
 
 Validation:
@@ -188,9 +209,13 @@ Planned diff:
   - Add retention values:
     - `Artifacts/TestTemp`: keep last 2 days by default.
     - `Logs`: archive files older than 7 days by default.
+    - Coverage artifacts: recreate per quality run.
     - `Backtest/validation`: archive only by explicit symbol/timeframe scope.
 - `Scripts/cleanup_generated_artifacts.ps1`
   - Add `-WhatIfSummaryPath` or equivalent manifest-only output path.
+  - Add `Coverage` mode for reproducible coverage outputs.
+  - Add `-ForceAcl` for written-approval-only stale `Artifacts/TestTemp`
+    ownership/permission repair.
   - Keep `-Apply` required for mutation.
 
 Validation:

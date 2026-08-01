@@ -10,16 +10,22 @@ Decision values:
 - `DELETE_EMPTY`: may be removed when confirmed empty and unreferenced.
 - `PROTECTED`: never broad-delete or stage content.
 - `GENERATED`: reproducible output; cleanup requires explicit mode or `-Apply`.
+- `ACL_FORCED_GENERATED`: generated `Artifacts/TestTemp` cleanup may repair
+  ownership/ACL only after written approval and repo-boundary verification.
 
 | Path | Owner area | Type | Decision | Retention | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `.pytest_cache` | Quality | Generated cache | GENERATED | diagnose first | Current blocker: ACL/ownership diagnosis before forced cleanup. |
+| `.pytest_cache` | Quality | Generated cache | GENERATED | on demand | Recreated by Pytest; safe for `Caches` cleanup mode without ACL forcing. |
 | `.mypy_cache` | Quality | Generated cache | GENERATED | on demand | Recreated by MyPy. |
 | `.ruff_cache` | Quality | Generated cache | GENERATED | on demand | Recreated by Ruff. |
 | `.test-tmp` | Quality | Generated temp | GENERATED | on demand | Historical test temp. |
-| `Artifacts/TestTemp` | Quality | Generated temp | GENERATED | 2 days | Use unique pytest basetemp directories. |
+| `.coverage` | Quality | Generated coverage | GENERATED | per quality run | Removed before full quality gate; recreated under isolated temp path. |
+| `.coverage.*` | Quality | Generated coverage | GENERATED | per quality run | Remove with `Coverage` cleanup mode. |
+| `coverage.xml` | Quality | Generated coverage | GENERATED | on demand | Recreated by coverage tooling. |
+| `htmlcov` | Quality | Generated coverage report | GENERATED | on demand | Recreated by coverage tooling. |
+| `Artifacts/TestTemp` | Quality | Generated temp | ACL_FORCED_GENERATED | 2 days | Use unique pytest basetemp directories. `-ForceAcl` is allowed only for stale direct children under this root after written approval; protected roots remain untouched. |
 | `Logs` | Observability | Generated evidence | ARCHIVE_LOCAL | 7 days active | Archive stale logs, do not bulk delete. |
-| `Artifacts/maintenance-archive` | Maintenance | Generated archive | ARCHIVE_LOCAL | manual | Contains cleanup manifests and archived logs. |
+| `Artifacts/maintenance-archive` | Maintenance | Generated archive | ARCHIVE_LOCAL | manual | Contains cleanup manifests and archived logs; ignored from Git. |
 | `Artifacts/folder-structure-audit` | Maintenance | Generated report | GENERATED | latest local | Ignored from Git. |
 | `Backtest/validation` | Research validation | Evidence | ARCHIVE_LOCAL | explicit scope | Supports RESEARCH_ONLY decisions. |
 | `Data` | Data acquisition | Domain state | KEEP_DOMAIN_ROOT | manual | May contain reproducibility inputs. |

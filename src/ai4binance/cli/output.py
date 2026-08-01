@@ -29,7 +29,7 @@ def render_payload(
     primitive = to_primitive(payload)
     if output_format == "text":
         return render_text(cast(dict[str, object], primitive), command=command)
-    return json.dumps(primitive, ensure_ascii=False, sort_keys=True)
+    return json.dumps(primitive, ensure_ascii=True, sort_keys=True)
 
 
 def render_text(payload: dict[str, object], *, command: str | None = None) -> str:
@@ -40,6 +40,10 @@ def render_text(payload: dict[str, object], *, command: str | None = None) -> st
         return _validation_summary_text(payload)
     if resolved == "opportunities":
         return _opportunities_text(payload)
+    if resolved == "skills-audit":
+        return _skills_audit_text(payload)
+    if resolved == "repository-cleanup-audit":
+        return _repository_cleanup_audit_text(payload)
     if resolved == "status":
         return _status_text(payload)
     return _generic_text(payload)
@@ -105,6 +109,82 @@ def _opportunities_text(payload: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+def _skills_audit_text(payload: dict[str, object]) -> str:
+    report = cast(Mapping[str, object], payload["report"])
+    lines = [
+        "Agent Skills audit",
+        f"- root: {report.get('root', '')}",
+        f"- skills: {report.get('skill_count', 0)}",
+        f"- issues: {report.get('issue_count', 0)}",
+        f"- blockers: {report.get('blocker_count', 0)}",
+        f"- high_risk_capabilities: {report.get('high_risk_capability_count', 0)}",
+        f"- live: {payload.get('live_eligibility_status', 'LIVE_ORDER_BLOCKED')}",
+    ]
+    blockers = _join(payload.get("blockers", ()))
+    if blockers:
+        lines.append(f"- blocker_codes: {blockers}")
+    issues = cast(Sequence[Mapping[str, object]], report.get("issues", ()))
+    for issue in issues[:8]:
+        lines.append(
+            "- "
+            f"{issue.get('severity', 'INFO')} "
+            f"{issue.get('code', 'SKILL_ISSUE')} "
+            f"{issue.get('message', '')}"
+        )
+    return "\n".join(lines)
+
+
+def _repository_cleanup_audit_text(payload: dict[str, object]) -> str:
+    report = cast(Mapping[str, object], payload["report"])
+    inventory = cast(Mapping[str, object], report["inventory"])
+    baseline = cast(Mapping[str, object], report["performance_baseline"])
+    dynamic_usage_files = cast(Sequence[object], report.get("dynamic_usage_files", ()))
+    static_unimported_files = cast(
+        Sequence[object], report.get("static_unimported_files", ())
+    )
+    folder_classifications = cast(
+        Sequence[Mapping[str, object]], report.get("folder_classifications", ())
+    )
+    static_classifications = cast(
+        Sequence[Mapping[str, object]],
+        report.get("static_unimported_classifications", ()),
+    )
+    exception_reviews = cast(
+        Sequence[Mapping[str, object]], report.get("broad_exception_reviews", ())
+    )
+    broad_exception_sites = cast(
+        Sequence[object], report.get("broad_exception_sites", ())
+    )
+    folder_decisions = _count_mapping_values(folder_classifications, "decision")
+    file_decisions = _count_mapping_values(static_classifications, "decision")
+    exception_statuses = _count_mapping_values(exception_reviews, "status")
+    lines = [
+        "Repository cleanup audit",
+        f"- status: {payload.get('status', 'REVIEW_REQUIRED')}",
+        f"- python_modules: {inventory.get('python_modules', 0)}",
+        f"- source_files: {inventory.get('source_files', 0)}",
+        f"- test_files: {inventory.get('test_files', 0)}",
+        f"- exact_import_cycles: {report.get('exact_import_cycle_count', 0)}",
+        f"- dynamic_usage_files: {len(dynamic_usage_files)}",
+        f"- static_unimported_files: {len(static_unimported_files)}",
+        f"- static_file_decisions: {_format_counts(file_decisions)}",
+        f"- folder_decisions: {_format_counts(folder_decisions)}",
+        f"- broad_exception_sites: {len(broad_exception_sites)}",
+        f"- exception_reviews: {_format_counts(exception_statuses)}",
+        f"- python_startup_ms: {baseline.get('python_startup_ms', 0)}",
+        f"- live: {payload.get('live_eligibility_status', 'LIVE_ORDER_BLOCKED')}",
+    ]
+    packages = cast(Sequence[Mapping[str, object]], report.get("work_packages", ()))
+    for package in packages:
+        lines.append(
+            "- "
+            f"{package.get('package_id', 'RF-000')} "
+            f"{package.get('priority', 'P?')} "
+            f"risk={package.get('risk', 'Unknown')}"
+        )
+    return "\n".join(lines)
+
+
 def _status_text(payload: dict[str, object]) -> str:
     live_gate = cast(Mapping[str, object], payload.get("live_gate", {}))
     blockers = _join(live_gate.get("blockers", ()))
@@ -146,3 +226,20 @@ def _join(value: object) -> str:
     if isinstance(value, Iterable):
         return ", ".join(str(item) for item in value)
     return ""
+
+
+def _count_mapping_values(
+    items: Sequence[Mapping[str, object]],
+    key: str,
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for item in items:
+        value = str(item.get(key, "UNKNOWN"))
+        counts[value] = counts.get(value, 0) + 1
+    return counts
+
+
+def _format_counts(counts: Mapping[str, int]) -> str:
+    if not counts:
+        return "none"
+    return ", ".join(f"{key}={counts[key]}" for key in sorted(counts))
