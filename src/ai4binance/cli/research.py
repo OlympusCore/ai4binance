@@ -30,11 +30,12 @@ from ai4binance.governance import (
 from ai4binance.outlook import MarketOutlookArtifactStore
 from ai4binance.rag import (
     AdvisoryProviderResult,
-    LlamaCppAdvisoryRunner,
     LocalRagIndexer,
     OllamaAdvisoryRunner,
+    RagEvidenceQualityStatus,
     RagSearchHit,
     render_rag_ui,
+    review_rag_evidence_quality,
 )
 from ai4binance.reporting import to_primitive
 from ai4binance.schemas import MarketSnapshot
@@ -152,10 +153,23 @@ def run_second_brain(
         )
         return 2
     index.write(settings.second_brain_index_path)
-    hits = index.query(resolved_query)
+    hits = index.query(
+        resolved_query,
+        source_prefixes=("Docs", "Artifacts", "Backtest/validation", "Data/market"),
+        authorities=("READ_ONLY", "RESEARCH_ONLY"),
+        classifications=("PUBLIC_RESEARCH",),
+    )
+    evidence_quality = review_rag_evidence_quality(
+        query_id=f"second-brain:{resolved_query}",
+        hits=hits,
+        citations=tuple(hit.source_uri for hit in hits),
+        now=datetime.now(UTC),
+    )
     advisory = (
         _run_local_advisory(_rag_prompt(resolved_query, hits), hits)
         if use_llm
+        and evidence_quality.status
+        is RagEvidenceQualityStatus.RESEARCH_ONLY_RAG_EVIDENCE
         else None
     )
     if render_ui:
@@ -169,6 +183,7 @@ def run_second_brain(
         "index_path": str(settings.second_brain_index_path),
         "query": resolved_query,
         "hits": hits,
+        "evidence_quality": evidence_quality,
         "advisory": advisory,
         "ui_path": str(ui_path) if ui_path is not None else None,
         "execution_allowed": False,
@@ -182,9 +197,6 @@ def _run_local_advisory(
     prompt: str,
     hits: tuple[RagSearchHit, ...],
 ) -> AdvisoryProviderResult:
-    llama_result = LlamaCppAdvisoryRunner().run(prompt, hits)
-    if "LOCAL_LLM_PROVIDER_UNAVAILABLE" not in llama_result.blockers:
-        return llama_result
     return OllamaAdvisoryRunner().run(prompt, hits)
 
 

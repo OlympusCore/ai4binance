@@ -1,5 +1,12 @@
 # Kaynak Proje Entegrasyonu
 
+## ELI10
+
+Bu belge baska projelerden ogrenilen fikirlerin AI4BINANCE'e nasil guvenli
+aktarildigini anlatir. Kod topluca kopyalanmaz; faydali fikirler yeniden,
+testli ve fail-closed kurallarla yazilir.
+
+
 Bu çalışma `ai4bspot`, `ai4bfutures` ve `ai4cryptotrade` incelemesinden çıkan
 fikirleri AI4BINANCE güvenlik sözleşmesi içinde yeniden uygular. Kaynak depolardan
 toplu dosya kopyalanmamıştır.
@@ -61,3 +68,4 @@ Gerçek testnet veya production emri bu entegrasyon sırasında gönderilmemişt
 - BNB/üçüncü varlık fee conversion için point-in-time fiyat kaynağı.
 - Kalıcı inventory bucket state ve allocation policy OOS doğrulaması.
 - Gerçek multi-venue provider adaptörleri ve uzun dönem OOS kanıtı.
+

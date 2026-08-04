@@ -11,6 +11,8 @@ from ai4binance.enterprise.communication import (
     DepartmentCommunicationGate,
 )
 from ai4binance.enterprise.contracts import (
+    OEK_AUTHORITY_SOURCE,
+    OEK_CONSTITUTION_CONTROL,
     DepartmentId,
     InterdepartmentalQuestion,
     Priority,
@@ -67,6 +69,8 @@ def test_prompt_intake_redacts_raw_prompt_and_builds_summary_only_directive() ->
     assert "CODEX_PROMPT" not in intake.sanitized_summary
     assert directive.objective == intake.objective
     assert "GENERAL_MANAGER_ONLY_RAW_PROMPT" in directive.constraints
+    assert OEK_AUTHORITY_SOURCE in directive.authority_scope
+    assert OEK_CONSTITUTION_CONTROL in directive.authority_scope
     assert directive.execution_allowed is False
     assert directive.live_eligibility_status == "LIVE_ORDER_BLOCKED"
 
@@ -196,6 +200,10 @@ def test_prompt_intake_rejects_summary_that_still_contains_restricted_marker() -
             sanitized_summary="CODEX_PROMPT: leak",
             objective="leak",
             constraints=("GENERAL_MANAGER_ONLY_RAW_PROMPT",),
-            authority_scope=("RESEARCH_ONLY",),
+            authority_scope=(
+                OEK_AUTHORITY_SOURCE,
+                OEK_CONSTITUTION_CONTROL,
+                "RESEARCH_ONLY",
+            ),
             evidence_refs=("prompt-sha256:" + "0" * 64,),
         )

@@ -7,16 +7,25 @@ import json
 import os
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol, cast
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
+from ai4binance.governance.workflow import (
+    AgentWorkspaceComponentEvidence,
+    AgentWorkspaceComponentReview,
+    AgentWorkspaceComponentType,
+    review_agent_workspace_component,
+)
 from ai4binance.reporting import to_primitive
 from ai4binance.skills.continuous_discovery import (
     LIBRARY_ADMISSION_APPROVAL_MARKER,
+    ContinuousDiscoveryStageId,
+    ContinuousDiscoveryStageReview,
+    ContinuousDiscoveryStageReviewerResult,
     ContinuousLearningCycleReport,
     DeterministicFilterDecision,
     DiscoveryCandidate,
@@ -77,6 +86,13 @@ _DEFAULT_READ_PATHS = (
     "pyproject.toml",
     "package.json",
     "requirements.txt",
+)
+_BASELINE_STAGE_BLOCKERS = frozenset(
+    {
+        "STAGE_REVIEW_READ_ONLY",
+        "HUMAN_REVIEW_REQUIRED",
+        "LIVE_ORDER_BLOCKED",
+    }
 )
 
 
@@ -142,6 +158,79 @@ class StaticDocumentationFetcher:
         return self.documents_by_repository.get(plan.candidate.repository, ())
 
 
+def review_discovery_stage(
+    *,
+    cycle_id: str,
+    stage_id: ContinuousDiscoveryStageId,
+    subject_id: str,
+    input_payload: object,
+    output_payload: object,
+    citations: tuple[str, ...],
+    blockers: tuple[str, ...] = (),
+) -> ContinuousDiscoveryStageReview:
+    normalized_citations = tuple(dict.fromkeys(citations))
+    stage_blockers = list(blockers)
+    if not normalized_citations:
+        normalized_citations = ("artifact://stage-citation-missing",)
+        stage_blockers.append("STAGE_CITATION_REQUIRED")
+    stage_blockers.extend(_BASELINE_STAGE_BLOCKERS)
+    unique_blockers = tuple(dict.fromkeys(stage_blockers))
+    reviewer_result = (
+        ContinuousDiscoveryStageReviewerResult.WATCHLIST
+        if any(blocker not in _BASELINE_STAGE_BLOCKERS for blocker in unique_blockers)
+        else ContinuousDiscoveryStageReviewerResult.PASSED
+    )
+    return ContinuousDiscoveryStageReview(
+        cycle_id=cycle_id,
+        stage_id=stage_id,
+        subject_id=subject_id,
+        input_sha256=_payload_sha256(input_payload),
+        output_sha256=_payload_sha256(output_payload),
+        citations=normalized_citations,
+        reviewer_result=reviewer_result,
+        blockers=unique_blockers,
+    )
+
+
+def _payload_sha256(value: object) -> str:
+    payload = json.dumps(
+        to_primitive(value),
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _append_stage_review(
+    stage_reviews: list[ContinuousDiscoveryStageReview],
+    blockers: list[str],
+    review: ContinuousDiscoveryStageReview,
+) -> None:
+    stage_reviews.append(review)
+    blockers.extend(
+        blocker
+        for blocker in review.blockers
+        if blocker not in _BASELINE_STAGE_BLOCKERS
+    )
+
+
+def _candidate_citations(candidates: Sequence[DiscoveryCandidate]) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(candidate.source_url for candidate in candidates))
+
+
+def _document_citations(
+    candidate: DiscoveryCandidate,
+    documents: Sequence[SourceDocument],
+) -> tuple[str, ...]:
+    revision = candidate.pinned_revision or candidate.default_branch
+    citations = tuple(
+        f"https://github.com/{candidate.repository}/blob/{revision}/{document.path}"
+        for document in documents
+    )
+    return citations or (candidate.source_url,)
+
+
 @dataclass(frozen=True, slots=True)
 class ContinuousSkillDiscoveryEngine:
     scout: CandidateScout
@@ -181,6 +270,7 @@ class ContinuousSkillDiscoveryEngine:
             raise ValueError("max_candidates must be between 1 and 100")
         if not 0.0 <= min_score <= 1.0:
             raise ValueError("min_score must be between zero and one")
+        query_tuple = tuple(queries)
         cycle_id = f"skill-discovery-{int(observed_at.timestamp() * 1000)}"
         ledger = JsonlAuditStore(self.ledger_path)
         ledger.append_verified(
@@ -190,7 +280,7 @@ class ContinuousSkillDiscoveryEngine:
                 snapshot_id=cycle_id,
                 payload={
                     "max_candidates": max_candidates,
-                    "query_count": len(tuple(queries)),
+                    "query_count": len(query_tuple),
                     "execution_allowed": False,
                     "live_eligibility_status": "LIVE_ORDER_BLOCKED",
                 },
@@ -198,7 +288,7 @@ class ContinuousSkillDiscoveryEngine:
         )
         try:
             candidates = self.scout.discover(
-                queries=queries,
+                queries=query_tuple,
                 max_candidates=max_candidates,
                 now=observed_at,
             )
@@ -210,8 +300,26 @@ class ContinuousSkillDiscoveryEngine:
         filter_decisions: list[DeterministicFilterDecision] = []
         scores: list[SkillGovernanceScore] = []
         drafts: list[QuarantinedSkillDraft] = []
+        workspace_component_reviews: list[AgentWorkspaceComponentReview] = []
         admission_records: list[SkillLibraryAdmissionRecord] = []
+        stage_reviews: list[ContinuousDiscoveryStageReview] = []
         blockers: list[str] = []
+        _append_stage_review(
+            stage_reviews,
+            blockers,
+            review_discovery_stage(
+                cycle_id=cycle_id,
+                stage_id=ContinuousDiscoveryStageId.SCOUT,
+                subject_id=cycle_id,
+                input_payload={
+                    "queries": query_tuple,
+                    "max_candidates": max_candidates,
+                },
+                output_payload=candidates,
+                citations=_candidate_citations(candidates)
+                or (f"artifact://{cycle_id}/scout-output",),
+            ),
+        )
         for candidate in candidates:
             decision = filter_candidate(
                 candidate,
@@ -220,12 +328,29 @@ class ContinuousSkillDiscoveryEngine:
                 pushed_after=self.pushed_after,
             )
             filter_decisions.append(decision)
+            filter_review = review_discovery_stage(
+                cycle_id=cycle_id,
+                stage_id=ContinuousDiscoveryStageId.FILTER,
+                subject_id=candidate.repository,
+                input_payload=candidate,
+                output_payload=decision,
+                citations=(candidate.source_url,),
+                blockers=(
+                    decision.reasons
+                    if decision.decision is DiscoveryDecision.REJECT
+                    else ()
+                ),
+            )
+            _append_stage_review(stage_reviews, blockers, filter_review)
             ledger.append_verified(
                 AuditEvent(
                     event_type="SKILL_DISCOVERY_CANDIDATE_FILTERED",
                     timestamp=observed_at,
                     snapshot_id=f"{cycle_id}:{candidate.repository}",
-                    payload={"decision": decision},
+                    payload={
+                        "decision": decision,
+                        "stage_review": filter_review,
+                    },
                 )
             )
             if decision.decision is DiscoveryDecision.REJECT:
@@ -247,15 +372,45 @@ class ContinuousSkillDiscoveryEngine:
                 continue
             plan = build_read_plan(candidate)
             documents = self.fetcher.fetch(plan)
+            reader_review = review_discovery_stage(
+                cycle_id=cycle_id,
+                stage_id=ContinuousDiscoveryStageId.READER,
+                subject_id=candidate.repository,
+                input_payload=plan,
+                output_payload=documents,
+                citations=_document_citations(candidate, documents),
+            )
+            _append_stage_review(stage_reviews, blockers, reader_review)
             workflow = extract_workflow(candidate, documents, plan)
+            extractor_review = review_discovery_stage(
+                cycle_id=cycle_id,
+                stage_id=ContinuousDiscoveryStageId.EXTRACTOR,
+                subject_id=candidate.repository,
+                input_payload=documents,
+                output_payload=workflow,
+                citations=_document_citations(candidate, documents),
+            )
+            _append_stage_review(stage_reviews, blockers, extractor_review)
             score = score_workflow(
                 workflow,
                 documents=documents,
                 min_score=min_score,
             )
             scores.append(score)
+            score_review = review_discovery_stage(
+                cycle_id=cycle_id,
+                stage_id=ContinuousDiscoveryStageId.SCORE,
+                subject_id=candidate.repository,
+                input_payload={
+                    "workflow": workflow,
+                    "min_score": min_score,
+                },
+                output_payload=score,
+                citations=_document_citations(candidate, documents),
+                blockers=score.blockers,
+            )
+            _append_stage_review(stage_reviews, blockers, score_review)
             if score.decision is ScoreDecision.REJECT:
-                blockers.extend(score.blockers)
                 admission_record = write_library_admission_record(
                     candidate=candidate,
                     reasons=score.blockers,
@@ -278,7 +433,56 @@ class ContinuousSkillDiscoveryEngine:
                 output_root=self.staging_directory,
                 created_at=observed_at,
             )
+            generator_review = review_discovery_stage(
+                cycle_id=cycle_id,
+                stage_id=ContinuousDiscoveryStageId.GENERATOR,
+                subject_id=candidate.repository,
+                input_payload=score,
+                output_payload=draft,
+                citations=(
+                    candidate.source_url,
+                    f"artifact://{_logical_draft_skill_path(draft)}",
+                ),
+            )
+            _append_stage_review(stage_reviews, blockers, generator_review)
+            workspace_review = review_workspace_component_from_draft(
+                candidate=candidate,
+                score=score,
+                draft=draft,
+            )
+            blockers.extend(
+                blocker
+                for blocker in workspace_review.blockers
+                if blocker
+                not in {
+                    "HUMAN_REVIEW_REQUIRED",
+                    "LIVE_ORDER_BLOCKED",
+                }
+            )
+            reviewer_review = review_discovery_stage(
+                cycle_id=cycle_id,
+                stage_id=ContinuousDiscoveryStageId.REVIEWER,
+                subject_id=candidate.repository,
+                input_payload=draft,
+                output_payload=workspace_review,
+                citations=workspace_review.citations,
+                blockers=tuple(
+                    blocker
+                    for blocker in workspace_review.blockers
+                    if blocker
+                    not in {
+                        "HUMAN_REVIEW_REQUIRED",
+                        "LIVE_ORDER_BLOCKED",
+                    }
+                ),
+            )
+            _append_stage_review(stage_reviews, blockers, reviewer_review)
+            draft = attach_workspace_component_review(
+                draft=draft,
+                review=workspace_review,
+            )
             drafts.append(draft)
+            workspace_component_reviews.append(workspace_review)
             admission_record = write_library_admission_record(
                 candidate=candidate,
                 reasons=("HUMAN_REVIEW_REQUIRED", "PR_REQUIRED"),
@@ -286,12 +490,35 @@ class ContinuousSkillDiscoveryEngine:
                 created_at=observed_at,
             )
             admission_records.append(admission_record)
+            publisher_review = review_discovery_stage(
+                cycle_id=cycle_id,
+                stage_id=ContinuousDiscoveryStageId.PUBLISHER,
+                subject_id=candidate.repository,
+                input_payload={
+                    "draft": draft,
+                    "workspace_review": workspace_review,
+                },
+                output_payload=admission_record,
+                citations=(
+                    candidate.source_url,
+                    f"artifact://{admission_record.record_directory}",
+                ),
+            )
+            _append_stage_review(stage_reviews, blockers, publisher_review)
             ledger.append_verified(
                 AuditEvent(
                     event_type="SKILL_DISCOVERY_DRAFT_QUARANTINED",
                     timestamp=observed_at,
                     snapshot_id=f"{cycle_id}:{draft.skill_name}",
-                    payload={"draft": draft},
+                    payload={
+                        "draft": draft,
+                        "workspace_component_review": workspace_review,
+                        "stage_reviews": (
+                            generator_review,
+                            reviewer_review,
+                            publisher_review,
+                        ),
+                    },
                 )
             )
         report = ContinuousLearningCycleReport(
@@ -309,6 +536,8 @@ class ContinuousSkillDiscoveryEngine:
             drafts=tuple(drafts),
             admission_records=tuple(admission_records),
             blockers=tuple(dict.fromkeys(blockers)),
+            workspace_component_reviews=tuple(workspace_component_reviews),
+            stage_reviews=tuple(stage_reviews),
         )
         self._write_state(report)
         return report
@@ -525,6 +754,85 @@ def write_quarantined_skill_draft(
     )
 
 
+def workspace_component_evidence_from_draft(
+    *,
+    candidate: DiscoveryCandidate,
+    score: SkillGovernanceScore,
+    draft: QuarantinedSkillDraft,
+) -> AgentWorkspaceComponentEvidence:
+    skill_path = Path(draft.draft_directory) / "SKILL.md"
+    try:
+        skill_text = skill_path.read_text(encoding="utf-8")
+    except OSError:
+        skill_text = (
+            f"{candidate.repository}\n{candidate.source_url}\n"
+            f"{candidate.pinned_revision}\n{draft.skill_name}"
+        )
+    combined = "\n".join(
+        (
+            candidate.description,
+            score.workflow.goal,
+            " ".join(score.workflow.steps),
+            " ".join(score.workflow.failure_modes),
+            " ".join(candidate.topics),
+        )
+    )
+    source_path = _logical_draft_skill_path(draft)
+    return AgentWorkspaceComponentEvidence(
+        component_id=draft.skill_name,
+        component_type=AgentWorkspaceComponentType.SKILL,
+        source_path=source_path,
+        content_sha256=text_sha256(skill_text),
+        citations=(
+            candidate.source_url,
+            f"artifact://{source_path}",
+        ),
+        declared_authority="RESEARCH_ONLY",
+        canary_command=(
+            ".\\.venv\\Scripts\\python.exe -m pytest "
+            "tests\\test_continuous_skill_discovery.py --no-cov -q"
+        ),
+        canary_expected_blockers=(
+            "HUMAN_REVIEW_REQUIRED",
+            "LIVE_ORDER_BLOCKED",
+        ),
+        credential_required=_contains_authority_drift(combined),
+        trading_scope_touched=_touches_trading_scope(combined),
+    )
+
+
+def review_workspace_component_from_draft(
+    *,
+    candidate: DiscoveryCandidate,
+    score: SkillGovernanceScore,
+    draft: QuarantinedSkillDraft,
+) -> AgentWorkspaceComponentReview:
+    return review_agent_workspace_component(
+        workspace_component_evidence_from_draft(
+            candidate=candidate,
+            score=score,
+            draft=draft,
+        )
+    )
+
+
+def attach_workspace_component_review(
+    *,
+    draft: QuarantinedSkillDraft,
+    review: AgentWorkspaceComponentReview,
+) -> QuarantinedSkillDraft:
+    review_path = Path(draft.draft_directory) / "workspace-review.json"
+    payload = cast(dict[str, object], to_primitive(review))
+    write_json_object_verified(
+        review_path,
+        payload,
+        blocker="QUARANTINED_SKILL_WORKSPACE_REVIEW_VERIFY_FAILED",
+        subject_id=review.component_id,
+        indent=2,
+    )
+    return replace(draft, files=(*draft.files, "workspace-review.json"))
+
+
 def write_library_admission_record(
     *,
     candidate: DiscoveryCandidate,
@@ -728,6 +1036,37 @@ def _bounded_goal(candidate: DiscoveryCandidate) -> str:
 def _contains_authority_drift(value: str) -> bool:
     lowered = value.casefold()
     return any(term in lowered for term in _AUTHORITY_TERMS)
+
+
+def _touches_trading_scope(value: str) -> bool:
+    lowered = value.casefold()
+    return any(
+        term in lowered
+        for term in (
+            "binance",
+            "backtest",
+            "execution",
+            "futures",
+            "live order",
+            "market",
+            "order",
+            "risk",
+            "signal",
+            "spot",
+            "strategy",
+            "trade",
+            "trading",
+        )
+    )
+
+
+def _logical_draft_skill_path(draft: QuarantinedSkillDraft) -> str:
+    draft_path = Path(draft.draft_directory)
+    parts = draft_path.parts
+    if "skill-staging" in parts:
+        start = parts.index("skill-staging")
+        return "/".join((*parts[start:], "SKILL.md"))
+    return f"skill-staging/continuous-discovery/{draft.skill_name}/SKILL.md"
 
 
 def github_remediation_queries(

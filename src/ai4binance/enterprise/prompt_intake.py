@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from ai4binance.enterprise.contracts import (
+    OEK_AUTHORITY_SOURCE,
+    OEK_CONSTITUTION_CONTROL,
     BoardDirective,
     DepartmentId,
     WorkflowIdentity,
@@ -236,6 +238,8 @@ class ExecutivePromptIntake:
             authority_scope=(
                 _stable_unique(
                     (
+                        OEK_AUTHORITY_SOURCE,
+                        OEK_CONSTITUTION_CONTROL,
                         "WORK_ORDER_PREVIEW",
                         "RESEARCH_ONLY",
                         "LIVE_ORDER_BLOCKED",

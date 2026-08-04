@@ -44,6 +44,10 @@ def render_text(payload: dict[str, object], *, command: str | None = None) -> st
         return _skills_audit_text(payload)
     if resolved == "repository-cleanup-audit":
         return _repository_cleanup_audit_text(payload)
+    if resolved == "system-report":
+        return _system_report_text(payload)
+    if resolved == "agent-stack-audit":
+        return _agent_stack_audit_text(payload)
     if resolved == "status":
         return _status_text(payload)
     return _generic_text(payload)
@@ -89,14 +93,25 @@ def _validation_summary_text(payload: dict[str, object]) -> str:
 def _opportunities_text(payload: dict[str, object]) -> str:
     inbox = cast(Mapping[str, object], payload["inbox"])
     items = cast(Sequence[Mapping[str, object]], inbox.get("items", ()))
+    generation_status = inbox.get(
+        "generation_status", payload.get("status", "DEGRADED")
+    )
     lines = [
         f"Opportunities: {inbox.get('symbol', 'UNKNOWN')}",
+        f"- generation: {generation_status}",
+        f"- research_loop: {inbox.get('research_loop_allowed', True)}",
         f"- visible_items: {len(items)}",
         f"- live: {payload.get('live_eligibility_status', 'LIVE_ORDER_BLOCKED')}",
     ]
-    blockers = _join(inbox.get("blockers", ()))
-    if blockers:
-        lines.append(f"- blockers: {blockers}")
+    research_blockers = _join(inbox.get("research_blockers", ()))
+    execution_blockers = _join(inbox.get("execution_blockers", ()))
+    next_actions = _join(inbox.get("next_safe_actions", ()))
+    if research_blockers:
+        lines.append(f"- research_blockers: {research_blockers}")
+    if execution_blockers:
+        lines.append(f"- execution_blockers: {execution_blockers}")
+    if next_actions:
+        lines.append(f"- next_safe_actions: {next_actions}")
     for item in items[:5]:
         lines.append(
             "- "
@@ -201,6 +216,48 @@ def _status_text(payload: dict[str, object]) -> str:
     ]
     if blockers:
         lines.append(f"- blockers: {blockers}")
+    return "\n".join(lines)
+
+
+def _system_report_text(payload: dict[str, object]) -> str:
+    components = cast(Mapping[str, Mapping[str, object]], payload["components"])
+    lines = [
+        "System report",
+        f"- status: {payload.get('status', 'DEGRADED')}",
+        f"- live: {payload.get('live_eligibility_status', 'LIVE_ORDER_BLOCKED')}",
+    ]
+    markdown_path = payload.get("markdown_path")
+    json_path = payload.get("json_path")
+    if markdown_path:
+        lines.append(f"- markdown_path: {markdown_path}")
+    if json_path:
+        lines.append(f"- json_path: {json_path}")
+    blockers = _join(payload.get("blockers", ()))
+    if blockers:
+        lines.append(f"- blockers: {blockers}")
+    for name, component in components.items():
+        status = component.get("status", component.get("state", "UNKNOWN"))
+        component_blockers = _join(component.get("blockers", ()))
+        suffix = f" blockers={component_blockers}" if component_blockers else ""
+        lines.append(f"- {name}: {status}{suffix}")
+    return "\n".join(lines)
+
+
+def _agent_stack_audit_text(payload: dict[str, object]) -> str:
+    report = cast(Mapping[str, object], payload["report"])
+    layers = cast(Sequence[Mapping[str, object]], report.get("layers", ()))
+    lines = [
+        "Agent stack audit",
+        f"- status: {payload.get('status', 'REVISION_REQUIRED')}",
+        f"- layers: {len(layers)}",
+        f"- live: {payload.get('live_eligibility_status', 'LIVE_ORDER_BLOCKED')}",
+    ]
+    blockers = _join(payload.get("blockers", ()))
+    if blockers:
+        lines.append(f"- blockers: {blockers}")
+    for layer in layers:
+        status = "PASSED" if layer.get("passed") is True else "REVISION_REQUIRED"
+        lines.append(f"- {layer.get('layer_id', 'UNKNOWN')}: {status}")
     return "\n".join(lines)
 
 

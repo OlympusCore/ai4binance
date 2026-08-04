@@ -112,6 +112,22 @@ def test_validation_pipeline_runs_six_playbooks_and_persists_evidence(
         == "RESEARCH_BLOCKER_DASHBOARD_WRITTEN"
     )
 
+    resumed = ResearchValidationService(archive, artifact_directory).run(
+        "BTCUSDT", ("1h",)
+    )
+    resumed_trend = next(
+        result for result in resumed.results if result.playbook == "trend_continuation"
+    )
+    assert resumed_trend.resumed_from_checkpoint is True
+    assert resumed_trend.backtest is None
+    assert resumed_trend.checkpoint_path is not None
+    assert Path(resumed_trend.checkpoint_path).is_file()
+    assert len(lines) == len(
+        (artifact_directory / "BTCUSDT" / "1h" / "trend_continuation.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    )
+
 
 def test_validation_pipeline_blocks_insufficient_history_without_artifacts(
     tmp_path: Path,

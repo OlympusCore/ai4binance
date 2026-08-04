@@ -1,5 +1,12 @@
 # Nightly Quality Triage Loop
 
+## ELI10
+
+Bu belge gece kalite kontrolunun nasil rapor-only calisacagini anlatir. Kontrol
+scriptleri hatalari bulur ve raporlar, ama kodu degistirmez, commit atmaz, deploy
+yapmaz ve emir gondermez.
+
+
 Bu loop her gece 01:17 UTC'de ve elle tetiklendiğinde kalite kapılarını bağımsız
 çalıştırır. Kaynak kodu, parametreleri, risk limitlerini veya trading state'ini
 değiştiremez; commit, push, PR, merge, deploy ya da emir gönderemez.
@@ -42,3 +49,4 @@ mode=TRIAGE_ONLY
 execution_allowed=false
 live_eligibility_status=LIVE_ORDER_BLOCKED
 ```
+

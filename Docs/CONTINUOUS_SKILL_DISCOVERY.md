@@ -1,5 +1,12 @@
 # Continuous Agent Skill Discovery
 
+## ELI10
+
+Bu belge dis dunyadan faydali ajan becerisi fikirlerinin nasil guvenli sekilde
+incelenecegini anlatir. Sistem yeni bir seyi hemen kurmaz veya calistirmaz; once
+karantinaya alir, puanlar ve insan incelemesi ister.
+
+
 This workflow implements a quarantine-first version of the continuous learning
 loop:
 
@@ -102,3 +109,4 @@ A human reviewer must approve license, security, sandbox, provenance, ownership,
 and AI4BINANCE authority boundaries before any draft can move toward a normal
 repo-local skill review. Library admission additionally requires the `.çzüö`
 marker and a separate PR.
+

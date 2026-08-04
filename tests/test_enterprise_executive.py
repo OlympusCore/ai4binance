@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 import pytest
 
 from ai4binance.enterprise.contracts import (
+    OEK_AUTHORITY_SOURCE,
+    OEK_CONSTITUTION_CONTROL,
     BoardDirective,
     DepartmentId,
     Priority,
@@ -31,7 +33,7 @@ def directive() -> BoardDirective:
         "board-chair",
         "Apply pyramid governance contracts.",
         ("NO_LIVE_AUTHORITY",),
-        ("RESEARCH_ONLY",),
+        (OEK_AUTHORITY_SOURCE, OEK_CONSTITUTION_CONTROL, "RESEARCH_ONLY"),
         "cpu-light",
         600,
     )
@@ -95,4 +97,30 @@ def test_general_manager_rejects_empty_or_unsafe_routing() -> None:
                 priority=Priority.P2,
             ),
             execution_allowed=True,
+        )
+
+
+def test_board_directive_requires_oek_authority_source() -> None:
+    with pytest.raises(ValueError, match="OEK authority source"):
+        BoardDirective(
+            identity(),
+            "directive-1",
+            "board-chair",
+            "Apply pyramid governance contracts.",
+            ("NO_LIVE_AUTHORITY",),
+            (OEK_CONSTITUTION_CONTROL, "RESEARCH_ONLY"),
+            "cpu-light",
+            600,
+        )
+
+    with pytest.raises(ValueError, match="OEK constitution control"):
+        BoardDirective(
+            identity(),
+            "directive-1",
+            "board-chair",
+            "Apply pyramid governance contracts.",
+            ("NO_LIVE_AUTHORITY",),
+            (OEK_AUTHORITY_SOURCE, "RESEARCH_ONLY"),
+            "cpu-light",
+            600,
         )

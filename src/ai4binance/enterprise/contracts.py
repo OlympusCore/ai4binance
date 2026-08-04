@@ -74,6 +74,10 @@ class ApprovalStatus(StrEnum):
     REJECTED = "REJECTED"
 
 
+OEK_AUTHORITY_SOURCE = "OEK_AUTHORITY_SOURCE:Docs/AI4Binance_OEK.md"
+OEK_CONSTITUTION_CONTROL = "OEK_CONSTITUTION_COMPLIANCE"
+
+
 def _require_identity(**values: str) -> None:
     missing = tuple(name for name, value in values.items() if not value.strip())
     if missing:
@@ -154,6 +158,10 @@ class BoardDirective:
         )
         _require_unique_text("directive constraints", self.constraints)
         _require_unique_text("directive authority scope", self.authority_scope)
+        if OEK_AUTHORITY_SOURCE not in self.authority_scope:
+            raise ValueError("board directive requires OEK authority source")
+        if OEK_CONSTITUTION_CONTROL not in self.authority_scope:
+            raise ValueError("board directive requires OEK constitution control")
         if self.time_budget_seconds < 1:
             raise ValueError("directive time budget must be positive")
         if not self.evidence_required:

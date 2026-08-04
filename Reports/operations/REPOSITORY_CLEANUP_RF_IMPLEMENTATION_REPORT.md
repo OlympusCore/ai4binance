@@ -1,5 +1,12 @@
 # Repository Cleanup RF Implementation Report
 
+## ELI10
+
+Bu rapor, repo cleanup icin onaylanmis RF paketlerinde ne yapildigini kaydeder.
+Yapilanlar daha cok gorunurluk, raporlama ve hijyen icindir; trading yetkisi veya
+canli emir kapisi acmaz.
+
+
 This report records the approved RF package implementation for the repository
 cleanup and stability audit. It is a governed, report-only and hygiene-focused
 slice; no trading authority is widened.
@@ -50,3 +57,4 @@ Future implementation should approve one narrow package at a time:
   accounting record tests are green.
 - Add durable performance regression thresholds only after multiple local
   baseline samples.
+

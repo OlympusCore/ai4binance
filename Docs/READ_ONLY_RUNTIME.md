@@ -1,5 +1,12 @@
 # Wallet-First Read-Only Runtime
 
+## ELI10
+
+Bu belge bilgisayar acikken calisabilen salt-okunur yardimciyi anlatir. Yardimci
+hesap ve piyasa durumunu raporlar, ama emir acmaz, iptal etmez ve canli islem
+baslatmaz.
+
+
 Bu runtime Windows oturum açılışında çalışabilen, Spot ve USD-M Futures hesap
 durumunu piyasa analizinden önce kontrol eden salt-okunur danışmanlık katmanıdır.
 Emir oluşturma, iptal etme veya canlı işlem açma yüzeyi içermez.
@@ -108,3 +115,4 @@ execution_allowed=false
 RESEARCH_ONLY
 LIVE_ORDER_BLOCKED
 ```
+

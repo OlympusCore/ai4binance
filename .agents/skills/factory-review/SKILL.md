@@ -1,6 +1,13 @@
 ---
 name: factory-review
-description: Review completed AI4BINANCE factory work with fresh eyes by rereading the plan, rerunning proof commands, checking safety rails, and trying to break the result. Use for /factory-review, REVIEW.md, independent review, post-implementation grading, and regression/safety checks.
+description: Use when reviewing completed AI4BINANCE factory work with fresh eyes by rereading the plan, rerunning proof commands, checking safety rails, and trying to break the result.
+metadata:
+  ai4binance.authority: advisory-only
+  ai4binance.version: 1.0.0
+  ai4binance.owner: QualityDepartmentManager
+  ai4binance.trust_level: local
+  ai4binance.last_reviewed: 2026-08-03
+  ai4binance.trigger_examples: /factory-review; REVIEW.md; independent factory review
 ---
 
 # Factory Review

@@ -9,6 +9,14 @@ from ai4binance.enterprise.agent_lifecycle import (
     AgentLifecycleStateMachine,
     AgentLifecycleTransition,
 )
+from ai4binance.enterprise.agent_stack import (
+    AgentStackAuditReport,
+    AgentStackAuditStatus,
+    AgentStackLayerCheck,
+    AgentStackLayerRequirement,
+    modern_agent_stack_requirements,
+    run_agent_stack_audit,
+)
 from ai4binance.enterprise.committees import (
     CommitteeDecision,
     CommitteeId,
@@ -29,6 +37,8 @@ from ai4binance.enterprise.context_contracts import (
     build_department_context_packet,
 )
 from ai4binance.enterprise.contracts import (
+    OEK_AUTHORITY_SOURCE,
+    OEK_CONSTITUTION_CONTROL,
     ActionItem,
     AgentResult,
     AgentTask,
@@ -102,6 +112,17 @@ from ai4binance.enterprise.multiops_control import (
     MultiOpsControlPlane,
     build_default_multiops_control_plane,
 )
+from ai4binance.enterprise.oek_compliance import (
+    OekChangeKind,
+    OekChangeManifest,
+    OekComplianceReport,
+    OekComplianceStatus,
+    OekGapAnalysisReport,
+    analyze_oek_change_gap,
+    audit_oek_constitution,
+    build_oek_change_manifest,
+    required_controls_for_change_kind,
+)
 from ai4binance.enterprise.pilots import (
     PilotReadinessReport,
     PilotStage,
@@ -139,6 +160,8 @@ from ai4binance.enterprise.task_tracker import (
 )
 
 __all__ = [
+    "OEK_AUTHORITY_SOURCE",
+    "OEK_CONSTITUTION_CONTROL",
     "ActionItem",
     "AgentClassification",
     "AgentLifecycleBlocker",
@@ -149,6 +172,10 @@ __all__ = [
     "AgentLifecycleStateMachine",
     "AgentLifecycleTransition",
     "AgentResult",
+    "AgentStackAuditReport",
+    "AgentStackAuditStatus",
+    "AgentStackLayerCheck",
+    "AgentStackLayerRequirement",
     "AgentTask",
     "ApprovalRecord",
     "ApprovalStatus",
@@ -198,6 +225,11 @@ __all__ = [
     "MeetingStateMachine",
     "MeetingTransition",
     "MultiOpsControlPlane",
+    "OekChangeKind",
+    "OekChangeManifest",
+    "OekComplianceReport",
+    "OekComplianceStatus",
+    "OekGapAnalysisReport",
     "OpinionVerdict",
     "OpsReadiness",
     "PeriodicReviewRecord",
@@ -229,7 +261,9 @@ __all__ = [
     "WorkOrderStatus",
     "WorkPriority",
     "WorkflowIdentity",
+    "analyze_oek_change_gap",
     "assess_data_product_request",
+    "audit_oek_constitution",
     "board_directive_domain_event",
     "build_default_committee_registry",
     "build_default_department_registry",
@@ -237,11 +271,15 @@ __all__ = [
     "build_default_multiops_control_plane",
     "build_department_context_packet",
     "build_minimum_dashboard_snapshot",
+    "build_oek_change_manifest",
     "build_paper_soak_readiness",
     "build_shadow_readiness",
     "contains_restricted_prompt_content",
     "default_separation_of_duties_rules",
     "enterprise_audit_domain_event",
+    "modern_agent_stack_requirements",
+    "required_controls_for_change_kind",
+    "run_agent_stack_audit",
     "run_quality_system_audit",
     "work_order_domain_event",
 ]

@@ -1,5 +1,12 @@
 # AI4BINANCE Holding Governance
 
+## ELI10
+
+Bu belge sirket yonetim kurallari gibidir. Kullanici istegi once guvenli bir is
+emrine cevrilir, gizli bilgiler dagitilmaz ve departmanlar sadece kendi yetkisi
+kadar is yapar.
+
+
 Bu belge AI4BINANCE enterprise holding katmaninin fail-closed yonetim
 kurallarini tanimlar.
 
@@ -48,7 +55,6 @@ Guncellenebilir talimat yuzeyleri sunlardir:
 - `Docs/HOLDING_GOVERNANCE.md`
 - `Docs/COMPLIANCE_MATRIX.md`
 - `Docs/FOLDER_OWNERSHIP.md`
-- `Docs/REPO_CLEANUP_DIFF_PLAN_20260728.md`
 - `Docs/SKILLS_GOVERNANCE.md`
 - `Docs/MODEL_ADAPTATION_GOVERNANCE.md`
 
@@ -58,6 +64,19 @@ Varsayilan durumlar korunur:
 - `RESEARCH_ONLY`
 - `HUMAN_REVIEW_REQUIRED`
 - `LIVE_ORDER_BLOCKED`
+
+## OEK Anayasal Emir Kaynagi
+
+`Docs/AI4Binance_OEK.md`, `BoardDirective` ve GM prompt-order zinciri icin
+dogrudan anayasal authority source'tur. Her board directive, authority scope
+icinde `OEK_AUTHORITY_SOURCE:Docs/AI4Binance_OEK.md` ve
+`OEK_CONSTITUTION_COMPLIANCE` tasimak zorundadir; bu degerler yoksa directive
+kurulmaz.
+
+Bu kaynak emir hiyerarsisini belirler, ancak canli islem, para transferi,
+secret erisimi, risk artisi, production deploy veya model/strateji promotion
+yetkisi vermez. Bu alanlar yine ayrica insan onayi, kalite/risk/security
+kontrolu, kanit ve live gate ister.
 
 ## Quality Department System Audit
 
@@ -88,8 +107,20 @@ Denetim asagidaki kontrolleri kapsar:
 - Yazili onay verilen sistem duzeltmelerinde ilgili Markdown talimat
   yuzeylerinin redakte edilmis ve kanitlanabilir sekilde senkron tutuldugunu
   dogrulayan `WRITTEN_APPROVAL_DOC_SYNC` kontrolu.
+- `Docs/AI4Binance_OEK.md` dosyasinin kanonik OEK Anayasasi olarak varligini,
+  `AI4B-OEK-003` / `3.0` kimligini, degistirilemez cekirdek ilkelerini ve
+  `NO_TRADE` / `RESEARCH_ONLY` / `LIVE_ORDER_BLOCKED` sinirini dogrulayan
+  `OEK_CONSTITUTION_COMPLIANCE` kontrolu.
+- `BoardDirective` sozlesmesinin `OEK_AUTHORITY_SOURCE:Docs/AI4Binance_OEK.md`
+  ve `OEK_CONSTITUTION_COMPLIANCE` olmadan kurulamamasi.
+- Agent, skill, workflow ve config degisikliklerinin OEK'ye karsi manifestli
+  gap analizinden gecmesini saglayan `oek-gap-analysis` yuzeyinin kayitli
+  olmasi. Bu yuzey OEK'yi manifesto olarak uygular; ancak rapor-only kalir ve
+  canli islem, risk artisi, secret erisimi veya production promotion yetkisi
+  uretmez.
 - Governance CLI komutlarinin kayitli olmasi.
 - Bu holding governance dokumaninin temel guvenlik terimlerini icermesi.
 
 Rapor `RESEARCH_ONLY` ve `LIVE_ORDER_BLOCKED` kalir. Denetim bulgulari
 duzeltme aksiyonu onerir; canli emir, risk artisi veya uretim terfisi yapmaz.
+

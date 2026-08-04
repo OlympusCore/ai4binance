@@ -32,6 +32,7 @@ from ai4binance.exchange import (
 )
 from ai4binance.ops import SingleInstanceLease
 from ai4binance.reporting import to_primitive
+from ai4binance.storage import read_bounded_jsonl_tail
 
 
 def run_accounting_command(
@@ -437,19 +438,18 @@ def latest_reconciliation_status(path: Path) -> dict[str, object]:
     latest_severity: str | None = None
     latest_blockers: tuple[str, ...] = ()
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        lines = read_bounded_jsonl_tail(path, max_lines=200)
     except OSError:
         return {
             "status": "BLOCKED",
             "latest_severity": None,
             "blockers": ("RECONCILIATION_RESULTS_UNREADABLE",),
         }
-    for line in lines[-200:]:
-        if not line.strip():
-            continue
+    for encoded_line in lines:
         try:
+            line = encoded_line.decode("utf-8")
             event = json.loads(line)
-        except json.JSONDecodeError:
+        except (UnicodeDecodeError, json.JSONDecodeError):
             malformed = True
             continue
         payload = event.get("payload") if isinstance(event, dict) else None

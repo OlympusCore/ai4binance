@@ -269,12 +269,22 @@ class OpportunityInbox:
     items: tuple[OpportunityInboxItem, ...]
     validation_summary: ValidationSummary
     blockers: tuple[str, ...]
+    generation_status: str = "DEGRADED"
+    research_blockers: tuple[str, ...] = field(default_factory=tuple)
+    execution_blockers: tuple[str, ...] = field(default_factory=tuple)
+    next_safe_actions: tuple[str, ...] = field(default_factory=tuple)
+    research_loop_allowed: bool = True
+    opportunity_generation_allowed: bool = True
     execution_allowed: bool = False
     live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
 
     def __post_init__(self) -> None:
         if not self.symbol.strip():
             raise ValueError("opportunity inbox symbol is required")
+        if self.generation_status not in {"ACTIVE", "DEGRADED"}:
+            raise ValueError("opportunity generation status is invalid")
+        if not self.research_loop_allowed or not self.opportunity_generation_allowed:
+            raise ValueError("opportunity inbox must keep research generation enabled")
         if (
             self.execution_allowed
             or self.live_eligibility_status != "LIVE_ORDER_BLOCKED"
@@ -297,24 +307,32 @@ class OpportunityInboxBuilder:
     def build(self, symbol: str) -> OpportunityInbox:
         normalized = symbol.strip().upper()
         validation = self.validation_reader.summarize(normalized)
-        blockers: list[str] = list(validation.blockers)
+        research_blockers: list[str] = []
+        execution_blockers: list[str] = list(validation.blockers)
         items: list[OpportunityInboxItem] = []
         market_state = self._market_state()
         if market_state is None:
-            blockers.append("MARKET_OUTLOOK_UNAVAILABLE")
+            research_blockers.append("MARKET_OUTLOOK_UNAVAILABLE")
         else:
             items.extend(self._market_items(normalized, market_state))
-            blockers.extend(
+            execution_blockers.extend(
                 str(item) for item in _object_tuple(market_state.get("blockers"))
             )
         items.extend(self._validation_items(validation))
         if not items:
-            blockers.append("NO_VISIBLE_OPPORTUNITY_EVIDENCE")
+            research_blockers.append("NO_VISIBLE_OPPORTUNITY_EVIDENCE")
+        if not any(_is_ready_execution_candidate(item) for item in items):
+            execution_blockers.append("NO_READY_CANDIDATE")
+        blockers = tuple(dict.fromkeys((*research_blockers, *execution_blockers)))
         return OpportunityInbox(
             normalized,
             tuple(items[: self.max_items]),
             validation,
-            tuple(dict.fromkeys(blockers)),
+            blockers,
+            generation_status="ACTIVE" if items else "DEGRADED",
+            research_blockers=tuple(dict.fromkeys(research_blockers)),
+            execution_blockers=tuple(dict.fromkeys(execution_blockers)),
+            next_safe_actions=_next_safe_actions(blockers),
         )
 
     def _market_state(self) -> Mapping[str, object] | None:
@@ -376,6 +394,72 @@ class OpportunityInboxBuilder:
 
 def _metric(metrics: tuple[tuple[str, float], ...], name: str) -> float:
     return next((value for key, value in metrics if key == name), 0.0)
+
+
+def _is_ready_execution_candidate(item: OpportunityInboxItem) -> bool:
+    return (
+        item.status == "READY"
+        and item.promotion_status == "STAGED_CANDIDATE"
+        and not item.blockers
+        and item.score >= 60.0
+        and item.confidence >= 0.5
+    )
+
+
+def _next_safe_actions(blockers: tuple[str, ...]) -> tuple[str, ...]:
+    actions: list[str] = []
+    for blocker in blockers:
+        action = _safe_action_for_blocker(blocker)
+        if action:
+            actions.append(action)
+    if not actions:
+        actions.append("KEEP_RESEARCH_RADAR_RUNNING")
+    return tuple(dict.fromkeys(actions))
+
+
+def _safe_action_for_blocker(blocker: str) -> str:
+    if blocker in {
+        "MARKET_OUTLOOK_UNAVAILABLE",
+        "NO_VISIBLE_OPPORTUNITY_EVIDENCE",
+    }:
+        return "RUN_ANALYZE_PUBLIC"
+    if blocker in {
+        "VALIDATION_ARTIFACTS_UNAVAILABLE",
+        "VALIDATION_RUN_CARDS_UNAVAILABLE",
+        "VALIDATION_GATE_REQUIRED",
+        "BACKTEST_APPROVAL_MISSING",
+        "WALK_FORWARD_APPROVAL_MISSING",
+        "OOS_APPROVAL_MISSING",
+        "LOW_OOS_TRADE_COUNT",
+        "WEAK_OOS_FOLD_CONSISTENCY",
+        "COST_STRESS_RETURN_NOT_POSITIVE",
+        "BOOTSTRAP_LOSS_PROBABILITY_HIGH",
+    }:
+        return "RUN_VALIDATION_QUEUE"
+    if blocker == "NO_READY_CANDIDATE":
+        return "KEEP_WATCHLIST_AND_WAIT_FOR_READY_SETUP"
+    if "ORDER_BOOK" in blocker or "DEPTH" in blocker:
+        return "REFRESH_LIQUIDITY_AND_DEPTH_EVIDENCE"
+    if "WHALE" in blocker:
+        return "RUN_WHALE_FUSION_RESEARCH"
+    if "EXTERNAL" in blocker or "SOCIAL" in blocker or "NEWS" in blocker:
+        return "COLLECT_SOURCED_EXTERNAL_EVIDENCE"
+    if blocker == "DEPENDENCY_NOT_READY:derivatives":
+        return "REFRESH_DERIVATIVES_RESEARCH"
+    if blocker == "TRADE_CANDIDATE_AND_RISK_PLAN_MISSING":
+        return "BUILD_CANDIDATE_RISK_PLAN"
+    if "RISK_APPROVAL" in blocker:
+        return "PREPARE_RISK_REVIEW"
+    if blocker == "HIGH_IMPACT_DATA_UNAVAILABLE":
+        return "COLLECT_HIGH_IMPACT_EVENT_CONTEXT"
+    if blocker == "MACRO_CYCLE_EVIDENCE_UNAVAILABLE":
+        return "REFRESH_MACRO_CYCLE_CONTEXT"
+    if blocker in {
+        "TPO_AUCTION_PROFILE_NOT_IMPLEMENTED",
+        "COMPOSITE_BALANCE_AREAS_NOT_IMPLEMENTED",
+    }:
+        return "STAGE_MARKET_PROFILE_RESEARCH"
+    return "REVIEW_BLOCKER:" + blocker
 
 
 def _market_item(

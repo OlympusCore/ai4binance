@@ -1,5 +1,12 @@
 # AI4BINANCE Repository Cleanup and Stability Audit Runbook
 
+## ELI10
+
+Bu belge repo temizligi icin guvenli kontrol yolunu anlatir. Once sadece rapor
+hazirlanir; kaynak kod, gizli dosya, kanit, cuzdan durumu veya canli ayar onaysiz
+degistirilmez.
+
+
 This runbook turns repository cleanup, lean-code refactor and stability
 optimization into a governed AI4BINANCE process. It is adapted from the local
 instruction document `AI4BINANCE Repository Cleanup and Stability Optimization.docx`.
@@ -203,3 +210,4 @@ After the user approves one or more RF packages, implement only the approved
 scope. Update related Markdown instructions under `WRITTEN_APPROVAL_DOC_SYNC`
 when the system rule changes. Run targeted checks and the full quality gate when
 the diff changes runtime behavior.
+

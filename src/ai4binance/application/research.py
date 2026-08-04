@@ -1,5 +1,8 @@
 """End-to-end research orchestration with explicit fail-closed stage states."""
 
+import hashlib
+import json
+from collections import Counter
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
@@ -22,6 +25,7 @@ from ai4binance.outlook import (
     MarketOutlookEngine,
 )
 from ai4binance.portfolio.wallet import WalletSnapshot, WalletSnapshotService
+from ai4binance.reporting import to_primitive
 from ai4binance.schemas import AgentStatus, AnalysisState, MarketSnapshot
 from ai4binance.storage import AuditEvent, JsonlAuditStore
 
@@ -214,19 +218,56 @@ class ResearchApplicationService:
                 event_type="RESEARCH_WORKFLOW_COMPLETED",
                 timestamp=snapshot.created_at,
                 snapshot_id=snapshot.snapshot_id,
-                payload={
-                    "snapshot": snapshot,
-                    "analysis": workflow.analysis,
-                    "market_outlook": workflow.market_outlook,
-                    "stages": workflow.stages,
-                    "learning": workflow.learning,
-                    "wallet": workflow.wallet,
-                    "market_context": workflow.market_context,
-                    "execution_allowed": workflow.execution_allowed,
-                    "live_eligibility_status": workflow.live_eligibility_status,
-                },
+                payload=self._compact_audit_payload(snapshot, workflow),
             )
         )
+
+    def _compact_audit_payload(
+        self,
+        snapshot: MarketSnapshot,
+        workflow: ResearchWorkflowResult,
+    ) -> dict[str, object]:
+        status_counts = Counter(
+            result.status.value for result in workflow.analysis.agent_results.values()
+        )
+        final_decision = workflow.analysis.final_decision
+        return {
+            "snapshot_ref": {
+                "snapshot_id": snapshot.snapshot_id,
+                "symbol": snapshot.symbol,
+                "created_at": snapshot.created_at,
+                "timeframes": snapshot.timeframes,
+                "sha256": _canonical_sha256(snapshot),
+            },
+            "analysis_ref": {
+                "snapshot_id": workflow.analysis.snapshot_id,
+                "sha256": _canonical_sha256(workflow.analysis),
+                "agent_result_count": len(workflow.analysis.agent_results),
+                "agent_status_counts": dict(sorted(status_counts.items())),
+                "candidate_setup_count": len(workflow.analysis.candidate_setups),
+                "final_action": (
+                    final_decision.action.value
+                    if final_decision is not None
+                    else "NO_TRADE"
+                ),
+                "blockers": workflow.analysis.blockers,
+            },
+            "market_outlook_ref": {
+                "snapshot_id": workflow.market_outlook.snapshot_id,
+                "sha256": _canonical_sha256(workflow.market_outlook),
+                "artifact_path": (
+                    str(self.outlook_store.state_path)
+                    if self.outlook_store is not None
+                    else None
+                ),
+            },
+            "stages": workflow.stages,
+            "learning_present": workflow.learning is not None,
+            "wallet_context_attached": workflow.wallet is not None,
+            "market_context_attached": workflow.market_context is not None,
+            "execution_allowed": workflow.execution_allowed,
+            "live_eligibility_status": workflow.live_eligibility_status,
+        }
 
     @staticmethod
     def _attach_wallet(
@@ -307,3 +348,14 @@ class ResearchApplicationService:
                 "high_impact_events": (*existing_events, *incoming_events),
             },
         )
+
+
+def _canonical_sha256(value: object) -> str:
+    primitive = to_primitive(value)
+    encoded = json.dumps(
+        primitive,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()

@@ -58,6 +58,13 @@ from ai4binance.multiops.ragops import (
 from ai4binance.multiops.ragops import (
     DOMAIN as RAGOPS_DOMAIN,
 )
+from ai4binance.multiops.ragops import (
+    RAG_PATTERN_CATALOG,
+    RagPatternDefinition,
+    RagPatternId,
+    RagPatternImplementationStatus,
+    build_rag_pattern_catalog,
+)
 from ai4binance.multiops.tradeops import (
     CAPABILITIES as TRADEOPS_CAPABILITIES,
 )
@@ -105,6 +112,96 @@ def test_multiops_domain_metadata_packages_match_registry() -> None:
     assert module_metadata.keys() == set(OpsDomain)
     for domain, capabilities in module_metadata.items():
         assert capabilities == registry.capabilities_for(domain)
+
+
+def test_ragops_catalog_defines_all_15_governed_rag_patterns() -> None:
+    catalog = build_rag_pattern_catalog()
+
+    assert catalog == RAG_PATTERN_CATALOG
+    assert len(catalog) == 15
+    assert tuple(pattern.pattern_id for pattern in catalog) == (
+        RagPatternId.BASIC_RAG,
+        RagPatternId.METADATA_FILTERING,
+        RagPatternId.QUERY_REWRITING,
+        RagPatternId.HYBRID_SEARCH,
+        RagPatternId.RERANKING,
+        RagPatternId.MULTI_VECTOR_RETRIEVAL,
+        RagPatternId.QUERY_DECOMPOSITION,
+        RagPatternId.CONVERSATION_RAG,
+        RagPatternId.RETRIEVAL_AUGMENTED_SUMMARIZATION,
+        RagPatternId.STEP_BACK_RAG,
+        RagPatternId.ROUTING_RAG,
+        RagPatternId.AGENTIC_RAG_ITERATIVE,
+        RagPatternId.SELF_CORRECTING_RAG,
+        RagPatternId.CITATION_AWARE_RAG,
+        RagPatternId.GUARDED_RAG,
+    )
+    assert {pattern.pattern_id for pattern in catalog} == set(RagPatternId)
+    assert all(pattern.promotion_status == "RESEARCH_ONLY" for pattern in catalog)
+    assert all(not pattern.execution_allowed for pattern in catalog)
+    assert all(
+        pattern.live_eligibility_status == "LIVE_ORDER_BLOCKED" for pattern in catalog
+    )
+    assert all(
+        "HUMAN_REVIEW_REQUIRED" in pattern.required_controls for pattern in catalog
+    )
+    assert all("LIVE_ORDER_BLOCKED" in pattern.required_controls for pattern in catalog)
+    implemented = {
+        pattern.pattern_id
+        for pattern in catalog
+        if pattern.implementation_status
+        is RagPatternImplementationStatus.IMPLEMENTED_LOCAL
+    }
+    assert {
+        RagPatternId.BASIC_RAG,
+        RagPatternId.METADATA_FILTERING,
+        RagPatternId.SELF_CORRECTING_RAG,
+        RagPatternId.CITATION_AWARE_RAG,
+        RagPatternId.GUARDED_RAG,
+    } <= implemented
+
+
+def test_ragops_pattern_definition_rejects_unsafe_or_invalid_shapes() -> None:
+    pattern = RAG_PATTERN_CATALOG[0]
+
+    with pytest.raises(ValueError, match="identity"):
+        replace(pattern, display_name="")
+    with pytest.raises(ValueError, match="non-empty and unique"):
+        replace(pattern, use_when=())
+    with pytest.raises(ValueError, match="non-empty and unique"):
+        replace(pattern, measurement_signals=("same", "same"))
+    with pytest.raises(ValueError, match="cannot contain blanks"):
+        replace(pattern, use_when=("valid", ""))
+    with pytest.raises(ValueError, match="stop and review"):
+        replace(pattern, stopping_rule="")
+    with pytest.raises(ValueError, match="human review"):
+        replace(
+            pattern,
+            required_controls=("SOURCE_ALLOWLIST_REQUIRED", "LIVE_ORDER_BLOCKED"),
+        )
+    with pytest.raises(ValueError, match="live blocker"):
+        replace(
+            pattern,
+            required_controls=("SOURCE_ALLOWLIST_REQUIRED", "HUMAN_REVIEW_REQUIRED"),
+        )
+    with pytest.raises(ValueError, match="promote or execute"):
+        replace(pattern, execution_allowed=True)
+    with pytest.raises(ValueError, match="promote or execute"):
+        replace(pattern, promotion_status="LIVE_ELIGIBLE")
+    with pytest.raises(ValueError, match="live blocked"):
+        replace(pattern, live_eligibility_status="LIVE_ELIGIBLE")
+    with pytest.raises(ValueError, match="identity"):
+        RagPatternDefinition(
+            pattern_id=RagPatternId.BASIC_RAG,
+            display_name="",
+            purpose="purpose",
+            use_when=("use",),
+            required_controls=("HUMAN_REVIEW_REQUIRED", "LIVE_ORDER_BLOCKED"),
+            measurement_signals=("metric",),
+            implementation_status=RagPatternImplementationStatus.DEFINED_RESEARCH_ONLY,
+            stopping_rule="stop",
+            review_rule="review",
+        )
 
 
 def test_multiops_registry_rejects_duplicates_missing_domains_and_wrong_scope() -> None:

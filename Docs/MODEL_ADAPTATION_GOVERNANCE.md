@@ -1,5 +1,12 @@
 # AI4BINANCE Model Adaptation Governance
 
+## ELI10
+
+Bu belge model egitme veya uyarlama fikirlerinin nasil sinirda tutulacagini
+anlatir. Model iyilestirme arastirma olabilir, ama tek basina sinyal, risk,
+parametre terfisi veya canli emir yetkisi veremez.
+
+
 PEFT, LoRA ve QLoRA calismalari AI4BINANCE icinde arastirma adayi olarak ele
 alinir. Bu katman deterministic trading core, risk gate, execution gate veya
 canli emir yetkisi uretmez.
@@ -40,3 +47,4 @@ Assessment ciktilari:
 
 Bu board model agirligi terfi ettirmez, adapter deploy etmez, risk limitini
 degistirmez ve final trading signal uretmez.
+

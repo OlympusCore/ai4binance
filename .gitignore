@@ -29,6 +29,8 @@ Logs/**/*.log
 Logs/**/*.jsonl
 Backtest/validation/
 Artifacts/quality-triage/
+Artifacts/quality-gate/
+Artifacts/system-audit/
 Artifacts/folder-structure-audit/
 Artifacts/performance/
 Artifacts/TestTemp/

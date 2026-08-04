@@ -9,8 +9,11 @@ from enum import StrEnum
 from pathlib import Path
 from urllib.parse import urlparse
 
+from ai4binance.governance.workflow import AgentWorkspaceComponentReview
+
 _SKILL_NAME = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$")
 _SHA_OR_REVISION = re.compile(r"^[0-9A-Za-z._/-]{1,128}$")
+_SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
 LIBRARY_ADMISSION_APPROVAL_MARKER = ".çzüö"
 
 
@@ -22,6 +25,73 @@ class DiscoveryDecision(StrEnum):
 class ScoreDecision(StrEnum):
     PASS = "SCORE_ACCEPTED"  # noqa: S105  # nosec B105
     REJECT = "REJECT"
+
+
+class ContinuousDiscoveryStageId(StrEnum):
+    SCOUT = "SCOUT"
+    FILTER = "FILTER"
+    READER = "READER"
+    EXTRACTOR = "EXTRACTOR"
+    SCORE = "SCORE"
+    GENERATOR = "GENERATOR"
+    REVIEWER = "REVIEWER"
+    PUBLISHER = "PUBLISHER"
+
+
+class ContinuousDiscoveryStageReviewerResult(StrEnum):
+    PASSED = "PASSED"
+    WATCHLIST = "WATCHLIST"
+    REJECTED = "REJECTED"
+
+
+@dataclass(frozen=True, slots=True)
+class ContinuousDiscoveryStageReview:
+    """Artifact-level review result for one continuous-discovery stage output."""
+
+    cycle_id: str
+    stage_id: ContinuousDiscoveryStageId
+    subject_id: str
+    input_sha256: str
+    output_sha256: str
+    citations: tuple[str, ...]
+    reviewer_result: ContinuousDiscoveryStageReviewerResult
+    blockers: tuple[str, ...]
+    execution_allowed: bool = False
+    installation_allowed: bool = False
+    promotion_status: str = "RESEARCH_ONLY"
+    live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
+
+    def __post_init__(self) -> None:
+        _require_text(cycle_id=self.cycle_id, subject_id=self.subject_id)
+        if not _SHA256_HEX.fullmatch(self.input_sha256):
+            raise ValueError("stage review input hash must be sha256 hex")
+        if not _SHA256_HEX.fullmatch(self.output_sha256):
+            raise ValueError("stage review output hash must be sha256 hex")
+        if not self.citations:
+            raise ValueError("stage review citations are required")
+        _require_unique_text(self.citations, "stage review citations")
+        _require_unique_text(self.blockers, "stage review blockers")
+        if self.reviewer_result is ContinuousDiscoveryStageReviewerResult.PASSED:
+            unexpected = tuple(
+                blocker
+                for blocker in self.blockers
+                if blocker
+                not in {
+                    "STAGE_REVIEW_READ_ONLY",
+                    "HUMAN_REVIEW_REQUIRED",
+                    "LIVE_ORDER_BLOCKED",
+                }
+            )
+            if unexpected:
+                raise ValueError("passed stage review cannot contain blockers")
+        elif not self.blockers:
+            raise ValueError("non-passing stage review requires blockers")
+        _require_no_authority(
+            execution_allowed=self.execution_allowed,
+            installation_allowed=self.installation_allowed,
+            promotion_status=self.promotion_status,
+            live_eligibility_status=self.live_eligibility_status,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -283,6 +353,8 @@ class ContinuousLearningCycleReport:
     drafts: tuple[QuarantinedSkillDraft, ...]
     admission_records: tuple[SkillLibraryAdmissionRecord, ...]
     blockers: tuple[str, ...]
+    workspace_component_reviews: tuple[AgentWorkspaceComponentReview, ...] = ()
+    stage_reviews: tuple[ContinuousDiscoveryStageReview, ...] = ()
     execution_allowed: bool = False
     installation_allowed: bool = False
     promotion_status: str = "RESEARCH_ONLY"
@@ -301,6 +373,18 @@ class ContinuousLearningCycleReport:
             raise ValueError("kept candidates cannot exceed seen candidates")
         if self.drafts_created != len(self.drafts):
             raise ValueError("draft count must match drafts")
+        if self.drafts_created != len(self.workspace_component_reviews):
+            raise ValueError("draft count must match workspace component reviews")
+        review_ids = tuple(
+            review.component_id for review in self.workspace_component_reviews
+        )
+        if len(set(review_ids)) != len(review_ids):
+            raise ValueError("workspace component reviews must be unique")
+        stage_review_ids = tuple(
+            (review.stage_id, review.subject_id) for review in self.stage_reviews
+        )
+        if len(set(stage_review_ids)) != len(stage_review_ids):
+            raise ValueError("stage reviews must be unique by stage and subject")
         _require_unique_text(self.blockers, "cycle blockers")
         _require_no_authority(
             execution_allowed=self.execution_allowed,

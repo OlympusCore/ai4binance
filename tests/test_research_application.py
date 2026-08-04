@@ -44,6 +44,15 @@ def test_research_service_runs_all_safe_stages_and_persists_audit(
     event = json.loads(audit_path.read_text(encoding="utf-8"))
     assert event["event_type"] == "RESEARCH_WORKFLOW_COMPLETED"
     assert event["payload"]["execution_allowed"] is False
+    assert event["payload"]["snapshot_ref"]["snapshot_id"] == "public-snapshot-1"
+    assert event["payload"]["analysis_ref"]["agent_result_count"] > 0
+    assert event["payload"]["market_outlook_ref"]["snapshot_id"] == (
+        "public-snapshot-1"
+    )
+    assert "snapshot" not in event["payload"]
+    assert "analysis" not in event["payload"]
+    assert "wallet" not in event["payload"]
+    assert len(audit_path.read_bytes()) < 16_000
 
 
 def test_research_service_publishes_read_only_market_outlook(tmp_path: Path) -> None:

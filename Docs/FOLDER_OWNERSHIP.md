@@ -1,5 +1,12 @@
 # Folder Ownership Matrix
 
+## ELI10
+
+Bu belge klasorlerin etiket defteridir. Hangi klasor korunacak, hangisi uretilmis
+gecici cikti, hangisi ancak onayla temizlenir onu soyler; boylece kanit veya
+kaynak dosya yanlislikla silinmez.
+
+
 This matrix keeps cleanup decisions reviewable. Generated folders may be pruned
 after approval; protected and evidence folders need an owner decision first.
 
@@ -47,3 +54,4 @@ Decision values:
 
 Safety defaults stay unchanged: `execution_allowed=false`,
 `live_eligibility_status=LIVE_ORDER_BLOCKED`.
+

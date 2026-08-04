@@ -1,5 +1,12 @@
 # Evidence-Backed X Draft Queue
 
+## ELI10
+
+Bu rapor, kanita dayali sosyal medya taslak kuyrugunun nasil tasarlandigini
+anlatir. Sistem yazi taslagi uretebilir ve onay kuyruguna koyabilir, ama tek
+basina yayin yapamaz.
+
+
 Bu dikey dilim, doğrulanmış Market Outlook kanıtını deterministik bir X taslağına
 dönüştürür ve yerel append-only onay kuyruğuna ekler. Ağ çağrısı, X API anahtarı,
 OAuth, medya yükleme veya yayınlama adapter'ı içermez.
@@ -84,3 +91,4 @@ workflow.approval_queue.approve(
 
 P5 için medya, thread/reply policy, upload lifecycle ve ayrı approval kapsamı
 gereklidir. Bunlar text publishing yetkisine dahil değildir.
+

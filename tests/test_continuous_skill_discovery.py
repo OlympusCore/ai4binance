@@ -10,7 +10,11 @@ from urllib.request import Request
 import pytest
 
 from ai4binance.config import Settings
+from ai4binance.governance.workflow import AgentWorkspaceComponentStatus
 from ai4binance.skills import (
+    ContinuousDiscoveryStageId,
+    ContinuousDiscoveryStageReview,
+    ContinuousDiscoveryStageReviewerResult,
     ContinuousSkillDiscoveryEngine,
     DiscoveryCandidate,
     DiscoveryDecision,
@@ -25,6 +29,8 @@ from ai4binance.skills import (
     filter_candidate,
     github_discovery,
     read_skill_discovery_status,
+    review_discovery_stage,
+    workspace_component_evidence_from_draft,
 )
 from ai4binance.skills.continuous_discovery import LIBRARY_ADMISSION_APPROVAL_MARKER
 from ai4binance.skills.continuous_runtime import SkillDiscoverySupervisor
@@ -133,12 +139,47 @@ def test_engine_creates_quarantined_draft_and_verified_state(tmp_path: Path) -> 
         LIBRARY_ADMISSION_APPROVAL_MARKER
     )
     assert report.blockers == ()
+    assert len(report.workspace_component_reviews) == 1
+    workspace_review = report.workspace_component_reviews[0]
+    assert (
+        workspace_review.status is AgentWorkspaceComponentStatus.RESEARCH_ONLY_WORKSPACE
+    )
+    assert workspace_review.component_id == "agent-workflow"
+    assert workspace_review.source_path.endswith("agent-workflow/SKILL.md")
+    assert workspace_review.blockers == (
+        "HUMAN_REVIEW_REQUIRED",
+        "LIVE_ORDER_BLOCKED",
+    )
     assert report.execution_allowed is False
     assert report.live_eligibility_status == "LIVE_ORDER_BLOCKED"
     assert report.scores[0].decision is ScoreDecision.PASS
+    assert tuple(review.stage_id for review in report.stage_reviews) == (
+        ContinuousDiscoveryStageId.SCOUT,
+        ContinuousDiscoveryStageId.FILTER,
+        ContinuousDiscoveryStageId.READER,
+        ContinuousDiscoveryStageId.EXTRACTOR,
+        ContinuousDiscoveryStageId.SCORE,
+        ContinuousDiscoveryStageId.GENERATOR,
+        ContinuousDiscoveryStageId.REVIEWER,
+        ContinuousDiscoveryStageId.PUBLISHER,
+    )
+    assert all(
+        review.reviewer_result is ContinuousDiscoveryStageReviewerResult.PASSED
+        for review in report.stage_reviews
+    )
+    assert all(len(review.input_sha256) == 64 for review in report.stage_reviews)
+    assert all(len(review.output_sha256) == 64 for review in report.stage_reviews)
+    assert all(review.citations for review in report.stage_reviews)
+    assert all(review.execution_allowed is False for review in report.stage_reviews)
     draft_dir = Path(report.drafts[0].draft_directory)
     assert (draft_dir / "SKILL.md").exists()
     assert (draft_dir / "metadata.json").exists()
+    assert (draft_dir / "workspace-review.json").exists()
+    workspace_payload = json.loads(
+        (draft_dir / "workspace-review.json").read_text(encoding="utf-8")
+    )
+    assert workspace_payload["status"] == "RESEARCH_ONLY_WORKSPACE"
+    assert workspace_payload["execution_allowed"] is False
     assert (
         json.loads((draft_dir / "metadata.json").read_text(encoding="utf-8"))[
             "library_admission_approval_marker"
@@ -163,8 +204,22 @@ def test_engine_creates_quarantined_draft_and_verified_state(tmp_path: Path) -> 
     audit = audit_skill_root(tmp_path / "skill-staging")
     assert audit.skill_count == 1
     assert audit.blockers == ()
-    assert (tmp_path / "State" / "skill-discovery.json").exists()
+    state_path = tmp_path / "State" / "skill-discovery.json"
+    assert state_path.exists()
+    state_payload = json.loads(state_path.read_text(encoding="utf-8"))
+    assert state_payload["workspace_component_reviews"][0]["component_id"] == (
+        "agent-workflow"
+    )
+    assert state_payload["stage_reviews"][0]["stage_id"] == "SCOUT"
+    assert state_payload["stage_reviews"][-1]["stage_id"] == "PUBLISHER"
     assert (tmp_path / "Logs" / "skill_discovery_events.jsonl").exists()
+    evidence = workspace_component_evidence_from_draft(
+        candidate=candidate(),
+        score=report.scores[0],
+        draft=report.drafts[0],
+    )
+    assert evidence.component_id == "agent-workflow"
+    assert evidence.execution_allowed is False
 
 
 def test_engine_rejects_authority_drift_without_draft(tmp_path: Path) -> None:
@@ -203,6 +258,66 @@ def test_engine_rejects_authority_drift_without_draft(tmp_path: Path) -> None:
         / "github-resolution.md"
     ).read_text(encoding="utf-8")
     assert not (tmp_path / "skill-staging" / "agent-workflow-workflow").exists()
+
+
+def test_engine_watchlists_trading_scope_workspace_review(tmp_path: Path) -> None:
+    trading_candidate = candidate(
+        repository="example/market-agent",
+        source_url="https://github.com/example/market-agent",
+        description="Reusable agent workflow for market strategy validation",
+        topics=("agent", "workflow", "strategy"),
+    )
+    trading_docs = (
+        SourceDocument(
+            "README.md",
+            (
+                "Agent workflow pipeline with discover filter read extract score "
+                "generate review publish stages for market strategy validation."
+            ),
+        ),
+        SourceDocument(
+            "examples/example.md",
+            "Example review rubric for reusable validation workflow skills.",
+        ),
+    )
+    engine = ContinuousSkillDiscoveryEngine(
+        scout=StaticCandidateScout((trading_candidate,)),
+        fetcher=StaticDocumentationFetcher(
+            {trading_candidate.repository: trading_docs}
+        ),
+        staging_directory=tmp_path / "skill-staging",
+        state_path=tmp_path / "State" / "skill-discovery.json",
+        ledger_path=tmp_path / "Logs" / "skill_discovery_events.jsonl",
+    )
+
+    report = engine.run_once(
+        queries=("agent workflow",),
+        max_candidates=1,
+        min_score=0.85,
+        now=NOW,
+    )
+
+    assert report.drafts_created == 1
+    assert "WORKSPACE_TRADING_SCOPE_REVIEW_REQUIRED" in report.blockers
+    assert (
+        report.workspace_component_reviews[0].status
+        is AgentWorkspaceComponentStatus.WATCHLIST
+    )
+    assert "WORKSPACE_TRADING_SCOPE_REVIEW_REQUIRED" in (
+        report.workspace_component_reviews[0].blockers
+    )
+    reviewer_stage = next(
+        review
+        for review in report.stage_reviews
+        if review.stage_id is ContinuousDiscoveryStageId.REVIEWER
+    )
+    assert (
+        reviewer_stage.reviewer_result
+        is ContinuousDiscoveryStageReviewerResult.WATCHLIST
+    )
+    assert "WORKSPACE_TRADING_SCOPE_REVIEW_REQUIRED" in reviewer_stage.blockers
+    assert report.execution_allowed is False
+    assert report.live_eligibility_status == "LIVE_ORDER_BLOCKED"
 
 
 def test_rejected_filter_keeps_library_record_and_marker_readiness(
@@ -250,6 +365,23 @@ def test_rejected_filter_keeps_library_record_and_marker_readiness(
     ]
 
 
+def test_stage_review_watchlists_missing_citation() -> None:
+    review = review_discovery_stage(
+        cycle_id="cycle-1",
+        stage_id=ContinuousDiscoveryStageId.READER,
+        subject_id="example/agent-workflow",
+        input_payload={"path": "README.md"},
+        output_payload={"loaded": False},
+        citations=(),
+    )
+
+    assert review.reviewer_result is ContinuousDiscoveryStageReviewerResult.WATCHLIST
+    assert review.citations == ("artifact://stage-citation-missing",)
+    assert "STAGE_CITATION_REQUIRED" in review.blockers
+    assert review.execution_allowed is False
+    assert review.live_eligibility_status == "LIVE_ORDER_BLOCKED"
+
+
 def test_contracts_reject_authority_drift_and_bad_shapes() -> None:
     base = candidate()
     with pytest.raises(ValueError, match="execution authority"):
@@ -260,6 +392,37 @@ def test_contracts_reject_authority_drift_and_bad_shapes() -> None:
         replace(base, source_url="https://token@example.com/repo")
     with pytest.raises(ValueError, match="owner/name"):
         replace(base, repository="missing-owner")
+    with pytest.raises(ValueError, match="input hash"):
+        ContinuousDiscoveryStageReview(
+            cycle_id="cycle-1",
+            stage_id=ContinuousDiscoveryStageId.SCORE,
+            subject_id="example/agent-workflow",
+            input_sha256="not-a-hash",
+            output_sha256="0" * 64,
+            citations=("https://github.com/example/agent-workflow",),
+            reviewer_result=ContinuousDiscoveryStageReviewerResult.PASSED,
+            blockers=(
+                "STAGE_REVIEW_READ_ONLY",
+                "HUMAN_REVIEW_REQUIRED",
+                "LIVE_ORDER_BLOCKED",
+            ),
+        )
+    with pytest.raises(ValueError, match="cannot contain blockers"):
+        ContinuousDiscoveryStageReview(
+            cycle_id="cycle-1",
+            stage_id=ContinuousDiscoveryStageId.SCORE,
+            subject_id="example/agent-workflow",
+            input_sha256="0" * 64,
+            output_sha256="1" * 64,
+            citations=("https://github.com/example/agent-workflow",),
+            reviewer_result=ContinuousDiscoveryStageReviewerResult.PASSED,
+            blockers=(
+                "CHECK_FAILED:CONFIDENCE_THRESHOLD",
+                "STAGE_REVIEW_READ_ONLY",
+                "HUMAN_REVIEW_REQUIRED",
+                "LIVE_ORDER_BLOCKED",
+            ),
+        )
 
 
 class JsonResponse:

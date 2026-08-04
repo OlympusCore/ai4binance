@@ -1,5 +1,12 @@
 # Harici Araştırma Kaynak İzleme Listesi
 
+## ELI10
+
+Bu rapor, dis projelerden bakilabilecek fikirlerin izleme listesidir. Listedeki
+projeler kurulmus veya guvenilir ilan edilmis degildir; her biri once lisans,
+guvenlik ve insan incelemesi ister.
+
+
 Bu belge, 16 Temmuz 2026 tarihinde yalnızca okunur `git ls-remote` ile alınan
 HEAD commit referanslarını kaydeder. Kaynak kodu klonlanmamış, kurulmamış veya
 çalıştırılmamıştır. Bu kayıt, `ExternalComponentManifest` değildir: lisans ve
@@ -38,3 +45,4 @@ Bir kaynak ancak şu sıralamayla ilerleyebilir:
    yürüt.
 
 Hiçbir adım canlı işlem yetkisi vermez.
+

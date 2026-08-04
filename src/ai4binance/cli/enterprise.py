@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
@@ -9,9 +10,15 @@ from uuid import uuid4
 
 from ai4binance.cli.commands import available_command_names
 from ai4binance.cli.output import render_payload
+from ai4binance.enterprise.agent_stack import run_agent_stack_audit
 from ai4binance.enterprise.contracts import WorkflowIdentity
 from ai4binance.enterprise.departments import build_default_department_registry
 from ai4binance.enterprise.executive import GeneralManagerController
+from ai4binance.enterprise.oek_compliance import (
+    OekChangeKind,
+    OekChangeManifest,
+    analyze_oek_change_gap,
+)
 from ai4binance.enterprise.quality_audit import (
     QualitySystemAuditEvidence,
     run_quality_system_audit,
@@ -65,6 +72,22 @@ def run_enterprise_intake(
 def run_quality_system_audit_command(*, output_format: str) -> int:
     payload = quality_system_audit_payload()
     _print_payload(payload, output_format=output_format, command="quality-system-audit")
+    return 0 if not payload["blockers"] else 2
+
+
+def run_agent_stack_audit_command(*, output_format: str) -> int:
+    payload = agent_stack_audit_payload()
+    _print_payload(payload, output_format=output_format, command="agent-stack-audit")
+    return 0 if not payload["blockers"] else 2
+
+
+def run_oek_gap_analysis_command(
+    *,
+    change_file: str | None,
+    output_format: str,
+) -> int:
+    payload = oek_gap_analysis_payload(change_file)
+    _print_payload(payload, output_format=output_format, command="oek-gap-analysis")
     return 0 if not payload["blockers"] else 2
 
 
@@ -153,6 +176,63 @@ def quality_system_audit_payload() -> dict[str, object]:
     }
 
 
+def agent_stack_audit_payload() -> dict[str, object]:
+    report = run_agent_stack_audit(
+        Path.cwd(),
+        available_command_names(),
+        datetime.now(UTC),
+    )
+    payload = to_primitive(report)
+    if not isinstance(payload, dict):
+        raise RuntimeError("AGENT_STACK_AUDIT_PAYLOAD_INVALID")
+    report_payload = cast(dict[str, object], payload)
+    return {
+        "command": "agent-stack-audit",
+        "status": report_payload["status"],
+        "report": report_payload,
+        "blockers": report_payload["blockers"],
+        "corrective_actions": report_payload["corrective_actions"],
+        "execution_allowed": False,
+        "promotion_status": "RESEARCH_ONLY",
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+    }
+
+
+def oek_gap_analysis_payload(change_file: str | None) -> dict[str, object]:
+    if change_file is None or not change_file.strip():
+        return _oek_blocked_payload(("OEK_CHANGE_FILE_REQUIRED",))
+
+    change_path = Path(change_file)
+    try:
+        raw_payload = json.loads(change_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return _oek_blocked_payload(("OEK_CHANGE_FILE_INVALID",))
+
+    if not isinstance(raw_payload, dict):
+        return _oek_blocked_payload(("OEK_CHANGE_FILE_SHAPE_INVALID",))
+
+    try:
+        manifest = _manifest_from_payload(cast(dict[str, object], raw_payload))
+        report = analyze_oek_change_gap(Path.cwd(), manifest)
+    except (KeyError, TypeError, ValueError):
+        return _oek_blocked_payload(("OEK_CHANGE_MANIFEST_INVALID",))
+
+    payload = to_primitive(report)
+    if not isinstance(payload, dict):
+        raise RuntimeError("OEK_GAP_ANALYSIS_PAYLOAD_INVALID")
+    report_payload = cast(dict[str, object], payload)
+    return {
+        "command": "oek-gap-analysis",
+        "status": report_payload["status"],
+        "report": report_payload,
+        "blockers": report_payload["blockers"],
+        "corrective_actions": report_payload["corrective_actions"],
+        "execution_allowed": False,
+        "promotion_status": "RESEARCH_ONLY",
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+    }
+
+
 def repository_cleanup_audit_payload() -> dict[str, object]:
     report = run_repository_cleanup_audit(Path.cwd())
     payload = to_primitive(report)
@@ -179,6 +259,43 @@ def _blocked_payload(blockers: tuple[str, ...]) -> dict[str, object]:
         "promotion_status": "RESEARCH_ONLY",
         "live_eligibility_status": "LIVE_ORDER_BLOCKED",
     }
+
+
+def _oek_blocked_payload(blockers: tuple[str, ...]) -> dict[str, object]:
+    return {
+        "command": "oek-gap-analysis",
+        "status": "BLOCKED",
+        "blockers": blockers,
+        "corrective_actions": ("Provide a valid OEK change manifest.",),
+        "execution_allowed": False,
+        "promotion_status": "RESEARCH_ONLY",
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+    }
+
+
+def _manifest_from_payload(payload: dict[str, object]) -> OekChangeManifest:
+    return OekChangeManifest(
+        change_id=str(payload["change_id"]),
+        change_kind=OekChangeKind(str(payload["change_kind"]).upper()),
+        subject_ref=str(payload["subject_ref"]),
+        changed_paths=_string_tuple(payload["changed_paths"]),
+        summary=str(payload["summary"]),
+        evidence_refs=_string_tuple(payload["evidence_refs"]),
+        declared_controls=_string_tuple(payload["declared_controls"]),
+        requested_authorities=_string_tuple(
+            payload.get("requested_authorities", ()),
+            allow_empty=True,
+        ),
+    )
+
+
+def _string_tuple(value: object, *, allow_empty: bool = False) -> tuple[str, ...]:
+    if not isinstance(value, list | tuple):
+        raise TypeError("expected a list of strings")
+    result = tuple(str(item) for item in value)
+    if not result and not allow_empty:
+        raise ValueError("expected a non-empty list of strings")
+    return result
 
 
 def _print_payload(

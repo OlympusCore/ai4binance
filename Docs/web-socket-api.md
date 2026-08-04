@@ -2,6 +2,13 @@
 > as an implementation reference. The current application does not yet implement
 > WebSocket API or Ed25519 `session.logon`. See `README.md` for current status.
 
+
+## ELI10
+
+Bu dosya Binance WebSocket API icin yerel bir referans kopyasidir. Burada bir
+API anlatiliyor diye AI4BINANCE'in onu canli kullandigi anlamina gelmez; mevcut
+uygulama durumu icin belge haritasina ve testlere bakilir.
+
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
@@ -8351,3 +8358,4 @@ Memory
     }
 }
 ```
+

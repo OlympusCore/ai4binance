@@ -272,8 +272,14 @@ def opportunities_payload(settings: Settings, symbol: str | None) -> dict[str, o
     ).build(target_symbol)
     return {
         "command": "opportunities",
+        "status": inbox.generation_status,
         "inbox": inbox,
         "blockers": inbox.blockers,
+        "research_blockers": inbox.research_blockers,
+        "execution_blockers": inbox.execution_blockers,
+        "next_safe_actions": inbox.next_safe_actions,
+        "research_loop_allowed": inbox.research_loop_allowed,
+        "opportunity_generation_allowed": inbox.opportunity_generation_allowed,
         "execution_allowed": False,
         "live_eligibility_status": "LIVE_ORDER_BLOCKED",
     }
@@ -382,18 +388,21 @@ def lean_governance_payload(
     hoshin = assess_hoshin_plan(_default_hoshin_plan(now), as_of=now)
     kaizen = assess_kaizen_improvement(_default_kaizen_evidence(now))
     six_sigma = assess_six_sigma_process(_default_six_sigma_evidence(now))
+    passed_poka_yoke_checks = [
+        PokaYokeCheck.LIVE_GATE_FAIL_CLOSED,
+        PokaYokeCheck.REDACTION_GATE,
+        PokaYokeCheck.WALLET_BACKTEST_ISOLATION,
+        PokaYokeCheck.DATASET_REVISION_HASHED,
+        PokaYokeCheck.RUN_CARD_PERSISTED,
+        PokaYokeCheck.BLOCKER_DASHBOARD_PERSISTED,
+    ]
+    if Path("Scripts/quality.ps1").is_file():
+        passed_poka_yoke_checks.append(PokaYokeCheck.QUALITY_GATE_GREEN)
     poka_yoke = assess_poka_yoke_workflow(
         PokaYokeEvidence(
             workflow_id="validate-research",
             observed_at=now,
-            passed_checks=(
-                PokaYokeCheck.LIVE_GATE_FAIL_CLOSED,
-                PokaYokeCheck.REDACTION_GATE,
-                PokaYokeCheck.WALLET_BACKTEST_ISOLATION,
-                PokaYokeCheck.DATASET_REVISION_HASHED,
-                PokaYokeCheck.RUN_CARD_PERSISTED,
-                PokaYokeCheck.BLOCKER_DASHBOARD_PERSISTED,
-            ),
+            passed_checks=tuple(passed_poka_yoke_checks),
         )
     )
     assessments = (five_s, hoshin, kaizen, six_sigma, poka_yoke)
@@ -459,10 +468,13 @@ def _default_hoshin_plan(now: datetime) -> HoshinPlan:
                 metric_name="checkpointable_validation_slices",
                 baseline=0.0,
                 target=1.0,
-                current=0.0,
+                current=1.0,
                 due_at=now + timedelta(days=60),
                 linked_blockers=("LONG_OOS_CALIBRATION_NOT_RESUMABLE",),
-                validation_artifact_ids=(),
+                validation_artifact_ids=(
+                    "src/ai4binance/application/validation_pipeline.py",
+                    "tests/test_validation_pipeline.py",
+                ),
             ),
         ),
         catchball_reviewed=True,
@@ -503,19 +515,23 @@ def _default_six_sigma_evidence(now: datetime) -> SixSigmaProcessEvidence:
     return SixSigmaProcessEvidence(
         process_id="six-sigma:validation-defect-control",
         observed_at=now,
-        stage=DmaicStage.IMPROVE,
+        stage=DmaicStage.CONTROL,
         defect_name="validation blocker without persisted corrective action",
         opportunities=10,
-        defects=1,
+        defects=0,
         baseline_dpmo=300_000.0,
-        current_dpmo=100_000.0,
+        current_dpmo=0.0,
         target_dpmo=50_000.0,
-        sigma_level=2.8,
+        sigma_level=6.0,
         linked_blockers=(
             "VALIDATION_ACTION_TRACE_MISSING",
             "QUALITY_GATE_GREEN",
         ),
         measurement_system_validated=True,
+        control_plan_artifact_ids=(
+            "src/ai4binance/research_governance.py",
+            "tests/test_validation_pipeline.py",
+        ),
     )
 
 

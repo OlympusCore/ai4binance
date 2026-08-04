@@ -1,6 +1,13 @@
 ---
 name: agentic-workflow-patterns
-description: Choose and document the smallest governed agentic workflow pattern before adding agents, tools, or automation in AI4BINANCE.
+description: Use when choosing and documenting the smallest governed agentic workflow pattern before adding agents, tools, or automation in AI4BINANCE.
+metadata:
+  ai4binance.authority: advisory-only
+  ai4binance.version: 1.0.0
+  ai4binance.owner: QualityDepartmentManager
+  ai4binance.trust_level: local
+  ai4binance.last_reviewed: 2026-08-03
+  ai4binance.trigger_examples: agentic workflow pattern; human in the loop; governed automation
 ---
 
 # Agentic Workflow Patterns

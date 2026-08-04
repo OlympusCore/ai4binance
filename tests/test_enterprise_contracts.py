@@ -6,6 +6,8 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from ai4binance.enterprise.contracts import (
+    OEK_AUTHORITY_SOURCE,
+    OEK_CONSTITUTION_CONTROL,
     ActionItem,
     AgentResult,
     AgentTask,
@@ -49,7 +51,7 @@ def test_board_directive_and_work_order_are_safe_by_default() -> None:
         "board-chair",
         "Add enterprise contracts",
         ("NO_LIVE_AUTHORITY",),
-        ("RESEARCH_ONLY",),
+        (OEK_AUTHORITY_SOURCE, OEK_CONSTITUTION_CONTROL, "RESEARCH_ONLY"),
         "cpu-light",
         600,
     )

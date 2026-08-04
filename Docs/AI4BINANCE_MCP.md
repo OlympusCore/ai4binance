@@ -67,3 +67,11 @@ Artifacts/market-outlook/state.json
 Eksik, bozuk, eski veya yetki sınırını ihlal eden dosya sessiz fallback üretmez;
 açık blocker döndürür. MCP bağlantısının sağlıklı olması canlı işlem uygunluğu
 kanıtı değildir.
+
+
+## ELI10
+
+Bu belge, Codex veya ChatGPT gibi yardimcilarin sadece hazir kanit dosyalarini
+okuyabilmesini anlatir. Yani sistemin defterine bakabilirler, ama emir veremez,
+para hareketi yapamaz ve risk kurallarini degistiremezler.
+

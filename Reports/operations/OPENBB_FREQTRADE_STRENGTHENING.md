@@ -1,5 +1,12 @@
 # OpenBB ve Freqtrade Esinli Güçlendirme
 
+## ELI10
+
+Bu rapor, OpenBB ve Freqtrade gibi olgun projelerden alinan tasarim fikirlerinin
+AI4BINANCE'e nasil guvenli uyarlandigini anlatir. Harici paket kurmadan, kod
+kopyalamadan ve islem yetkisi genisletmeden ders alma hedeflenir.
+
+
 ## Amaç
 
 Bu dilim, iki olgun projenin faydalı tasarım ilkelerini AI4BINANCE'ın mevcut
@@ -56,3 +63,4 @@ provenance bilgisi Market Outlook haber snapshot'ına eklenir.
 - Gerçek OpenBB veya başka harici provider adaptörü: `EXTERNAL_PROVIDER_BLOCKED`
 - OOS promotion: mevcut OOS kapıları geçmeden `RESEARCH_ONLY`
 - Live işlem: `LIVE_ORDER_BLOCKED`
+

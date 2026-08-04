@@ -30,6 +30,12 @@ COMMAND_SPECS: tuple[CliCommandSpec, ...] = (
         examples=("commands", "help validation"),
     ),
     CliCommandSpec(
+        "system-report",
+        "core",
+        "Build a secret-safe whole-system operator report.",
+        examples=("system-report --format text",),
+    ),
+    CliCommandSpec(
         "agents",
         "governance",
         "List governed advisory agents and live-authority counts.",
@@ -87,6 +93,22 @@ COMMAND_SPECS: tuple[CliCommandSpec, ...] = (
         "Run the QAQC enterprise system audit.",
         aliases=("qaqc-audit",),
         examples=("qaqc-audit --format text", "quality-system-audit --format text"),
+    ),
+    CliCommandSpec(
+        "agent-stack-audit",
+        "governance",
+        "Audit the governed modern AI agent stack.",
+        examples=("agent-stack-audit --format text",),
+    ),
+    CliCommandSpec(
+        "oek-gap-analysis",
+        "governance",
+        "Check an agent, skill, workflow, or config change against the OEK.",
+        aliases=("oek-audit",),
+        examples=(
+            "oek-gap-analysis --change-file Artifacts/oek-change.json",
+            "oek-audit --change-file Artifacts/oek-change.json --format text",
+        ),
     ),
     CliCommandSpec(
         "repository-cleanup-audit",

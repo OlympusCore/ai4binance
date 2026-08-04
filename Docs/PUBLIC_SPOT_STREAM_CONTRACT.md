@@ -1,5 +1,12 @@
 # Public Binance Spot Stream Contract
 
+## ELI10
+
+Bu belge Binance Spot public veri mesajlarinin nasil kontrol edilecegini anlatir.
+Sistem sadece guvenilir, kapanmis ve dogru zaman dilimindeki mumlari kanit sayar;
+bu katman API anahtari veya emir kullanmaz.
+
+
 ## Kapsam
 
 Bu dikey dilim yalnız Binance Spot public market-data payload'larını doğrular.
@@ -61,3 +68,4 @@ LIVE_ORDER_BLOCKED
 .\.venv\Scripts\python.exe -m pytest tests\test_public_spot_stream.py tests\test_connector_stream_readiness.py --no-cov -q
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .agents\skills\quality-gate-loop\scripts\invoke_gate.ps1 -RepositoryRoot .
 ```
+

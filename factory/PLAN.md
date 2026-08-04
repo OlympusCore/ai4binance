@@ -78,3 +78,38 @@ implementation, define:
 
 Browser recording and narrated proof are deferred until the factory contract,
 review cycle, and local proof strategy are stable.
+
+## 2026-08-04: System Hardening And Local Qwen Work Order
+
+Goal: Apply the approved audit diff plan in bounded slices while keeping the
+deterministic trading core independent from the local advisory LLM.
+
+Ordered slices:
+
+1. Replace whole-file JSONL destination read-back with bounded tail read-back.
+2. Reduce runtime audit overproduction with compact verified event envelopes.
+3. Unify service, task, and provider health evidence.
+4. Add report-only accounting reconciliation diagnostics.
+5. Reduce repeated audit/test scans and add performance controls.
+6. Apply safe 5S and modularity guards without deleting protected evidence.
+7. Add checkpointable validation visibility.
+8. Prove all advisory LLM paths use loopback Ollama `qwen3:8b`.
+
+Acceptance:
+
+- Every slice has focused deterministic tests and rollback remains one scoped diff.
+- `Scripts/quality.ps1` passes after implementation.
+- Ollama is loopback-only and the selected advisory model is `qwen3:8b`.
+- Signals, risk, validation, and execution permission remain deterministic.
+- `execution_allowed=false`, `RESEARCH_ONLY`, and `LIVE_ORDER_BLOCKED` remain intact.
+
+Implementation result:
+
+- Bounded JSONL read-back and bounded accounting tail reads are implemented.
+- Research runtime audit events use compact hashes, refs, stage/blocker summaries.
+- System report includes service/PID/lock state and local Ollama/Qwen health.
+- Interactive system-report output is bounded; full evidence remains persisted.
+- Validation checkpoints bind dataset, config, implementation, and artifact hashes.
+- Safe 5S cleanup ran without ACL takeover; locked stale temp folders remain blockers.
+- Advisory production routing uses loopback Ollama `qwen3:8b` only.
+- Full gate passed: 1533 tests, 90.05% coverage, Ruff/MyPy/Bandit/dependencies clean.

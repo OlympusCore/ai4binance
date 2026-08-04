@@ -1,5 +1,12 @@
 # AI4BINANCE Dynamic Portfolio and Opportunity Plan
 
+## ELI10
+
+Bu rapor, portfoy ve firsat fikirlerinin nasil ayrilacagini anlatan operasyon
+planidir. Bir coinde firsat gorunmesi, otomatik olarak para ayirma veya islem
+yapma izni anlamina gelmez.
+
+
 ## Evaluation
 
 The attached plan is directionally correct in separating opportunity, capital,
@@ -134,3 +141,4 @@ Futures position notional must remain separately risk-capped.
 This slice is `RESEARCH_ONLY` / proposal-only. It adds no Binance order calls,
 does not cancel open orders, does not transfer wallets, does not sell assets,
 and keeps all live eligibility at `LIVE_ORDER_BLOCKED`.
+

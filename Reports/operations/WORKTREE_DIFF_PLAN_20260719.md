@@ -1,5 +1,12 @@
 # Worktree Diff Plan - 2026-07-19
 
+## ELI10
+
+Bu rapor, buyuk ve daginik worktree degisikliklerinin nasil kucuk parcalara
+ayrilacagini anlatir. Amac once gurultuyu azaltmak, sonra kaynak, test ve dokuman
+degisikliklerini karistirmadan incelemektir.
+
+
 ## Current Topology
 
 Measured before ignore cleanup:
@@ -117,7 +124,7 @@ module.
 Files:
 
 - `.gitignore`
-- `Docs/WORKTREE_DIFF_PLAN_20260719.md`
+- `Reports/operations/WORKTREE_DIFF_PLAN_20260719.md`
 
 Validation:
 
@@ -211,7 +218,7 @@ Keep the commit explicitly framed as `NO_TRADE`/`RESEARCH_ONLY`/
 
 ### Diff 4 - Coverage Recovery
 
-Follow `Docs/COVERAGE_DIFF_PLAN_20260719.md`. Keep this separate from the CLI
+Follow `Reports/operations/COVERAGE_DIFF_PLAN_20260719.md`. Keep this separate from the CLI
 split so test coverage work is reviewable and does not hide behavior-preserving
 module movement.
 
@@ -237,3 +244,4 @@ NO_TRADE
 RESEARCH_ONLY
 LIVE_ORDER_BLOCKED
 ```
+

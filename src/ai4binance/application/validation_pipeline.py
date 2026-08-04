@@ -28,6 +28,11 @@ from ai4binance.research_governance import (
 )
 from ai4binance.schemas import OHLCVCandle
 from ai4binance.storage import JsonlAuditStore
+from ai4binance.storage.destination_verification import (
+    DestinationVerificationError,
+    read_json_object,
+    write_json_object_verified,
+)
 from ai4binance.strategies.registry import build_playbook_registry
 from ai4binance.strategies.rules import historical_playbook_decision
 from ai4binance.tuning import (
@@ -66,6 +71,9 @@ class PlaybookValidationResult:
     robustness: BacktestRobustnessReport | None = None
     run_card: ResearchRunCard | None = None
     signal_blockers: tuple[tuple[str, int], ...] = ()
+    artifact_path: str | None = None
+    checkpoint_path: str | None = None
+    resumed_from_checkpoint: bool = False
     execution_allowed: bool = False
 
     def __post_init__(self) -> None:
@@ -203,10 +211,34 @@ class ResearchValidationService:
         results: list[PlaybookValidationResult] = []
         for timeframe in timeframes:
             candles = self.archive.read(symbol, timeframe)
+            dataset_sha256 = self._hash_candles(candles)
+            config_sha256 = self._config_sha256(len(candles))
+            implementation_sha256 = self._implementation_sha256()
             for playbook in VALIDATED_PLAYBOOKS:
                 if not registry.get(playbook).implemented:
                     raise ValueError(f"playbook is not implemented: {playbook}")
-                results.append(self._validate_one(symbol, timeframe, playbook, candles))
+                checkpoint = self._load_checkpoint(
+                    symbol,
+                    timeframe,
+                    playbook,
+                    candles,
+                    dataset_sha256=dataset_sha256,
+                    config_sha256=config_sha256,
+                    implementation_sha256=implementation_sha256,
+                )
+                if checkpoint is not None:
+                    results.append(checkpoint)
+                    continue
+                result = self._validate_one(symbol, timeframe, playbook, candles)
+                results.append(result)
+                if result.artifact_path is not None:
+                    self._write_checkpoint(
+                        symbol,
+                        result,
+                        dataset_sha256=dataset_sha256,
+                        config_sha256=config_sha256,
+                        implementation_sha256=implementation_sha256,
+                    )
         batch = ValidationBatchResult(symbol.strip().upper(), tuple(results))
         self._persist_blocker_dashboard(batch)
         return batch
@@ -275,6 +307,7 @@ class ResearchValidationService:
             blockers,
             promotion_status,
         )
+        artifact_path = self._artifact_path(symbol, timeframe, playbook)
         return PlaybookValidationResult(
             playbook=playbook,
             timeframe=timeframe,
@@ -286,6 +319,8 @@ class ResearchValidationService:
             robustness=robustness,
             run_card=run_card,
             signal_blockers=baseline_provider.blocker_counts,
+            artifact_path=str(artifact_path),
+            checkpoint_path=str(self._checkpoint_path(artifact_path)),
         )
 
     @staticmethod
@@ -349,9 +384,7 @@ class ResearchValidationService:
         blockers: tuple[str, ...],
         promotion_status: ValidationStatus,
     ) -> ResearchRunCard:
-        path = (
-            self.artifact_directory / symbol.upper() / timeframe / f"{playbook}.jsonl"
-        )
+        path = self._artifact_path(symbol, timeframe, playbook)
         store = JsonlAuditStore(path)
         BacktestAuditWriter(store).append(backtest)
         WalkForwardAuditWriter(store).append(
@@ -493,3 +526,145 @@ class ResearchValidationService:
             digest.update(payload.encode("utf-8"))
             digest.update(b"\n")
         return digest.hexdigest()
+
+    def _artifact_path(self, symbol: str, timeframe: str, playbook: str) -> Path:
+        return (
+            self.artifact_directory / symbol.upper() / timeframe / f"{playbook}.jsonl"
+        )
+
+    @staticmethod
+    def _checkpoint_path(artifact_path: Path) -> Path:
+        return artifact_path.with_suffix(".checkpoint.json")
+
+    def _config_sha256(self, candle_count: int) -> str:
+        if candle_count < MINIMUM_VALIDATION_CANDLES:
+            return ResearchRunCard.hash_json(
+                {
+                    "validated_playbooks": VALIDATED_PLAYBOOKS,
+                    "minimum_validation_candles": MINIMUM_VALIDATION_CANDLES,
+                    "candle_count": candle_count,
+                }
+            )
+        return ResearchRunCard.hash_json(
+            {
+                "validated_playbooks": VALIDATED_PLAYBOOKS,
+                "search_space": to_primitive(self._search_space()),
+                "tuning_config": to_primitive(self._tuning_config(candle_count)),
+            }
+        )
+
+    @staticmethod
+    def _implementation_sha256() -> str:
+        return sha256(Path(__file__).read_bytes()).hexdigest()
+
+    def _write_checkpoint(
+        self,
+        symbol: str,
+        result: PlaybookValidationResult,
+        *,
+        dataset_sha256: str,
+        config_sha256: str,
+        implementation_sha256: str,
+    ) -> None:
+        if result.artifact_path is None:
+            return
+        artifact_path = Path(result.artifact_path)
+        checkpoint_path = self._checkpoint_path(artifact_path)
+        write_json_object_verified(
+            checkpoint_path,
+            {
+                "schema_version": "1.0",
+                "symbol": symbol.strip().upper(),
+                "timeframe": result.timeframe,
+                "playbook": result.playbook,
+                "candle_count": result.candle_count,
+                "dataset_sha256": dataset_sha256,
+                "config_sha256": config_sha256,
+                "implementation_sha256": implementation_sha256,
+                "artifact_sha256": sha256(artifact_path.read_bytes()).hexdigest(),
+                "promotion_status": result.promotion_status.value,
+                "blockers": list(result.blockers),
+                "signal_blockers": [list(item) for item in result.signal_blockers],
+                "execution_allowed": False,
+                "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+            },
+            blocker="VALIDATION_CHECKPOINT_DESTINATION_VERIFY_FAILED",
+            subject_id=f"{symbol.strip().upper()}:{result.timeframe}:{result.playbook}",
+            indent=2,
+        )
+
+    def _load_checkpoint(
+        self,
+        symbol: str,
+        timeframe: str,
+        playbook: str,
+        candles: tuple[OHLCVCandle, ...],
+        *,
+        dataset_sha256: str,
+        config_sha256: str,
+        implementation_sha256: str,
+    ) -> PlaybookValidationResult | None:
+        artifact_path = self._artifact_path(symbol, timeframe, playbook)
+        checkpoint_path = self._checkpoint_path(artifact_path)
+        if not checkpoint_path.is_file() or not artifact_path.is_file():
+            return None
+        try:
+            payload = read_json_object(
+                checkpoint_path,
+                blocker="VALIDATION_CHECKPOINT_READ_FAILED",
+            )
+            expected = {
+                "symbol": symbol.strip().upper(),
+                "timeframe": timeframe,
+                "playbook": playbook,
+                "candle_count": len(candles),
+                "dataset_sha256": dataset_sha256,
+                "config_sha256": config_sha256,
+                "implementation_sha256": implementation_sha256,
+                "artifact_sha256": sha256(artifact_path.read_bytes()).hexdigest(),
+                "execution_allowed": False,
+                "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+            }
+            if any(payload.get(key) != value for key, value in expected.items()):
+                return None
+            blockers = self._checkpoint_blockers(payload.get("blockers"))
+            signal_blockers = self._checkpoint_signal_blockers(
+                payload.get("signal_blockers")
+            )
+            promotion_status = ValidationStatus(str(payload["promotion_status"]))
+        except (
+            DestinationVerificationError,
+            KeyError,
+            OSError,
+            TypeError,
+            ValueError,
+        ):
+            return None
+        return PlaybookValidationResult(
+            playbook=playbook,
+            timeframe=timeframe,
+            candle_count=len(candles),
+            promotion_status=promotion_status,
+            blockers=blockers,
+            signal_blockers=signal_blockers,
+            artifact_path=str(artifact_path),
+            checkpoint_path=str(checkpoint_path),
+            resumed_from_checkpoint=True,
+        )
+
+    @staticmethod
+    def _checkpoint_blockers(value: object) -> tuple[str, ...]:
+        if not isinstance(value, list):
+            raise TypeError("validation checkpoint blockers are invalid")
+        return tuple(str(item) for item in value)
+
+    @staticmethod
+    def _checkpoint_signal_blockers(value: object) -> tuple[tuple[str, int], ...]:
+        if not isinstance(value, list):
+            raise TypeError("validation checkpoint signal blockers are invalid")
+        parsed: list[tuple[str, int]] = []
+        for item in value:
+            if not isinstance(item, list) or len(item) != 2:
+                raise TypeError("validation checkpoint signal blocker is invalid")
+            parsed.append((str(item[0]), int(item[1])))
+        return tuple(parsed)

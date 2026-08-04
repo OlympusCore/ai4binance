@@ -1,5 +1,12 @@
 # Repo Cleanup Diff Plan - 2026-07-28
 
+## ELI10
+
+Bu rapor, repoyu daha temiz hale getirmek icin hazirlanmis tarihli diff planidir.
+Once neyin kaynak, neyin uretilmis cikti, neyin kanit oldugu ayrilir; kaynak
+silme veya riskli temizlik onaysiz yapilmaz.
+
+
 This is a source-grounded cleanup plan for `C:\vscode-projects\ai4binance`.
 It is intentionally staged because the checkout has no baseline commit yet and
 many files are untracked. No trading authority is widened by this plan.
@@ -167,7 +174,7 @@ Proposed staging groups:
    - `Scripts/quality.ps1`
    - `Scripts/*cleanup*`
    - `Docs/FOLDER_OWNERSHIP.md`
-   - `Docs/REPO_CLEANUP_DIFF_PLAN_20260728.md`
+   - `Reports/operations/REPO_CLEANUP_DIFF_PLAN_20260728.md`
 2. Core package baseline
    - `pyproject.toml`
    - `requirements.txt`
@@ -238,3 +245,4 @@ Final state remains:
 
 - `execution_allowed=false`
 - `live_eligibility_status=LIVE_ORDER_BLOCKED`
+

@@ -44,13 +44,16 @@ function Write-ServiceHealth {
         [Parameter(Mandatory = $true)][string]$Service,
         [Parameter(Mandatory = $true)][string]$Status,
         [int]$ProcessId = 0,
+        [int]$ChildProcessId = 0,
         [int]$ExitCode = 0
     )
     $payload = [ordered]@{
         service = $Service
         status = $Status
         updated_at = [DateTimeOffset]::UtcNow.ToString("o")
-        pid = $ProcessId
+        pid = if ($ChildProcessId -gt 0) { $ChildProcessId } else { $ProcessId }
+        launcher_pid = $ProcessId
+        child_pid = $ChildProcessId
         exit_code = $ExitCode
         execution_allowed = $false
         live_eligibility_status = "LIVE_ORDER_BLOCKED"
@@ -60,29 +63,47 @@ function Write-ServiceHealth {
     Move-Item -LiteralPath $temporary -Destination $Path -Force
 }
 
-function Find-ServiceProcess {
+function Invoke-ServicePython {
     param(
-        [Parameter(Mandatory = $true)][int]$LauncherProcessId,
-        [Parameter(Mandatory = $true)][string]$Command
+        [Parameter(Mandatory = $true)][string]$Service,
+        [Parameter(Mandatory = $true)][string]$HealthPath,
+        [Parameter(Mandatory = $true)][string]$StdoutPath,
+        [Parameter(Mandatory = $true)][string]$StderrPath,
+        [Parameter(Mandatory = $true)][string[]]$Arguments
     )
-    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
-    while ([DateTimeOffset]::UtcNow -lt $deadline) {
-        $processes = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
-            Where-Object {
-                $_.Name -eq "python.exe" -and
-                $_.CommandLine -match "(?i)-m\s+ai4binance\.cli\s+$([regex]::Escape($Command))"
-            })
-        $descendants = $processes | Where-Object {
-            [int]$_.ProcessId -eq $LauncherProcessId -or
-            [int]$_.ParentProcessId -eq $LauncherProcessId
+    $heartbeatJob = Start-Job -ScriptBlock {
+        param(
+            [string]$Path,
+            [string]$Service,
+            [int]$ProcessId
+        )
+        while ($true) {
+            $payload = [ordered]@{
+                service = $Service
+                status = "RUNNING"
+                updated_at = [DateTimeOffset]::UtcNow.ToString("o")
+                pid = $ProcessId
+                launcher_pid = $ProcessId
+                child_pid = 0
+                exit_code = 0
+                execution_allowed = $false
+                live_eligibility_status = "LIVE_ORDER_BLOCKED"
+            }
+            $temporary = "$Path.tmp"
+            $payload | ConvertTo-Json -Compress | Set-Content -LiteralPath $temporary -Encoding UTF8
+            Move-Item -LiteralPath $temporary -Destination $Path -Force
+            Start-Sleep -Seconds 30
         }
-        $selected = $descendants | Sort-Object ProcessId -Descending | Select-Object -First 1
-        if ($null -ne $selected) {
-            return [int]$selected.ProcessId
-        }
-        Start-Sleep -Milliseconds 500
+    } -ArgumentList $HealthPath, $Service, $PID
+    Push-Location -LiteralPath $root
+    try {
+        & $python @Arguments 1>> $StdoutPath 2>> $StderrPath
+        return [int]$LASTEXITCODE
+    } finally {
+        Pop-Location
+        Stop-Job -Job $heartbeatJob -ErrorAction SilentlyContinue
+        Remove-Job -Job $heartbeatJob -Force -ErrorAction SilentlyContinue
     }
-    return $LauncherProcessId
 }
 
 function Start-BoundedService {
@@ -97,13 +118,12 @@ function Start-BoundedService {
     Rotate-LogFile -Path $stdoutPath
     Rotate-LogFile -Path $stderrPath
     Write-ServiceHealth -Path $healthPath -Service $Service -Status "RUNNING" -ProcessId $PID
-    Push-Location -LiteralPath $root
-    try {
-        & $python -m ai4binance.cli $Command 1>> $stdoutPath 2>> $stderrPath
-        $exitCode = [int]$LASTEXITCODE
-    } finally {
-        Pop-Location
-    }
+    $exitCode = Invoke-ServicePython `
+        -Service $Service `
+        -HealthPath $healthPath `
+        -StdoutPath $stdoutPath `
+        -StderrPath $stderrPath `
+        -Arguments @("-m", "ai4binance.cli", $Command)
     $finalStatus = if ($exitCode -eq 0) { "STOPPED" } else { "FAILED" }
     Write-ServiceHealth -Path $healthPath -Service $Service -Status $finalStatus -ExitCode $exitCode
     exit $exitCode
@@ -119,14 +139,23 @@ function Start-BoundedValidation {
     Rotate-LogFile -Path $stderrPath
     Write-ServiceHealth -Path $healthPath -Service $service -Status "RUNNING" -ProcessId $PID
 
-    & $python -m ai4binance.cli archive-public 1>> $stdoutPath 2>> $stderrPath
-    if ($LASTEXITCODE -ne 0) {
-        Write-ServiceHealth -Path $healthPath -Service $service -Status "FAILED" -ExitCode $LASTEXITCODE
-        exit $LASTEXITCODE
+    $archiveExitCode = Invoke-ServicePython `
+        -Service $service `
+        -HealthPath $healthPath `
+        -StdoutPath $stdoutPath `
+        -StderrPath $stderrPath `
+        -Arguments @("-m", "ai4binance.cli", "archive-public")
+    if ($archiveExitCode -ne 0) {
+        Write-ServiceHealth -Path $healthPath -Service $service -Status "FAILED" -ExitCode $archiveExitCode
+        exit $archiveExitCode
     }
 
-    & $python -m ai4binance.cli validate-research 1>> $stdoutPath 2>> $stderrPath
-    $exitCode = [int]$LASTEXITCODE
+    $exitCode = Invoke-ServicePython `
+        -Service $service `
+        -HealthPath $healthPath `
+        -StdoutPath $stdoutPath `
+        -StderrPath $stderrPath `
+        -Arguments @("-m", "ai4binance.cli", "validate-research")
     $finalStatus = if ($exitCode -eq 0) { "STOPPED" } else { "FAILED" }
     Write-ServiceHealth -Path $healthPath -Service $service -Status $finalStatus -ExitCode $exitCode
     exit $exitCode

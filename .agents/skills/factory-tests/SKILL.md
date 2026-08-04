@@ -1,6 +1,13 @@
 ---
 name: factory-tests
-description: Add proof contracts, acceptance criteria, and exact verification commands to AI4BINANCE factory tasks before code is written. Use for /factory-tests, exam sheets, test planning, acceptance contracts, quality gates, and proof requirements.
+description: Use when adding proof contracts, acceptance criteria, and exact verification commands to AI4BINANCE factory tasks before code is written.
+metadata:
+  ai4binance.authority: advisory-only
+  ai4binance.version: 1.0.0
+  ai4binance.owner: QualityDepartmentManager
+  ai4binance.trust_level: local
+  ai4binance.last_reviewed: 2026-08-03
+  ai4binance.trigger_examples: /factory-tests; acceptance contract; proof requirements
 ---
 
 # Factory Tests

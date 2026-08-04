@@ -1,5 +1,12 @@
 # Mimari — ELI5
 
+## ELI10
+
+Bu belge sistemin lego haritasi gibidir. Hangi parcanin veri topladigini, hangi
+parcanin kontrol yaptigini ve hangi parcanin sadece rapor yazdigini gosterir;
+boylece kimse tek basina gizlice emir veremez.
+
+
 ## Büyük resim
 
 Platform bir fabrikaya benzer. Her bölüm tek iş yapar ve sonraki bölüme denetlenmiş
@@ -246,3 +253,4 @@ NO_TRADE
 RESEARCH_ONLY
 LIVE_ORDER_BLOCKED
 ```
+

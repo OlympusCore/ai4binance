@@ -208,6 +208,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="UTF-8 file containing raw prompt text for enterprise-intake.",
     )
+    parser.add_argument(
+        "--change-file",
+        default=None,
+        help="UTF-8 JSON OEK change manifest for oek-gap-analysis.",
+    )
     return parser
 
 

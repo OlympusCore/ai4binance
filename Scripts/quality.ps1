@@ -8,6 +8,7 @@ $pytestTemp = Join-Path (
 ) ("ai4binance-pytest-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $pytestTemp -Force | Out-Null
 $coverageFile = Join-Path $pytestTemp ".coverage"
+$qualityEvidencePath = Join-Path $repoRoot "Artifacts\quality-gate\latest.json"
 
 function Remove-GeneratedCoverageArtifacts {
     $coverageCandidates = @(
@@ -53,6 +54,22 @@ function Invoke-QualityStep {
     }
 }
 
+function Write-QualityGateGreenEvidence {
+    $evidenceDirectory = Split-Path -Parent $qualityEvidencePath
+    New-Item -ItemType Directory -Path $evidenceDirectory -Force | Out-Null
+    $payload = [ordered]@{
+        status = "QUALITY_GATE_GREEN"
+        command = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Scripts\quality.ps1"
+        generated_at_utc = (Get-Date).ToUniversalTime().ToString("o")
+        execution_allowed = $false
+        promotion_status = "RESEARCH_ONLY"
+        live_eligibility_status = "LIVE_ORDER_BLOCKED"
+    }
+    $payload |
+        ConvertTo-Json -Depth 3 |
+        Set-Content -LiteralPath $qualityEvidencePath -Encoding UTF8
+}
+
 Invoke-QualityStep "Dependency check" @("-m", "pip", "check")
 Invoke-QualityStep "Ruff format" @("-m", "ruff", "format", "--check", ".")
 Invoke-QualityStep "Ruff lint" @("-m", "ruff", "check", ".")
@@ -73,3 +90,4 @@ finally {
 }
 Invoke-QualityStep "Bandit" @("-m", "bandit", "-q", "-r", "src")
 Invoke-GeneratedArtifactCleanup
+Write-QualityGateGreenEvidence

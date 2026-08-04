@@ -1,5 +1,12 @@
 # Yol Haritası — ELI5
 
+## ELI10
+
+Bu belge yolculuk haritasi gibidir. Hangi parca hazir, hangi parca arastirma
+asamasinda, hangi parca guvenlik nedeniyle kapali gorunur; boylece sistemin
+nerede oldugu hizlica anlasilir.
+
+
 İşaretler:
 
 - ✅ Kod ve test mevcut.
@@ -140,3 +147,4 @@ LIVE_ORDER_BLOCKED
 8. Mühürlü BTCUSDT dataset revision ile purge/embargo OOS kanıtı üret.
 9. En son, ayrı onayla izole Langflow pilotu ve gerçek Ed25519 testnet oturumunu
    doğrula; production yetkisini ayrı tut.
+

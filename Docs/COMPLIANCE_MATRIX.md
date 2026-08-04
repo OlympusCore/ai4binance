@@ -1,5 +1,12 @@
 # Uyumluluk Matrisi — ELI5
 
+## ELI10
+
+Bu belge kontrol listesi gibidir: bir ozellik icin kod var mi, test var mi,
+kanit var mi ve hala eksik kapi var mi diye bakar. Boylece "bitti" demeden once
+neyin gercekten tamam oldugu gorulur.
+
+
 Son denetim: **güncel yerel kalite kapısı**
 
 Bu belge “dosya var mı?” değil, “kod var mı, test var mı, gerçek akışa bağlı mı
@@ -25,6 +32,7 @@ ve gerekli dış kanıt mevcut mu?” sorularını ayrı ayrı değerlendirir.
 | Agent lifecycle state machine | `enterprise/agent_lifecycle.py`, `test_enterprise_agent_lifecycle.py` | TAMAM | Typed `IDLE` → `PERCEIVE` → `REASON` → `PLAN` → `ACT` → `OBSERVE` → `HUMAN_CHECK` → terminal akış var; canlı yetki yok |
 | Privacy boundary / `Computer.md` | `privacy_boundary.py`, `enterprise/quality_audit.py`, `test_privacy_boundary.py`, `test_enterprise_quality_audit.py` | TAMAM | Yerel bilgisayar profili sadece `Computer.md` referansı ile kullanılır; başka dosyaya kopyalama QAQC blocker üretir |
 | QAQC system audit | `enterprise/quality_audit.py`, `cli/enterprise.py`, `test_enterprise_quality_audit.py` | TAMAM | `quality-system-audit` report-only kalır; `WRITTEN_APPROVAL_DOC_SYNC`, `RESEARCH_ONLY` ve `LIVE_ORDER_BLOCKED` sabittir |
+| OEK Anayasası authority source, compliance ve gap audit | `Docs/AI4Binance_OEK.md`, `enterprise/contracts.py`, `enterprise/prompt_intake.py`, `enterprise/oek_compliance.py`, `enterprise/quality_audit.py`, `cli/enterprise.py`, `test_enterprise_contracts.py`, `test_enterprise_prompt_intake.py`, `test_enterprise_quality_audit.py`, `test_cli.py` | TAMAM | `BoardDirective` ve GM prompt-order zinciri `OEK_AUTHORITY_SOURCE:Docs/AI4Binance_OEK.md` ve `OEK_CONSTITUTION_COMPLIANCE` olmadan kurulamaz; OEK varlık/sürüm/çekirdek ilke/live-blocked sınırı denetlenir; `oek-gap-analysis` agent/skill/workflow/config değişiklik manifestlerini OEK kontrollerine bağlar; OEK tek başına production, risk, promotion veya canlı işlem yetkisi vermez |
 | MultiOps control plane | `multiops/`, `enterprise/multiops_control.py`, `test_multiops_contracts.py`, `test_enterprise_multiops_control.py` | KISMİ | AIOps/MLOps/LLMOps/RAGOps/AgentOps/DataOps/DevSecOps/TradeOps typed registry var; gerçek unattended runner yetkisi yok |
 | Agent skills governance | `skills/`, `governance/supply_chain.py`, `Docs/SKILLS_GOVERNANCE.md`, `test_skill_linter.py` | TAMAM | Dış skill/tool declaration karantina ve insan incelemesi gerektirir; live execution yok |
 | Public Spot REST acquisition | `exchange/client.py`, `data/acquisition.py`, ilgili testler | TAMAM | WebSocket streaming değil |
@@ -214,7 +222,7 @@ Kanıt: `src/ai4binance/mcp/`, `src/ai4binance/outlook/storage.py`,
 Durum: **P0 TAMAM**, **P2 bu dikey dilim için TAMAM**; P1/P3/P5 henüz **YOK**.
 
 Kanıt: `src/ai4binance/content/`, `tests/test_content_draft_queue.py`,
-`Docs/EVIDENCE_BACKED_X_DRAFT_QUEUE.md`.
+`Reports/operations/EVIDENCE_BACKED_X_DRAFT_QUEUE.md`.
 
 ## Explicit social publishing gateway
 
@@ -259,7 +267,8 @@ adaptörü `EXTERNAL_PROVIDER_BLOCKED`; promotion `RESEARCH_ONLY`; live işlem
 
 Kanıt: `src/ai4binance/validation/integrity.py`,
 `src/ai4binance/market_context.py`, `tests/test_validation_integrity.py`,
-`tests/test_governed_extensions.py`, `Docs/OPENBB_FREQTRADE_STRENGTHENING.md`.
+`tests/test_governed_extensions.py`,
+`Reports/operations/OPENBB_FREQTRADE_STRENGTHENING.md`.
 
 ## Resmî Binance Public Spot Stream contract
 
@@ -328,3 +337,4 @@ olarak kapsam dışıdır.
 Kanıt: `src/ai4binance/portfolio/orders.py`,
 `src/ai4binance/portfolio/investment.py`, `src/ai4binance/application/runtime.py`,
 `tests/test_investment_management.py`, `tests/test_runtime_cycle.py`.
+

@@ -64,10 +64,33 @@ def test_cli_command_catalog_has_unique_names_and_safe_aliases() -> None:
     assert canonical_command("live-preview") == "live-preview-spot"
     assert canonical_command("privacy-boundary") == "privacy-boundary"
     assert canonical_command("qaqc-audit") == "quality-system-audit"
+    assert canonical_command("agent-stack-audit") == "agent-stack-audit"
+    assert canonical_command("oek-audit") == "oek-gap-analysis"
     assert canonical_command("scan", "spot") == "scan-spot"
     assert canonical_command("scan", "futures") == "scan-futures"
     assert canonical_command("scan", "all") == "scan-all"
     assert canonical_command("scan", "margin") == "scan-unknown"
+
+
+def test_cli_documentation_tracks_command_catalog() -> None:
+    docs_path = Path(__file__).resolve().parents[1] / "Docs" / "CLI.md"
+    docs = docs_path.read_text(encoding="utf-8")
+    marker_start = "<!-- CLI_COMMAND_TABLE_START -->"
+    marker_end = "<!-- CLI_COMMAND_TABLE_END -->"
+    assert marker_start in docs
+    assert marker_end in docs
+    table = docs.split(marker_start, maxsplit=1)[1].split(marker_end, maxsplit=1)[0]
+
+    documented_commands = []
+    for line in table.splitlines():
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if not cells or not cells[0].startswith("`"):
+            continue
+        documented_commands.append(cells[0].strip("`"))
+
+    assert documented_commands == [spec.canonical for spec in COMMAND_SPECS]
+    for spec in COMMAND_SPECS:
+        assert spec.summary in table
 
 
 def test_commands_cli_lists_grouped_user_friendly_help(
@@ -163,6 +186,57 @@ def test_backtests_alias_uses_validation_summary_payload(
     assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
 
 
+def test_opportunities_cli_succeeds_when_research_radar_is_active(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    validation_root = tmp_path / "validation"
+    run_card = validation_root / "HOTUSDT" / "1h" / "trend.run-card.json"
+    run_card.parent.mkdir(parents=True)
+    run_card.write_text(
+        json.dumps(
+            {
+                "artifact_sha256": [["artifact.jsonl", "abc"]],
+                "blockers": ["WEAK_OOS_FOLD_CONSISTENCY"],
+                "created_at": "2026-08-03T00:00:00+00:00",
+                "hypothesis_id": "hyp:trend_continuation:1h",
+                "metrics": [["net_return", 0.01]],
+                "promotion_status": "RESEARCH_ONLY",
+                "run_id": "run:watchlist",
+                "symbol": "HOTUSDT",
+                "timeframe": "1h",
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    outlook = tmp_path / "market-outlook" / "runtime-state.json"
+    outlook.parent.mkdir(parents=True)
+    outlook.write_text(
+        json.dumps(
+            {
+                "blockers": ["NO_READY_CANDIDATE"],
+                "pro_trend_direction": "BULLISH",
+                "setups_on_radar": ["breakout_retest"],
+                "status": "PARTIAL",
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("AI4BINANCE_VALIDATION_ARTIFACT_DIRECTORY", str(validation_root))
+    monkeypatch.setenv("AI4BINANCE_EVIDENCE_ARTIFACT_DIRECTORY", str(tmp_path))
+
+    assert main(["opportunities", "--symbol", "HOTUSDT"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ACTIVE"
+    assert payload["opportunity_generation_allowed"] is True
+    assert payload["execution_allowed"] is False
+    assert "NO_READY_CANDIDATE" in payload["execution_blockers"]
+    assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
 def test_cli_text_renderer_covers_validation_opportunities_and_generic() -> None:
     validation_text = render_payload(
         {
@@ -188,6 +262,11 @@ def test_cli_text_renderer_covers_validation_opportunities_and_generic() -> None
             "inbox": {
                 "symbol": "HOTUSDT",
                 "blockers": ("NO_READY_CANDIDATE",),
+                "generation_status": "ACTIVE",
+                "research_loop_allowed": True,
+                "research_blockers": (),
+                "execution_blockers": ("NO_READY_CANDIDATE",),
+                "next_safe_actions": ("KEEP_WATCHLIST_AND_WAIT_FOR_READY_SETUP",),
                 "items": (
                     {
                         "market": "SPOT",
@@ -204,6 +283,8 @@ def test_cli_text_renderer_covers_validation_opportunities_and_generic() -> None
         command="opportunities",
     )
     assert "visible_items: 1" in opportunities_text
+    assert "generation: ACTIVE" in opportunities_text
+    assert "execution_blockers: NO_READY_CANDIDATE" in opportunities_text
     assert "trend_continuation" in opportunities_text
 
     generic_text = render_payload(
@@ -382,6 +463,99 @@ def test_qaqc_audit_cli_alias_runs_quality_system_audit(
     assert "quality-system-audit" in output
     assert "PASSED" in output
     assert "LIVE_ORDER_BLOCKED" in output
+
+
+def test_agent_stack_audit_cli_reports_governed_layers(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert main(["agent-stack-audit", "--format", "text"]) == 0
+    output = capsys.readouterr().out
+    assert "Agent stack audit" in output
+    assert "RAG: PASSED" in output
+    assert "GOVERNANCE_AUTHORITY" in output
+    assert "LIVE_ORDER_BLOCKED" in output
+
+
+def test_oek_gap_analysis_cli_checks_safe_change_manifest(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    change_file = tmp_path / "oek-change.json"
+    change_file.write_text(
+        json.dumps(
+            {
+                "change_id": "oek-change:skill:001",
+                "change_kind": "SKILL",
+                "subject_ref": "skill:quality-gate-loop",
+                "changed_paths": [".agents/skills/quality-gate-loop/SKILL.md"],
+                "summary": "Refresh advisory-only quality gate skill.",
+                "evidence_refs": ["test:tests/test_skill_linter.py"],
+                "declared_controls": [
+                    "OEK_CONSTITUTION_COMPLIANCE",
+                    "HUMAN_REVIEW_REQUIRED",
+                    "LIVE_ORDER_BLOCKED",
+                    "AUDIT_TRAIL_REQUIRED",
+                    "SKILLS_AUDIT_REQUIRED",
+                    "NO_INSTALL_OR_EXECUTE_WITHOUT_REVIEW",
+                    "SUPPLY_CHAIN_REVIEW_REQUIRED",
+                ],
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+    assert main(["oek-gap-analysis", "--change-file", str(change_file)]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["command"] == "oek-gap-analysis"
+    assert payload["status"] == "PASSED"
+    assert payload["blockers"] == []
+    assert payload["report"]["change_kind"] == "SKILL"
+    assert payload["execution_allowed"] is False
+    assert payload["promotion_status"] == "RESEARCH_ONLY"
+    assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_oek_gap_analysis_cli_fails_closed_without_manifest(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert main(["oek-audit"]) == 2
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["command"] == "oek-gap-analysis"
+    assert payload["status"] == "BLOCKED"
+    assert payload["blockers"] == ["OEK_CHANGE_FILE_REQUIRED"]
+    assert payload["execution_allowed"] is False
+    assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+@pytest.mark.parametrize(
+    ("content", "blocker"),
+    [
+        ("not-json", "OEK_CHANGE_FILE_INVALID"),
+        ("[]", "OEK_CHANGE_FILE_SHAPE_INVALID"),
+        ('{"change_id":"missing-required-fields"}', "OEK_CHANGE_MANIFEST_INVALID"),
+    ],
+)
+def test_oek_gap_analysis_cli_fails_closed_for_invalid_manifest_file(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    content: str,
+    blocker: str,
+) -> None:
+    change_file = tmp_path / "invalid-oek-change.json"
+    change_file.write_text(content, encoding="utf-8")
+
+    assert main(["oek-gap-analysis", "--change-file", str(change_file)]) == 2
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["command"] == "oek-gap-analysis"
+    assert payload["status"] == "BLOCKED"
+    assert payload["blockers"] == [blocker]
+    assert payload["execution_allowed"] is False
+    assert payload["promotion_status"] == "RESEARCH_ONLY"
+    assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
 
 
 def public_snapshot() -> MarketSnapshot:
@@ -600,6 +774,8 @@ def test_second_brain_cli_builds_index_and_html_ui(
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["hits"][0]["source_uri"] == "Docs/btc.md"
+    assert payload["evidence_quality"]["status"] == "RESEARCH_ONLY_RAG_EVIDENCE"
+    assert payload["evidence_quality"]["citation_coverage"] == 1.0
     assert payload["execution_allowed"] is False
     assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
     assert Path(payload["index_path"]).exists()

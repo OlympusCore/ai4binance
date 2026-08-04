@@ -1,5 +1,12 @@
 # AI4BINANCE Governed Software Factory
 
+## ELI10
+
+Bu belge yazilim fabrikasinin nasil calistigini anlatir. Bir fikir once kucuk ve
+kontrollu is paketine donusur, sonra test ve inceleme ile ilerler; fabrika tek
+basina canli islem yetkisi uretmez.
+
+
 The factory is a repo-local context and work-order system for AI4BINANCE. It
 turns user-approved ideas into briefed, planned, test-contracted, reviewable
 tasks while preserving validation-first trading safety.
@@ -43,3 +50,4 @@ publishing requires explicit user approval and must still return
 .\.venv\Scripts\python.exe -m pytest tests/test_factory_contracts.py --no-cov
 .\Scripts\quality.ps1
 ```
+

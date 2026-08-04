@@ -1,15 +1,19 @@
 param(
-    [switch]$RequireVoiceTask
+    [switch]$RequireVoiceTask,
+    [switch]$RequireQwenPrompterTask
 )
 
 $ErrorActionPreference = "Stop"
 $runtimeTaskName = "AI4BINANCE-ReadOnly-Runtime"
 $voiceTaskName = "AI4BINANCE-Voice-Assistant"
+$qwenPrompterTaskName = "AI4BINANCE-Qwen3-Prompter"
 $accountingTaskName = "AI4BINANCE-Accounting-Collector"
 $accountingWsTaskName = "AI4BINANCE-Accounting-WebSocket-Collector"
+$skillDiscoveryTaskName = "AI4BINANCE-Skill-Discovery"
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 $stateDirectory = Join-Path $root "State"
 $issues = [System.Collections.Generic.List[string]]::new()
+$domainIssues = [System.Collections.Generic.List[string]]::new()
 
 function Convert-ToDateTimeOffset {
     param([Parameter(Mandatory = $true)]$Value)
@@ -46,6 +50,9 @@ function Get-Ai4BinanceProcessRows {
         }
         elseif ($commandLine -match "(?i)ai4binance\.cli\s+voice-daemon") {
             "voice"
+        }
+        elseif ($commandLine -match "(?i)ai4binance\.cli\s+skill-discovery-daemon") {
+            "skill-discovery"
         }
         elseif ($commandLine -match "(?i)ai4binance\.mcp\.server") {
             "mcp"
@@ -145,20 +152,48 @@ function Test-LockMatchesHealth {
     if ($lockPid -eq $healthPid) {
         return
     }
-    $lockProcess = Get-CimInstance Win32_Process `
-        -Filter "ProcessId=$lockPid" `
-        -ErrorAction SilentlyContinue
-    if ($null -eq $lockProcess -or [int]$lockProcess.ParentProcessId -ne $healthPid) {
+    if (-not (Test-ProcessDescendant -ProcessId $lockPid -AncestorProcessId $healthPid)) {
         $issues.Add("${Label}_LOCK_PID_MISMATCH")
     }
 }
 
+function Test-ProcessDescendant {
+    param(
+        [Parameter(Mandatory = $true)][int]$ProcessId,
+        [Parameter(Mandatory = $true)][int]$AncestorProcessId
+    )
+    $currentProcessId = $ProcessId
+    for ($depth = 0; $depth -lt 6; $depth++) {
+        $process = Get-CimInstance Win32_Process `
+            -Filter "ProcessId=$currentProcessId" `
+            -ErrorAction SilentlyContinue
+        if ($null -eq $process) {
+            return $false
+        }
+        $parentProcessId = [int]$process.ParentProcessId
+        if ($parentProcessId -eq $AncestorProcessId) {
+            return $true
+        }
+        if ($parentProcessId -lt 1 -or $parentProcessId -eq $currentProcessId) {
+            return $false
+        }
+        $currentProcessId = $parentProcessId
+    }
+    return $false
+}
+
 $runtimeTask = Get-ScheduledTask -TaskName $runtimeTaskName -ErrorAction SilentlyContinue
 $voiceTask = Get-ScheduledTask -TaskName $voiceTaskName -ErrorAction SilentlyContinue
+$qwenPrompterTask = Get-ScheduledTask -TaskName $qwenPrompterTaskName -ErrorAction SilentlyContinue
 $accountingTask = Get-ScheduledTask -TaskName $accountingTaskName -ErrorAction SilentlyContinue
 $accountingWsTask = Get-ScheduledTask -TaskName $accountingWsTaskName -ErrorAction SilentlyContinue
+$skillDiscoveryTask = Get-ScheduledTask -TaskName $skillDiscoveryTaskName -ErrorAction SilentlyContinue
 $processRows = @(Get-Ai4BinanceProcessRows)
-if ($null -eq $runtimeTask -or ($RequireVoiceTask -and $null -eq $voiceTask)) {
+if (
+    $null -eq $runtimeTask `
+        -or ($RequireVoiceTask -and $null -eq $voiceTask) `
+        -or ($RequireQwenPrompterTask -and $null -eq $qwenPrompterTask)
+) {
     if ($processRows.Count -gt 0) {
         [pscustomobject]@{
             OverallStatus = "DEGRADED"
@@ -183,11 +218,17 @@ $tasks = @($runtimeTask)
 if ($null -ne $voiceTask) {
     $tasks += $voiceTask
 }
+if ($null -ne $qwenPrompterTask) {
+    $tasks += $qwenPrompterTask
+}
 if ($null -ne $accountingTask) {
     $tasks += $accountingTask
 }
 if ($null -ne $accountingWsTask) {
     $tasks += $accountingWsTask
+}
+if ($null -ne $skillDiscoveryTask) {
+    $tasks += $skillDiscoveryTask
 }
 
 $taskRows = foreach ($task in $tasks) {
@@ -195,6 +236,8 @@ $taskRows = foreach ($task in $tasks) {
     $required = $task.TaskName -eq $runtimeTaskName `
         -or $task.TaskName -eq $accountingTaskName `
         -or $task.TaskName -eq $accountingWsTaskName `
+        -or $task.TaskName -eq $skillDiscoveryTaskName `
+        -or ($RequireQwenPrompterTask -and $task.TaskName -eq $qwenPrompterTaskName) `
         -or ($RequireVoiceTask -and $task.TaskName -eq $voiceTaskName)
     if ($required -and $task.State -ne "Running") {
         $issues.Add("$($task.TaskName)_NOT_RUNNING")
@@ -220,6 +263,13 @@ if ($RequireVoiceTask -or ($null -ne $voiceTask -and $voiceTask.State -eq "Runni
         -MaximumAgeSeconds 90 `
         -Label "VOICE"
 }
+$qwenPrompterHealth = $null
+if ($RequireQwenPrompterTask -or ($null -ne $qwenPrompterTask -and $qwenPrompterTask.State -eq "Running")) {
+    $qwenPrompterHealth = Read-JsonState `
+        -Path (Join-Path $stateDirectory "qwen-prompter-health.json") `
+        -MaximumAgeSeconds 300 `
+        -Label "QWEN_PROMPTER"
+}
 $accountingHealth = $null
 if ($null -ne $accountingTask -and $accountingTask.State -eq "Running") {
     $accountingHealth = Read-JsonState `
@@ -233,6 +283,13 @@ if ($null -ne $accountingWsTask -and $accountingWsTask.State -eq "Running") {
         -Path (Join-Path $stateDirectory "accounting-ws-health.json") `
         -MaximumAgeSeconds 90 `
         -Label "ACCOUNTING_WS"
+}
+$skillDiscoveryHealth = $null
+if ($null -ne $skillDiscoveryTask -and $skillDiscoveryTask.State -eq "Running") {
+    $skillDiscoveryHealth = Read-JsonState `
+        -Path (Join-Path $stateDirectory "skill-discovery-health.json") `
+        -MaximumAgeSeconds 120 `
+        -Label "SKILL_DISCOVERY"
 }
 Test-LockMatchesHealth `
     -Path (Join-Path $stateDirectory "runtime.lock") `
@@ -256,6 +313,12 @@ if ($null -ne $accountingWsHealth) {
         -Health $accountingWsHealth `
         -Label "ACCOUNTING_WS"
 }
+if ($null -ne $skillDiscoveryHealth) {
+    Test-LockMatchesHealth `
+        -Path (Join-Path $stateDirectory "skill-discovery.lock") `
+        -Health $skillDiscoveryHealth `
+        -Label "SKILL_DISCOVERY"
+}
 
 $runtimeStatePath = Join-Path $stateDirectory "runtime.json"
 $runtimeState = $null
@@ -271,7 +334,7 @@ else {
             $issues.Add("RUNTIME_REPORT_STALE")
         }
         if ($runtimeState.state -ne "READY") {
-            $issues.Add("RUNTIME_$($runtimeState.state)")
+            $domainIssues.Add("RUNTIME_$($runtimeState.state)")
         }
     }
     catch {
@@ -285,18 +348,31 @@ $processRows |
     Select-Object Name, Count |
     Sort-Object Name |
     Format-Table -AutoSize
-@($runtimeHealth, $voiceHealth, $accountingHealth, $accountingWsHealth) |
+@($runtimeHealth, $voiceHealth, $qwenPrompterHealth, $accountingHealth, $accountingWsHealth, $skillDiscoveryHealth) |
     Where-Object { $null -ne $_ } |
     Format-Table -AutoSize
+$overallStatus = if ($issues.Count -eq 0 -and $domainIssues.Count -eq 0) {
+    "READY"
+}
+elseif ($issues.Count -eq 0) {
+    "RUNNING_WITH_BLOCKERS"
+}
+else {
+    "DEGRADED"
+}
 [pscustomobject]@{
-    OverallStatus = if ($issues.Count -eq 0) { "READY" } else { "DEGRADED" }
+    OverallStatus = $overallStatus
     RuntimeState = $runtimeState.state
     Blockers = @($runtimeState.blockers) -join ","
     Issues = $issues -join ","
+    DomainIssues = $domainIssues -join ","
     ExecutionAllowed = $false
     LiveEligibilityStatus = "LIVE_ORDER_BLOCKED"
 } | Format-List
 
 if ($issues.Count -gt 0) {
     exit 1
+}
+if ($domainIssues.Count -gt 0) {
+    exit 2
 }

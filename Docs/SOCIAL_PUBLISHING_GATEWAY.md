@@ -1,5 +1,12 @@
 # X, Telegram ve LinkedIn Publishing Gateway
 
+## ELI10
+
+Bu belge X, Telegram veya LinkedIn'e yazi gonderme kapisini anlatir. Sadece tam
+onaylanmis metinler denenebilir; varsayilan durumda hicbir platform acik degildir
+ve sosyal medya onayi trading onayi sayilmaz.
+
+
 Bu katman, yalnız yerel approval kuyruğunda tam içerik eşleşmesiyle `APPROVED`
 olan taslakları X, Telegram veya LinkedIn'e metin olarak gönderebilir. Varsayılan
 configuration hiçbir platformu etkinleştirmez ve gerçek credential içermez.
@@ -89,3 +96,4 @@ uygunluğu dış kanıt olarak ayrıca doğrulanmalıdır.
 - Silme/düzenleme
 - Credential edinme veya OAuth login akışı
 - Başarısız isteği otomatik retry etme
+

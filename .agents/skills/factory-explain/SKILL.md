@@ -1,6 +1,13 @@
 ---
 name: factory-explain
-description: Explain AI4BINANCE factory plans, work orders, reviews, and completed code in plain language with concise diagrams. Use for /factory-explain, owner guides, ELI10 explanations, Mermaid diagrams, GUIDE.md updates, and reducing human understanding bottlenecks.
+description: Use when explaining AI4BINANCE factory plans, work orders, reviews, and completed code in plain language with concise diagrams.
+metadata:
+  ai4binance.authority: advisory-only
+  ai4binance.version: 1.0.0
+  ai4binance.owner: QualityDepartmentManager
+  ai4binance.trust_level: local
+  ai4binance.last_reviewed: 2026-08-03
+  ai4binance.trigger_examples: /factory-explain; owner guide; ELI10 factory explanation
 ---
 
 # Factory Explain

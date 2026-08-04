@@ -8,6 +8,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from ai4binance.enterprise.agent_lifecycle import AgentLifecycleStateMachine
+from ai4binance.enterprise.agent_stack import run_agent_stack_audit
 from ai4binance.enterprise.communication import (
     CommunicationDecisionStatus,
     DepartmentCommunicationGate,
@@ -22,6 +23,11 @@ from ai4binance.enterprise.contracts import (
 )
 from ai4binance.enterprise.departments import build_default_department_registry
 from ai4binance.enterprise.executive import GeneralManagerController
+from ai4binance.enterprise.oek_compliance import (
+    OekComplianceStatus,
+    analyze_oek_change_gap,
+    audit_oek_constitution,
+)
 from ai4binance.enterprise.prompt_intake import (
     PromptAccessPolicy,
     PromptAccessStatus,
@@ -181,7 +187,10 @@ def run_quality_system_audit(
         _audit_enterprise_audit_journal(),
         _audit_agentic_governance_surfaces(),
         _audit_cli_governance_commands(evidence.command_names),
+        _audit_quality_gate_green(evidence.workspace_root, evidence.command_names),
         _audit_holding_governance_doc(evidence.workspace_root),
+        _audit_oek_constitution_doc(evidence.workspace_root),
+        _audit_modern_agent_stack(evidence),
     )
     blockers = _stable_unique(
         tuple(blocker for check in checks for blocker in check.blockers)
@@ -367,6 +376,7 @@ def _audit_agentic_governance_surfaces() -> QualitySystemAuditCheck:
         ("skill-linter", lint_skill_manifest),
         ("task-tracker", EnterpriseTaskTracker),
         ("corrective-rag", evaluate_retrieval_quality),
+        ("oek-gap-analysis", analyze_oek_change_gap),
     )
     model_adaptation_path = (
         Path(__file__).resolve().parents[1] / "learning" / "model_adaptation.py"
@@ -394,7 +404,13 @@ def _audit_agentic_governance_surfaces() -> QualitySystemAuditCheck:
 def _audit_cli_governance_commands(
     command_names: tuple[str, ...],
 ) -> QualitySystemAuditCheck:
-    required = {"enterprise-intake", "skills-audit", "quality-system-audit"}
+    required = {
+        "agent-stack-audit",
+        "enterprise-intake",
+        "oek-gap-analysis",
+        "quality-system-audit",
+        "skills-audit",
+    }
     missing = tuple(sorted(required.difference(command_names)))
     return _check(
         "CLI_GOVERNANCE_COMMANDS",
@@ -404,6 +420,53 @@ def _audit_cli_governance_commands(
         blockers=tuple(f"CLI_COMMAND_MISSING:{name}" for name in missing),
         corrective_actions=tuple(
             f"Add CLI governance command {name}." for name in missing
+        ),
+    )
+
+
+def _audit_quality_gate_green(
+    workspace_root: Path,
+    command_names: tuple[str, ...],
+) -> QualitySystemAuditCheck:
+    script_path = workspace_root / "Scripts" / "quality.ps1"
+    script_text = (
+        script_path.read_text(encoding="utf-8") if script_path.is_file() else ""
+    )
+    missing: list[str] = []
+    if "quality-system-audit" not in command_names:
+        missing.append("QUALITY_GATE_COMMAND_UNREGISTERED")
+    if not script_path.is_file():
+        missing.append("QUALITY_GATE_SCRIPT_MISSING")
+    if "QUALITY_GATE_GREEN" not in script_text or "quality-gate\\latest.json" not in (
+        script_text
+    ):
+        missing.append("QUALITY_GATE_GREEN_EVIDENCE_WRITER_MISSING")
+    if "LIVE_ORDER_BLOCKED" not in script_text:
+        missing.append("QUALITY_GATE_LIVE_BLOCKED_BOUNDARY_MISSING")
+    return _check(
+        "QUALITY_GATE_GREEN",
+        "Scripts/quality.ps1",
+        passed=not missing,
+        evidence_refs=(
+            "cli-command:quality-system-audit",
+            "script:Scripts/quality.ps1",
+            "artifact:Artifacts/quality-gate/latest.json",
+        ),
+        blockers=tuple(missing),
+        corrective_actions=tuple(
+            {
+                "QUALITY_GATE_COMMAND_UNREGISTERED": (
+                    "Register quality-system-audit in the CLI command catalog."
+                ),
+                "QUALITY_GATE_SCRIPT_MISSING": "Restore Scripts/quality.ps1.",
+                "QUALITY_GATE_GREEN_EVIDENCE_WRITER_MISSING": (
+                    "Write QUALITY_GATE_GREEN evidence only after the full gate passes."
+                ),
+                "QUALITY_GATE_LIVE_BLOCKED_BOUNDARY_MISSING": (
+                    "Keep quality evidence explicitly LIVE_ORDER_BLOCKED."
+                ),
+            }[item]
+            for item in missing
         ),
     )
 
@@ -438,6 +501,38 @@ def _audit_holding_governance_doc(workspace_root: Path) -> QualitySystemAuditChe
             if not doc_path.is_file()
             else tuple(f"Document required governance term {term}." for term in missing)
         ),
+    )
+
+
+def _audit_oek_constitution_doc(workspace_root: Path) -> QualitySystemAuditCheck:
+    report = audit_oek_constitution(workspace_root)
+    return _check(
+        "OEK_CONSTITUTION_COMPLIANCE",
+        report.document_path,
+        passed=report.status is OekComplianceStatus.PASSED,
+        evidence_refs=report.evidence_refs,
+        blockers=report.blockers,
+        corrective_actions=report.corrective_actions,
+    )
+
+
+def _audit_modern_agent_stack(
+    evidence: QualitySystemAuditEvidence,
+) -> QualitySystemAuditCheck:
+    report = run_agent_stack_audit(
+        evidence.workspace_root,
+        evidence.command_names,
+        evidence.observed_at,
+    )
+    return _check(
+        "MODERN_AGENT_STACK_GOVERNED",
+        "enterprise:agent-stack",
+        passed=not report.blockers,
+        evidence_refs=tuple(
+            f"agent-stack-layer:{layer.layer_id}" for layer in report.layers
+        ),
+        blockers=report.blockers,
+        corrective_actions=report.corrective_actions,
     )
 
 

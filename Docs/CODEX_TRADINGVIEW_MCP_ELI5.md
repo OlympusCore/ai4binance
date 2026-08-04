@@ -1,5 +1,12 @@
 # Codex + TradingView MCP Kurulumu (Windows, ELI5)
 
+## ELI10
+
+Bu rehber, Codex'in TradingView ekranindan bilgi okuyabilmesini anlatir. Bu bilgi
+sadece yardimci kanittir; grafik okumak tek basina al-sat emri, risk onayi veya
+canli islem izni vermez.
+
+
 > **Güncel sınır:** TradingView dış/advisory kanıttır. AI4BINANCE için wallet,
 > emir veya hard-gate doğrulama kaynağı değildir.
 
@@ -274,3 +281,4 @@ RESEARCH_ONLY
 - [TradingView MCP GitHub deposu](https://github.com/tradesdontlie/tradingview-mcp)
 - [TradingView MCP kurulum rehberi](https://github.com/tradesdontlie/tradingview-mcp/blob/main/SETUP_GUIDE.md)
 - [OpenAI Codex belgeleri](https://developers.openai.com/codex/)
+

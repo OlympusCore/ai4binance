@@ -1,6 +1,13 @@
 ---
 name: ai4binance-validation-first
-description: Implement, review, optimize, or debug AI4BINANCE with staged evidence, minimal diffs, deterministic tests, Spot-native semantics, statistical OOS governance, and fail-closed trading safety. Use for changes to agents, market context providers, backtests, validation, tuning, learning, risk, execution, security, observability, or performance.
+description: Use when implementing, reviewing, optimizing, or debugging AI4BINANCE with staged evidence, minimal diffs, deterministic tests, Spot-native semantics, statistical OOS governance, and fail-closed trading safety.
+metadata:
+  ai4binance.authority: advisory-only
+  ai4binance.version: 1.0.0
+  ai4binance.owner: QualityDepartmentManager
+  ai4binance.trust_level: local
+  ai4binance.last_reviewed: 2026-08-03
+  ai4binance.trigger_examples: validation first; fail closed fix; OOS governance
 ---
 
 # AI4BINANCE Validation First

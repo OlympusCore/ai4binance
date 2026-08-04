@@ -1,6 +1,13 @@
 ---
 name: factory-handoff
-description: Package AI4BINANCE factory briefs, plans, tests, safety rails, allowed files, forbidden files, and stop conditions into a bounded work order. Use for /factory-handoff, HANDOFF.md, CTO-to-SWE handoff, execution packets, and BACKGROUND_SHIFT preparation while preserving live-blocked safety.
+description: Use when packaging AI4BINANCE factory briefs, plans, tests, safety rails, allowed files, forbidden files, and stop conditions into a bounded work order.
+metadata:
+  ai4binance.authority: advisory-only
+  ai4binance.version: 1.0.0
+  ai4binance.owner: QualityDepartmentManager
+  ai4binance.trust_level: local
+  ai4binance.last_reviewed: 2026-08-03
+  ai4binance.trigger_examples: /factory-handoff; HANDOFF.md; BACKGROUND_SHIFT packet
 ---
 
 # Factory Handoff

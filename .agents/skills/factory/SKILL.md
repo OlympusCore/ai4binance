@@ -1,6 +1,13 @@
 ---
 name: factory
 description: Route governed AI4BINANCE software factory work. Use when the user asks for /factory, factory orchestration, project state routing, next factory step selection, or converting an idea into the correct factory phase while preserving NO_TRADE, RESEARCH_ONLY, and LIVE_ORDER_BLOCKED safety boundaries.
+metadata:
+  ai4binance.authority: advisory-only
+  ai4binance.version: 1.0.0
+  ai4binance.owner: QualityDepartmentManager
+  ai4binance.trust_level: review-required
+  ai4binance.last_reviewed: 2026-08-03
+  ai4binance.trigger_examples: /factory; factory orchestration; factory state routing
 ---
 
 # Factory Foreman

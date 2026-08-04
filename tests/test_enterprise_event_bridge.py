@@ -4,6 +4,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from ai4binance.enterprise import (
+    OEK_AUTHORITY_SOURCE,
+    OEK_CONSTITUTION_CONTROL,
     AuditEvent,
     BoardDirective,
     DepartmentId,
@@ -40,7 +42,12 @@ def directive() -> BoardDirective:
         "board-chair",
         "Apply a private holding governance operating system.",
         ("NO_LIVE_AUTHORITY", "NO_RAW_PRIVATE_PROFILE_OUTSIDE_COMPUTER_MD"),
-        ("RESEARCH_ONLY", "GENERAL_MANAGER_ORCHESTRATION"),
+        (
+            OEK_AUTHORITY_SOURCE,
+            OEK_CONSTITUTION_CONTROL,
+            "RESEARCH_ONLY",
+            "GENERAL_MANAGER_ORCHESTRATION",
+        ),
         "local-only",
         600,
     )

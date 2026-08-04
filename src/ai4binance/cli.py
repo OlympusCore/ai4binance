@@ -13,7 +13,9 @@ __path__ = [str(Path(__file__).with_suffix(""))]
 from ai4binance.cli.accounting import run_accounting_command
 from ai4binance.cli.commands import command_catalog_payload
 from ai4binance.cli.enterprise import (
+    run_agent_stack_audit_command,
     run_enterprise_intake,
+    run_oek_gap_analysis_command,
     run_quality_system_audit_command,
     run_repository_cleanup_audit_command,
 )
@@ -50,6 +52,10 @@ from ai4binance.cli.voice import run_voice_command
 from ai4binance.config import Settings
 from ai4binance.decision import build_no_trade_signal
 from ai4binance.domain import LiveGateInput
+from ai4binance.ops.system_report import (
+    build_system_report,
+    system_report_summary_payload,
+)
 from ai4binance.reporting import to_primitive
 from ai4binance.safety import evaluate_live_gate
 
@@ -75,6 +81,15 @@ def main(
         )
         return 0
 
+    if command == "system-report":
+        result = build_system_report(settings)
+        _print_payload(
+            system_report_summary_payload(result),
+            output_format=parsed.output_format,
+            command=command,
+        )
+        return 0 if result.payload["status"] == "READY" else 2
+
     if command in {"portfolio", "manual-actions", "approvals"}:
         payload = (
             portfolio_command_payload(settings)
@@ -89,7 +104,7 @@ def main(
     if command == "opportunities":
         payload = opportunities_payload(settings, parsed.symbol)
         _print_payload(payload, output_format=parsed.output_format, command=command)
-        return 0 if not payload["blockers"] else 2
+        return 0 if payload["status"] == "ACTIVE" else 2
 
     if command in {"scan-spot", "scan-futures", "scan-all"}:
         payload = scan_command_payload(command, settings)
@@ -237,6 +252,15 @@ def main(
 
     if command == "quality-system-audit":
         return run_quality_system_audit_command(output_format=parsed.output_format)
+
+    if command == "agent-stack-audit":
+        return run_agent_stack_audit_command(output_format=parsed.output_format)
+
+    if command == "oek-gap-analysis":
+        return run_oek_gap_analysis_command(
+            change_file=parsed.change_file,
+            output_format=parsed.output_format,
+        )
 
     if command == "repository-cleanup-audit":
         return run_repository_cleanup_audit_command(output_format=parsed.output_format)

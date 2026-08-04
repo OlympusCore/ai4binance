@@ -93,5 +93,11 @@ def test_opportunity_inbox_merges_market_and_validation_evidence(
     assert "breakout_retest" in subjects
     assert "trend_continuation" in subjects
     assert "NO_READY_CANDIDATE" in inbox.blockers
+    assert inbox.generation_status == "ACTIVE"
+    assert inbox.research_blockers == ()
+    assert "NO_READY_CANDIDATE" in inbox.execution_blockers
+    assert "KEEP_WATCHLIST_AND_WAIT_FOR_READY_SETUP" in inbox.next_safe_actions
+    assert inbox.research_loop_allowed is True
+    assert inbox.opportunity_generation_allowed is True
     assert all(item.execution_allowed is False for item in inbox.items)
     assert inbox.live_eligibility_status == "LIVE_ORDER_BLOCKED"

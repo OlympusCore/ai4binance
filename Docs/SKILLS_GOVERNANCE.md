@@ -1,5 +1,12 @@
 # AI4BINANCE Agent Skills Governance
 
+## ELI10
+
+Bu belge ajan becerilerinin kullanim kurallarini anlatir. Skill dosyalari iyi
+fikir ve prosedur tasiyabilir, ama guvenlik incelemesi olmadan arac calistiramaz,
+kurulum yapamaz veya trading yetkisi alamaz.
+
+
 Agent Skills are useful for packaging procedural agent guidance, examples,
 scripts, references, and templates.  In AI4BINANCE they are advisory workflow
 assets only.
@@ -93,3 +100,4 @@ promotion_status=RESEARCH_ONLY
 execution_allowed=false
 live_eligibility_status=LIVE_ORDER_BLOCKED
 ```
+

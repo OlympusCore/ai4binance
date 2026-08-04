@@ -1,5 +1,12 @@
 # Coverage Diff Plan — 90% Gate Recovery
 
+## ELI10
+
+Bu rapor, test kapsamini yuzde 90 kapisina cikarmak icin yapilan planin notudur.
+Amac kaliteyi gercek testlerle artirmaktir; kapsama esigini dusurmek veya zayif
+guvenlik kontrollerini saklamak degildir.
+
+
 Current full quality run:
 
 ```text
@@ -276,3 +283,4 @@ Pytest passed
 Bandit passed if quality script reaches security gate
 LIVE_ORDER_BLOCKED unchanged
 ```
+

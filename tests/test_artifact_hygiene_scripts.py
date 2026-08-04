@@ -129,3 +129,44 @@ def test_cleanup_script_acl_force_is_bounded_to_test_temp() -> None:
     assert "Refusing ACL-forced cleanup outside Artifacts\\TestTemp" in text
     assert "FORCE_ACL_REQUIRES_ELEVATED_POWERSHELL" in text
     assert "Remove-Item -LiteralPath $source -Recurse -Force" in text
+
+
+def test_qwen_prompter_startup_task_is_visible_and_advisory_only() -> None:
+    install_text = (
+        Path("Scripts") / "install_qwen_prompter_startup_task.ps1"
+    ).read_text(encoding="utf-8")
+    prompter_text = (Path("Scripts") / "start_qwen_prompter.ps1").read_text(
+        encoding="utf-8"
+    )
+    status_text = (Path("Scripts") / "startup_status.ps1").read_text(encoding="utf-8")
+
+    assert 'qwen3:8b"' in install_text
+    assert "AI4BINANCE-Qwen3-Prompter" in install_text
+    assert "New-ScheduledTaskTrigger -AtLogOn" in install_text
+    assert "-File" in install_text
+    assert "-NoExit" not in install_text
+    assert "-NonInteractive" not in install_text
+    assert "-Hidden" not in install_text
+    assert "visible_prompt = $true" in install_text
+    assert 'AI4BINANCE_ALLOW_AUTO_LIVE_ORDERS = "false"' in prompter_text
+    assert 'AI4BINANCE_ADVISORY_LLM_MODE = "RESEARCH_ONLY"' in prompter_text
+    assert 'AI4BINANCE_ORDER_AUTHORITY = "BLOCKED"' in prompter_text
+    assert 'AI4BINANCE_RISK_AUTHORITY = "BLOCKED"' in prompter_text
+    assert 'AI4BINANCE_LIVE_AUTHORITY = "BLOCKED"' in prompter_text
+    assert "LIVE_ORDER_BLOCKED" in prompter_text
+    assert "New-SystemPrompt" in prompter_text
+    assert "Docs\\READ_ONLY_RUNTIME.md" in prompter_text
+    assert "State\\runtime.json" in prompter_text
+    assert "Artifacts\\market-outlook\\runtime-state.json" in prompter_text
+    assert "http://127.0.0.1:11434/api/chat" in prompter_text
+    assert "Invoke-OllamaChat" in prompter_text
+    assert "Start-Job" in prompter_text
+    assert "Start-Sleep -Seconds 30" in prompter_text
+    assert "System.Net.Http.HttpClient" in prompter_text
+    assert "System.Net.Http.StringContent" in prompter_text
+    assert '"application/json"' in prompter_text
+    assert "Private state and Secrets are out of scope" in prompter_text
+    assert "Read-Host" in prompter_text
+    assert "RequireQwenPrompterTask" in status_text
+    assert "AI4BINANCE-Qwen3-Prompter" in status_text
+    assert "qwen-prompter-health.json" in status_text

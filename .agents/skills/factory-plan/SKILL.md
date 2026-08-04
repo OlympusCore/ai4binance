@@ -1,6 +1,13 @@
 ---
 name: factory-plan
-description: Interview for missing product context and turn approved AI4BINANCE factory briefs into small ordered testable plans. Use for /factory-plan, BRIEF.md creation, PLAN.md creation, roadmap decomposition, task slicing, and planning before implementation.
+description: Use when interviewing for missing product context or turning approved AI4BINANCE factory briefs into small ordered testable plans.
+metadata:
+  ai4binance.authority: advisory-only
+  ai4binance.version: 1.0.0
+  ai4binance.owner: QualityDepartmentManager
+  ai4binance.trust_level: local
+  ai4binance.last_reviewed: 2026-08-03
+  ai4binance.trigger_examples: /factory-plan; BRIEF.md; PLAN.md
 ---
 
 # Factory Plan

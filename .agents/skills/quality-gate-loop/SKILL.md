@@ -1,6 +1,13 @@
 ---
 name: quality-gate-loop
 description: Run a strict, self-checking Python repository quality loop that requires green pytest tests, zero Ruff lint findings, and zero MyPy type errors. Use when asked to fix tests, make CI or quality gates green, iterate on failures, apply a Discover-Plan-Execute-Verify workflow, or stop after a bounded number of repair attempts.
+metadata:
+  ai4binance.authority: advisory-only
+  ai4binance.version: 1.0.0
+  ai4binance.owner: QualityDepartmentManager
+  ai4binance.trust_level: review-required
+  ai4binance.last_reviewed: 2026-08-03
+  ai4binance.trigger_examples: quality gate loop; fix tests; make CI green
 ---
 
 # Quality Gate Loop

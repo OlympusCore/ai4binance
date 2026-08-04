@@ -13,6 +13,7 @@ from ai4binance.storage import (
     SecretRedactor,
     VerificationStatus,
     VerifiedWriteResult,
+    read_bounded_jsonl_tail,
     write_json_object_verified,
 )
 from ai4binance.storage.destination_verification import read_json_object
@@ -79,15 +80,11 @@ def test_jsonl_store_verified_append_stops_on_failed_read_back(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     path = tmp_path / "audit" / "events.jsonl"
-    original = Path.read_text
-
-    def tampered_read_text(
-        self: Path, encoding: str | None = None, errors: str | None = None
-    ) -> str:
-        payload = original(self, encoding, errors)
-        return payload.replace("snapshot-1", "other") if self == path else payload
-
-    monkeypatch.setattr(Path, "read_text", tampered_read_text)
+    monkeypatch.setattr(
+        JsonlAuditStore,
+        "_last_event",
+        lambda self: {"snapshot_id": "tampered"},
+    )
     with pytest.raises(DestinationVerificationError, match="JSONL_AUDIT"):
         JsonlAuditStore(path).append_verified(
             AuditEvent(
@@ -97,6 +94,66 @@ def test_jsonl_store_verified_append_stops_on_failed_read_back(
                 payload={"symbol": "HOTUSDT"},
             )
         )
+
+
+def test_jsonl_store_verified_append_uses_bounded_tail_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "audit" / "events.jsonl"
+    path.parent.mkdir(parents=True)
+    path.write_text('{"event_type":"OLD_EVENT"}\n' * 10_000, encoding="utf-8")
+
+    monkeypatch.setattr(
+        Path,
+        "read_text",
+        lambda *_args, **_kwargs: pytest.fail("whole-file read is forbidden"),
+    )
+    result = JsonlAuditStore(path).append_verified(
+        AuditEvent(
+            event_type="MARKET_SNAPSHOT_CREATED",
+            timestamp=NOW,
+            snapshot_id="snapshot-tail",
+            payload={"symbol": "HOTUSDT"},
+        )
+    )
+
+    assert result.subject_id == "snapshot-tail"
+    assert result.operation == "jsonl_append"
+
+
+def test_jsonl_store_tail_read_handles_blank_lines_and_size_limit(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "events.jsonl"
+    path.write_bytes(b'{"status":"ok"}\n\n \t\r\n')
+    assert JsonlAuditStore(path)._last_event() == {"status": "ok"}
+
+    path.write_bytes(b'{"payload":"' + (b"x" * 512) + b'"}\n')
+    with pytest.raises(DestinationVerificationError, match="JSONL_AUDIT"):
+        JsonlAuditStore(path, max_event_bytes=128)._last_event()
+
+
+def test_bounded_jsonl_tail_returns_only_recent_nonempty_lines(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "events.jsonl"
+    path.write_bytes(
+        b'{"sequence":0}\n' * 10_000 + b'\n{"sequence":1}\n{"sequence":2}\n\n'
+    )
+    monkeypatch.setattr(
+        Path,
+        "read_text",
+        lambda *_args, **_kwargs: pytest.fail("whole-file read is forbidden"),
+    )
+
+    lines = read_bounded_jsonl_tail(path, max_lines=2)
+
+    assert tuple(json.loads(line) for line in lines) == (
+        {"sequence": 1},
+        {"sequence": 2},
+    )
 
 
 def test_verified_write_result_rejects_inconsistent_states() -> None:
