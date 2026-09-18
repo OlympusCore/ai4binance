@@ -24,7 +24,7 @@ _SUPPORTED_SUFFIXES: Final = frozenset(
     {".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".webp"}
 )
 _MAX_IMAGE_BYTES: Final = 25 * 1024 * 1024
-_VISION_EVIDENCE_SCHEMA_VERSION: Final = "1.3"
+_VISION_EVIDENCE_SCHEMA_VERSION: Final = "1.4"
 _LATEST_CHECKPOINT_INTERVAL: Final = 25
 
 
@@ -51,6 +51,7 @@ class InternalRadarResult:
             "source_configured": self.source_configured,
             "status": self.status,
             "observed_at": self.observed_at.isoformat(),
+            "last_scan_timestamp_utc": self.observed_at.isoformat(),
             "scanned_count": self.scanned_count,
             "new_candidate_count": self.new_candidate_count,
             "review_candidate_count": self.review_candidate_count,
@@ -206,6 +207,7 @@ def run_internal_radar_once(
             )
             vision_analysis_count += 1
             candidate["vision_evidence"] = evidence.to_payload()
+            candidate["last_scan_timestamp_utc"] = datetime.now(UTC).isoformat()
             candidate["assessment_status"] = evidence.status
             candidate["system_benefit"] = evidence.system_contribution or "NOT_ASSESSED"
             candidate["system_tradeoff"] = (
@@ -345,6 +347,8 @@ def _has_current_vision_evidence(candidate: dict[str, object]) -> bool:
     return (
         isinstance(evidence, dict)
         and evidence.get("schema_version") == _VISION_EVIDENCE_SCHEMA_VERSION
+        and isinstance(candidate.get("last_scan_timestamp_utc"), str)
+        and str(candidate["last_scan_timestamp_utc"]).endswith("+00:00")
     )
 
 
@@ -411,7 +415,7 @@ def _write_markdown_record(
     lines = [
         "# Internal Image Radar Scan Record",
         "",
-        f"- Observed at (UTC): `{result.observed_at.isoformat()}`",
+        f"- Last scan timestamp (UTC): `{result.observed_at.isoformat()}`",
         f"- Status: `{result.status}`",
         f"- Scanned images: `{result.scanned_count}`",
         f"- New candidates: `{result.new_candidate_count}`",
@@ -435,9 +439,9 @@ def _write_markdown_record(
         "",
         (
             "| Image | Candidate ID | Machine status | System contribution | "
-            "Benefits | Trade-offs | Confidence |"
+            "Benefits | Trade-offs | Confidence | Last scan timestamp (UTC) |"
         ),
-        "| --- | --- | --- | --- | --- | --- | --- |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for candidate in result.candidates:
         evidence = candidate.get("vision_evidence")
@@ -459,6 +463,7 @@ def _write_markdown_record(
                     benefits,
                     tradeoffs,
                     _markdown_cell(confidence),
+                    _markdown_cell(candidate.get("last_scan_timestamp_utc")),
                 )
             )
             + " |"

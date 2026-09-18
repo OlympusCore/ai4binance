@@ -47,7 +47,7 @@ _CATEGORIES: Final = frozenset(
         "OTHER",
     }
 )
-_EVIDENCE_SCHEMA_VERSION: Final = "1.3"
+_EVIDENCE_SCHEMA_VERSION: Final = "1.4"
 _CONTRIBUTIONS: Final = frozenset(
     {"RELEVANT", "POTENTIALLY_RELEVANT", "NOT_RELEVANT", "INDETERMINATE"}
 )
