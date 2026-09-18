@@ -9,7 +9,7 @@ from urllib.request import Request
 import pytest
 
 from ai4binance.governance.model_registry import ModelGateway
-from ai4binance.internal_radar_vision import LlamaCppVisionRunner
+from ai4binance.internal_radar_vision import LlamaCppVisionRunner, _prompt
 
 
 def test_vision_runner_stays_advisory_when_local_provider_is_unavailable(
@@ -141,3 +141,61 @@ def test_vision_runner_rejects_unstructured_model_output(
 
     assert evidence.status == "BLOCKED"
     assert "LOCAL_VISION_SCHEMA_INVALID" in evidence.blockers
+
+
+def test_vision_runner_accepts_one_json_code_fence(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    image = tmp_path / "fixture.png"
+    image.write_bytes(b"image-fixture")
+    observation = {
+        "image_category": "ARCHITECTURE_DIAGRAM",
+        "system_contribution": "POTENTIALLY_RELEVANT",
+        "benefit_categories": ["ARCHITECTURE_CONTEXT"],
+        "tradeoff_categories": ["HUMAN_REVIEW_REQUIRED"],
+        "extracted_text_present": True,
+        "uncertainty_categories": ["CONTEXT_MISSING"],
+        "confidence": 0.5,
+    }
+
+    class AllowedGateway:
+        def admit_advisory(self, *_args: object) -> object:
+            return type(
+                "Decision",
+                (),
+                {"allowed": True, "blockers": (), "route_decision": None},
+            )()
+
+    class Response:
+        def read(self, _limit: int) -> bytes:
+            content = "```json\n" + json.dumps(observation) + "\n```"
+            return json.dumps({"choices": [{"message": {"content": content}}]}).encode()
+
+        def __enter__(self) -> Response:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+    monkeypatch.setattr("urllib.request.urlopen", lambda *_args, **_kwargs: Response())
+    evidence = LlamaCppVisionRunner(model_gateway=AllowedGateway()).analyze(
+        candidate_id="internal-image:0123456789abcdef",
+        source_content_sha256="d" * 64,
+        image_path=image,
+    )
+
+    assert evidence.status == "OBSERVED_UNVERIFIED"
+    assert evidence.image_category == "ARCHITECTURE_DIAGRAM"
+    assert evidence.system_contribution == "POTENTIALLY_RELEVANT"
+    assert evidence.benefit_categories == ("ARCHITECTURE_CONTEXT",)
+    assert "CONTEXT_MISSING" in evidence.uncertainty_categories
+
+
+def test_vision_prompt_distinguishes_system_diagrams_from_generic_infographics() -> (
+    None
+):
+    prompt = _prompt()
+
+    assert "ARCHITECTURE_DIAGRAM" in prompt
+    assert "EDUCATIONAL_INFOGRAPHIC" in prompt
+    assert "at most POTENTIALLY_RELEVANT" in prompt

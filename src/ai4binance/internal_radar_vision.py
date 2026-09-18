@@ -40,11 +40,14 @@ _CATEGORIES: Final = frozenset(
         "MARKET_CHART",
         "DASHBOARD",
         "CODE_OR_ARCHITECTURE",
+        "ARCHITECTURE_DIAGRAM",
+        "EDUCATIONAL_INFOGRAPHIC",
         "DOCUMENT",
         "UI",
         "OTHER",
     }
 )
+_EVIDENCE_SCHEMA_VERSION: Final = "1.3"
 _CONTRIBUTIONS: Final = frozenset(
     {"RELEVANT", "POTENTIALLY_RELEVANT", "NOT_RELEVANT", "INDETERMINATE"}
 )
@@ -119,7 +122,7 @@ class VisionEvidence:
     def to_payload(self) -> dict[str, object]:
         """Return persistent evidence without raw visual or textual content."""
         return {
-            "schema_version": "1.0",
+            "schema_version": _EVIDENCE_SCHEMA_VERSION,
             "candidate_id": self.candidate_id,
             "source_content_sha256": self.source_content_sha256,
             "model_id": _MODEL_ID,
@@ -284,7 +287,9 @@ class LlamaCppVisionRunner:
             )
         try:
             content = _completion_content(response_payload)
-            observation = _validate_observation(json.loads(content))
+            observation = _normalize_visual_only_observation(
+                _validate_observation(_parse_json_object(content))
+            )
         except (TypeError, ValueError, json.JSONDecodeError):
             return _blocked_evidence(
                 candidate_id,
@@ -312,20 +317,30 @@ class LlamaCppVisionRunner:
 
 def _prompt() -> str:
     return (
-        "You are a local vision perception sensor. Return JSON only, with exactly "
+        "You are a local vision perception sensor for the AI4Binance research-only "
+        "system. Return JSON only, with exactly "
         "these keys: image_category, system_contribution, benefit_categories, "
         "tradeoff_categories, extracted_text_present, uncertainty_categories, "
         "confidence. Never return image text, names, paths, prices, symbols, "
-        "recommendations, trading instructions, or free-form prose. "
+        "recommendations, trading instructions, free-form prose, or Markdown code "
+        "fences. "
         "image_category must be one of MARKET_CHART,DASHBOARD,CODE_OR_ARCHITECTURE,"
-        "DOCUMENT,UI,OTHER. system_contribution must be one of RELEVANT,"
+        "ARCHITECTURE_DIAGRAM,EDUCATIONAL_INFOGRAPHIC,DOCUMENT,UI,OTHER. Use "
+        "ARCHITECTURE_DIAGRAM for a component, data-flow, integration, or system "
+        "topology diagram. Use EDUCATIONAL_INFOGRAPHIC for a conceptual learning "
+        "map, poster, or general technology explainer. system_contribution must be "
+        "one of RELEVANT,"
         "POTENTIALLY_RELEVANT,NOT_RELEVANT,INDETERMINATE. benefit_categories must "
         "contain only RESEARCH_CONTEXT,OPERATIONAL_VISIBILITY,DATA_QUALITY_SIGNAL,"
         "ARCHITECTURE_CONTEXT,NO_IDENTIFIED_BENEFIT. tradeoff_categories must contain "
         "only HUMAN_REVIEW_REQUIRED,OCR_UNVERIFIED,VISUAL_AMBIGUITY,"
         "STALE_CONTEXT_POSSIBLE,NO_IDENTIFIED_TRADEOFF. uncertainty_categories must "
         "contain only LOW_RESOLUTION,PARTIAL_VIEW,OCR_UNCERTAIN,CONTEXT_MISSING,"
-        "NO_MATERIAL_UNCERTAINTY. confidence is a number from 0 to 1."
+        "NO_MATERIAL_UNCERTAINTY. Mark RELEVANT only when the visual itself "
+        "directly identifies AI4Binance or an unambiguous system-specific component. "
+        "Generic AI, MCP, vector-database, agent, or model-learning material is at "
+        "most POTENTIALLY_RELEVANT; use INDETERMINATE when the system link cannot "
+        "be established from the visual. confidence is a number from 0 to 1."
     )
 
 
@@ -370,6 +385,14 @@ def _completion_content(payload: object) -> str:
     return str(message["content"])
 
 
+def _parse_json_object(content: str) -> object:
+    """Accept an otherwise exact JSON object wrapped in one Markdown code fence."""
+    normalized = content.strip()
+    if normalized.startswith("```json\n") and normalized.endswith("\n```"):
+        normalized = normalized.removeprefix("```json\n").removesuffix("\n```")
+    return json.loads(normalized)
+
+
 def _validate_observation(value: object) -> _Observation:
     if not isinstance(value, dict):
         raise ValueError("vision observation must be an object")
@@ -407,6 +430,30 @@ def _validate_observation(value: object) -> _Observation:
         "extracted_text_present": extracted,
         "uncertainty_categories": uncertainties,
         "confidence": float(confidence),
+    }
+
+
+def _normalize_visual_only_observation(observation: _Observation) -> _Observation:
+    """Prevent an untrusted image-only model from asserting system-specific proof."""
+    category = observation["image_category"]
+    if category not in {"ARCHITECTURE_DIAGRAM", "EDUCATIONAL_INFOGRAPHIC"}:
+        return observation
+    expected_benefit = (
+        "ARCHITECTURE_CONTEXT"
+        if category == "ARCHITECTURE_DIAGRAM"
+        else "RESEARCH_CONTEXT"
+    )
+    return {
+        **observation,
+        "system_contribution": (
+            "POTENTIALLY_RELEVANT"
+            if observation["system_contribution"] == "RELEVANT"
+            else observation["system_contribution"]
+        ),
+        "benefit_categories": (expected_benefit,),
+        "uncertainty_categories": tuple(
+            dict.fromkeys((*observation["uncertainty_categories"], "CONTEXT_MISSING"))
+        ),
     }
 
 

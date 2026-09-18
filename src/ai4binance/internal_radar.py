@@ -24,6 +24,8 @@ _SUPPORTED_SUFFIXES: Final = frozenset(
     {".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".webp"}
 )
 _MAX_IMAGE_BYTES: Final = 25 * 1024 * 1024
+_VISION_EVIDENCE_SCHEMA_VERSION: Final = "1.3"
+_LATEST_CHECKPOINT_INTERVAL: Final = 25
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +56,7 @@ class InternalRadarResult:
             "review_candidate_count": self.review_candidate_count,
             "vision_enabled": self.vision_enabled,
             "vision_analysis_count": self.vision_analysis_count,
+            "vision_progress": _vision_progress(self.candidates),
             "vision_summary": _vision_summary(self.candidates),
             "candidates": list(self.candidates),
             "blockers": list(self.blockers),
@@ -190,7 +193,7 @@ def run_internal_radar_once(
         runner = vision_runner or LlamaCppVisionRunner()
         for candidate_id in sorted(pending_by_id, key=str.casefold):
             candidate = pending_by_id[candidate_id]
-            if isinstance(candidate.get("vision_evidence"), dict):
+            if _has_current_vision_evidence(candidate):
                 continue
             source_path = candidates_by_id.get(candidate_id)
             content_sha256 = candidate.get("content_sha256")
@@ -212,6 +215,42 @@ def run_internal_radar_once(
             )
             candidate["recommendation"] = "HUMAN_REVIEW_REQUIRED"
             vision_blockers.extend(evidence.blockers)
+            _write_state_checkpoint(
+                state_path=state_path,
+                observed_at=now,
+                known_fingerprints=known | next_known,
+                candidates=pending_by_id,
+            )
+            if vision_analysis_count % _LATEST_CHECKPOINT_INTERVAL == 0:
+                checkpoint_candidates = tuple(
+                    pending_by_id[key]
+                    for key in sorted(pending_by_id, key=str.casefold)
+                )
+                _persist_result(
+                    InternalRadarResult(
+                        True,
+                        "RUNNING_WITH_BLOCKERS",
+                        now,
+                        len(files),
+                        len(new_candidates),
+                        len(checkpoint_candidates),
+                        True,
+                        vision_analysis_count,
+                        tuple(
+                            dict.fromkeys(
+                                (
+                                    *enumeration_blockers,
+                                    *vision_blockers,
+                                    "VISION_ANALYSIS_IN_PROGRESS",
+                                )
+                            )
+                        ),
+                        state_path,
+                        latest_path,
+                        checkpoint_candidates,
+                    ),
+                    candidate_paths=candidates_by_id,
+                )
     candidates = tuple(
         pending_by_id[key] for key in sorted(pending_by_id, key=str.casefold)
     )
@@ -235,19 +274,11 @@ def run_internal_radar_once(
         latest_path,
         candidates,
     )
-    state_payload = {
-        "schema_version": 1,
-        "observed_at": now.isoformat(),
-        "known_fingerprints": sorted(known | next_known),
-        "pending_candidates": list(candidates),
-        "source_configured": True,
-    }
-    write_json_object_verified(
-        state_path,
-        state_payload,
-        blocker="INTERNAL_RADAR_STATE_WRITE_FAILED",
-        subject_id="internal-radar-state",
-        indent=2,
+    _write_state_checkpoint(
+        state_path=state_path,
+        observed_at=now,
+        known_fingerprints=known | next_known,
+        candidates=pending_by_id,
     )
     return _persist_result(result, candidate_paths=candidates_by_id)
 
@@ -299,6 +330,47 @@ def _vision_summary(candidates: tuple[dict[str, object], ...]) -> dict[str, obje
         "benefit_categories": benefits,
         "tradeoff_categories": tradeoffs,
     }
+
+
+def _vision_progress(candidates: tuple[dict[str, object], ...]) -> dict[str, int]:
+    """Return persisted, restart-safe progress without inferring semantic success."""
+    analysed = sum(
+        1 for candidate in candidates if _has_current_vision_evidence(candidate)
+    )
+    return {"analysed": analysed, "awaiting_analysis": len(candidates) - analysed}
+
+
+def _has_current_vision_evidence(candidate: dict[str, object]) -> bool:
+    evidence = candidate.get("vision_evidence")
+    return (
+        isinstance(evidence, dict)
+        and evidence.get("schema_version") == _VISION_EVIDENCE_SCHEMA_VERSION
+    )
+
+
+def _write_state_checkpoint(
+    *,
+    state_path: Path,
+    observed_at: datetime,
+    known_fingerprints: set[str],
+    candidates: dict[str, dict[str, object]],
+) -> None:
+    """Persist every completed local observation so interruption cannot lose it."""
+    write_json_object_verified(
+        state_path,
+        {
+            "schema_version": 1,
+            "observed_at": observed_at.isoformat(),
+            "known_fingerprints": sorted(known_fingerprints),
+            "pending_candidates": [
+                candidates[key] for key in sorted(candidates, key=str.casefold)
+            ],
+            "source_configured": True,
+        },
+        blocker="INTERNAL_RADAR_STATE_WRITE_FAILED",
+        subject_id="internal-radar-state",
+        indent=2,
+    )
 
 
 def _count_text(counts: dict[str, int], value: object) -> None:
