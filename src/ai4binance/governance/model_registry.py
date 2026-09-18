@@ -502,10 +502,14 @@ def _local_model_manifest_blockers(
             blockers.append(f"LOCAL_MODEL_ARTIFACT_MISSING:{model_id}:{item['role']}")
             continue
         if candidate.stat().st_size != expected_length:
-            blockers.append(f"LOCAL_MODEL_ARTIFACT_SIZE_MISMATCH:{model_id}:{item['role']}")
+            blockers.append(
+                f"LOCAL_MODEL_ARTIFACT_SIZE_MISMATCH:{model_id}:{item['role']}"
+            )
             continue
         if _sha256_file(candidate) != expected_sha256:
-            blockers.append(f"LOCAL_MODEL_ARTIFACT_HASH_MISMATCH:{model_id}:{item['role']}")
+            blockers.append(
+                f"LOCAL_MODEL_ARTIFACT_HASH_MISMATCH:{model_id}:{item['role']}"
+            )
     return tuple(blockers)
 
 

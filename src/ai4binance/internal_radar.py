@@ -23,9 +23,7 @@ from ai4binance.storage import write_json_object_verified
 _SUPPORTED_SUFFIXES: Final = frozenset(
     {".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".webp"}
 )
-_MAX_FILES_PER_SCAN: Final = 2_500
 _MAX_IMAGE_BYTES: Final = 25 * 1024 * 1024
-_MAX_VISION_ANALYSES_PER_SCAN: Final = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +59,7 @@ class InternalRadarResult:
             "blockers": list(self.blockers),
             "state_path": str(self.state_path),
             "latest_path": str(self.latest_path),
+            "markdown_record_path": str(self.latest_path.with_suffix(".md")),
             "privacy": {
                 "source_images_copied": False,
                 "source_paths_disclosed": False,
@@ -84,8 +83,7 @@ def configured_source_root() -> Path | None:
 def include_existing_requested() -> bool:
     """Read the one-cycle local backfill request without making it persistent."""
     return (
-        os.environ.get("AI4BINANCE_INTERNAL_RADAR_INCLUDE_EXISTING", "").strip()
-        == "1"
+        os.environ.get("AI4BINANCE_INTERNAL_RADAR_INCLUDE_EXISTING", "").strip() == "1"
     )
 
 
@@ -190,10 +188,8 @@ def run_internal_radar_once(
     if vision_enabled:
         runner = vision_runner or LlamaCppVisionRunner()
         for candidate_id in sorted(pending_by_id, key=str.casefold):
-            if vision_analysis_count >= _MAX_VISION_ANALYSES_PER_SCAN:
-                break
             candidate = pending_by_id[candidate_id]
-            if candidate.get("assessment_status") == "OBSERVED_UNVERIFIED":
+            if isinstance(candidate.get("vision_evidence"), dict):
                 continue
             source_path = candidates_by_id.get(candidate_id)
             content_sha256 = candidate.get("content_sha256")
@@ -323,7 +319,94 @@ def _persist_result(result: InternalRadarResult) -> InternalRadarResult:
         subject_id="internal-radar-latest",
         indent=2,
     )
+    _write_markdown_record(result)
     return result
+
+
+def _write_markdown_record(result: InternalRadarResult) -> None:
+    """Persist a redacted, human-readable local scan record beside latest JSON."""
+
+    summary = _vision_summary(result.candidates)
+    lines = [
+        "# Internal Image Radar Scan Record",
+        "",
+        f"- Observed at (UTC): `{result.observed_at.isoformat()}`",
+        f"- Status: `{result.status}`",
+        f"- Scanned images: `{result.scanned_count}`",
+        f"- New candidates: `{result.new_candidate_count}`",
+        f"- Machine analyses in this scan: `{result.vision_analysis_count}`",
+        f"- Pending review candidates: `{result.review_candidate_count}`",
+        "- Authority: `RESEARCH_ONLY`; `LIVE_ORDER_BLOCKED`.",
+        (
+            "- Privacy: source images, names, paths, EXIF, and raw OCR text "
+            "are not included."
+        ),
+        "",
+        "## System Contribution Summary",
+        "",
+        f"- Relevant observations: `{summary['observed_count']}`",
+        f"- Contributions: `{_markdown_count_summary(summary['contributions'])}`",
+        f"- Benefits: `{_markdown_count_summary(summary['benefit_categories'])}`",
+        f"- Trade-offs: `{_markdown_count_summary(summary['tradeoff_categories'])}`",
+        f"- Blockers: `{', '.join(result.blockers) or '-'}`",
+        "",
+        "## Candidate Assessments",
+        "",
+        (
+            "| Candidate ID | Machine status | System contribution | Benefits | "
+            "Trade-offs | Confidence |"
+        ),
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    for candidate in result.candidates:
+        evidence = candidate.get("vision_evidence")
+        vision = evidence if isinstance(evidence, dict) else {}
+        benefits = _markdown_categories(vision.get("benefit_categories"))
+        tradeoffs = _markdown_categories(vision.get("tradeoff_categories"))
+        confidence = vision.get("confidence")
+        lines.append(
+            "| "
+            + " | ".join(
+                (
+                    _markdown_cell(candidate.get("candidate_id")),
+                    _markdown_cell(candidate.get("assessment_status")),
+                    _markdown_cell(candidate.get("system_benefit")),
+                    benefits,
+                    tradeoffs,
+                    _markdown_cell(confidence),
+                )
+            )
+            + " |"
+        )
+    path = result.latest_path.with_suffix(".md")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    expected = "\n".join(lines) + "\n"
+    path.write_text(expected, encoding="utf-8", newline="\n")
+    if path.read_text(encoding="utf-8") != expected:
+        raise OSError("INTERNAL_RADAR_MARKDOWN_WRITE_FAILED")
+
+
+def _markdown_count_summary(value: object) -> str:
+    if not isinstance(value, dict):
+        return "-"
+    items = sorted(
+        (str(key), count)
+        for key, count in value.items()
+        if isinstance(key, str) and isinstance(count, int) and count > 0
+    )
+    return ", ".join(f"{key}={count}" for key, count in items) or "-"
+
+
+def _markdown_categories(value: object) -> str:
+    if not isinstance(value, list):
+        return "-"
+    return ", ".join(_markdown_cell(item) for item in value) or "-"
+
+
+def _markdown_cell(value: object) -> str:
+    if value is None:
+        return "-"
+    return str(value).replace("|", "\\|").replace("\r", " ").replace("\n", " ")
 
 
 def _read_state(
@@ -350,9 +433,6 @@ def _image_files(source: Path) -> tuple[tuple[Path, ...], tuple[str, ...]]:
     blockers: list[str] = []
     try:
         for path in source.rglob("*"):
-            if len(candidates) >= _MAX_FILES_PER_SCAN:
-                blockers.append("INTERNAL_RADAR_SCAN_LIMIT_REACHED")
-                break
             if (
                 path.is_symlink()
                 or not path.is_file()

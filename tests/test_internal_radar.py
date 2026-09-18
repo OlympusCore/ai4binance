@@ -26,6 +26,10 @@ def test_internal_radar_persists_redacted_new_image_candidate(tmp_path: Path) ->
     assert result.review_candidate_count == 1
     assert "VISION_ANALYZER_NOT_CONFIGURED" in result.blockers
     assert result.latest_path.is_file()
+    markdown = result.latest_path.with_suffix(".md").read_text(encoding="utf-8")
+    assert "# Internal Image Radar Scan Record" in markdown
+    assert "private-name" not in markdown
+    assert "NOT_ASSESSED_WITHOUT_CONFIGURED_VISION_ANALYZER" in markdown
     candidate = payload["candidates"][0]
     assert isinstance(candidate, dict)
     assert "private-name" not in str(candidate)
@@ -125,6 +129,63 @@ def test_internal_radar_vision_summary_only_counts_validated_observations(
     assert summary["observed_count"] == 1
     assert summary["benefit_categories"] == {"OPERATIONAL_VISIBILITY": 1}
     assert summary["tradeoff_categories"] == {"HUMAN_REVIEW_REQUIRED": 1}
+
+
+def test_internal_radar_vision_processes_every_pending_candidate_once(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "images"
+    source.mkdir()
+    for index in range(4):
+        (source / f"image-{index}.jpg").write_bytes(f"fixture-{index}".encode())
+
+    class CountingVisionRunner:
+        def __init__(self) -> None:
+            self.candidate_ids: list[str] = []
+
+        def analyze(self, **kwargs: object) -> VisionEvidence:
+            candidate_id = str(kwargs["candidate_id"])
+            self.candidate_ids.append(candidate_id)
+            source_hash = str(kwargs["source_content_sha256"])
+            return VisionEvidence(
+                candidate_id=candidate_id,
+                source_content_sha256=source_hash,
+                status="BLOCKED",
+                image_category=None,
+                system_contribution=None,
+                benefit_categories=(),
+                tradeoff_categories=(),
+                extracted_text_present=None,
+                uncertainty_categories=(),
+                confidence=None,
+                blockers=("ADVISORY_ONLY",),
+                inference_envelope=build_advisory_inference_envelope(
+                    canonical_model_id="local-llamacpp-qwen25vl-3b",
+                    model_version="Qwen2.5-VL-3B-Instruct-Q4_K_M",
+                    task_type="LOCAL_IMAGE_ADVISORY_ANALYSIS",
+                    prompt_sha256="c" * 64,
+                    source_content_sha256=(source_hash,),
+                ),
+                route_decision=None,
+            )
+
+    runner = CountingVisionRunner()
+    first = run_internal_radar_once(
+        repository_root=tmp_path,
+        source_root=source,
+        vision_enabled=True,
+        vision_runner=runner,  # type: ignore[arg-type]
+    )
+    second = run_internal_radar_once(
+        repository_root=tmp_path,
+        source_root=source,
+        vision_enabled=True,
+        vision_runner=runner,  # type: ignore[arg-type]
+    )
+
+    assert first.vision_analysis_count == 4
+    assert second.vision_analysis_count == 0
+    assert len(runner.candidate_ids) == 4
 
 
 def test_internal_radar_deduplicates_unchanged_image(tmp_path: Path) -> None:
