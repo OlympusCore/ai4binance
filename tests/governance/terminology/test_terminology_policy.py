@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from ai4binance.governance import terminology_policy as terminology_module
 from ai4binance.governance.terminology_policy import (
     POLICY_PATH,
     SCHEMA_PATH,
@@ -92,3 +93,83 @@ def test_registry_is_not_a_second_source_of_truth() -> None:
     assert payload["source_of_truth"] is False
     assert payload["authority"]["source_of_truth"] is False
     assert payload["authority"]["standard_path"] == STANDARD_PATH.as_posix()
+
+
+def test_terminology_helpers_and_policy_contract_fail_closed(tmp_path: Path) -> None:
+    policy = load_terminology_policy(ROOT)
+    term = policy.terms[0]
+    with pytest.raises(ValueError, match="standard path"):
+        replace(policy, standard_path="docs/other.md")
+    with pytest.raises(ValueError, match="standard identifier"):
+        replace(policy, standard_id="wrong")
+    with pytest.raises(ValueError, match="authority scope"):
+        replace(policy, authority_scope="wrong")
+    overlap = replace(
+        term,
+        deprecated_aliases=("legacy",),
+        prohibited_terms=("legacy",),
+    )
+    with pytest.raises(ValueError, match="must not also be prohibited"):
+        replace(policy, terms=(overlap,))
+    assert terminology_module._normalized_paths(("./docs\\a.md", "", "docs/a.md")) == (
+        "docs/a.md",
+    )
+    assert terminology_module._is_scanned_path("docs/a.md", ("docs",)) is True
+    assert terminology_module._is_scanned_path("other/a.md", ("docs",)) is False
+    assert terminology_module._contains_term("Trade signal", "trade") is True
+    assert terminology_module._contains_term("trader", "trade") is False
+    assert terminology_module._read_bounded_text(tmp_path, "../outside") is None
+    with pytest.raises(ValueError, match="must be a mapping"):
+        terminology_module._mapping([], "value")
+    with pytest.raises(ValueError, match="must be an array"):
+        terminology_module._items({}, "value")
+    with pytest.raises(ValueError, match="non-empty text"):
+        terminology_module._string(" ", "value")
+    with pytest.raises(ValueError, match="string array"):
+        terminology_module._strings([""], "value")
+    with pytest.raises(ValueError, match="repository-relative"):
+        terminology_module._safe_path("../outside", "value")
+
+
+def test_terminology_scan_covers_deprecated_missing_and_projection_drift(
+    tmp_path: Path,
+) -> None:
+    loaded_policy = load_terminology_policy(ROOT)
+    policy = replace(
+        loaded_policy,
+        terms=(
+            replace(loaded_policy.terms[0], deprecated_aliases=("legacy",)),
+        ),
+    )
+    target = tmp_path / policy.scan_roots[0] / "terms.txt"
+    target.parent.mkdir(parents=True)
+    target.write_text("legacy", encoding="utf-8")
+    paths = (
+        policy.excluded_paths[0],
+        "missing.txt",
+        target.relative_to(tmp_path).as_posix(),
+    )
+    violations = evaluate_terminology_policy(
+        tmp_path,
+        policy,
+        paths,
+    )
+    assert any(item.code == "TERMINOLOGY_DEPRECATED_ALIAS" for item in violations)
+    standard = tmp_path / STANDARD_PATH
+    standard.parent.mkdir(parents=True, exist_ok=True)
+    standard.write_text("---\ndocument_id: wrong\n---\n", encoding="utf-8")
+    assert any(
+        item.code == "TERMINOLOGY_PROJECTION_DRIFT"
+        for item in terminology_module._projection_integrity_violations(
+            tmp_path, policy
+        )
+    )
+    plain = tmp_path / "plain.md"
+    plain.write_text("plain text", encoding="utf-8")
+    assert terminology_module._frontmatter(plain) == {}
+    assert terminology_module._read_bounded_text(tmp_path, "missing.txt") is None
+    oversized = tmp_path / "oversized.txt"
+    oversized.write_bytes(b"x" * 2_000_001)
+    assert terminology_module._read_bounded_text(tmp_path, "oversized.txt") is None
+    with pytest.raises(ValueError, match="duplicate terminology term identifier"):
+        replace(policy, terms=(policy.terms[0], policy.terms[0]))

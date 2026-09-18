@@ -14,6 +14,12 @@ from ai4binance.governance.authority import (
     load_authority_layer_development_matrix,
     validate_authority_graph_layer_development,
 )
+from ai4binance.governance.authority import development as development_module
+from ai4binance.governance.authority.development import (
+    AuthorityDevelopmentGroup,
+    AuthorityLayerDevelopmentFinding,
+    AuthorityLayerDevelopmentMatrix,
+)
 
 ROOT = Path(__file__).parents[3]
 
@@ -98,3 +104,64 @@ def test_current_graph_is_aligned_with_the_development_matrix() -> None:
     graph = load_authority_graph(schema_root=ROOT / "schemas")
 
     assert validate_authority_graph_layer_development(graph, matrix) == ()
+
+
+def test_development_value_objects_and_parsers_reject_invalid_inputs() -> None:
+    matrix = load_authority_layer_development_matrix(ROOT)
+    layer = matrix.layers[0]
+
+    with pytest.raises(ValueError, match="group metadata"):
+        AuthorityDevelopmentGroup("", "responsibility")
+    with pytest.raises(ValueError, match="group metadata"):
+        AuthorityDevelopmentGroup("group", " ")
+    with pytest.raises(ValueError, match="group is required"):
+        replace(layer, group_id=" ")
+    with pytest.raises(ValueError, match="layer is invalid"):
+        replace(layer, authority_layer="UNKNOWN")
+    with pytest.raises(ValueError, match="effects are required"):
+        replace(layer, allowed_authority_effects=())
+    with pytest.raises(ValueError, match="effects must be unique"):
+        replace(
+            layer,
+            allowed_authority_effects=(
+                layer.allowed_authority_effects[0],
+                layer.allowed_authority_effects[0],
+            ),
+        )
+    with pytest.raises(ValueError, match="finding metadata"):
+        AuthorityLayerDevelopmentFinding("", "path", "detail")
+    with pytest.raises(ValueError, match="cannot waive"):
+        AuthorityLayerDevelopmentFinding(
+            "code", "path", "detail", blockers=("LIVE_ORDER_BLOCKED",)
+        )
+    with pytest.raises(ValueError, match="matrix identity"):
+        replace(matrix, matrix_id=" ")
+    with pytest.raises(ValueError, match="matrix scope"):
+        replace(matrix, authority_scope="wrong")
+    with pytest.raises(ValueError, match="groups must be unique"):
+        replace(matrix, groups=(matrix.groups[0], matrix.groups[0]))
+    with pytest.raises(ValueError, match="layers must be unique"):
+        replace(matrix, layers=(matrix.layers[0],) * len(matrix.layers))
+    unknown_group_layer = replace(layer, group_id="unknown")
+    with pytest.raises(ValueError, match="unknown group"):
+        AuthorityLayerDevelopmentMatrix(
+            matrix.matrix_id,
+            matrix.version,
+            matrix.authority_scope,
+            matrix.groups,
+            (unknown_group_layer, *matrix.layers[1:]),
+        )
+    with pytest.raises(ValueError, match="cannot authorize"):
+        replace(matrix, execution_allowed=True)
+    with pytest.raises(ValueError, match="must be a mapping"):
+        development_module._mapping([], "value")
+    with pytest.raises(ValueError, match="must be a list"):
+        development_module._list_of_mappings({}, "value")
+    with pytest.raises(ValueError, match="non-empty string"):
+        development_module._string(" ", "value")
+    with pytest.raises(ValueError, match="list of non-empty strings"):
+        development_module._strings([""], "value")
+    with pytest.raises(ValueError, match="must be boolean"):
+        development_module._boolean("false", "value")
+    with pytest.raises(ValueError, match="layer is invalid"):
+        matrix.development_for("UNKNOWN")
