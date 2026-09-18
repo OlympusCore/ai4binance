@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from ai4binance.cli import market_gateway as gateway_cli
 from ai4binance.cli.market_gateway import (
     _adaptive_candidates,
     _blockers,
@@ -218,6 +219,302 @@ def test_gateway_heartbeat_preserves_bootstrap_evidence(tmp_path: Path) -> None:
     assert payload["blockers"] == ["OPPORTUNITY_ANALYSIS_DATA_BLOCKED"]
     assert payload["execution_allowed"] is False
     assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_gateway_helpers_cover_invalid_and_bounded_inputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "state.json"
+    path.write_text('{"blockers": "invalid"}', encoding="utf-8")
+    heartbeat = _GatewayStateHeartbeat(path, interval_seconds=0)
+    monkeypatch.setattr(gateway_cli.time, "monotonic", lambda: 1.0)
+    heartbeat(START)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["blockers"] == ["MARKET_GATEWAY_STATE_BLOCKERS_INVALID"]
+    assert gateway_cli._absolute(Path("relative")) == Path.cwd() / "relative"
+    assert gateway_cli._adaptive_candidates({}, "SPOT", ("btcusdt",)) == ("BTCUSDT",)
+    with pytest.raises(ValueError, match="positive"):
+        _reconnect_delay(0)
+
+
+def test_gateway_run_returns_fail_closed_for_fatal_bootstrap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    class _Lease:
+        def __init__(self, _path: Path) -> None:
+            pass
+
+        def __enter__(self) -> "_Lease":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            del args
+
+    synchronizer = type(
+        "Synchronizer",
+        (),
+        {
+            "universe_provider": type(
+                "Provider",
+                (),
+                {"spot_transport": object(), "futures_transport": object()},
+            )()
+        },
+    )()
+    monkeypatch.setattr(
+        gateway_cli,
+        "build_market_history_synchronizer",
+        lambda _settings: synchronizer,
+    )
+    monkeypatch.setattr(gateway_cli, "SingleInstanceLease", _Lease)
+
+    class _Collector:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def sync_cycle(self, *, observed_at: datetime) -> dict[str, object]:
+            del observed_at
+            return {"blockers": ["PUBLIC_MARKET_UNIVERSE_UNAVAILABLE"]}
+
+    monkeypatch.setattr(gateway_cli, "ContinuousMarketHistory", _Collector)
+    settings = type(
+        "Settings",
+        (),
+        {
+            "market_history_initial_days": 1,
+            "market_history_pages_per_stream": 1,
+            "market_history_max_workers": 1,
+            "minimum_closed_candles": 1,
+            "symbol": "BTCUSDT",
+            "fixed_symbols": (),
+            "priority_watchlist": (),
+            "market_history_state_path": tmp_path / "state.json",
+        },
+    )()
+    assert gateway_cli.run_gateway(settings, max_cycles=1) == 2
+    assert json.loads(capsys.readouterr().out)["status"] == "DATA_BLOCKED"
+
+
+def test_gateway_run_completes_one_valid_local_cycle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Lease:
+        def __init__(self, _path: Path) -> None:
+            pass
+
+        def __enter__(self) -> "_Lease":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            del args
+
+    universe = type(
+        "Universe",
+        (),
+        {"blockers": (), "spot_symbols": ("BTCUSDT",), "futures_symbols": ()},
+    )()
+    synchronizer = type(
+        "Synchronizer",
+        (),
+        {
+            "universe_provider": type(
+                "Provider",
+                (),
+                {"spot_transport": object(), "futures_transport": object()},
+            )(),
+            "_eligible_universe": lambda self, _at, force_refresh: universe,
+        },
+    )()
+
+    class _Collector:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def sync_cycle(self, *, observed_at: datetime) -> dict[str, object]:
+            del observed_at
+            return {"blockers": []}
+
+    class _Gateway:
+        async def run_once(self) -> tuple[str, str]:
+            return ("PLANNED_ROLLOVER", "PLANNED_ROLLOVER")
+
+    monkeypatch.setattr(gateway_cli, "ContinuousMarketHistory", _Collector)
+    monkeypatch.setattr(gateway_cli, "SingleInstanceLease", _Lease)
+    monkeypatch.setattr(
+        gateway_cli,
+        "build_market_history_synchronizer",
+        lambda _settings: synchronizer,
+    )
+    gateway = _Gateway()
+    monkeypatch.setattr(
+        gateway_cli,
+        "build_gateway",
+        lambda *_args, **_kwargs: gateway,
+    )
+    settings = type(
+        "Settings",
+        (),
+        {
+            "market_history_initial_days": 1,
+            "market_history_pages_per_stream": 1,
+            "market_history_max_workers": 1,
+            "minimum_closed_candles": 1,
+            "symbol": "BTCUSDT",
+            "fixed_symbols": (),
+            "priority_watchlist": (),
+            "market_history_state_path": tmp_path / "state.json",
+            "dataset_directory": tmp_path / "dataset",
+        },
+    )()
+    assert gateway_cli.run_gateway(settings, max_cycles=1) == 0
+
+
+def test_gateway_recovers_gap_and_reconnects_before_a_completed_cycle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Lease:
+        def __init__(self, _path: Path) -> None:
+            pass
+
+        def __enter__(self) -> "_Lease":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            del args
+
+    universe = type(
+        "Universe",
+        (),
+        {"blockers": (), "spot_symbols": ("BTCUSDT",), "futures_symbols": ()},
+    )()
+    synchronizer = type(
+        "Synchronizer",
+        (),
+        {
+            "universe_provider": type(
+                "Provider",
+                (),
+                {"spot_transport": object(), "futures_transport": object()},
+            )(),
+            "_eligible_universe": lambda self, _at, force_refresh: universe,
+        },
+    )()
+
+    class _Collector:
+        calls = 0
+
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def sync_cycle(self, *, observed_at: datetime) -> dict[str, object]:
+            del observed_at
+            self.calls += 1
+            return {"blockers": []}
+
+    class _Gateway:
+        calls = 0
+
+        async def run_once(self) -> tuple[str, str]:
+            self.calls += 1
+            if self.calls == 1:
+                raise MarketStreamGapError("recover")
+            if self.calls == 2:
+                raise OSError("temporary")
+            return ("PLANNED_ROLLOVER", "PLANNED_ROLLOVER")
+
+    monkeypatch.setattr(gateway_cli, "ContinuousMarketHistory", _Collector)
+    monkeypatch.setattr(gateway_cli, "SingleInstanceLease", _Lease)
+    fake_time = type("Time", (), {"sleep": lambda _seconds: None})()
+    monkeypatch.setattr(gateway_cli, "time", fake_time)
+    monkeypatch.setattr(
+        gateway_cli,
+        "build_market_history_synchronizer",
+        lambda _settings: synchronizer,
+    )
+    monkeypatch.setattr(
+        gateway_cli,
+        "build_gateway",
+        lambda *_args, **_kwargs: _Gateway(),
+    )
+    settings = type(
+        "Settings",
+        (),
+        {
+            "market_history_initial_days": 1,
+            "market_history_pages_per_stream": 1,
+            "market_history_max_workers": 1,
+            "minimum_closed_candles": 1,
+            "symbol": "BTCUSDT",
+            "fixed_symbols": (),
+            "priority_watchlist": (),
+            "market_history_state_path": tmp_path / "state.json",
+            "dataset_directory": tmp_path / "dataset",
+            "market_history_live_interval_seconds": 1.0,
+        },
+    )()
+    assert gateway_cli.run_gateway(settings, max_cycles=1) == 0
+
+
+def test_gateway_converts_lock_errors_to_blocked_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    class _Lease:
+        def __init__(self, _path: Path) -> None:
+            pass
+
+        def __enter__(self) -> "_Lease":
+            raise RuntimeError("runtime instance is already active")
+
+        def __exit__(self, *args: object) -> None:
+            del args
+
+    synchronizer = type(
+        "Synchronizer",
+        (),
+        {
+            "universe_provider": type(
+                "Provider",
+                (),
+                {"spot_transport": object(), "futures_transport": object()},
+            )()
+        },
+    )()
+    monkeypatch.setattr(gateway_cli, "SingleInstanceLease", _Lease)
+    monkeypatch.setattr(
+        gateway_cli,
+        "build_market_history_synchronizer",
+        lambda _settings: synchronizer,
+    )
+    monkeypatch.setattr(
+        gateway_cli,
+        "ContinuousMarketHistory",
+        lambda **_kwargs: object(),
+    )
+    settings = type(
+        "Settings",
+        (),
+        {
+            "market_history_initial_days": 1,
+            "market_history_pages_per_stream": 1,
+            "market_history_max_workers": 1,
+            "minimum_closed_candles": 1,
+            "symbol": "BTCUSDT",
+            "fixed_symbols": (),
+            "priority_watchlist": (),
+            "market_history_state_path": tmp_path / "state.json",
+        },
+    )()
+    assert gateway_cli.run_gateway(settings, max_cycles=1) == 2
+    assert json.loads(capsys.readouterr().out)["blockers"] == [
+        "MARKET_GATEWAY_ALREADY_RUNNING"
+    ]
 
 
 def test_governor_uses_runtime_limits_headers_and_hard_stop() -> None:
