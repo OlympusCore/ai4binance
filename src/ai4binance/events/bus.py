@@ -1,0 +1,75 @@
+"""In-memory deterministic event journal and replay bus."""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Collection, Iterable
+from dataclasses import dataclass, field
+
+from ai4binance.events.models import DomainEvent
+
+EventSubscriber = Callable[[DomainEvent], None]
+
+
+def _validate_next_event(
+    event: DomainEvent,
+    *,
+    capacity: int,
+    event_count: int,
+    event_ids: Collection[str],
+    latest_event: DomainEvent | None,
+) -> None:
+    """Validate one event against an already verified deterministic tail."""
+
+    if event_count >= capacity:
+        raise OverflowError("event journal capacity exceeded")
+    if event.event_id in event_ids:
+        raise ValueError("duplicate event identity")
+    expected_sequence = event_count + 1
+    expected_hash = latest_event.event_hash if latest_event is not None else "GENESIS"
+    if event.sequence != expected_sequence:
+        raise ValueError("event sequence is not contiguous")
+    if event.previous_hash != expected_hash:
+        raise ValueError("event hash chain is broken")
+    if latest_event is not None and event.occurred_at < latest_event.occurred_at:
+        raise ValueError("event time cannot move backwards")
+
+
+@dataclass(slots=True)
+class DeterministicEventBus:
+    """Validate sequence/hash/time before committing events to a bounded journal."""
+
+    capacity: int = 100_000
+    _events: list[DomainEvent] = field(default_factory=list, init=False, repr=False)
+    _event_ids: set[str] = field(default_factory=set, init=False, repr=False)
+    _subscribers: list[EventSubscriber] = field(
+        default_factory=list, init=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        if not 1 <= self.capacity <= 1_000_000:
+            raise ValueError("event bus capacity must be between 1 and 1000000")
+
+    def subscribe(self, subscriber: EventSubscriber) -> None:
+        if subscriber in self._subscribers:
+            raise ValueError("event subscriber is already registered")
+        self._subscribers.append(subscriber)
+
+    def publish(self, event: DomainEvent) -> None:
+        _validate_next_event(
+            event,
+            capacity=self.capacity,
+            event_count=len(self._events),
+            event_ids=self._event_ids,
+            latest_event=self._events[-1] if self._events else None,
+        )
+        self._events.append(event)
+        self._event_ids.add(event.event_id)
+        for subscriber in tuple(self._subscribers):
+            subscriber(event)
+
+    def replay(self, events: Iterable[DomainEvent]) -> None:
+        for event in events:
+            self.publish(event)
+
+    def snapshot(self) -> tuple[DomainEvent, ...]:
+        return tuple(self._events)

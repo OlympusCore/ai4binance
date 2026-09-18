@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ai4binance:schema:risk:risk-assessment:2.0.0",
+  "title": "AI4Binance Risk Assessment v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "assessment_id", "cycle_id", "snapshot_id", "decision_id", "assessed_at", "owner_id", "reviewer_id", "affected_parties", "risk_register_ref", "inherent_risk", "current_risk", "residual_risk", "appetite_threshold", "controls", "evidence_status", "result", "blockers", "execution_allowed", "live_eligibility_status", "semantic_sha256"],
+  "properties": {
+    "schema_version": {"const": "2.0.0"},
+    "assessment_id": {"type": "string", "minLength": 1},
+    "cycle_id": {"type": "string", "minLength": 1},
+    "snapshot_id": {"type": "string", "minLength": 1},
+    "decision_id": {"type": "string", "minLength": 1},
+    "assessed_at": {"type": "string", "format": "date-time"},
+    "owner_id": {"type": "string", "minLength": 1},
+    "reviewer_id": {"type": "string", "minLength": 1},
+    "affected_parties": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "risk_register_ref": {"type": "string", "minLength": 1},
+    "inherent_risk": {"$ref": "#/$defs/rating"},
+    "current_risk": {"$ref": "#/$defs/rating"},
+    "residual_risk": {"$ref": "#/$defs/rating"},
+    "appetite_threshold": {"type": "integer", "minimum": 1, "maximum": 25},
+    "controls": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/control"}},
+    "evidence_status": {"enum": ["VERIFIED", "UNVALIDATED", "UNKNOWN"]},
+    "result": {"enum": ["PASS", "RESTRICT", "BLOCK"]},
+    "blockers": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "execution_allowed": {"const": false},
+    "live_eligibility_status": {"const": "LIVE_ORDER_BLOCKED"},
+    "semantic_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"result": {"const": "PASS"}}},
+      "then": {
+        "properties": {
+          "blockers": {"maxItems": 0},
+          "evidence_status": {"const": "VERIFIED"},
+          "controls": {
+            "items": {
+              "properties": {"status": {"const": "VERIFIED"}}
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {"blockers": {"minItems": 1}}
+      }
+    }
+  ],
+  "$defs": {
+    "rating": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["likelihood", "impact", "score"],
+      "properties": {
+        "likelihood": {"type": "integer", "minimum": 1, "maximum": 5},
+        "impact": {"type": "integer", "minimum": 1, "maximum": 5},
+        "score": {"type": "integer", "minimum": 1, "maximum": 25}
+      }
+    },
+    "control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["control_id", "effectiveness_bps", "evidence_sha256", "status"],
+      "properties": {
+        "control_id": {"type": "string", "minLength": 1},
+        "effectiveness_bps": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "evidence_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "status": {"enum": ["VERIFIED", "UNVERIFIED", "INEFFECTIVE"]}
+      }
+    }
+  }
+}

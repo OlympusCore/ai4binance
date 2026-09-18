@@ -1,0 +1,97 @@
+schema_version: "1.0"
+policy_version: "codex-model-governance-phase0-v1"
+classifier_version: "UNAVAILABLE"
+model_registry_version: "unverified-v1"
+pricing_version: "unverified-v1"
+enforcement_mode: OBSERVE_ONLY
+
+pricing_source:
+  provider: openai
+  currency: USD
+  pricing_as_of: null
+  manually_verified: false
+
+token_governance:
+  enabled: true
+  budgets:
+    per_task:
+      soft_limit: null
+      hard_limit: null
+    daily:
+      soft_limit: null
+      hard_limit: null
+    weekly:
+      soft_limit: null
+      hard_limit: null
+    monthly:
+      soft_limit: null
+      hard_limit: null
+
+task_routing:
+  luna:
+    tier: ECONOMY
+    task_types:
+      - repository_discovery
+      - simple_bug_fix
+      - unit_tests
+      - documentation
+  terra:
+    tier: BALANCED
+    task_types:
+      - normal_feature
+      - integration_tests
+      - refactoring
+      - security_review
+  sol:
+    tier: ADVANCED
+    task_types:
+      - architecture_review
+      - risk_engine_review
+  exceptional:
+    tier: EXCEPTIONAL
+    task_types:
+      - complex_cross_module_review
+      - red_team_review
+
+models:
+  economy:
+    model_id: null
+    available: false
+    reasoning_levels: []
+    context_window: null
+    max_output: null
+    input_per_million: null
+    cached_input_per_million: null
+    output_per_million: null
+  balanced:
+    model_id: null
+    available: false
+    reasoning_levels: []
+    context_window: null
+    max_output: null
+    input_per_million: null
+    cached_input_per_million: null
+    output_per_million: null
+  advanced:
+    model_id: null
+    available: false
+    reasoning_levels: []
+    context_window: null
+    max_output: null
+    input_per_million: null
+    cached_input_per_million: null
+    output_per_million: null
+  exceptional:
+    model_id: null
+    available: false
+    reasoning_levels: []
+    context_window: null
+    max_output: null
+    input_per_million: null
+    cached_input_per_million: null
+    output_per_million: null
+
+authority:
+  execution_allowed: false
+  promotion_status: RESEARCH_ONLY
+  live_eligibility_status: LIVE_ORDER_BLOCKED

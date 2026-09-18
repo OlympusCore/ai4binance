@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ai4binance:schema:evidence:evidence-bundle:1.0.0",
+  "title": "AI4Binance Evidence Bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "generated_at", "source_artifact", "source_sha256", "freshness_status", "blockers", "execution_allowed", "live_eligibility_status"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "artifact_type": {"type": "string", "minLength": 1},
+    "generated_at": {"$ref": "urn:ai4binance:schema:primitives:temporal-primitives:1.0.0#/$defs/timestamp_utc"},
+    "source_artifact": {"type": "string", "minLength": 1},
+    "source_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "freshness_status": {"enum": ["FRESH", "STALE", "MISSING", "INVALID"]},
+    "blockers": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "data": {"type": ["object", "null"]},
+    "execution_allowed": {"const": false},
+    "live_eligibility_status": {"const": "LIVE_ORDER_BLOCKED"}
+  }
+}

@@ -1,0 +1,124 @@
+policy_id: AI4B-GOV-MIRROR-HYGIENE-001
+version: 1.0.0
+status: ACTIVE
+
+canonical_repository:
+  authority: AUTHORITATIVE
+  root_resolution: LOCAL_GIT_WORKTREE
+
+mirror:
+  role: NON_CANONICAL_MIRROR
+  authority: NONE
+  may_be_source_of_truth: false
+  may_override_canonical: false
+
+fail_closed:
+  canonical_resolution_failure: true
+  competing_source_of_truth: true
+  private_evidence_exposure: true
+
+sync:
+  default_action: EXCLUDE
+  allowed_exact_paths:
+    - .env.example
+    - .gitattributes
+    - .gitignore
+    - .python-version
+    - AGENTS.md
+    - CLAUDE.md
+    - GEMINI.md
+    - README.md
+    - pyproject.toml
+    - uv.lock
+  allowed_prefixes:
+    - .agents
+    - .codex
+    - .github
+    - config
+    - docs
+    - migrations
+    - schemas
+    - scripts
+    - src
+    - tests
+    - tools
+
+exclusions:
+  hard_exclude_patterns:
+    - .git
+    - .git/**
+    - .mypy_cache
+    - .mypy_cache/**
+    - .ruff_cache
+    - .ruff_cache/**
+    - .pytest_cache
+    - .pytest_cache/**
+    - .pytest-tmp
+    - .pytest-tmp/**
+    - .hypothesis
+    - .hypothesis/**
+    - .coverage
+    - .coverage.*
+    - coverage.xml
+    - htmlcov
+    - htmlcov/**
+    - "**/__pycache__"
+    - "**/__pycache__/**"
+    - "**/*.pyc"
+    - "**/*.pyo"
+    - "**/*.tmp"
+    - "**/*.bak"
+    - "**/*.swp"
+    - "**/*.egg-info"
+    - "**/*.egg-info/**"
+    - src/*.egg-info
+    - src/*.egg-info/**
+  private_patterns:
+    - .env
+    - .env.*
+    - secrets
+    - secrets/**
+    - runtime/state/private
+    - runtime/state/private/**
+    - runtime/private
+    - runtime/private/**
+    - artifacts/**/private
+    - artifacts/**/private/**
+    - runtime/artifacts/**/private
+    - runtime/artifacts/**/private/**
+    - "**/*credential*"
+    - "**/*secret*"
+  local_only_prefixes:
+    - logs
+    - runtime/data
+    - runtime/logs
+    - runtime/state
+  never_mirror_prefixes:
+    - artifacts/cache
+    - artifacts/test_temp
+    - artifacts/tmp
+    - runtime/tmp/test_temp
+    - runtime/private
+    - runtime/tmp
+
+retention:
+  selective_prefixes:
+    - runtime/artifacts/repository_validation/governance
+    - runtime/artifacts/quality/gate
+    - runtime/artifacts/assurance/security
+    - runtime/audit
+    - runtime/evidence
+    - runtime/reports
+  keep:
+    - latest_successful_quality_gate
+    - latest_failed_quality_gate
+    - monthly_verified_baselines
+    - governance_change_evidence
+    - security_significant_findings
+  rotate:
+    - routine_repeated_logs
+  drop:
+    - temporary_pytest_outputs
+    - coverage_intermediate_files
+    - caches
+

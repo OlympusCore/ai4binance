@@ -1,0 +1,35 @@
+workflow_id: repository_governance_cycle
+version: 1.0.0
+owner: Enterprise Engineering Governance
+inputs:
+  - repository_root
+  - repository_policy
+steps:
+  - inspect_repository_files
+  - build_repository_artifacts
+  - validate_repository_policy
+  - write_json_evidence
+  - write_markdown_report
+  - emit_recommended_actions
+  - require_review_for_moves_or_deletes
+outputs:
+  - runtime/artifacts/repository_validation/governance/repository-governance-latest.json
+  - reports/operations/REPOSITORY_GOVERNANCE_LATEST.md
+gates:
+  - RepositoryPolicy
+  - RepositoryArtifact schema
+  - deterministic repository_validator
+failure_policy: RUNNING_WITH_BLOCKERS
+audit_requirements:
+  - analyzed_at_utc
+  - repository_root
+  - current_path
+  - proposed_path
+  - finding_kind
+  - severity
+  - correction_journal_entry
+execution_allowed: false
+promotion_status: RESEARCH_ONLY
+live_eligibility_status: LIVE_ORDER_BLOCKED
+
+

@@ -1,0 +1,130 @@
+#!/bin/sh
+set -u
+
+repo_root=$(git rev-parse --show-toplevel)
+git_common_dir=$(git rev-parse --path-format=absolute --git-common-dir)
+quality_gate_guard="$repo_root/scripts/check_quality_gate_git_write_guard.ps1"
+quality_gate_lease="$git_common_dir/ai4binance-quality-gate-write-lease.json"
+authorization_helper="$repo_root/scripts/git_write_authorization.ps1"
+gitleaks="$repo_root/tools/gitleaks/v8.30.1/gitleaks.exe"
+
+if [ ! -f "$quality_gate_guard" ]; then
+    echo "QUALITY_GATE_GIT_WRITE_GUARD_MISSING: $quality_gate_guard" >&2
+    echo "RESEARCH_ONLY" >&2
+    echo "LIVE_ORDER_BLOCKED" >&2
+    exit 1
+fi
+
+if [ -f "$quality_gate_lease" ]; then
+    if ! powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+        -File "$quality_gate_guard" -RepositoryRoot "$repo_root"; then
+        exit 1
+    fi
+fi
+
+if [ ! -f "$authorization_helper" ]; then
+    echo "GIT_WRITE_AUTHORIZATION_HELPER_MISSING: $authorization_helper" >&2
+    echo "RESEARCH_ONLY" >&2
+    echo "LIVE_ORDER_BLOCKED" >&2
+    exit 1
+fi
+
+if [ -n "${AI4BINANCE_EXPLICIT_GIT_COMMIT_APPROVAL:-}" ]; then
+    echo "LEGACY_GIT_COMMIT_APPROVAL_TOKEN_REJECTED" >&2
+    echo "Static environment values cannot authorize a Git commit." >&2
+    echo "RESEARCH_ONLY" >&2
+    echo "LIVE_ORDER_BLOCKED" >&2
+    exit 1
+fi
+
+authorization_path="${AI4BINANCE_GIT_WRITE_AUTHORIZATION_PATH:-}"
+if [ -n "$authorization_path" ]; then
+    if ! powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+        -File "$authorization_helper" \
+        -Mode Consume \
+        -Operation Commit \
+        -RepositoryRoot "$repo_root" \
+        -Channel NonInteractive \
+        -ChallengePath "$authorization_path"; then
+        exit 1
+    fi
+elif [ -t 1 ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then
+    authorization_output=$(powershell.exe \
+        -NoLogo \
+        -NoProfile \
+        -NonInteractive \
+        -ExecutionPolicy Bypass \
+        -File "$authorization_helper" \
+        -Mode Prepare \
+        -Operation Commit \
+        -RepositoryRoot "$repo_root" \
+        -Channel Interactive) || exit 1
+    challenge_path=$(printf '%s\n' "$authorization_output" | \
+        sed -n 's/^CHALLENGE_PATH=//p' | tail -n 1)
+    if [ -z "$challenge_path" ]; then
+        echo "GIT_WRITE_AUTHORIZATION_CHALLENGE_PATH_MISSING" >&2
+        echo "RESEARCH_ONLY" >&2
+        echo "LIVE_ORDER_BLOCKED" >&2
+        exit 1
+    fi
+
+    printf "Type COMMIT to authorize this exact staged tree (case-insensitive; empty cancels): " > /dev/tty
+    explicit_approval=""
+    IFS= read -r explicit_approval < /dev/tty || explicit_approval=""
+    case "$explicit_approval" in
+        [Cc][Oo][Mm][Mm][Ii][Tt]) explicit_approval="COMMIT" ;;
+    esac
+    if [ "$explicit_approval" != "COMMIT" ]; then
+        echo "EXPLICIT_GIT_COMMIT_APPROVAL_DECLINED" >&2
+        echo "Git commit was not authorized at the interactive prompt. Type commit or COMMIT to approve." >&2
+        echo "RESEARCH_ONLY" >&2
+        echo "LIVE_ORDER_BLOCKED" >&2
+        exit 1
+    fi
+
+    if ! powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+        -File "$authorization_helper" \
+        -Mode Consume \
+        -Operation Commit \
+        -RepositoryRoot "$repo_root" \
+        -Channel Interactive \
+        -ChallengePath "$challenge_path" \
+        -ApprovalText "$explicit_approval"; then
+        exit 1
+    fi
+else
+    authorization_output=$(powershell.exe \
+        -NoLogo \
+        -NoProfile \
+        -NonInteractive \
+        -ExecutionPolicy Bypass \
+        -File "$authorization_helper" \
+        -Mode Prepare \
+        -Operation Commit \
+        -RepositoryRoot "$repo_root" \
+        -Channel NonInteractive) || exit 1
+    printf '%s\n' "$authorization_output" >&2
+    echo "EXPLICIT_GIT_COMMIT_APPROVAL_REQUIRED" >&2
+    echo "Patch or implementation approval does not authorize a Git commit." >&2
+    echo "Approve the exact Git-specific challenge, then retry with its authorization path." >&2
+    echo "RESEARCH_ONLY" >&2
+    echo "LIVE_ORDER_BLOCKED" >&2
+    exit 1
+fi
+
+if [ ! -f "$gitleaks" ]; then
+    echo "GITLEAKS_NOT_INSTALLED: $gitleaks" >&2
+    echo "Run scripts/install_security_tooling.ps1 before committing." >&2
+    echo "RESEARCH_ONLY" >&2
+    echo "LIVE_ORDER_BLOCKED" >&2
+    exit 1
+fi
+
+if ! "$gitleaks" git --staged --redact=100 --no-banner --no-color --exit-code 1 "$repo_root"; then
+    echo "SECRET_SCAN_FAILED_OR_FINDINGS_REQUIRE_REVIEW" >&2
+    echo "RESEARCH_ONLY" >&2
+    echo "LIVE_ORDER_BLOCKED" >&2
+    exit 1
+fi
+
+exit 0

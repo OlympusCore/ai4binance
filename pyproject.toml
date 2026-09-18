@@ -1,0 +1,109 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai4binance"
+version = "0.1.0"
+description = "Validation-first Binance Spot research and decision platform"
+readme = "README.md"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+  "cryptography>=50,<51",
+  "defusedxml>=0.7.1,<1",
+  "jsonschema>=4.26,<5",
+  "pydantic>=2.10,<3",
+  "pydantic-settings>=2.7,<3",
+  "pyarrow>=18,<25",
+  "PyYAML>=6,<7",
+  "tzdata>=2024.1,<2027",
+  "websockets>=14,<17",
+]
+
+[project.optional-dependencies]
+dev = [
+  "bandit>=1.8,<2",
+  "hypothesis>=6.155,<7",
+  "mypy>=1.14,<2",
+  "pytest>=8.3,<10",
+  "pytest-cov>=6,<8",
+  "ruff==0.14.14", # Avoid broad PEP 758 rewrites during the runtime migration.
+  "types-PyYAML>=6.0.12,<7",
+]
+mcp = ["mcp>=1.27,<2"]
+research = [
+  "optuna>=4.9,<5",
+]
+security = [
+  "pip-audit>=2.10,<3",
+  "truststore>=0.10,<1",
+]
+voice = [
+  "aiohttp>=3.14.3,<4",
+  "edge-tts>=7.2.8,<8",
+  "faster-whisper==1.2.1",
+  "numpy>=1.26,<3",
+  "sounddevice>=0.5.5,<0.6",
+  "truststore>=0.10,<1",
+]
+[project.scripts]
+ai4binance = "ai4binance.cli:main"
+ai4binance-mcp = "ai4binance.mcp.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py314"
+  line-length = 88
+extend-exclude = [
+  ".pytest-basetemp*",
+  "docs/contracts/interface_contract_binance_websocket_api_foundation.md",
+  "docs/procedures/procedure_social_publishing_gateway.md",
+  "docs/standards/standard_engineering_python_clean_code_vscode_development.md",
+  "docs/standards/standard_repository_artifact_separation_governance.md",
+  ".pytest-audit-temp*",
+  ".pytest-money-audit-*",
+  ".pytest-tmp",
+  ".test-tmp",
+  "runtime/cache",
+  "runtime/pytest-temp",
+  "runtime/pytest-*",
+  "runtime/tmp/pytest",
+  "runtime/tmp",
+  "runtime/tmp/test_temp",
+  "runtime/state/private",
+  "runtime/state/private/**",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "S", "C4", "PT", "RUF"]
+ignore = ["S101", "UP037"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+files = ["src", "tests"]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers -p no:cacheprovider"
+tmp_path_retention_policy = "none"
+markers = [
+  "unit: isolated deterministic unit tests with no subprocess or repository-wide scan",
+  "contract: schema, envelope, and governed contract tests",
+  "governance: governance, authority, traceability, and fail-closed policy tests",
+  "validator: repository validator and repository-wide hygiene tests",
+  "script_subprocess: tests that launch external scripts or shells",
+  "runtime_io: tests that create, read, or validate runtime artifacts",
+  "integration_like: broader component tests that compose multiple subsystems",
+  "slow: intentionally slower tests retained for standard or full quality evidence",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["ai4binance"]
+[tool.ai4binance.runtime]
+# Process-scoped contract: no OS temp fallback; children inherit this directory.
+temporary_directory = "runtime/tmp/process"

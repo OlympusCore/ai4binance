@@ -1,0 +1,3 @@
+# pyproject.toml is the single dependency source of truth.
+# Installs the VS Code, quality gate, governance audit, MCP, research and voice test surfaces.
+-e .[dev,mcp,research,security,voice]

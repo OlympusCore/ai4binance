@@ -1,0 +1,189 @@
+document_id: "AI4B-GOV-TECH-LANG-001"
+policy_id: "AI4B-GOV-TECH-LANG-001"
+version: "1.0.0"
+status: "ACTIVE"
+authority_layer: "L4_REPOSITORY_STANDARDS_CONTROLS_QUALITY_POLICIES"
+authority_effect: "IMPLEMENTATION"
+authority_scope: "technology_language_ownership"
+content_role: "POLICY_AS_CODE"
+source_of_truth: false
+source_of_truth_scope: "enforcement_projection"
+canonical_path: "config/governance/technology_language_ownership.yaml"
+authority:
+  standard_id: "AI4B-ARCH-STD-LANG-001"
+  human_authority_ref: "docs/standards/standard_technology_language_ownership.md"
+  authority_scope: "technology_language_ownership"
+  projection_role: "ENFORCEMENT_PROJECTION"
+  source_of_truth: false
+  not_authoritative_for:
+    - "enterprise_constitution"
+    - "domain_semantics"
+    - "risk_policy"
+    - "trading_policy"
+    - "canonical_schema_field_semantics"
+    - "compliance_requirements"
+    - "execution_authority"
+safety:
+  execution_allowed: false
+  promotion_status: "RESEARCH_ONLY"
+  live_eligibility_status: "LIVE_ORDER_BLOCKED"
+interoperability:
+  production_roots:
+    - "src/"
+    - "scripts/"
+    - "frontend/"
+    - "native/"
+    - "services/"
+  research_only_roots:
+    - "research/julia/"
+  forbidden_production_references:
+    - "research/julia/"
+    - "research.julia"
+languages:
+  python:
+    role: "canonical_application_language"
+    suffixes: [".py", ".pyi"]
+    enforce_placement: true
+    allowed_paths: [".agents/", "src/", "tests/", "scripts/", "tools/"]
+    allowed_capabilities: ["application_orchestration", "governance_integration", "risk_orchestration", "validation", "trading_intelligence"]
+    forbidden_capabilities: ["live_execution_authority", "risk_override", "governance_bypass"]
+    forbidden_content_patterns: []
+    adoption_gate:
+      evidence_required_if_present: false
+      evidence_refs: []
+  rust:
+    role: "deterministic_cpu_acceleration"
+    suffixes: [".rs"]
+    enforce_placement: true
+    allowed_paths: ["native/rust/"]
+    allowed_capabilities: ["approved_cpu_hot_path", "deterministic_native_support"]
+    forbidden_capabilities: ["independent_trading_semantics", "independent_risk_policy", "independent_governance_policy"]
+    forbidden_content_patterns: []
+    adoption_gate:
+      evidence_required_if_present: true
+      evidence_refs: []
+  cuda_cpp:
+    role: "gpu_compute_acceleration"
+    suffixes: [".cu", ".cuh"]
+    enforce_placement: true
+    allowed_paths: ["native/cuda/"]
+    allowed_capabilities: ["approved_gpu_kernel", "parallel_numeric_compute"]
+    forbidden_capabilities: ["trading_decision_authority", "risk_policy", "governance_policy"]
+    forbidden_content_patterns: []
+    adoption_gate:
+      evidence_required_if_present: true
+      evidence_refs: []
+  sql:
+    role: "structured_persistence_and_query"
+    suffixes: [".sql"]
+    enforce_placement: true
+    allowed_paths: ["sql/", "migrations/"]
+    allowed_capabilities: ["persistence", "analytics", "data_retrieval", "database_constraints"]
+    forbidden_capabilities: ["trading_decision", "risk_policy", "strategy_logic", "application_orchestration"]
+    forbidden_content_patterns: []
+    adoption_gate:
+      evidence_required_if_present: false
+      evidence_refs: []
+  typescript:
+    role: "human_interface"
+    suffixes: [".ts", ".tsx", ".js"]
+    enforce_placement: true
+    allowed_paths: ["frontend/", "src/ai4binance/local_dashboard/local_views.js"]
+    allowed_capabilities: ["web_ui", "visualization", "api_client", "user_interaction"]
+    forbidden_capabilities: ["authoritative_trading_decision", "authoritative_risk_gate", "governance_enforcement", "order_authorization"]
+    forbidden_content_patterns:
+      - "(?i)(?:function|class|const)\\s+[A-Za-z0-9_]*(?:trade[_A-Za-z0-9]*decision|risk[_A-Za-z0-9]*gate|governance[_A-Za-z0-9]*enforcement)"
+    adoption_gate:
+      evidence_required_if_present: false
+      evidence_refs: []
+  css:
+    role: "visual_presentation"
+    suffixes: [".css", ".html"]
+    enforce_placement: true
+    allowed_paths: ["frontend/", "src/ai4binance/local_dashboard/design_source.html"]
+    allowed_capabilities: ["layout", "typography", "design_tokens", "presentation"]
+    forbidden_capabilities: ["business_decision", "permission_logic", "risk_logic", "trading_rule"]
+    forbidden_content_patterns:
+      - "(?i)(?:function|class|const)\\s+[A-Za-z0-9_]*(?:business[_A-Za-z0-9]*decision|permission[_A-Za-z0-9]*logic|risk[_A-Za-z0-9]*logic|trading[_A-Za-z0-9]*rule|governance[_A-Za-z0-9]*rule)"
+    adoption_gate:
+      evidence_required_if_present: false
+      evidence_refs: []
+  go:
+    role: "specialized_network_and_data_edge"
+    suffixes: [".go"]
+    enforce_placement: true
+    allowed_paths: ["services/go/"]
+    allowed_capabilities: ["approved_network_service", "approved_ingestion_service", "protocol_adapter"]
+    forbidden_capabilities: ["second_trading_engine", "second_risk_engine", "duplicate_governance_logic"]
+    forbidden_content_patterns: []
+    adoption_gate:
+      evidence_required_if_present: true
+      evidence_refs: []
+  julia:
+    role: "research_only_numerical_computing"
+    suffixes: [".jl"]
+    enforce_placement: true
+    allowed_paths: ["research/julia/"]
+    allowed_capabilities: ["quantitative_research", "simulation", "numerical_experiment"]
+    forbidden_capabilities: ["production_decision_path", "execution_authority", "production_risk_gate"]
+    forbidden_content_patterns: []
+    adoption_gate:
+      evidence_required_if_present: false
+      evidence_refs: []
+  java:
+    role: "specialized_streaming_service"
+    suffixes: [".java"]
+    enforce_placement: true
+    allowed_paths: ["services/java/"]
+    allowed_capabilities: ["approved_stream_processing", "approved_enterprise_integration"]
+    forbidden_capabilities: ["duplicate_trading_logic", "duplicate_risk_logic", "duplicate_governance_logic"]
+    forbidden_content_patterns: []
+    adoption_gate:
+      evidence_required_if_present: true
+      evidence_refs: []
+  powershell:
+    role: "windows_operations"
+    suffixes: [".ps1"]
+    enforce_placement: true
+    allowed_paths: [".agents/", "scripts/"]
+    allowed_capabilities: ["windows_bootstrap", "environment_validation", "thin_cli_wrapper", "service_operations"]
+    forbidden_capabilities: ["trading_logic", "strategy_logic", "risk_logic", "governance_decision", "portfolio_accounting"]
+    forbidden_content_patterns:
+      - "(?i)function\\s+(?:Invoke-|Get-|Set-)?(?:TradeDecision|RiskGate|StrategyDecision|GovernanceDecision)"
+    adoption_gate:
+      evidence_required_if_present: false
+      evidence_refs: []
+  bash:
+    role: "linux_container_ci_operations"
+    suffixes: [".sh", ".bash"]
+    enforce_placement: true
+    allowed_paths: ["scripts/"]
+    allowed_capabilities: ["linux_bootstrap", "container_entrypoint", "ci_wrapper", "environment_validation"]
+    forbidden_capabilities: ["trading_logic", "risk_logic", "governance_logic", "business_rule"]
+    forbidden_content_patterns:
+      - "(?im)^\\s*(?:trade_decision|risk_gate|strategy_decision|governance_decision)\\s*\\(\\)"
+    adoption_gate:
+      evidence_required_if_present: false
+      evidence_refs: []
+  yaml_toml:
+    role: "declarative_configuration"
+    suffixes: [".yaml", ".yml", ".toml"]
+    enforce_placement: true
+    allowed_paths: [".agents/", ".codex/", ".github/", "config/", "docs/architecture/diagrams/diagram_registry.yaml", "docs/registries/", "workflows/", "pyproject.toml"]
+    allowed_capabilities: ["configuration", "declaration", "registry_projection"]
+    forbidden_capabilities: ["executable_policy_engine", "hidden_business_logic"]
+    forbidden_content_patterns: []
+    adoption_gate:
+      evidence_required_if_present: false
+      evidence_refs: []
+  json_schema:
+    role: "machine_readable_contract"
+    suffixes: [".schema.json"]
+    enforce_placement: true
+    allowed_paths: ["schemas/"]
+    allowed_capabilities: ["contract_structure", "field_semantics_within_declared_scope", "validation_boundary"]
+    forbidden_capabilities: ["enterprise_constitution", "cross_scope_policy_override", "live_execution_authority"]
+    forbidden_content_patterns: []
+    adoption_gate:
+      evidence_required_if_present: false
+      evidence_refs: []

@@ -1,0 +1,91 @@
+"""Research-only whale, social and derivatives intelligence primitives."""
+
+from ai4binance.whale_fusion.audit import FusionAuditWriter
+from ai4binance.whale_fusion.features import DerivativesFeatureEngine
+from ai4binance.whale_fusion.fusion import (
+    FusionChannel,
+    FusionConfig,
+    FusionContribution,
+    FusionResult,
+    WhaleFusionEngine,
+)
+from ai4binance.whale_fusion.integration import (
+    WhaleFusionEnvelope,
+    attach_fusion_result,
+)
+from ai4binance.whale_fusion.models import (
+    DerivativesDataset,
+    DerivativesFeatures,
+    DerivativesMetric,
+    MetricPoint,
+    PriceOiRegime,
+    Provenance,
+    SocialEventType,
+    WhaleEventType,
+)
+from ai4binance.whale_fusion.onchain import (
+    AddressRole,
+    CanonicalTransferNormalizer,
+    Chain,
+    OnChainClassification,
+    OnChainClassifier,
+    OnChainClassifierConfig,
+    OnChainTransfer,
+    WalletLabel,
+    WalletRegistry,
+    WhaleEvent,
+)
+from ai4binance.whale_fusion.social import (
+    AccountCategory,
+    CanonicalSocialPostNormalizer,
+    SocialAccount,
+    SocialAccountRegistry,
+    SocialClassification,
+    SocialContradiction,
+    SocialEvent,
+    SocialIntelligenceEngine,
+    SocialPlatform,
+    SocialPost,
+    SocialStance,
+)
+
+__all__ = (
+    "AccountCategory",
+    "AddressRole",
+    "CanonicalSocialPostNormalizer",
+    "CanonicalTransferNormalizer",
+    "Chain",
+    "DerivativesDataset",
+    "DerivativesFeatureEngine",
+    "DerivativesFeatures",
+    "DerivativesMetric",
+    "FusionAuditWriter",
+    "FusionChannel",
+    "FusionConfig",
+    "FusionContribution",
+    "FusionResult",
+    "MetricPoint",
+    "OnChainClassification",
+    "OnChainClassifier",
+    "OnChainClassifierConfig",
+    "OnChainTransfer",
+    "PriceOiRegime",
+    "Provenance",
+    "SocialAccount",
+    "SocialAccountRegistry",
+    "SocialClassification",
+    "SocialContradiction",
+    "SocialEvent",
+    "SocialEventType",
+    "SocialIntelligenceEngine",
+    "SocialPlatform",
+    "SocialPost",
+    "SocialStance",
+    "WalletLabel",
+    "WalletRegistry",
+    "WhaleEvent",
+    "WhaleEventType",
+    "WhaleFusionEngine",
+    "WhaleFusionEnvelope",
+    "attach_fusion_result",
+)

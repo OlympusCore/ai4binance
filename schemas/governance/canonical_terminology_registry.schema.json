@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/governance/canonical_terminology_registry.schema.json",
+  "title": "AI4BINANCE Canonical Terminology Enforcement Projection",
+  "description": "Non-authoritative, schema-validated projection of the terminology governance standard.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["document_id", "registry_id", "version", "status", "authority_layer", "authority_effect", "authority_scope", "content_role", "source_of_truth", "source_of_truth_scope", "canonical_path", "authority", "enforcement", "terms"],
+  "properties": {
+    "document_id": {"const": "AI4B-GOV-TERM-REG-001"},
+    "registry_id": {"const": "AI4B-GOV-TERM-REG-001"},
+    "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+    "status": {"const": "ACTIVE"},
+    "authority_layer": {"const": "L4_REPOSITORY_STANDARDS_CONTROLS_QUALITY_POLICIES"},
+    "authority_effect": {"const": "IMPLEMENTATION"},
+    "authority_scope": {"const": "terminology_governance"},
+    "content_role": {"const": "POLICY_AS_CODE"},
+    "source_of_truth": {"const": false},
+    "source_of_truth_scope": {"const": "enforcement_projection"},
+    "canonical_path": {"const": "config/governance/canonical_terminology_registry.yaml"},
+    "authority": {"$ref": "#/$defs/authority"},
+    "enforcement": {"$ref": "#/$defs/enforcement"},
+    "terms": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/term"}}
+  },
+  "$defs": {
+    "stringList": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "nullableString": {"type": ["string", "null"]},
+    "authority": {
+      "type": "object", "additionalProperties": false,
+      "required": ["standard_id", "standard_path", "standard_version", "authority_scope", "projection_role", "source_of_truth", "not_authoritative_for"],
+      "properties": {
+        "standard_id": {"const": "AI4B-GOV-STD-TERM-001"},
+        "standard_path": {"const": "docs/standards/standard_terminology_governance.md"},
+        "standard_version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+        "authority_scope": {"const": "terminology_governance"},
+        "projection_role": {"const": "ENFORCEMENT_PROJECTION"},
+        "source_of_truth": {"const": false},
+        "not_authoritative_for": {"$ref": "#/$defs/stringList"}
+      }
+    },
+    "enforcement": {
+      "type": "object", "additionalProperties": false,
+      "required": ["scan_roots", "excluded_paths", "deprecated_alias_severity"],
+      "properties": {
+        "scan_roots": {"$ref": "#/$defs/stringList"},
+        "excluded_paths": {"$ref": "#/$defs/stringList"},
+        "deprecated_alias_severity": {"const": "WARNING"}
+      }
+    },
+    "artifactForms": {
+      "type": "object", "additionalProperties": false,
+      "required": ["prose", "abbreviation", "python_identifier", "schema_property", "enum_token", "event_type", "cli_form", "display_label"],
+      "properties": {
+        "prose": {"$ref": "#/$defs/nullableString"}, "abbreviation": {"$ref": "#/$defs/nullableString"},
+        "python_identifier": {"$ref": "#/$defs/nullableString"}, "schema_property": {"$ref": "#/$defs/nullableString"},
+        "enum_token": {"$ref": "#/$defs/nullableString"}, "event_type": {"$ref": "#/$defs/nullableString"},
+        "cli_form": {"$ref": "#/$defs/nullableString"}, "display_label": {"$ref": "#/$defs/nullableString"}
+      }
+    },
+    "term": {
+      "type": "object", "additionalProperties": false,
+      "required": ["term_id", "canonical_concept", "canonical_term", "domain", "definition", "artifact_forms", "allowed_aliases", "deprecated_aliases", "prohibited_terms", "semantic_boundaries", "compatibility"],
+      "properties": {
+        "term_id": {"type": "string", "pattern": "^AI4B-TERM-[A-Z0-9-]+$"}, "canonical_concept": {"type": "string", "minLength": 1},
+        "canonical_term": {"type": "string", "minLength": 1}, "domain": {"type": "string", "minLength": 1},
+        "definition": {"type": "string", "minLength": 1}, "artifact_forms": {"$ref": "#/$defs/artifactForms"},
+        "allowed_aliases": {"$ref": "#/$defs/stringList"}, "deprecated_aliases": {"$ref": "#/$defs/stringList"},
+        "prohibited_terms": {"$ref": "#/$defs/stringList"}, "semantic_boundaries": {"$ref": "#/$defs/stringList"},
+        "compatibility": {"$ref": "#/$defs/compatibility"}
+      }
+    },
+    "compatibility": {
+      "type": "object", "additionalProperties": false, "required": ["migration_status", "verification_status"],
+      "properties": {"migration_status": {"enum": ["KEEP", "CLARIFY", "RENAME", "ALIAS", "DEPRECATE", "BLOCK"]}, "verification_status": {"enum": ["VERIFIED", "NOT_VERIFIED"]}}
+    }
+  }
+}

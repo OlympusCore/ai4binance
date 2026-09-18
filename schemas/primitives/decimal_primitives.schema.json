@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ai4binance:schema:primitives:decimal-primitives:1.0.0",
+  "title": "AI4Binance Decimal Primitives",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "decimal_string": {"type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"},
+    "nonnegative_decimal_string": {"type": "string", "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"}
+  }
+}

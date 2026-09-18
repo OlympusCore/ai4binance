@@ -1,0 +1,648 @@
+version: 1.4.2
+non_consequential_examples:
+  - calculate_rsi
+  - calculate_atr
+  - score_evidence
+  - risk_math
+requirement_traceability:
+  canonical_owner: docs/compliance/registry_compliance_matrix.md
+  source_class: DESIGN_INPUT
+  source_corpus_sha256: a215f3e632f240271d38173ae32d6af6ac10f62d04fe98349547aba864111f2f
+  manifest_id: 244dc9d33780eab069276e9ea376012f00f6d2dcc4881976d9ef4be59ab9d8a8
+  invariants:
+    execution_allowed: false
+    promotion_status: RESEARCH_ONLY
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  allowed_trace_statuses:
+    - DOCUMENTED_ONLY
+    - MACHINE_READABLE
+    - IMPLEMENTED
+    - TESTED
+    - RUNTIME_ENFORCED
+    - AUDIT_VERIFIED
+    - NOT_APPLICABLE
+    - CONFLICT
+    - BLOCKED
+  entries:
+    - requirement_id: RQ-001
+      source_documents: [D01, D13, D16, D17, D18]
+      canonical_meaning: Safety defaults and fail-closed live boundary
+      canonical_owner: Core Constitution
+      authority_ref: docs/governance/framework_core_vnext_governance.md
+      machine_readable_ref: config/governance/enforcement_profiles.yaml
+      implementation_refs: [src/ai4binance/safety.py]
+      enforcement_entrypoints: [execution_profile_evaluate, live_order_execution_intent]
+      test_refs: [tests/test_safety.py]
+      evidence_ref: runtime/quality/20260908T215129Z/summary.json
+      evidence_sha256: 4cc7db8b96443dfdf0436482e8ee7db0d908a37bd929f01f18c5aaeffb9ac42e
+      trace_status: AUDIT_VERIFIED
+      convergence_state: SATISFIED
+    - requirement_id: RQ-002
+      source_documents: [D01, D07, D09, D10, D11, D12, D13]
+      canonical_meaning: One source of truth and explicit authority resolution
+      canonical_owner: Enterprise Governance
+      authority_ref: docs/governance/framework_core_vnext_governance.md
+      machine_readable_ref: config/governance/governed_document_lock_manifest.json
+      implementation_refs: [src/ai4binance/governance/authority_resolution.py]
+      enforcement_entrypoints: [governance_control_plane_update]
+      test_refs: [tests/test_authority_resolution.py]
+      evidence_ref: runtime/quality/20260905T170244Z/summary.json
+      evidence_sha256: 62e56c30269a293f01029e92414d4f5f3d466b80a9c9602a9af9410142431490
+      trace_status: AUDIT_VERIFIED
+      convergence_state: SATISFIED
+    - requirement_id: RQ-003
+      source_documents: [D01, D03, D04, D05]
+      canonical_meaning: Immutable canonical snapshot and shared-state architecture
+      canonical_owner: Architecture Governance
+      authority_ref: docs/architecture/framework_architecture_overview.md
+      machine_readable_ref: schemas/snapshots/market_snapshot.schema.json
+      implementation_refs: [src/ai4binance/schemas.py]
+      enforcement_entrypoints: [market_snapshot_wire_validation]
+      test_refs: [tests/contract/schema/test_market_snapshot_wire_contract.py]
+      evidence_ref: runtime/quality/20260908T215129Z/summary.json
+      evidence_sha256: 4cc7db8b96443dfdf0436482e8ee7db0d908a37bd929f01f18c5aaeffb9ac42e
+      trace_status: AUDIT_VERIFIED
+      convergence_state: SATISFIED
+    - requirement_id: RQ-004
+      source_documents: [D01, D03, D05, D17, D18]
+      canonical_meaning: Deterministic candidate-to-decision chain
+      canonical_owner: Decision Governance
+      authority_ref: docs/governance/framework_decision_governance_engine.md
+      machine_readable_ref: schemas/decisions/trade_decision.schema.json
+      implementation_refs:
+        - src/ai4binance/governance/dge_models.py
+        - src/ai4binance/governance/dge_engine.py
+        - src/ai4binance/governance/rules.py
+        - src/ai4binance/governance/adapters.py
+        - src/ai4binance/governance/audit.py
+        - src/ai4binance/governance/replay.py
+        - src/ai4binance/governance/shadow.py
+        - src/ai4binance/governance/execution_authority.py
+      enforcement_entrypoints: [execution_profile_evaluate]
+      test_refs: [tests/test_dge_models.py]
+      evidence_ref: runtime/quality/20260905T183547Z/summary.json
+      evidence_sha256: 7f0ff83b34abd5dca1a2e5db3a3584367a1a49b55f18f0bdb62d0cecafea8fa6
+      trace_status: AUDIT_VERIFIED
+      convergence_state: SATISFIED
+    - requirement_id: RQ-005
+      source_documents: [D01, D13, D17, D18]
+      canonical_meaning: Independent Risk and Validation hard vetoes
+      canonical_owner: Core Constitution
+      authority_ref: docs/governance/framework_core_vnext_governance.md
+      machine_readable_ref: config/governance/enforcement_profiles.yaml
+      implementation_refs: [src/ai4binance/risk.py]
+      enforcement_entrypoints: [execution_profile_evaluate]
+      test_refs: [tests/test_governance_framework_v2.py]
+      evidence_ref: runtime/quality/20260908T215129Z/summary.json
+      evidence_sha256: 4cc7db8b96443dfdf0436482e8ee7db0d908a37bd929f01f18c5aaeffb9ac42e
+      trace_status: AUDIT_VERIFIED
+      convergence_state: SATISFIED
+    - requirement_id: RQ-006
+      source_documents: [D08, D10, D11, D12]
+      canonical_meaning: Governed contract and schema fabric
+      canonical_owner: Contract Governance
+      authority_ref: docs/standards/standard_governed_object_enforcement.md
+      machine_readable_ref: schemas/governance/governed_object_enforcement.schema.json
+      implementation_refs:
+        - src/ai4binance/schema_validation.py
+        - src/ai4binance/governance/enforcement/contracts.py
+        - src/ai4binance/governance/enforcement/registry.py
+        - src/ai4binance/governance/enforcement/inventory.py
+        - src/ai4binance/governance/enforcement/engine.py
+        - src/ai4binance/governance/enforcement/adapters.py
+      enforcement_entrypoints: [policy_document_update]
+      test_refs: [tests/test_governed_object_enforcement.py]
+      evidence_ref: runtime/quality/20260905T191135Z/summary.json
+      evidence_sha256: 2e57432273d3ebbaa5ea05bb1836d73af372e9e092fd5560ec6aca940ea050ac
+      trace_status: AUDIT_VERIFIED
+      convergence_state: SATISFIED
+    - requirement_id: RQ-007
+      source_documents: [D05, D14, D17]
+      canonical_meaning: Bounded agent architecture with deterministic authority ceilings
+      canonical_owner: Agent Governance
+      authority_ref: docs/contracts/agent_contract_technical_analysis_agents.md
+      machine_readable_ref: config/governance/enforcement_profiles.yaml
+      implementation_refs:
+        - src/ai4binance/agents/registry.py
+        - src/ai4binance/agents/catalog.py
+        - src/ai4binance/agents/preflight.py
+        - src/ai4binance/agents/orchestrator.py
+        - src/ai4binance/ops/jobs.py
+      enforcement_entrypoints: [workflow_job_admission]
+      test_refs:
+        - tests/test_agent_registry.py
+        - tests/test_agents.py
+        - tests/test_agent_runtime_governance.py
+        - tests/test_enterprise_multiops_control.py
+        - tests/test_agentic_patterns.py
+      evidence_ref: runtime/quality/20260905T200507Z/summary.json
+      evidence_sha256: dd529432ba8a0964bbc78e74c1d57d0e7cc7c0ddffff04d0dea3a19f5fba2e38
+      trace_status: AUDIT_VERIFIED
+      convergence_state: SATISFIED
+    - requirement_id: RQ-008
+      source_documents: [D06, D14]
+      canonical_meaning: Advisory-only model gateway and deterministic route decision
+      canonical_owner: Model Governance
+      authority_ref: docs/registries/registry_model_registry.md
+      machine_readable_ref: schemas/models/model_route_decision.schema.json
+      implementation_refs: [src/ai4binance/governance/model_registry.py]
+      enforcement_entrypoints: [provider_model_selection_decision]
+      test_refs: [tests/test_model_registry.py]
+      evidence_ref: runtime/quality/20260908T215129Z/summary.json
+      evidence_sha256: 4cc7db8b96443dfdf0436482e8ee7db0d908a37bd929f01f18c5aaeffb9ac42e
+      trace_status: AUDIT_VERIFIED
+      convergence_state: SATISFIED
+    - requirement_id: RQ-009
+      source_documents: [D02, D09]
+      canonical_meaning: Governed memory that cannot override current authority
+      canonical_owner: Knowledge Governance
+      authority_ref: docs/governance/framework_core_vnext_governance.md
+      machine_readable_ref: src/ai4binance/core/contracts/memory.py
+      implementation_refs: [src/ai4binance/domain/memory_access.py]
+      enforcement_entrypoints: [governed_memory_candidate_intake]
+      test_refs: [tests/test_governed_memory_fabric.py]
+      evidence_ref: runtime/quality/20260905T153839Z/summary.json
+      evidence_sha256: 964b601c1b1f68e054da6903765b774d545c0663be711c5107ef5b8ae59605ff
+      trace_status: AUDIT_VERIFIED
+      convergence_state: SATISFIED
+    - requirement_id: RQ-010
+      source_documents: [D01, D10, D14]
+      canonical_meaning: Canonical event, journal, idempotency, and replay semantics
+      canonical_owner: Event Governance
+      authority_ref: docs/governance/framework_core_vnext_governance.md
+      machine_readable_ref: schemas/events/event_envelope.schema.json
+      implementation_refs: [src/ai4binance/events/traceability.py]
+      enforcement_entrypoints: [workflow_job_admission]
+      test_refs: [tests/test_event_journal.py]
+      evidence_ref: runtime/quality/20260908T215129Z/summary.json
+      evidence_sha256: 4cc7db8b96443dfdf0436482e8ee7db0d908a37bd929f01f18c5aaeffb9ac42e
+      trace_status: AUDIT_VERIFIED
+      convergence_state: SATISFIED
+    - requirement_id: RQ-011
+      source_documents: [D15]
+      canonical_meaning: Optional bounded GPU with mandatory CPU fallback
+      canonical_owner: Compute Governance
+      authority_ref: docs/governance/policy_cuda_gpu_resource_usage.md
+      machine_readable_ref: src/ai4binance/enterprise/gpu.py
+      implementation_refs: [src/ai4binance/enterprise/gpu.py]
+      enforcement_entrypoints: [workflow_job_admission]
+      test_refs: [tests/test_cuda_gpu_resource_usage_policy.py]
+      evidence_ref: runtime/quality/20260908T215129Z/summary.json
+      evidence_sha256: 4cc7db8b96443dfdf0436482e8ee7db0d908a37bd929f01f18c5aaeffb9ac42e
+      trace_status: AUDIT_VERIFIED
+      convergence_state: SATISFIED
+    - requirement_id: RQ-012
+      source_documents: [D16]
+      canonical_meaning: Reconciled virtual market and paper execution lifecycle
+      canonical_owner: Research Governance
+      authority_ref: docs/governance/framework_core_vnext_governance.md
+      machine_readable_ref: config/research/virtual_market_acceptance.yaml
+      implementation_refs:
+        - src/ai4binance/research/virtual_market.py
+        - src/ai4binance/application/services/virtual_runtime.py
+        - src/ai4binance/execution/paper.py
+        - src/ai4binance/execution/recovery.py
+      enforcement_entrypoints: [execution_profile_evaluate]
+      test_refs:
+        - tests/test_virtual_market_acceptance.py
+        - tests/test_paper_execution.py
+        - tests/test_paper_lifecycle.py
+        - tests/test_paper_recovery_risk_flow.py
+        - tests/test_execution_authority.py
+        - tests/test_virtual_runtime_bridge.py
+      evidence_ref: runtime/quality/20260905T205043Z/summary.json
+      evidence_sha256: f7f3dcd0d952bc3f8fb643c77e8a5d73b45a3d014fac523d3270fa3a21c770eb
+      trace_status: AUDIT_VERIFIED
+      convergence_state: SATISFIED
+    - requirement_id: RQ-013
+      source_documents: [D17, D18]
+      canonical_meaning: Research, OOS, and human-governed promotion lifecycle
+      canonical_owner: Validation Governance
+      authority_ref: docs/governance/policy_organization_market_strategy_validation.md
+      machine_readable_ref: config/governance/enforcement_profiles.yaml
+      implementation_refs:
+        - src/ai4binance/tuning/engine.py
+        - src/ai4binance/validation/walk_forward.py
+        - src/ai4binance/strategies/registry.py
+        - src/ai4binance/tuning/promotion.py
+        - src/ai4binance/validation/promotion_evidence.py
+      enforcement_entrypoints: [tuning_strategy_promotion_board, strategy_registry_mutation_write]
+      test_refs:
+        - tests/test_tuning_governance.py
+        - tests/test_walk_forward.py
+        - tests/test_validation_summary.py
+        - tests/test_promotion_evidence.py
+        - tests/test_strategy_risk.py
+        - tests/test_traceability.py
+      evidence_ref: runtime/artifacts/vnext_convergence/0adb5228447e9cee6d933c2a73b317397792c93f1d41a5261ba6ae343fb28342/rq-013-oos-promotion-audit.json
+      evidence_sha256: 20c002dfe3cbadff69fe9a4a1d20b75d1c946ad70c2b644061f915c1ac448aff
+      trace_status: AUDIT_VERIFIED
+      convergence_state: BLOCKED_BY_OOS_PROMOTION_EVIDENCE
+    - requirement_id: RQ-014
+      source_documents: [D19]
+      canonical_meaning: Cold-path external intelligence and GitHub Radar
+      canonical_owner: External Intelligence Governance
+      authority_ref: docs/architecture/framework_external_intelligence_evidence_fabric.md
+      machine_readable_ref: src/ai4binance/external_intel/core/models.py
+      implementation_refs:
+        - src/ai4binance/external_intel/core/models.py
+        - src/ai4binance/external_intel/fusion/engine.py
+        - src/ai4binance/external_intel/radars/github_radar/adapter.py
+        - src/ai4binance/external_intel/integration/decision_governance_adapter.py
+        - src/ai4binance/github_radar/catalog_adapter.py
+      enforcement_entrypoints: [tool_permission_grant]
+      test_refs:
+        - tests/test_external_intel_fusion.py
+        - tests/test_external_intel_github_adapter.py
+        - tests/test_github_radar_catalog_adapter.py
+      evidence_ref: runtime/quality/20260908T145803Z/summary.json
+      evidence_sha256: e15bfc7a03a9cee93e294fbac8325a66ef0483af72c4a57de9b586bb360ca041
+      trace_status: AUDIT_VERIFIED
+      convergence_state: SATISFIED
+    - requirement_id: RQ-015
+      source_documents: [D01, D13, D14, D15, D19]
+      canonical_meaning: Security, privacy, and local-only sensitive data
+      canonical_owner: Security Governance
+      authority_ref: docs/governance/policy_organization_risk_security_privacy.md
+      machine_readable_ref: config/governance/enforcement_profiles.yaml
+      implementation_refs:
+        - src/ai4binance/privacy_boundary.py
+        - src/ai4binance/ops/privacy_leak_guard.py
+        - src/ai4binance/ops/financial_leak_guard.py
+        - src/ai4binance/ops/security_assurance.py
+      enforcement_entrypoints: [tool_permission_grant]
+      test_refs:
+        - tests/test_privacy_boundary.py
+        - tests/test_privacy_leak_guard.py
+        - tests/test_financial_leak_guard.py
+        - tests/test_security_assurance.py
+      evidence_ref: runtime/artifacts/security/security-weekly-deep-20260908T151017Z.json
+      evidence_sha256: 22af51bc87355f4ab04526d3ba3f4e678e7097ce5845b11a1de8e0bc39c62d14
+      trace_status: AUDIT_VERIFIED
+      convergence_state: BLOCKED_BY_EXTERNAL_SECURITY_EVIDENCE
+    - requirement_id: RQ-016
+      source_documents: [D03, D04]
+      canonical_meaning: Dependency-guarded and compatibility-proven architecture migration
+      canonical_owner: Architecture Governance
+      authority_ref: docs/architecture/framework_architecture_overview.md
+      machine_readable_ref: docs/registries/registry_logical_architecture.yaml
+      implementation_refs:
+        - src/ai4binance/governance/architecture/loader.py
+        - src/ai4binance/ops/kaizen_quality.py
+      enforcement_entrypoints: [governance_control_plane_update]
+      test_refs:
+        - tests/governance/architecture/test_logical_architecture_registry.py
+        - tests/test_kaizen_quality.py
+      evidence_ref: runtime/artifacts/vnext_convergence/vnxt-020-r1-preflight/rq-014-rq-016-convergence-preflight.json
+      evidence_sha256: 1ee2018e7be5dbc2eba0c97b8625abf08ba0abda4846ba55b6f471cd5b693def
+      trace_status: AUDIT_VERIFIED
+      convergence_state: BLOCKED_BY_COMPATIBILITY_EVIDENCE
+    - requirement_id: RQ-017
+      source_documents: [D01, D13, D14]
+      canonical_meaning: Deterministic quality and evidence closure
+      canonical_owner: Quality Governance
+      authority_ref: docs/workflows/runbook_quality_gate_profiles.md
+      machine_readable_ref: config/quality/gates.yaml
+      implementation_refs: [scripts/quality.ps1]
+      enforcement_entrypoints: [repository_artifact_update]
+      test_refs: [tests/test_quality_gate_profiles.py]
+      evidence_ref: runtime/artifacts/vnext_convergence/244dc9d33780eab069276e9ea376012f00f6d2dcc4881976d9ef4be59ab9d8a8/c3-replay-closure.json
+      evidence_sha256: ffb3cbb2e447fedadb9c493c6e90e9edb87b8c10aaa0f35cad69975347fa66cc
+      trace_status: AUDIT_VERIFIED
+      convergence_state: SATISFIED
+    - requirement_id: RQ-018
+      source_documents: [D07, D09, D13]
+      canonical_meaning: Factual documentation and governed lock alignment
+      canonical_owner: Knowledge Governance
+      authority_ref: docs/standards/standard_documentation_knowledge_governance.md
+      machine_readable_ref: config/governance/governed_document_lock_manifest.json
+      implementation_refs: [src/ai4binance/governance/repository_validator.py]
+      enforcement_entrypoints: [governance_control_plane_update]
+      test_refs: [tests/test_repository_validator_governance.py]
+      evidence_ref: runtime/artifacts/vnext_convergence/244dc9d33780eab069276e9ea376012f00f6d2dcc4881976d9ef4be59ab9d8a8/c3-replay-closure.json
+      evidence_sha256: ffb3cbb2e447fedadb9c493c6e90e9edb87b8c10aaa0f35cad69975347fa66cc
+      trace_status: AUDIT_VERIFIED
+      convergence_state: SATISFIED
+    - requirement_id: RQ-019
+      source_documents: [D16, D17, D18]
+      canonical_meaning: No live authority without independent governed eligibility
+      canonical_owner: Core Constitution
+      authority_ref: docs/governance/framework_core_vnext_governance.md
+      machine_readable_ref: config/governance/enforcement_profiles.yaml
+      implementation_refs: [src/ai4binance/execution/live_spot_adapter.py]
+      enforcement_entrypoints: [live_order_execution_intent]
+      test_refs: [tests/test_ed25519_ws_live.py]
+      evidence_ref: runtime/quality/20260908T215129Z/summary.json
+      evidence_sha256: 4cc7db8b96443dfdf0436482e8ee7db0d908a37bd929f01f18c5aaeffb9ac42e
+      trace_status: AUDIT_VERIFIED
+      convergence_state: SATISFIED_LIVE_ORDER_BLOCKED
+    - requirement_id: RQ-020
+      source_documents: [D01, D02, D03, D04, D05, D06, D07, D08, D09, D10, D11, D12, D13, D14, D15, D16, D17, D18, D19]
+      canonical_meaning: No unnecessary dependency, service, or runtime agent
+      canonical_owner: Architecture Governance
+      authority_ref: docs/architecture/framework_architecture_overview.md
+      machine_readable_ref: pyproject.toml
+      implementation_refs: [pyproject.toml]
+      enforcement_entrypoints: [repository_artifact_update]
+      test_refs: [tests/test_architecture_projection.py]
+      evidence_ref: runtime/quality/20260908T215129Z/summary.json
+      evidence_sha256: 4cc7db8b96443dfdf0436482e8ee7db0d908a37bd929f01f18c5aaeffb9ac42e
+      trace_status: AUDIT_VERIFIED
+      convergence_state: SATISFIED
+entries:
+  - entrypoint_id: repository_artifact_update
+    scope_family: repository_artifact_mutation
+    object_type: REPOSITORY_ARTIFACT
+    action: UPDATE
+    integration_surface: repository_validation
+    current_enforcer: repository_validator
+    coverage_state: ROUTED
+    status_rationale: Repository artifact updates are already validated through the repository validator before governed evidence is accepted.
+    authority_source: docs/standards/standard_repository_file_governance.md
+    policy_source: policies/repository-validator/manifest-policy.json
+    blocker_source: config/governance/blocker_registry.yaml
+    tests:
+      - tests/test_repository_validator.py
+      - tests/test_artifact_hygiene_scripts.py
+    bypass_possible: false
+    consequential: true
+  - entrypoint_id: policy_document_update
+    scope_family: governance_changes
+    object_type: POLICY
+    action: UPDATE
+    integration_surface: policy_as_code
+    current_enforcer: DeterministicEnforcementEngine+PolicyAsCodeEngine
+    coverage_state: ROUTED
+    status_rationale: Governed policy mutations already have a canonical universal enforcement envelope and policy engine path.
+    authority_source: docs/standards/standard_governed_object_enforcement.md
+    policy_source: src/ai4binance/governance/policy_as_code.py
+    blocker_source: config/governance/blocker_registry.yaml
+    tests:
+      - tests/test_governed_object_enforcement.py
+      - tests/test_governance_gate.py
+    bypass_possible: false
+    consequential: true
+  - entrypoint_id: tool_permission_grant
+    scope_family: provider_tool_side_effects
+    object_type: TOOL_CONTRACT
+    action: GRANT_PERMISSION
+    integration_surface: mcp_tool_gateway
+    current_enforcer: DeterministicEnforcementEngine+ToolPolicyEngine+ToolGateway
+    coverage_state: ROUTED
+    status_rationale: Tool permission grants already route through the shared tool policy and gateway chain.
+    authority_source: docs/standards/standard_governed_object_enforcement.md
+    policy_source: src/ai4binance/governance/tool_policy.py
+    blocker_source: config/governance/blocker_registry.yaml
+    tests:
+      - tests/test_governed_object_enforcement.py
+      - tests/test_governed_extensions.py
+    bypass_possible: false
+    consequential: true
+  - entrypoint_id: execution_profile_evaluate
+    scope_family: execution_boundary_evaluation
+    object_type: EXECUTION_PROFILE
+    action: EXECUTE
+    integration_surface: execution_authority
+    current_enforcer: DeterministicEnforcementEngine+ExecutionAuthorityProfile
+    coverage_state: ROUTED
+    status_rationale: Execution profile evaluation already reuses the canonical execution authority boundary through the universal contract.
+    authority_source: docs/standards/standard_governed_object_enforcement.md
+    policy_source: src/ai4binance/governance/execution_authority.py
+    blocker_source: config/governance/blocker_registry.yaml
+    tests:
+      - tests/test_governed_object_enforcement.py
+      - tests/test_virtual_market_acceptance.py
+    bypass_possible: false
+    consequential: true
+  - entrypoint_id: strategy_definition_profile_contract
+    scope_family: strategy_promotion
+    object_type: STRATEGY_DEFINITION
+    action: PROMOTE
+    integration_surface: enforcement_profile_contract
+    current_enforcer: DeterministicEnforcementEngine
+    coverage_state: ROUTED
+    status_rationale: The strategy promotion object family has a routed universal enforcement profile at the contract layer.
+    authority_source: docs/standards/standard_governed_object_enforcement.md
+    policy_source: config/governance/enforcement_profiles.yaml
+    blocker_source: config/governance/blocker_registry.yaml
+    tests:
+      - tests/test_governed_object_enforcement.py
+      - tests/test_stage_governance.py
+    bypass_possible: false
+    consequential: true
+  - entrypoint_id: tuning_strategy_promotion_board
+    scope_family: strategy_promotion
+    object_type: STRATEGY_DEFINITION
+    action: PROMOTE
+    integration_surface: tuning_promotion_board
+    current_enforcer: PromotionBoard+PlaybookRegistry
+    coverage_state: BLOCKED
+    status_rationale: Strategy promotion board workflows remain non-authoritative outside the canonical strategy-definition enforcement contract; standalone board promotion cannot widen execution or live authority.
+    authority_source: docs/standards/standard_governed_object_enforcement.md
+    policy_source: src/ai4binance/tuning/promotion.py
+    blocker_source: config/governance/blocker_registry.yaml
+    tests:
+      - tests/test_tuning_governance.py
+    bypass_possible: false
+    consequential: true
+  - entrypoint_id: governed_parameter_activation
+    scope_family: parameter_promotion
+    object_type: PARAMETER_SET
+    action: CHANGE_PARAMETER
+    integration_surface: governed_parameter_store
+    current_enforcer: GovernedParameterStore
+    coverage_state: BLOCKED
+    status_rationale: Direct parameter activation remains approval-bound and paper-only; standalone store writes are not an authorized universal promotion route.
+    authority_source: docs/standards/standard_governed_object_enforcement.md
+    policy_source: src/ai4binance/tuning/promotion.py
+    blocker_source: config/governance/blocker_registry.yaml
+    tests:
+      - tests/test_tuning_governance.py
+    bypass_possible: false
+    consequential: true
+  - entrypoint_id: workflow_job_admission
+    scope_family: unattended_jobs
+    object_type: WORKFLOW
+    action: ACTIVATE
+    integration_surface: nightly_quality_job_admission
+    current_enforcer: JobManifest+JobAdmission
+    coverage_state: ROUTED
+    status_rationale: Unattended job admission is canonically mediated by the runner manifest, capability manifest, side-effect allowlist, run card, persistent evidence, and audit record fail-closed chain.
+    authority_source: docs/standards/standard_governed_object_enforcement.md
+    policy_source: src/ai4binance/ops/jobs.py
+    blocker_source: config/governance/blocker_registry.yaml
+    tests:
+      - tests/test_agent_runtime_governance.py
+    bypass_possible: false
+    consequential: true
+  - entrypoint_id: governed_lesson_activation
+    scope_family: lesson_promotion
+    object_type: LESSON
+    action: ACTIVATE
+    integration_surface: governed_lesson_lifecycle
+    current_enforcer: GovernedLesson.transition
+    coverage_state: BLOCKED
+    status_rationale: Lesson activation remains human-governed and non-authoritative for production change; direct lesson transitions cannot bypass the research-only boundary.
+    authority_source: docs/standards/standard_governed_object_enforcement.md
+    policy_source: src/ai4binance/learning/governance.py
+    blocker_source: config/governance/blocker_registry.yaml
+    tests:
+      - tests/test_agent_runtime_governance.py
+    bypass_possible: false
+    consequential: true
+  - entrypoint_id: development_run_card_completion
+    scope_family: workflow_admission
+    object_type: WORKFLOW
+    action: ACTIVATE
+    integration_surface: development_run_card
+    current_enforcer: DevelopmentRunCard
+    coverage_state: BLOCKED
+    status_rationale: Development run cards remain evidence and approval sequencing artifacts; completion cannot act as an autonomous universal mutation gateway.
+    authority_source: docs/standards/standard_governed_object_enforcement.md
+    policy_source: src/ai4binance/governance/development.py
+    blocker_source: config/governance/blocker_registry.yaml
+    tests:
+      - tests/test_research_governance.py
+    bypass_possible: false
+    consequential: true
+  - entrypoint_id: strategy_registry_mutation_write
+    scope_family: registry_mutations
+    object_type: REGISTRY
+    action: UPDATE
+    integration_surface: playbook_registry
+    current_enforcer: PlaybookRegistry+GovernedStrategyRegistry
+    coverage_state: BLOCKED
+    status_rationale: Direct strategy registry writes are non-authoritative outside the governed promotion flow and cannot independently claim universal promotion closure.
+    authority_source: docs/standards/standard_governed_object_enforcement.md
+    policy_source: src/ai4binance/strategies/registry.py
+    blocker_source: config/governance/blocker_registry.yaml
+    tests:
+      - tests/test_strategy_risk.py
+      - tests/test_tuning_governance.py
+    bypass_possible: false
+    consequential: true
+  - entrypoint_id: model_adaptation_candidate_review
+    scope_family: model_adaptation
+    object_type: MODEL_CARD
+    action: ACTIVATE
+    integration_surface: model_adaptation_governance
+    current_enforcer: ModelAdaptationAssessment+ModelSelectionDecision
+    coverage_state: BLOCKED
+    status_rationale: Model adaptation candidate review remains research-only; candidate activation is intentionally blocked from autonomous promotion or execution authority.
+    authority_source: docs/standards/standard_governed_object_enforcement.md
+    policy_source: src/ai4binance/learning/model_adaptation.py
+    blocker_source: config/governance/blocker_registry.yaml
+    tests:
+      - tests/test_model_adaptation_governance.py
+      - tests/test_model_governance_policy.py
+    bypass_possible: false
+    consequential: true
+  - entrypoint_id: graph_workflow_manifest_admission
+    scope_family: workflow_admission
+    object_type: WORKFLOW
+    action: ACTIVATE
+    integration_surface: graph_workflow_manifest_review
+    current_enforcer: GraphWorkflowManifest+ClosedLoopAdmissionReview
+    coverage_state: BLOCKED
+    status_rationale: Graph workflow manifest admission remains a human-review gate and cannot act as an autonomous consequential execution route.
+    authority_source: docs/standards/standard_governed_object_enforcement.md
+    policy_source: src/ai4binance/governance/workflow.py
+    blocker_source: config/governance/blocker_registry.yaml
+    tests:
+      - tests/test_agent_runtime_governance.py
+    bypass_possible: false
+    consequential: true
+  - entrypoint_id: governance_control_plane_update
+    scope_family: governance_changes
+    object_type: CONTROL
+    action: UPDATE
+    integration_surface: deterministic_governance_control_plane
+    current_enforcer: GovernanceGate+GovernedDocumentLockManifest
+    coverage_state: BLOCKED
+    status_rationale: Governance control-plane changes remain governed, hash-bound, and approval-sensitive; direct mutation is intentionally blocked outside the documented approval and lock process.
+    authority_source: docs/standards/standard_governed_object_enforcement.md
+    policy_source: src/ai4binance/governance/gate.py
+    blocker_source: config/governance/blocker_registry.yaml
+    tests:
+      - tests/test_governance_gate.py
+      - tests/test_repository_validator.py
+    bypass_possible: false
+    consequential: true
+  - entrypoint_id: provider_model_selection_decision
+    scope_family: provider_tool_side_effects
+    object_type: PROVIDER_ADAPTER
+    action: ACTIVATE
+    integration_surface: llm_provider_policy
+    current_enforcer: ModelSelectionGateway+ModelSelectionDecision+AgentModelCandidateReview
+    coverage_state: ROUTED
+    status_rationale: Provider selection now routes through a deterministic policy-compatible model selection gateway before provider-facing invocation evidence is emitted.
+    authority_source: docs/standards/standard_governed_object_enforcement.md
+    policy_source: src/ai4binance/multiops/llmops/policy.py
+    blocker_source: config/governance/blocker_registry.yaml
+    tests:
+      - tests/test_model_governance_policy.py
+      - tests/test_agent_runtime_governance.py
+    bypass_possible: false
+    consequential: true
+  - entrypoint_id: live_order_execution_intent
+    scope_family: execution_intents
+    object_type: EXECUTION_PROFILE
+    action: EXECUTE
+    integration_surface: live_order_lifecycle
+    current_enforcer: LiveOrderLifecycleStateMachine+LocalApprovalQueue
+    coverage_state: BLOCKED
+    status_rationale: Live order intent transitions remain fail-closed behind preview and human approval; the system must not autonomously route them as universal execution allows.
+    authority_source: docs/standards/standard_governed_object_enforcement.md
+    policy_source: src/ai4binance/execution/live_order_lifecycle.py
+    blocker_source: config/governance/blocker_registry.yaml
+    tests:
+      - tests/test_live_order_lifecycle.py
+      - tests/test_live_readiness_preview.py
+    bypass_possible: false
+    consequential: true
+  - entrypoint_id: approval_record_runtime_mutation
+    scope_family: approval_state_changes
+    object_type: REPOSITORY_ARTIFACT
+    action: UPDATE
+    integration_surface: deterministic_governance_approval_record
+    current_enforcer: GovernanceGate+ApprovalRecordValidation
+    coverage_state: BLOCKED
+    status_rationale: Approval records are consumed and hash-validated, but runtime approval-state mutation is not an authorized autonomous path; only independently prepared artifacts are accepted.
+    authority_source: docs/standards/standard_governed_object_enforcement.md
+    policy_source: src/ai4binance/governance/gate.py
+    blocker_source: config/governance/blocker_registry.yaml
+    tests:
+      - tests/test_governance_gate.py
+      - tests/test_artifact_hygiene_scripts.py
+    bypass_possible: false
+    consequential: true
+  - entrypoint_id: market_snapshot_wire_validation
+    scope_family: snapshot_integrity
+    object_type: MARKET_SNAPSHOT
+    action: VALIDATE
+    integration_surface: market_snapshot_wire_contract
+    current_enforcer: market_snapshot_from_wire
+    coverage_state: PURE_DETERMINISTIC
+    status_rationale: Market snapshot deserialization constructs the immutable contract and fails closed on invalid typed fields.
+    authority_source: docs/architecture/framework_architecture_overview.md
+    policy_source: schemas/snapshots/market_snapshot.schema.json
+    blocker_source: schemas/snapshots/market_snapshot.schema.json
+    tests:
+      - tests/contract/schema/test_market_snapshot_wire_contract.py
+    bypass_possible: false
+    consequential: false
+  - entrypoint_id: governed_memory_candidate_intake
+    scope_family: memory_authority
+    object_type: GOVERNED_MEMORY
+    action: VALIDATE
+    integration_surface: governed_memory_fabric
+    current_enforcer: GovernedMemoryFabric.compile_candidate
+    coverage_state: PURE_DETERMINISTIC
+    status_rationale: Governed memory candidate intake enforces explicit authority ceilings and emits blockers without granting decision or execution authority.
+    authority_source: docs/governance/framework_core_vnext_governance.md
+    policy_source: src/ai4binance/core/contracts/memory.py
+    blocker_source: src/ai4binance/domain/memory.py
+    tests:
+      - tests/test_governed_memory_fabric.py
+    bypass_possible: false
+    consequential: false

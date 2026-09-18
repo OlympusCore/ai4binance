@@ -1,0 +1,30 @@
+registry_id: AI4B-PYTHON-RUNTIME-REGISTRY-001
+version: 1.0.0
+status: ACTIVE
+authority: CANONICAL
+source_of_truth: true
+source_of_truth_scope: python_runtime
+machine_enforceable: true
+audit_required: true
+classification: INTERNAL
+canonical_path: docs/registries/registry_python_runtime.yaml
+schema_ref: schemas/registries/python_runtime_registry.schema.json
+execution_allowed: false
+promotion_status: RESEARCH_ONLY
+live_eligibility_status: LIVE_ORDER_BLOCKED
+runtime:
+  runtime_id: python-runtime
+  implementation: CPython
+  version: "3.14.7"
+  major_minor: "3.14"
+  architecture: x86_64
+  abi: cp314-win_amd64
+  free_threaded: false
+  gil_enabled: true
+  jit_enabled: false
+  project_environment: .venv
+  executable: .venv/Scripts/python.exe
+  include_system_site_packages: false
+  global_site_packages: FORBIDDEN
+  system_site_packages: FORBIDDEN
+  project_packages: VENV_ONLY

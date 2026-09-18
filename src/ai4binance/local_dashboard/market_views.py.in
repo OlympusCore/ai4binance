@@ -1,0 +1,526 @@
+"""Loopback dashboard adapter for canonical opportunity monitoring."""
+
+import hashlib
+import json
+import os
+import subprocess
+import threading
+import time
+from datetime import UTC, datetime
+from pathlib import Path
+
+from ai4binance.application.opportunity_monitor import (
+    MARKET_TIMEFRAMES,
+    SAFE_STATE,
+    market_symbols,
+    monitor_directory,
+    read_monitor,
+)
+from ai4binance.config import Settings
+from ai4binance.data.market_history_continuous import (
+    enqueue_market_history_refresh_request,
+    market_history_refresh_status,
+)
+from ai4binance.domain.opportunity_observation import (
+    has_complete_measurable_opportunity,
+)
+from ai4binance.storage import write_json_object_verified
+from ai4binance.virtual_wallet_journal import (
+    VirtualWalletJournal,
+    VirtualWalletJournalError,
+)
+
+LOCK = threading.RLock()
+JOBS = {}
+
+
+def _rooted(root, path):
+    return path if path.is_absolute() else root / path
+
+
+def wallet_view(root, settings, now):
+    try:
+        return VirtualWalletJournal(
+            ledger_path=_rooted(root, settings.virtual_wallet_ledger_path),
+            state_path=_rooted(root, settings.virtual_wallet_state_path),
+            report_root=root,
+        ).dashboard_snapshot(now)
+    except VirtualWalletJournalError:
+        return {"status": "INVALID", "wallets": {}, "movements": [], **SAFE_STATE}
+
+
+def queue_virtual_cycle(root, market, symbol, requested_at):
+    if market != "SPOT":
+        return {
+            "state": "BLOCKED",
+            "blockers": ["FUTURES_AUTONOMOUS_LIFECYCLE_CONTEXT_UNAVAILABLE"],
+            **SAFE_STATE,
+        }
+    request_id = (
+        "dashboard:"
+        + hashlib.sha256(
+            f"{market}:{symbol}:{requested_at.isoformat()}".encode()
+        ).hexdigest()[:24]
+    )
+    path = root / "runtime/state/virtual-market-refresh-request.json"
+    request = {
+        "schema_version": "VirtualMarketRefreshRequest/v1",
+        "request_id": request_id,
+        "requested_at": requested_at.isoformat(),
+        "market": market,
+        "symbol": symbol,
+        "status": "PENDING",
+        **SAFE_STATE,
+    }
+    write_json_object_verified(
+        path,
+        request,
+        blocker="VIRTUAL_MARKET_REFRESH_REQUEST_WRITE_FAILED",
+        subject_id=request_id,
+        indent=2,
+    )
+    deadline = time.monotonic() + 45
+    while time.monotonic() < deadline:
+        try:
+            if path.is_symlink() or path.stat().st_size > 16_384:
+                raise ValueError("REFRESH_REQUEST_INVALID")
+            value = json.loads(path.read_text(encoding="utf-8"))
+            if (
+                value.get("request_id") == request_id
+                and value.get("status") != "PENDING"
+            ):
+                return {
+                    key: value.get(key)
+                    for key in (
+                        "status",
+                        "completed_at",
+                        "exit_code",
+                        "snapshot_id",
+                        "virtual_decision_status",
+                        "virtual_order_ready",
+                        "candidate_count",
+                        "blockers",
+                        "execution_allowed",
+                        "promotion_status",
+                        "live_eligibility_status",
+                    )
+                } | {"state": value["status"]}
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            break
+        time.sleep(0.5)
+    return {"state": "PENDING", "request_id": request_id, **SAFE_STATE}
+
+
+def selection(config, market, symbol):
+    if market not in MARKET_TIMEFRAMES:
+        raise ValueError("MARKET_INVALID")
+    root = Path(config["repository_root"])
+    settings = Settings(_env_file=root / ".env")
+    now = datetime.now(UTC)
+    symbols = market_symbols(
+        root / settings.market_history_source_cache_directory, market, now
+    )
+    default_symbol = (
+        settings.symbol if settings.symbol in symbols else next(iter(symbols), "")
+    )
+    # A persisted browser choice can become ineligible after a delisting or
+    # a local operator exclusion. Do not retain a hidden stale selection.
+    chosen = symbol if symbol in symbols else default_symbol
+    return root, symbols, chosen
+
+
+def refresh_view(root, market, symbol):
+    job = JOBS.get((market, symbol))
+    if job is not None:
+        return {key: value for key, value in job.items() if key != "thread"}
+    if not symbol:
+        return {"state": "NOT_RUN"}
+    request = market_history_refresh_status(
+        root / "runtime/state/market-history-refresh-request.json"
+    )
+    if request.get("state") != "NOT_RUN" and (
+        request.get("market") in {None, market}
+        and request.get("symbol") in {None, symbol}
+    ):
+        return request
+    path = monitor_directory(root, market, symbol) / "refresh-status.json"
+    try:
+        if path.is_symlink() or path.stat().st_size > 65_536:
+            raise ValueError("REFRESH_STATUS_INVALID")
+        value = json.loads(path.read_text(encoding="utf-8"))
+        if (
+            not isinstance(value, dict)
+            or value.get("market") != market
+            or value.get("symbol") != symbol
+            or value.get("execution_allowed") is not False
+            or value.get("live_eligibility_status") != "LIVE_ORDER_BLOCKED"
+        ):
+            raise ValueError("REFRESH_STATUS_INVALID")
+        return {
+            key: value.get(key)
+            for key in (
+                "state",
+                "market",
+                "symbol",
+                "started_at",
+                "completed_at",
+                "exit_code",
+                "simulation",
+                "execution_allowed",
+                "promotion_status",
+                "live_eligibility_status",
+            )
+        }
+    except (FileNotFoundError, OSError, ValueError, TypeError, json.JSONDecodeError):
+        return {"state": "NOT_RUN"}
+
+
+def _generation_health_view(market_projection, market):
+    def count(name):
+        value = market_projection.get(name)
+        return (
+            value
+            if isinstance(value, int)
+            and not isinstance(value, bool)
+            and value >= 0
+            else 0
+        )
+
+    def counts(name):
+        value = market_projection.get(name)
+        if not isinstance(value, dict):
+            return {}
+        return {
+            key: item
+            for key, item in value.items()
+            if isinstance(key, str)
+            and 0 < len(key) <= 180
+            and isinstance(item, int)
+            and not isinstance(item, bool)
+            and item >= 0
+        }
+
+    recent = []
+    rows = market_projection.get("recent_rejections")
+    if isinstance(rows, list):
+        for row in rows[-50:]:
+            if (
+                not isinstance(row, dict)
+                or row.get("market") != market
+                or row.get("execution_allowed") is not False
+                or row.get("live_eligibility_status") != "LIVE_ORDER_BLOCKED"
+            ):
+                continue
+            projected = {
+                key: row.get(key)
+                for key in (
+                    "candidate_attempt_id",
+                    "market",
+                    "symbol",
+                    "timeframe",
+                    "observed_at",
+                    "candle_close_time",
+                    "outcome",
+                    "failed_stage",
+                    "retryability",
+                    "execution_allowed",
+                    "promotion_status",
+                    "live_eligibility_status",
+                )
+                if isinstance(row.get(key), (str, bool))
+            }
+            for key in ("reason_codes", "missing_fields"):
+                values = row.get(key)
+                projected[key] = (
+                    [
+                        value
+                        for value in values[:20]
+                        if isinstance(value, str) and 0 < len(value) <= 180
+                    ]
+                    if isinstance(values, list)
+                    else []
+                )
+            recent.append(projected)
+    return {
+        "evaluated_attempt_count": count("evaluated_attempt_count"),
+        "published_opportunity_count": count("published_opportunity_count"),
+        "rejected_attempt_count": count("rejected_attempt_count"),
+        "rejected_by_stage": counts("rejected_by_stage"),
+        "rejected_by_reason": counts("rejected_by_reason"),
+        "recent_rejections": recent,
+    }
+
+
+def universe_view(root, settings, market, symbols, now):
+    """Return a bounded collector-state projection without archive traversal."""
+    path = root / "runtime/state/market-history-latest.json"
+    state = {}
+    try:
+        if path.is_symlink() or path.stat().st_size > 1_000_000:
+            raise ValueError("MARKET_HISTORY_STATE_INVALID")
+        state = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(state, dict):
+            raise ValueError("MARKET_HISTORY_STATE_INVALID")
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        state = {}
+    universe_count = state.get(
+        "spot_universe_count" if market == "SPOT" else "futures_universe_count",
+        len(symbols),
+    )
+    if not isinstance(universe_count, int) or universe_count < 0:
+        universe_count = len(symbols)
+    collector_coverage = state.get("collector_coverage")
+    if not isinstance(collector_coverage, dict):
+        collector_coverage = {}
+    coverage_rows = collector_coverage.get(market)
+    if not isinstance(coverage_rows, list):
+        coverage_rows = []
+    coverage_by_timeframe = {
+        row.get("timeframe"): row
+        for row in coverage_rows
+        if isinstance(row, dict) and isinstance(row.get("timeframe"), str)
+    }
+    opportunity_projection = state.get("dashboard_opportunity_projection")
+    market_projection = (
+        opportunity_projection.get(market)
+        if isinstance(opportunity_projection, dict)
+        and isinstance(opportunity_projection.get(market), dict)
+        else {}
+    )
+    projection_opportunities = market_projection.get("opportunities")
+    opportunities = (
+        [
+            row
+            for row in projection_opportunities[:100]
+            if isinstance(row, dict)
+            and row.get("execution_allowed") is False
+            and row.get("live_eligibility_status") == "LIVE_ORDER_BLOCKED"
+            and has_complete_measurable_opportunity(row)
+        ]
+        if isinstance(projection_opportunities, list)
+        else []
+    )
+    monitored_symbols = market_projection.get("analyzed_symbol_count")
+    data_blocked_symbols = market_projection.get("data_blocked_symbol_count")
+    analysis_blocked_symbols = market_projection.get("analysis_blocked_symbol_count")
+    no_opportunity_symbols = market_projection.get("no_opportunity_symbol_count")
+    projection_status = market_projection.get("status", "ANALYSIS_PENDING")
+    if not isinstance(projection_status, str):
+        projection_status = "ANALYSIS_PENDING"
+    return {
+        "generated_at": state.get("observed_at"),
+        "market": market,
+        "universe_count": universe_count,
+        "status": state.get("status", "UNAVAILABLE"),
+        "quality": [
+            {
+                "timeframe": timeframe,
+                "universe_count": universe_count,
+                "current_count": coverage_by_timeframe.get(timeframe, {}).get(
+                    "current_count"
+                ),
+                "stale_count": coverage_by_timeframe.get(timeframe, {}).get(
+                    "stale_count"
+                ),
+                "invalid_count": coverage_by_timeframe.get(timeframe, {}).get(
+                    "invalid_count"
+                ),
+                "unavailable_count": coverage_by_timeframe.get(timeframe, {}).get(
+                    "unavailable_count"
+                ),
+                "refresh_required_count": coverage_by_timeframe.get(
+                    timeframe, {}
+                ).get("refresh_required_count"),
+                "pending_count": coverage_by_timeframe.get(timeframe, {}).get(
+                    "pending_count"
+                ),
+            }
+            for timeframe in MARKET_TIMEFRAMES[market]
+        ],
+        "opportunity_coverage": {
+            "monitored_symbol_count": monitored_symbols
+            if isinstance(monitored_symbols, int) and monitored_symbols >= 0
+            else None,
+            "universe_count": universe_count,
+            "unmonitored_symbol_count": max(0, universe_count - monitored_symbols)
+            if isinstance(monitored_symbols, int) and monitored_symbols >= 0
+            else None,
+            "published_opportunity_count": len(opportunities),
+            "suppressed_opportunity_count": market_projection.get(
+                "suppressed_opportunity_count"
+            )
+            if isinstance(market_projection.get("suppressed_opportunity_count"), int)
+            else None,
+            "data_blocked_symbol_count": data_blocked_symbols
+            if isinstance(data_blocked_symbols, int) and data_blocked_symbols >= 0
+            else None,
+            "analysis_blocked_symbol_count": analysis_blocked_symbols
+            if isinstance(analysis_blocked_symbols, int)
+            and analysis_blocked_symbols >= 0
+            else None,
+            "no_opportunity_symbol_count": no_opportunity_symbols
+            if isinstance(no_opportunity_symbols, int) and no_opportunity_symbols >= 0
+            else None,
+            "status": projection_status,
+        },
+        "opportunities": opportunities,
+        "generation_health": _generation_health_view(market_projection, market),
+        "blockers": state.get("blockers", ["MARKET_HISTORY_STATE_UNAVAILABLE"]),
+        **SAFE_STATE,
+    }
+
+
+def view(config, market, symbol):
+    root, symbols, chosen = selection(config, market, symbol)
+    settings = Settings(_env_file=root / ".env")
+    now = datetime.now(UTC)
+    result = (
+        read_monitor(root, market, chosen)
+        if chosen
+        else {"status": "UNIVERSE_UNAVAILABLE", **SAFE_STATE}
+    )
+    result.update(
+        symbols=symbols,
+        symbol=chosen,
+        market=market,
+        timeframes=MARKET_TIMEFRAMES[market],
+    )
+    result["refresh"] = refresh_view(root, market, chosen)
+    result["wallet"] = wallet_view(root, settings, now)
+    result["universe"] = universe_view(root, settings, market, symbols, now)
+    generated = result.get("generated_at")
+    result["stale"] = (
+        not generated
+        or (datetime.now(UTC) - datetime.fromisoformat(generated)).total_seconds() > 300
+    )
+    for row in result.get("quality", []):
+        last = row.get("last_close")
+        if last and row.get("status") == "CURRENT":
+            from ai4binance.opportunity_intelligence import TIMEFRAME_DURATIONS
+
+            if (
+                datetime.now(UTC) - datetime.fromisoformat(last)
+                > 2 * TIMEFRAME_DURATIONS[row["timeframe"]]
+            ):
+                row["status"] = "STALE"
+    return result
+
+
+def start(config, market, symbol):
+    root, symbols, chosen = selection(config, market, symbol)
+    if not chosen:
+        raise ValueError("UNIVERSE_UNAVAILABLE")
+    key = (market, chosen)
+    with LOCK:
+        active = next(
+            (job for job in JOBS.values() if job["state"] in {"RUNNING", "PENDING"}),
+            None,
+        )
+        if active:
+            return {
+                **active,
+                "state": active["state"] if key in JOBS and JOBS[key] is active else "BUSY",
+            }
+        previous = JOBS.get(key)
+        now = datetime.now(UTC)
+        if (
+            previous
+            and (now - datetime.fromisoformat(previous["started_at"])).total_seconds()
+            < 60
+        ):
+            return previous
+        request = enqueue_market_history_refresh_request(
+            root / "runtime/state/market-history-refresh-request.json",
+            market=market,
+            symbol=chosen,
+            eligible_symbols=symbols,
+            requested_at=now,
+        )
+        if request["state"] != "PENDING":
+            return request
+        job = {
+            "state": "PENDING",
+            "market": market,
+            "symbol": chosen,
+            "request_id": request["request_id"],
+            "started_at": now.isoformat(),
+            "blockers": [],
+            **SAFE_STATE,
+        }
+        JOBS[key] = job
+
+        def work():
+            request_path = root / "runtime/state/market-history-refresh-request.json"
+            deadline = time.monotonic() + 195
+            request_status = {"state": "PENDING"}
+            while time.monotonic() < deadline:
+                request_status = market_history_refresh_status(request_path)
+                if request_status.get("request_id") != job["request_id"]:
+                    request_status = {
+                        "state": "DATA_BLOCKED",
+                        "blockers": ["MARKET_HISTORY_REFRESH_REQUEST_REPLACED"],
+                        **SAFE_STATE,
+                    }
+                    break
+                if request_status.get("state") != "PENDING":
+                    break
+                time.sleep(0.5)
+            if request_status.get("state") != "DATA_READY":
+                with LOCK:
+                    job.update(
+                        state=request_status.get("state", "PENDING"),
+                        completed_at=datetime.now(UTC).isoformat(),
+                        blockers=request_status.get("blockers", []),
+                    )
+                return
+            environment = os.environ.copy()
+            environment["PYTHONPATH"] = str(root / "src")
+            environment["PYTHONIOENCODING"] = "utf-8"
+            try:
+                completed = subprocess.run(
+                    [
+                        config["python"],
+                        "-B",
+                        "-m",
+                        "ai4binance.cli.opportunity_monitor",
+                        "--market",
+                        market,
+                        "--symbol",
+                        chosen,
+                        "--canonical-only",
+                    ],
+                    cwd=root,
+                    env=environment,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    shell=False,
+                    timeout=190,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
+                code = completed.returncode
+            except (OSError, subprocess.TimeoutExpired):
+                code = 124
+            simulation = (
+                queue_virtual_cycle(root, market, chosen, now)
+                if code == 0
+                else {
+                    "state": "NOT_RUN",
+                    "blockers": ["MARKET_REFRESH_FAILED"],
+                    **SAFE_STATE,
+                }
+            )
+            with LOCK:
+                job.update(
+                    state="COMPLETED" if code == 0 else "FAILED",
+                    exit_code=code,
+                    completed_at=datetime.now(UTC).isoformat(),
+                    simulation=simulation,
+                )
+                path = monitor_directory(root, market, chosen) / "refresh-status.json"
+                write_json_object_verified(
+                    path, job, blocker="MONITOR_JOB_WRITE_FAILED"
+                )
+
+        threading.Thread(target=work, daemon=True).start()
+        return job

@@ -1,0 +1,46 @@
+schema_version: "1.0"
+policy_id: virtual-market-research-acceptance-v1
+status: RESEARCH_ONLY
+market_scope:
+  - SPOT
+  - USD_M_FUTURES
+initial_equity:
+  spot_usdt: "1000"
+  futures_usdt: "1000"
+minimum_evidence:
+  minimum_observation_days: 365
+  minimum_completed_trades: 100
+research_candidate_gates:
+  minimum_modeled_cost_expectancy_usdt: "0"
+  minimum_oos_expectancy_usdt: "0"
+  required_cost_stress_scenarios:
+    - BASE
+    - COST_1_5X
+    - COST_2X
+  require_regime_level_attribution: true
+performance_gates:
+  minimum_daily_sharpe: "1.00"
+  minimum_profit_factor: "1.25"
+risk_gates:
+  maximum_spot_drawdown: "0.15"
+  maximum_futures_drawdown: "0.12"
+  maximum_futures_margin_utilization: "0.75"
+hard_fail_gates:
+  - REPLAY_STATE_HASH_MISSING
+  - DECISION_REPRODUCIBILITY_FAILED
+  - CRITICAL_DATA_GAPS_PRESENT
+  - DUPLICATE_ECONOMIC_EVENTS_APPLIED
+  - LOOKAHEAD_VIOLATIONS_PRESENT
+  - FUTURES_LIQUIDATION_OCCURRED
+anti_masking:
+  system_acceptance_operator: SPOT_PASS_AND_FUTURES_PASS
+  combined_pnl_gate_allowed: false
+  combined_sharpe_gate_allowed: false
+  combined_equity_gate_allowed: false
+authority:
+  execution_allowed: false
+  promotion_status: RESEARCH_ONLY
+  live_eligibility_status: LIVE_ORDER_BLOCKED
+  execution_surface: VIRTUAL_MARKET
+  authority_profile_id: VIRTUAL_AUTONOMOUS_SIMULATION_V1
+  automation_mode: BOUNDED_AUTONOMOUS_SIMULATION

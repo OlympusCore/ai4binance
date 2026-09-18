@@ -1,0 +1,141 @@
+schema_version: "1.0"
+criteria_id: AI4BINANCE-TECHNOLOGY-INTELLIGENCE-CRITERIA-001
+title: AI4BINANCE Technology Intelligence Analyzer Research Criteria
+status: ACTIVE
+owner: Enterprise Knowledge Governance
+classification: INTERNAL
+authority:
+  decision_authority: ADVISORY_ONLY
+  promotion_status: RESEARCH_ONLY
+  execution_allowed: false
+  installation_allowed: false
+  live_eligibility_status: LIVE_ORDER_BLOCKED
+  default_action: WATCH
+  max_action_without_human_approval: RESEARCH_CANDIDATE
+source_policy:
+  primary_sources_required: true
+  official_documentation_preferred: true
+  public_https_required: true
+  full_article_storage_allowed: false
+  external_code_execution_allowed: false
+  dependency_install_allowed: false
+  credentialed_provider_allowed_without_approval: false
+technology_areas:
+  data-engineering:
+    question: Does the candidate add a new data source, dataset, stream, schema, lineage method, or freshness control?
+    required_evidence:
+      - SOURCE_PROVENANCE_REVIEW
+      - FRESHNESS_CONTRACT
+      - SCHEMA_VALIDATION
+      - DATA_QUALITY_REVIEW
+  protocol-exchange-api:
+    question: Does the candidate add a new protocol, exchange API feature, market-data stream, endpoint, or tool protocol?
+    required_evidence:
+      - OFFICIAL_DOCUMENTATION_REVIEW
+      - RATE_LIMIT_REVIEW
+      - AUTHORIZATION_BOUNDARY_REVIEW
+      - IDEMPOTENCY_REVIEW
+  strategy-signal-research:
+    question: Does the candidate add a new algorithm, method, strategy, indicator, pattern, factor, or regime hypothesis?
+    required_evidence:
+      - HYPOTHESIS_REGISTER
+      - LEAKAGE_REVIEW
+      - TRANSACTION_COST_MODEL
+      - OOS_VALIDATION_REQUIRED
+      - NO_TRADE_SIGNAL_AUTHORITY
+  model-method-optimization:
+    question: Does the candidate add a new model, optimization method, fine-tuning approach, embedding method, or AutoML pattern?
+    required_evidence:
+      - MODEL_CARD_REVIEW
+      - DETERMINISM_OR_SEED_REVIEW
+      - MULTIPLE_TESTING_REVIEW
+      - PERFORMANCE_BASELINE_REVIEW
+  backtest-validation:
+    question: Does the candidate improve backtesting, walk-forward validation, OOS validation, benchmark design, or simulator realism?
+    required_evidence:
+      - LEAKAGE_REVIEW
+      - TIME_SERIES_SPLIT_REVIEW
+      - WALK_FORWARD_REVIEW
+      - FEES_SLIPPAGE_FILL_REVIEW
+  risk-control:
+    question: Does the candidate strengthen drawdown, exposure, liquidity, correlation, kill-switch, or fail-closed risk controls?
+    required_evidence:
+      - FAIL_CLOSED_STATE_TESTS
+      - LIMIT_INVARIANT_TESTS
+      - RISK_VETO_REVIEW
+      - HUMAN_APPROVAL_GATE_REVIEW
+  application-security:
+    question: Does the candidate reduce security, supply-chain, prompt-injection, secrets, vulnerability, or abuse-case risk?
+    required_evidence:
+      - THREAT_MODEL
+      - STATIC_SECURITY_REVIEW
+      - SECRET_LEAK_REVIEW
+      - SUPPLY_CHAIN_REVIEW
+  blockchain-feature:
+    question: Does the candidate add on-chain, blockchain, mempool, wallet, bridge, tokenomics, or smart-contract intelligence?
+    required_evidence:
+      - SOURCE_PROVENANCE_REVIEW
+      - WALLET_PRIVACY_BOUNDARY_REVIEW
+      - CHAIN_REORG_OR_FINALITY_REVIEW
+      - SMART_CONTRACT_RISK_REVIEW
+  agent-architecture:
+    question: Does the candidate add an AI skill, agent, multi-agent architecture, handoff, guardrail, or tool-use capability?
+    required_evidence:
+      - TYPED_STATE_CONTRACT
+      - LEAST_PRIVILEGE_TOOL_REVIEW
+      - DETERMINISTIC_MERGE_ORDER
+      - HUMAN_APPROVAL_GATE_REVIEW
+  workflow-orchestrator-pipeline:
+    question: Does the candidate add a loop, workflow, orchestrator, pipeline, durable execution model, scheduler, or autonomous routine?
+    required_evidence:
+      - BOUNDED_CONCURRENCY_REVIEW
+      - RETRY_BUDGET_REVIEW
+      - DEGRADED_STATE_REVIEW
+      - AUDIT_TRACE_REVIEW
+  ontology-knowledge-graph:
+    question: Does the candidate add ontology, semantic contract, entity-resolution, knowledge-graph, Graph RAG, or evidence-graph capability?
+    required_evidence:
+      - SOURCE_OF_TRUTH_REVIEW
+      - ENTITY_RELATIONSHIP_CONTRACT_REVIEW
+      - PROVENANCE_GRAPH_REVIEW
+      - DUPLICATE_KNOWLEDGE_REVIEW
+scoring:
+  scale: 0_to_5
+  weights:
+    strategic_relevance: 10
+    evidence_strength: 15
+    validation_readiness: 15
+    risk_reduction: 15
+    determinism_compatibility: 10
+    integration_cost_inverse: 8
+    security_posture: 10
+    local_only_compatibility: 7
+    auditability: 10
+thresholds:
+  watch: 50
+  research_candidate: 65
+  experiment_ready: 80
+  validation_required: 80
+  paper_only_candidate: 90
+hard_gates:
+  - NO_PRIMARY_SOURCE
+  - NO_PROVENANCE
+  - UNOFFICIAL_API
+  - LICENSE_REVIEW_REQUIRED
+  - LOOKAHEAD_RISK
+  - DATA_LEAKAGE_RISK
+  - UNBOUNDED_AUTONOMY
+  - SECRET_EXPOSURE_RISK
+  - LIVE_AUTHORITY_CONFUSION
+  - NO_OOS_PATH
+  - GOVERNANCE_CONFLICT
+  - EXTERNAL_CODE_EXECUTION_REQUIRED
+  - DEPENDENCY_INSTALL_REQUIRED_WITHOUT_APPROVAL
+status_outputs:
+  - WATCH
+  - RESEARCH_CANDIDATE
+  - EXPERIMENT_READY
+  - VALIDATION_REQUIRED
+  - PAPER_ONLY_CANDIDATE
+  - REJECTED
+  - BLOCKED

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/architecture/logical_relation.schema.json",
+  "title": "AI4BINANCE Logical Architecture Relation",
+  "description": "A typed, non-authoritative relation between registered logical components.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["relation_id", "from_component_id", "to_component_id", "relation_type"],
+  "properties": {
+    "relation_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"},
+    "from_component_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"},
+    "to_component_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"},
+    "relation_type": {"enum": ["BLOCKS", "CONSTRAINED_BY", "CONSUMES", "CREATES", "DEPENDS_ON", "EVALUATED_BY", "EXECUTES", "GOVERNED_BY", "IMPLEMENTS", "PRODUCES", "PRODUCES_LESSON", "PROPOSES", "PROMOTES", "SUBJECT_TO", "VALIDATED_BY", "VALIDATES"]}
+  }
+}

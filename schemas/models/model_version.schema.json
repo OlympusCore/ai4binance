@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/models/model_version.schema.json",
+  "title": "AI4BINANCE Model Version",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["model_id", "model_version", "lifecycle_status", "input_contract_version", "output_contract_version", "source_path"],
+  "properties": {
+    "model_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,127}$"},
+    "model_version": {"type": "string", "minLength": 1, "maxLength": 128},
+    "lifecycle_status": {"type": "string", "enum": ["OBSERVED_UNVERIFIED", "RESEARCH_ONLY", "OOS_VALIDATED"]},
+    "input_contract_version": {"type": "string", "minLength": 1, "maxLength": 64},
+    "output_contract_version": {"type": "string", "minLength": 1, "maxLength": 64},
+    "source_path": {"type": "string", "pattern": "^(src|config)/[A-Za-z0-9_./-]+$"}
+  }
+}

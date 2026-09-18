@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/architecture/logical_architecture.schema.json",
+  "title": "AI4BINANCE Logical Architecture Registry",
+  "description": "A machine-readable enforcement mirror of declared logical architecture. It is not an architecture source of truth and cannot authorize execution.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["registry_id", "version", "status", "source_of_truth", "execution_allowed", "live_eligibility_status", "components", "relations"],
+  "properties": {
+    "registry_id": {"type": "string", "minLength": 1},
+    "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+    "status": {"const": "ACTIVE"},
+    "source_of_truth": {"const": false},
+    "execution_allowed": {"const": false},
+    "live_eligibility_status": {"const": "LIVE_ORDER_BLOCKED"},
+    "components": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "logical_component.schema.json"}},
+    "relations": {"type": "array", "uniqueItems": true, "items": {"$ref": "logical_relation.schema.json"}}
+  }
+}

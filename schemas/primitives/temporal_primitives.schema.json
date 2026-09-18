@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ai4binance:schema:primitives:temporal-primitives:1.0.0",
+  "title": "AI4Binance Temporal Primitives",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "timestamp_utc": {"type": "string", "format": "date-time"}
+  }
+}

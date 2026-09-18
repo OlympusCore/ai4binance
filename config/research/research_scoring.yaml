@@ -1,0 +1,36 @@
+schema_version: "1.0"
+scoring_id: AI4BINANCE-GITHUB-RADAR-100
+weights:
+  capability_fit: 15
+  determinism: 10
+  tests: 10
+  lookahead_leakage: 10
+  oos_evidence: 10
+  data_correctness: 10
+  maintenance: 8
+  license: 7
+  security: 5
+  performance: 5
+  modularity: 5
+  auditability: 5
+thresholds:
+  watch: 50
+  research: 65
+  poc: 80
+  adopt_idea: 90
+hard_gates:
+  - PINNED_REVISION_REQUIRED
+  - HTTPS_SOURCE_REQUIRED
+  - CAPABILITY_ID_REQUIRED
+  - AUTHORITY_BOUNDARY_REQUIRED
+  - STATIC_SECURITY_REVIEW_REQUIRED
+  - LICENSE_REVIEW_REQUIRED
+authority:
+  allowed_actions: [REJECT, WATCH, RESEARCH, POC, ADOPT_IDEA]
+  default_action: REJECT
+  max_action_without_known_license: RESEARCH
+  poc_requires_separate_human_approval: true
+  adopt_idea_means_local_reimplementation_only: true
+  dependency_install_allowed: false
+  external_code_execution_allowed: false
+  live_eligibility_status: LIVE_ORDER_BLOCKED

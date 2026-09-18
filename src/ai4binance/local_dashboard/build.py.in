@@ -1,0 +1,42 @@
+"""Package the approved dashboard design for offline local operation."""
+from pathlib import Path
+import re
+import sys
+
+app = Path(__file__).resolve().parent
+fragment = Path(sys.argv[1]).read_text(encoding="utf-8")
+css = re.search(r"<style>([\s\S]*?)</style>", fragment).group(1)
+js = re.search(r"<script>([\s\S]*?)</script>", fragment).group(1)
+markup = re.sub(r"<style>[\s\S]*?</style>|<script>[\s\S]*?</script>", "", fragment).strip()
+markup = markup.replace('<span class="aw-zone">Europe/Istanbul</span>', '<span class="aw-zone">Europe/Istanbul</span><button type="button" id="aw-mode" class="aw-button">Design example</button>')
+js = js.replace("hideBalances:false", "hideBalances:true,mode:'local'")
+assert js.count("language:'tr'") == 1
+js = js.replace("language:'tr'", "language:'en'", 1)
+js = js.replace("  function render(){", (app / "local_views.js").read_text(encoding="utf-8") + "\n  function render(){")
+selection = "({overview,opportunities:opportunityPage,research:researchPage,news:newsPage,recommendations:recommendationsPage,'virtual-market':virtualPage,'binance-wallet':binancePage,kaizen:kaizenPage,evidence:evidencePage})[state.page](content);"
+assert selection in js
+js = js.replace(selection, "if(state.mode==='local'){renderLocal(content);}else{" + selection + "}")
+js = js.replace("    const active=document.activeElement;", "    const expanded=Array.from(root.querySelectorAll('details')).map(d=>d.open);\n    const active=document.activeElement;")
+js = js.replace("    if(focusTarget)focusTarget.focus({preventScroll:true});", "    if(focusTarget)focusTarget.focus({preventScroll:true});\n    root.querySelectorAll('details').forEach((d,i)=>{if(expanded[i])d.open=true;});\n    root.querySelector('#aw-mode').textContent=state.mode==='local'?t('Design example','Tasarım örneği'):t('Local data','Yerel veriler');\n    if(state.mode==='local'){root.querySelector('#aw-demo').textContent=t('Local data · Read only','Yerel veriler · Salt okunur');root.querySelector('#aw-footnote').textContent=t('Refresh: 30 seconds · ','Yenileme: 30 saniye · ')+observedTime(localData?.generated_at);}")
+js = re.sub(r"  if\(globalThis.Tweak\)\{[^\n]+\}\n", "", js)
+final_render = "  render();\n})();"
+assert final_render in js
+js = js.replace(final_render, "  root.querySelector('#aw-mode').addEventListener('click',()=>{state.mode=state.mode==='local'?'sample':'local';render();});\n  render();\n  pollLocal();\n})();", 1)
+document = '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI4Binance Dashboard</title><link rel="stylesheet" href="/app.css"><script src="/lucide.js" defer></script><script src="/app.js" defer></script></head><body>\n' + markup + '\n</body></html>\n'
+(app / "index.html").write_text(document, encoding="utf-8")
+(app / "app.js").write_text(js, encoding="utf-8")
+local_css = """
+.aw-status{overflow-wrap:anywhere}
+@media (min-width:821px){
+  #a4-workspace{--aw-top-height:69px;overflow:clip}
+  #a4-workspace .aw-top{position:sticky;top:0;z-index:20}
+  #a4-workspace .aw-sidebar{position:sticky;top:var(--aw-top-height);align-self:start;box-sizing:border-box;height:calc(100vh - var(--aw-top-height));overflow-y:auto}
+}
+"""
+(app / "app.css").write_text(
+    ':root{color-scheme:dark}body{margin:0;background:#11171b}#a4-workspace{border:0;border-radius:0;min-height:100vh}\n'
+    + css
+    + local_css,
+    encoding="utf-8",
+)
+print("DASHBOARD_PACKAGE_BUILT")

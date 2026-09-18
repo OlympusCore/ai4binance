@@ -1,0 +1,129 @@
+schema_version: "1.0"
+ontology_id: AI4BINANCE-GITHUB-RADAR-ONTOLOGY
+authority:
+  promotion_status: RESEARCH_ONLY
+  execution_allowed: false
+  live_eligibility_status: LIVE_ORDER_BLOCKED
+domains:
+  - {id: R00, title: Governance and Authority}
+  - {id: R01, title: Exchange Connectivity}
+  - {id: R02, title: Market Data}
+  - {id: R03, title: Data Quality}
+  - {id: R04, title: State and Event System}
+  - {id: R05, title: Indicator Kernel}
+  - {id: R06, title: Trend}
+  - {id: R07, title: Momentum}
+  - {id: R08, title: Volatility}
+  - {id: R09, title: Volume}
+  - {id: R10, title: Support and Resistance}
+  - {id: R11, title: Market Structure}
+  - {id: R12, title: Smart Money Concepts}
+  - {id: R13, title: Price Action}
+  - {id: R14, title: Candlestick}
+  - {id: R15, title: Classical Pattern}
+  - {id: R16, title: Harmonic and Fibonacci}
+  - {id: R17, title: Elliott and Wyckoff}
+  - {id: R18, title: Market Regime}
+  - {id: R19, title: Microstructure}
+  - {id: R20, title: Derivatives Intelligence}
+  - {id: R21, title: External Intelligence}
+  - {id: R22, title: Strategy Playbooks}
+  - {id: R23, title: Signal and DGE}
+  - {id: R24, title: Risk and Portfolio}
+  - {id: R25, title: Execution}
+  - {id: R26, title: Backtest and Validation}
+  - {id: R27, title: ML and AutoML}
+  - {id: R28, title: Agent Ontology and Evidence}
+  - {id: R29, title: Observability and QAQC}
+  - {id: R30, title: Security and Supply Chain}
+verification_profiles:
+  - {id: V01, title: Look-ahead and future-information audit}
+  - {id: V02, title: Recursive stability and warm-up audit}
+  - {id: V03, title: Point-in-time data audit}
+  - {id: V04, title: Feature and target leakage audit}
+  - {id: V05, title: Oracle and implementation parity audit}
+  - {id: V06, title: OOS and regime-split validation}
+  - {id: V07, title: Walk-forward validation}
+  - {id: V08, title: Parameter sensitivity and robustness}
+  - {id: V09, title: Performance and complexity benchmark}
+  - {id: V10, title: Security and supply-chain audit}
+  - {id: V11, title: License and reuse audit}
+  - {id: V12, title: Paper shadow validation}
+capabilities:
+  - {id: R00-C01, domain: R00, title: Fail-closed authority invariants, query: "trading governance fail closed policy engine", target_layers: [GOVERNANCE_AUTHORITY], target_agents: [qaqc_agent], local_evidence: [src/ai4binance/governance/authority.py], verification: [V10, V11]}
+  - {id: R00-C02, domain: R00, title: Human promotion decision ledger, query: "human approval promotion audit ledger", target_layers: [GOVERNANCE_AUTHORITY, OBSERVABILITY_AUDIT], target_agents: [validation], local_evidence: [src/ai4binance/governance/workflow.py], verification: [V10, V12]}
+  - {id: R01-C01, domain: R01, title: Read-only exchange transport, query: "binance spot read only client retry backoff", target_layers: [TOOLS], target_agents: [data_acquisition], local_evidence: [src/ai4binance/exchange/transport.py], verification: [V09, V10]}
+  - {id: R01-C02, domain: R01, title: Exchange filter discovery, query: "binance exchangeInfo filter validation python", target_layers: [TOOLS, DETERMINISTIC_CORE], target_agents: [execution], local_evidence: [src/ai4binance/exchange/filters.py], verification: [V05, V10]}
+  - {id: R01-C03, domain: R01, title: New Protocol, query: "new protocol API interoperability deterministic", target_layers: [TOOLS, DETERMINISTIC_CORE], target_agents: [execution], local_evidence: [src/ai4binance/exchange/transport.py], verification: [V05, V09, V10]}
+  - {id: R02-C01, domain: R02, title: Multi-timeframe OHLCV ingestion, query: "multi timeframe OHLCV ingestion python", target_layers: [DATA_PROVENANCE], target_agents: [data_acquisition, multi_timeframe], local_evidence: [src/ai4binance/data], verification: [V03, V09]}
+  - {id: R02-C02, domain: R02, title: Order-book snapshot and delta merge, query: "order book snapshot delta sequence gap", target_layers: [DATA_PROVENANCE], target_agents: [order_flow], local_evidence: [src/ai4binance/exchange/order_book.py], verification: [V03, V05]}
+  - {id: R02-C03, domain: R02, title: New Data Source, query: "new data source provenance freshness schema", target_layers: [DATA_PROVENANCE], target_agents: [data_acquisition], local_evidence: [src/ai4binance/data], verification: [V03, V09]}
+  - {id: R03-C01, domain: R03, title: OHLCV schema and gap validation, query: "OHLCV data quality gap duplicate validation", target_layers: [DATA_PROVENANCE, EVAL], target_agents: [data_quality], local_evidence: [src/ai4binance/data_quality.py], verification: [V03, V05]}
+  - {id: R03-C02, domain: R03, title: Temporal lineage validation, query: "temporal data lineage point in time validation", target_layers: [DATA_PROVENANCE, EVAL], target_agents: [validation], local_evidence: [src/ai4binance/validation/integrity.py], verification: [V01, V03]}
+  - {id: R04-C01, domain: R04, title: Deterministic event envelope, query: "deterministic event bus hash chain python", target_layers: [ORCHESTRATION, OBSERVABILITY_AUDIT], target_agents: [qaqc_agent], local_evidence: [src/ai4binance/events/bus.py], verification: [V05, V10]}
+  - {id: R04-C02, domain: R04, title: Replay-safe state projection, query: "event sourcing deterministic replay state projection", target_layers: [MEMORY, ORCHESTRATION], target_agents: [learning], local_evidence: [src/ai4binance/storage.py], verification: [V05, V09]}
+  - {id: R05-C01, domain: R05, title: Incremental indicator calculation, query: "incremental technical indicators python streaming", target_layers: [DETERMINISTIC_CORE], target_agents: [statistics], local_evidence: [src/ai4binance/indicators.py], verification: [V02, V05, V09]}
+  - {id: R05-C02, domain: R05, title: Indicator oracle parity, query: "technical indicator reference parity tests", target_layers: [EVAL, DETERMINISTIC_CORE], target_agents: [validation], local_evidence: [tests/test_indicators.py], verification: [V02, V05]}
+  - {id: R05-C03, domain: R05, title: New Algorithm, query: "new algorithm deterministic analytics time series", target_layers: [DETERMINISTIC_CORE], target_agents: [statistics], local_evidence: [src/ai4binance/indicators.py], verification: [V04, V06, V08]}
+  - {id: R05-C04, domain: R05, title: New Indicator, query: "new technical indicator deterministic oracle parity", target_layers: [DETERMINISTIC_CORE, EVAL], target_agents: [statistics, validation], local_evidence: [src/ai4binance/indicators.py], verification: [V02, V05, V06]}
+  - {id: R06-C01, domain: R06, title: Trend direction classification, query: "EMA supertrend market structure trend classifier", target_layers: [DETERMINISTIC_CORE], target_agents: [trend], local_evidence: [src/ai4binance/agents/technical.py], verification: [V02, V06]}
+  - {id: R06-C02, domain: R06, title: Trend event transitions, query: "trend transition event detection time series", target_layers: [DETERMINISTIC_CORE, ORCHESTRATION], target_agents: [trend_events], local_evidence: [src/ai4binance/agents/trend_events.py], verification: [V01, V06]}
+  - {id: R07-C01, domain: R07, title: Momentum ensemble, query: "RSI MACD momentum ensemble backtest", target_layers: [DETERMINISTIC_CORE], target_agents: [momentum], local_evidence: [src/ai4binance/agents/technical.py], verification: [V02, V06]}
+  - {id: R07-C02, domain: R07, title: Divergence detection, query: "deterministic RSI divergence detection python", target_layers: [DETERMINISTIC_CORE], target_agents: [divergence], local_evidence: [src/ai4binance/agents/advanced.py], verification: [V01, V02, V06]}
+  - {id: R08-C01, domain: R08, title: ATR volatility state, query: "ATR volatility regime classifier", target_layers: [DETERMINISTIC_CORE], target_agents: [volatility], local_evidence: [src/ai4binance/agents/technical.py], verification: [V02, V06]}
+  - {id: R08-C02, domain: R08, title: Volatility expansion risk gate, query: "volatility expansion risk filter breakout", target_layers: [DETERMINISTIC_CORE, EVAL], target_agents: [risk], local_evidence: [src/ai4binance/risk.py], verification: [V06, V08]}
+  - {id: R09-C01, domain: R09, title: Relative volume baseline, query: "relative volume baseline crypto python", target_layers: [DETERMINISTIC_CORE], target_agents: [volume], local_evidence: [src/ai4binance/agents/technical.py], verification: [V02, V06]}
+  - {id: R09-C02, domain: R09, title: Volume profile zones, query: "volume profile value area point of control python", target_layers: [DETERMINISTIC_CORE], target_agents: [volume_profile], local_evidence: [src/ai4binance/agents/advanced.py], verification: [V01, V05]}
+  - {id: R10-C01, domain: R10, title: Pivot support resistance, query: "support resistance pivot zone algorithm", target_layers: [DETERMINISTIC_CORE], target_agents: [support_resistance], local_evidence: [src/ai4binance/agents/technical.py], verification: [V01, V08]}
+  - {id: R10-C02, domain: R10, title: Multi-timeframe level confluence, query: "multi timeframe support resistance confluence", target_layers: [DETERMINISTIC_CORE], target_agents: [confluence], local_evidence: [src/ai4binance/agents/specialists.py], verification: [V01, V06]}
+  - {id: R11-C01, domain: R11, title: Swing structure labeling, query: "HH HL LH LL swing structure algorithm", target_layers: [DETERMINISTIC_CORE], target_agents: [market_structure], local_evidence: [src/ai4binance/agents/technical.py], verification: [V01, V02]}
+  - {id: R11-C02, domain: R11, title: Break-of-structure confirmation, query: "break of structure change of character deterministic", target_layers: [DETERMINISTIC_CORE], target_agents: [market_structure], local_evidence: [src/ai4binance/agents/advanced.py], verification: [V01, V06]}
+  - {id: R12-C01, domain: R12, title: Liquidity sweep detection, query: "liquidity sweep detection trading algorithm", target_layers: [DETERMINISTIC_CORE], target_agents: [smc, liquidity_analysis], local_evidence: [src/ai4binance/agents/advanced.py], verification: [V01, V06]}
+  - {id: R12-C02, domain: R12, title: Fair-value gap lifecycle, query: "fair value gap mitigation deterministic", target_layers: [DETERMINISTIC_CORE], target_agents: [smc], local_evidence: [src/ai4binance/agents/advanced.py], verification: [V01, V02]}
+  - {id: R13-C01, domain: R13, title: Breakout retest trigger, query: "breakout retest rule based strategy", target_layers: [DETERMINISTIC_CORE], target_agents: [breakout_retest, price_action], local_evidence: [src/ai4binance/agents/technical.py], verification: [V01, V06]}
+  - {id: R13-C02, domain: R13, title: Failed breakout detection, query: "failed breakout false breakout detector", target_layers: [DETERMINISTIC_CORE, EVAL], target_agents: [price_action], local_evidence: [src/ai4binance/research/backtesting], verification: [V01, V06]}
+  - {id: R14-C01, domain: R14, title: Rule-based candle patterns, query: "rule based candlestick pattern recognition python", target_layers: [DETERMINISTIC_CORE], target_agents: [candlestick], local_evidence: [src/ai4binance/agents/technical.py], verification: [V01, V05]}
+  - {id: R14-C02, domain: R14, title: Contextual candle validation, query: "candlestick pattern contextual backtest", target_layers: [EVAL], target_agents: [candlestick, validation], local_evidence: [tests/test_agents.py], verification: [V06, V08]}
+  - {id: R15-C01, domain: R15, title: Classical chart geometry, query: "rule based chart pattern geometry detection", target_layers: [DETERMINISTIC_CORE], target_agents: [chart_pattern], local_evidence: [src/ai4binance/agents/advanced.py], verification: [V01, V06]}
+  - {id: R15-C02, domain: R15, title: Pattern invalidation statistics, query: "chart pattern invalidation statistics backtest", target_layers: [EVAL], target_agents: [chart_pattern, backtest], local_evidence: [src/ai4binance/research/backtesting], verification: [V06, V08]}
+  - {id: R16-C01, domain: R16, title: Fibonacci swing anchoring, query: "deterministic fibonacci swing anchor algorithm", target_layers: [DETERMINISTIC_CORE], target_agents: [fibonacci], local_evidence: [src/ai4binance/agents/technical.py], verification: [V01, V08]}
+  - {id: R16-C02, domain: R16, title: Harmonic ratio validation, query: "harmonic pattern ratio validation python", target_layers: [DETERMINISTIC_CORE, EVAL], target_agents: [harmonic_pattern], local_evidence: [src/ai4binance/agents/advanced.py], verification: [V01, V06]}
+  - {id: R17-C01, domain: R17, title: Elliott rule validation, query: "rule based elliott wave validation", target_layers: [DETERMINISTIC_CORE], target_agents: [elliott_wave], local_evidence: [src/ai4binance/agents/advanced.py], verification: [V01, V08]}
+  - {id: R17-C02, domain: R17, title: Wyckoff phase heuristics, query: "wyckoff phase rule based classifier", target_layers: [DETERMINISTIC_CORE], target_agents: [wyckoff], local_evidence: [src/ai4binance/agents/advanced.py], verification: [V01, V06]}
+  - {id: R18-C01, domain: R18, title: Regime classification, query: "market regime classifier trend range volatility", target_layers: [DETERMINISTIC_CORE], target_agents: [market_regime], local_evidence: [src/ai4binance/regime.py], verification: [V04, V06]}
+  - {id: R18-C02, domain: R18, title: Regime transition stability, query: "market regime transition stability walk forward", target_layers: [EVAL], target_agents: [market_regime, walk_forward], local_evidence: [src/ai4binance/validation], verification: [V06, V07]}
+  - {id: R19-C01, domain: R19, title: Spread and depth model, query: "order book spread depth liquidity model", target_layers: [DATA_PROVENANCE, DETERMINISTIC_CORE], target_agents: [order_flow, liquidity_analysis], local_evidence: [src/ai4binance/exchange/order_book.py], verification: [V03, V09]}
+  - {id: R19-C02, domain: R19, title: Slippage estimation, query: "order book slippage estimation execution", target_layers: [EVAL, DETERMINISTIC_CORE], target_agents: [execution, risk], local_evidence: [src/ai4binance/execution.py], verification: [V05, V09]}
+  - {id: R20-C01, domain: R20, title: Funding and open-interest context, query: "crypto funding open interest analytics", target_layers: [DATA_PROVENANCE], target_agents: [derivatives], local_evidence: [src/ai4binance/agents/specialists.py], verification: [V03, V06]}
+  - {id: R20-C02, domain: R20, title: Long-short positioning context, query: "crypto long short ratio point in time", target_layers: [DATA_PROVENANCE], target_agents: [long_short], local_evidence: [src/ai4binance/agents/specialists.py], verification: [V03, V06]}
+  - {id: R21-C01, domain: R21, title: News evidence provenance, query: "financial news provenance timestamp deduplication", target_layers: [RAG, DATA_PROVENANCE], target_agents: [news], local_evidence: [src/ai4binance/news], verification: [V03, V10]}
+  - {id: R21-C02, domain: R21, title: Sentiment calibration, query: "crypto sentiment calibration out of sample", target_layers: [RAG, EVAL], target_agents: [sentiment], local_evidence: [src/ai4binance/sentiment], verification: [V04, V06]}
+  - {id: R21-C03, domain: R21, title: New Blockchain Feature, query: "new blockchain feature onchain finality privacy", target_layers: [RAG, DATA_PROVENANCE], target_agents: [news], local_evidence: [src/ai4binance/news], verification: [V03, V10]}
+  - {id: R22-C01, domain: R22, title: Pullback continuation playbook, query: "pullback continuation strategy walk forward", target_layers: [DETERMINISTIC_CORE], target_agents: [trend, price_action], local_evidence: [src/ai4binance/strategy.py], verification: [V06, V07]}
+  - {id: R22-C02, domain: R22, title: Support reclaim playbook, query: "support reclaim trading strategy backtest", target_layers: [DETERMINISTIC_CORE], target_agents: [support_resistance, price_action], local_evidence: [src/ai4binance/strategy.py], verification: [V06, V07]}
+  - {id: R22-C03, domain: R22, title: New Methodology, query: "new methodology reproducible validation benchmark", target_layers: [DETERMINISTIC_CORE], target_agents: [validation], local_evidence: [src/ai4binance/strategy.py], verification: [V05, V06, V07]}
+  - {id: R23-C01, domain: R23, title: Explainable score fusion, query: "explainable deterministic signal score fusion", target_layers: [DETERMINISTIC_CORE], target_agents: [confluence], local_evidence: [src/ai4binance/scoring.py], verification: [V05, V06]}
+  - {id: R23-C02, domain: R23, title: Decision Gate Engine rules, query: "decision gate engine rule evaluation audit", target_layers: [GOVERNANCE_AUTHORITY, DETERMINISTIC_CORE], target_agents: [validation], local_evidence: [src/ai4binance/governance/dge_engine.py], verification: [V05, V12]}
+  - {id: R24-C01, domain: R24, title: Position risk sizing, query: "deterministic position sizing risk budget", target_layers: [DETERMINISTIC_CORE], target_agents: [risk], local_evidence: [src/ai4binance/risk.py], verification: [V05, V08]}
+  - {id: R24-C02, domain: R24, title: Wallet inventory isolation, query: "portfolio inventory backtest isolation", target_layers: [GOVERNANCE_AUTHORITY, DATA_PROVENANCE], target_agents: [wallet_inventory], local_evidence: [src/ai4binance/portfolio.py], verification: [V03, V04]}
+  - {id: R24-C03, domain: R24, title: New Risk-Control Method, query: "new risk control method fail closed", target_layers: [DETERMINISTIC_CORE], target_agents: [risk], local_evidence: [src/ai4binance/risk.py], verification: [V05, V08, V10]}
+  - {id: R25-C01, domain: R25, title: Exchange order validation, query: "binance spot order validation filters python", target_layers: [DETERMINISTIC_CORE, TOOLS], target_agents: [execution], local_evidence: [src/ai4binance/execution.py], verification: [V05, V10]}
+  - {id: R25-C02, domain: R25, title: Manual and paper execution boundary, query: "paper trading execution safety boundary", target_layers: [GOVERNANCE_AUTHORITY], target_agents: [execution], local_evidence: [src/ai4binance/trader.py], verification: [V10, V12]}
+  - {id: R25-C03, domain: R25, title: New Execution Method, query: "new execution method slippage liquidity", target_layers: [DETERMINISTIC_CORE, TOOLS], target_agents: [execution], local_evidence: [src/ai4binance/execution.py], verification: [V05, V09, V12]}
+  - {id: R26-C01, domain: R26, title: Realistic backtest fills, query: "realistic backtest fees slippage fills", target_layers: [EVAL], target_agents: [backtest], local_evidence: [src/ai4binance/research/backtesting], verification: [V01, V05, V06]}
+  - {id: R26-C02, domain: R26, title: Walk-forward OOS promotion gate, query: "walk forward out of sample promotion gate", target_layers: [EVAL, GOVERNANCE_AUTHORITY], target_agents: [walk_forward, validation], local_evidence: [src/ai4binance/validation], verification: [V06, V07, V08]}
+  - {id: R26-C03, domain: R26, title: New Backtesting Method, query: "new backtesting method walk forward simulation", target_layers: [EVAL], target_agents: [backtest], local_evidence: [src/ai4binance/research/backtesting], verification: [V01, V06, V07]}
+  - {id: R27-C01, domain: R27, title: Reproducible hyperparameter study, query: "reproducible hyperparameter optimization time series", target_layers: [EVAL], target_agents: [optimization], local_evidence: [src/ai4binance/tuning], verification: [V04, V07, V08]}
+  - {id: R27-C02, domain: R27, title: Feature leakage protection, query: "time series feature leakage detection machine learning", target_layers: [EVAL, DATA_PROVENANCE], target_agents: [validation], local_evidence: [src/ai4binance/validation/integrity.py], verification: [V03, V04]}
+  - {id: R27-C03, domain: R27, title: New Model, query: "new model reproducible machine learning", target_layers: [EVAL], target_agents: [optimization], local_evidence: [src/ai4binance/tuning], verification: [V04, V06, V09]}
+  - {id: R27-C04, domain: R27, title: New Optimization Method, query: "new optimization method time series", target_layers: [EVAL], target_agents: [optimization], local_evidence: [src/ai4binance/tuning], verification: [V04, V07, V08]}
+  - {id: R28-C01, domain: R28, title: Typed capability evidence graph, query: "typed evidence graph agent capability ontology", target_layers: [AGENT, MEMORY], target_agents: [qaqc_agent], local_evidence: [src/ai4binance/ontology/contracts.py], verification: [V05, V10]}
+  - {id: R28-C02, domain: R28, title: Agent capability routing, query: "agent capability registry deterministic routing", target_layers: [AGENT, ORCHESTRATION], target_agents: [qaqc_agent], local_evidence: [src/ai4binance/agents/catalog.py], verification: [V05, V09]}
+  - {id: R28-C03, domain: R28, title: New Agent Architecture, query: "new agent architecture typed state", target_layers: [AGENT, ORCHESTRATION], target_agents: [qaqc_agent], local_evidence: [src/ai4binance/agents/catalog.py], verification: [V05, V09, V10]}
+  - {id: R28-C04, domain: R28, title: New Multi-Agent Pipeline for Complex Analytics, query: "new multi agent pipeline complex analytics", target_layers: [AGENT, ORCHESTRATION], target_agents: [qaqc_agent], local_evidence: [src/ai4binance/agents/catalog.py], verification: [V05, V09, V10]}
+  - {id: R29-C01, domain: R29, title: Evidence-linked quality telemetry, query: "quality telemetry evidence provenance agent system", target_layers: [OBSERVABILITY_AUDIT], target_agents: [qaqc_agent], local_evidence: [src/ai4binance/enterprise/quality_audit.py], verification: [V05, V09]}
+  - {id: R29-C02, domain: R29, title: Continuous assurance blocker dashboard, query: "continuous assurance blocker dashboard audit", target_layers: [OBSERVABILITY_AUDIT, EVAL], target_agents: [qaqc_agent], local_evidence: [src/ai4binance/ops/continuous_assurance.py], verification: [V05, V12]}
+  - {id: R30-C01, domain: R30, title: Dependency provenance and pinning, query: "python dependency provenance pinned commit supply chain", target_layers: [SECURITY_SANDBOX], target_agents: [qaqc_agent], local_evidence: [src/ai4binance/governance/supply_chain.py], verification: [V10, V11]}
+  - {id: R30-C02, domain: R30, title: Static repository risk scan, query: "repository static security scan secrets dependencies", target_layers: [SECURITY_SANDBOX, EVAL], target_agents: [qaqc_agent], local_evidence: [src/ai4binance/ops/security_assurance.py], verification: [V10, V11]}
+  - {id: R30-C03, domain: R30, title: New Security Mechanism, query: "new security mechanism supply chain prompt injection", target_layers: [SECURITY_SANDBOX, EVAL], target_agents: [qaqc_agent], local_evidence: [src/ai4binance/ops/security_assurance.py], verification: [V10, V11]}
+

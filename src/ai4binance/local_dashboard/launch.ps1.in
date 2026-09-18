@@ -1,0 +1,84 @@
+param([switch]$NoWindow)
+$ErrorActionPreference = 'Stop'
+$appRoot = $PSScriptRoot
+$config = Get-Content -LiteralPath (Join-Path $appRoot 'config.json') -Raw | ConvertFrom-Json
+$mutex = [Threading.Mutex]::new($false, 'Local\AI4Binance.Dashboard.Guardian')
+if (-not $mutex.WaitOne(0)) { exit 0 }
+$serverProcess = $null
+$browserProcess = $null
+$profile = Join-Path $appRoot 'browser-profile'
+$serverScript = Join-Path $appRoot 'server.py'
+$url = "http://127.0.0.1:$($config.port)/"
+$healthUrl = "${url}health"
+$log = Join-Path $appRoot 'guardian.log'
+function Write-GuardianEvent([string]$Event) {
+    if ((Test-Path -LiteralPath $log) -and (Get-Item -LiteralPath $log).Length -gt 1MB) {
+        $tail = @(Get-Content -LiteralPath $log -Tail 500)
+        $tail | Set-Content -LiteralPath $log -Encoding UTF8
+    }
+    "$( [DateTimeOffset]::UtcNow.ToString('o') ) $Event" | Add-Content -LiteralPath $log -Encoding UTF8
+}
+function Stop-OrphanedDashboardServer([int]$ListenerProcessId) {
+    $candidateId = $ListenerProcessId
+    while ($true) {
+        $candidate = Get-CimInstance Win32_Process -Filter "ProcessId=$candidateId" -ErrorAction SilentlyContinue
+        if ($null -eq $candidate -or -not $candidate.CommandLine -or -not $candidate.CommandLine.Contains($serverScript)) {
+            break
+        }
+        $parent = Get-CimInstance Win32_Process -Filter "ProcessId=$($candidate.ParentProcessId)" -ErrorAction SilentlyContinue
+        if ($null -eq $parent -or -not $parent.CommandLine -or -not $parent.CommandLine.Contains($serverScript)) {
+            break
+        }
+        $candidateId = $parent.ProcessId
+    }
+    $taskKill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
+    & $taskKill '/PID' $candidateId '/T' '/F' 2>$null | Out-Null
+}
+try {
+    Write-GuardianEvent 'GUARDIAN_STARTED'
+    while ($true) {
+        $healthy = $false
+        try {
+            $health = Invoke-RestMethod -Uri $healthUrl -TimeoutSec 4
+            if ($health.installation_id -ne $config.installation_id) {
+                throw 'DASHBOARD_PORT_OCCUPIED'
+            }
+            $healthy = $health.status -eq 'RUNNING'
+        } catch { $healthy = $false }
+        if ($healthy -and $null -eq $serverProcess) {
+            $orphan = Get-NetTCPConnection -State Listen -LocalPort $config.port -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($orphan) {
+                Stop-OrphanedDashboardServer -ListenerProcessId $orphan.OwningProcess
+                Write-GuardianEvent 'ORPHAN_SERVER_RECLAIMED'
+                $healthy = $false
+            }
+        }
+        if (-not $healthy) {
+            $listener = Get-NetTCPConnection -State Listen -LocalPort $config.port -ErrorAction SilentlyContinue
+            if (-not $listener -and ($null -eq $serverProcess -or $serverProcess.HasExited)) {
+                $serverProcess = Start-Process -FilePath $config.python -ArgumentList @('-B', ('"' + (Join-Path $appRoot 'server.py') + '"')) -WorkingDirectory $appRoot -WindowStyle Hidden -PassThru
+                Write-GuardianEvent 'SERVER_STARTED'
+            }
+        } elseif (-not $NoWindow) {
+            if ($null -eq $browserProcess -or $browserProcess.HasExited) {
+                $existingWindowProcess = Get-CimInstance Win32_Process -Filter "Name='msedge.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($profile) -and -not $_.CommandLine.Contains('--type=') } | Select-Object -First 1
+                if ($existingWindowProcess) {
+                    $browserProcess = Get-Process -Id $existingWindowProcess.ProcessId -ErrorAction SilentlyContinue
+                } else {
+                    $browserProcess = Start-Process -FilePath $config.browser -ArgumentList @("--app=$url", ('--user-data-dir="' + $profile + '"'), '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--disable-background-mode', '--window-size=1440,960') -WindowStyle Normal -PassThru
+                    Write-GuardianEvent 'WINDOW_STARTED'
+                }
+            }
+        }
+        [pscustomobject]@{service='AI4Binance-Dashboard';updated_at=[DateTimeOffset]::UtcNow.ToString('o');status=$(if($healthy){'RUNNING'}else{'RECOVERING'});guardian_pid=$PID;server_pid=$(if($serverProcess){$serverProcess.Id}else{0});browser_pid=$(if($browserProcess){$browserProcess.Id}else{0});execution_allowed=$false} | ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $appRoot 'health.json') -Encoding UTF8
+        Start-Sleep -Seconds 10
+    }
+} finally {
+    if ($null -ne $serverProcess -and -not $serverProcess.HasExited) {
+        $taskKill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
+        & $taskKill '/PID' $serverProcess.Id '/T' '/F' 2>$null | Out-Null
+        Write-GuardianEvent 'SERVER_STOPPED'
+    }
+    $mutex.ReleaseMutex()
+    $mutex.Dispose()
+}

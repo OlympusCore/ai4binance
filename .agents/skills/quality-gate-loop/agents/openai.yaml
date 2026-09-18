@@ -1,0 +1,4 @@
+interface:
+  display_name: "Quality Gate Loop"
+  short_description: "Iterate until tests, Ruff, and MyPy pass"
+  default_prompt: "Run the repository quality gate loop, fix one highest-impact failure per iteration, and stop when green or after eight iterations."

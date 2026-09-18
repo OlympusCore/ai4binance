@@ -1,0 +1,31 @@
+{
+  "recommendations": [
+    "charliermarsh.ruff",
+    "dbaeumer.vscode-eslint",
+    "golang.go",
+    "julialang.language-julia",
+    "ms-python.mypy-type-checker",
+    "ms-python.debugpy",
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-vscode.cpptools",
+    "ms-vscode.powershell",
+    "mtxr.sqltools",
+    "mtxr.sqltools-driver-sqlite",
+    "redhat.vscode-yaml",
+    "rust-lang.rust-analyzer",
+    "stylelint.vscode-stylelint",
+    "tamasfe.even-better-toml",
+    "timonwong.shellcheck",
+    "vscjava.vscode-java-pack"
+  ],
+  "unwantedRecommendations": [
+    "batisteo.vscode-django",
+    "donjayamanne.python-extension-pack",
+    "ms-python.black-formatter",
+    "ms-python.isort",
+    "ms-python.pylint",
+    "ms-python.vscode-python-envs",
+    "ms-toolsai.jupyter"
+  ]
+}

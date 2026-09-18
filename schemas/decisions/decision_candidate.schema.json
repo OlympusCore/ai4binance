@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ai4binance:schema:decisions:decision-candidate:1.0.0",
+  "title": "AI4Binance Advisory Decision Candidate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "candidate_id",
+    "symbol",
+    "market_type",
+    "requested_action",
+    "setup_name",
+    "score",
+    "confidence",
+    "evidence_refs",
+    "execution_allowed",
+    "live_eligibility_status"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "candidate_id": {"type": "string", "minLength": 1},
+    "symbol": {"$ref": "urn:ai4binance:schema:primitives:identifier-primitives:1.0.0#/$defs/symbol"},
+    "market_type": {"enum": ["SPOT", "USD_M_FUTURES"]},
+    "requested_action": {"enum": ["BUY", "SELL", "HOLD", "WAIT", "NO_TRADE"]},
+    "setup_name": {"type": "string", "minLength": 1},
+    "score": {"type": "number", "minimum": 0, "maximum": 100},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "risk_reward": {"type": "number", "exclusiveMinimum": 0},
+    "evidence_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "execution_allowed": {"const": false},
+    "live_eligibility_status": {"const": "LIVE_ORDER_BLOCKED"}
+  }
+}

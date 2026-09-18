@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/governance/repository_mirror_policy.schema.json",
+  "title": "AI4BINANCE RepositoryMirrorPolicy",
+  "description": "Machine-readable contract for non-authoritative repository mirror hygiene. The mirror must not define or override canonical repository authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "policy_id",
+    "version",
+    "status",
+    "canonical_repository",
+    "mirror",
+    "fail_closed",
+    "sync",
+    "exclusions",
+    "retention"
+  ],
+  "properties": {
+    "policy_id": {
+      "const": "AI4B-GOV-MIRROR-HYGIENE-001"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "status": {
+      "const": "ACTIVE"
+    },
+    "canonical_repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority",
+        "root_resolution"
+      ],
+      "properties": {
+        "authority": {
+          "const": "AUTHORITATIVE"
+        },
+        "root_resolution": {
+          "const": "LOCAL_GIT_WORKTREE"
+        }
+      }
+    },
+    "mirror": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "authority",
+        "may_be_source_of_truth",
+        "may_override_canonical"
+      ],
+      "properties": {
+        "role": {
+          "const": "NON_CANONICAL_MIRROR"
+        },
+        "authority": {
+          "const": "NONE"
+        },
+        "may_be_source_of_truth": {
+          "const": false
+        },
+        "may_override_canonical": {
+          "const": false
+        }
+      }
+    },
+    "fail_closed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonical_resolution_failure",
+        "competing_source_of_truth",
+        "private_evidence_exposure"
+      ],
+      "properties": {
+        "canonical_resolution_failure": {
+          "const": true
+        },
+        "competing_source_of_truth": {
+          "const": true
+        },
+        "private_evidence_exposure": {
+          "const": true
+        }
+      }
+    },
+    "sync": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "default_action",
+        "allowed_exact_paths",
+        "allowed_prefixes"
+      ],
+      "properties": {
+        "default_action": {
+          "const": "EXCLUDE"
+        },
+        "allowed_exact_paths": {
+          "$ref": "#/$defs/non_empty_string_array"
+        },
+        "allowed_prefixes": {
+          "$ref": "#/$defs/non_empty_string_array"
+        }
+      }
+    },
+    "exclusions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hard_exclude_patterns",
+        "private_patterns",
+        "local_only_prefixes",
+        "never_mirror_prefixes"
+      ],
+      "properties": {
+        "hard_exclude_patterns": {
+          "$ref": "#/$defs/non_empty_string_array"
+        },
+        "private_patterns": {
+          "$ref": "#/$defs/non_empty_string_array"
+        },
+        "local_only_prefixes": {
+          "$ref": "#/$defs/non_empty_string_array"
+        },
+        "never_mirror_prefixes": {
+          "$ref": "#/$defs/non_empty_string_array"
+        }
+      }
+    },
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selective_prefixes",
+        "keep",
+        "rotate",
+        "drop"
+      ],
+      "properties": {
+        "selective_prefixes": {
+          "$ref": "#/$defs/non_empty_string_array"
+        },
+        "keep": {
+          "$ref": "#/$defs/non_empty_string_array"
+        },
+        "rotate": {
+          "$ref": "#/$defs/non_empty_string_array"
+        },
+        "drop": {
+          "$ref": "#/$defs/non_empty_string_array"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "non_empty_string_array": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

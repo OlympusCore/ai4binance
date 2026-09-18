@@ -1,0 +1,164 @@
+policy_version: dge-policy-v1
+control_policy_version: control-policy-v1
+config_version: dge-config-v1
+default_mode: paper_only
+live_eligibility_status: LIVE_ORDER_BLOCKED
+minimum_score: "60"
+minimum_confidence: "0.50"
+minimum_risk_reward: "2"
+score_weights:
+  signal_score: "0.20"
+  evidence_score: "0.15"
+  data_quality_score: "0.15"
+  mtf_score: "0.10"
+  regime_score: "0.10"
+  liquidity_score: "0.10"
+  risk_score: "0.10"
+  execution_score: "0.05"
+  confidence_score: "0.05"
+hard_blockers_override_scores: true
+canonical_blocker_registry_ref: config/governance/blocker_registry.yaml
+hard_blocker_taxonomy:
+  DATA.STALE:
+    source: DATA_QUALITY
+    resolution_authority: DATA_QUALITY_ENGINE
+    migration_aliases:
+      - DATA_STALE
+  DATA.QUALITY_FAILED:
+    source: DATA_QUALITY
+    resolution_authority: DATA_QUALITY_ENGINE
+    migration_aliases:
+      - DATA_QUALITY_FAIL
+      - DATA_QUALITY_GATE_FAILED
+  DATA.MISSING:
+    source: DATA_QUALITY
+    resolution_authority: DATA_QUALITY_ENGINE
+    migration_aliases:
+      - CRITICAL_DATA_MISSING
+      - REQUIRED_TIMEFRAMES_MISSING
+  DATA.INCONSISTENT:
+    source: DATA_QUALITY
+    resolution_authority: DATA_QUALITY_ENGINE
+    migration_aliases:
+      - SNAPSHOT_INTEGRITY_UNVERIFIED
+  GOV.AUTHORITY_CONFLICT:
+    source: GOVERNANCE
+    resolution_authority: GOVERNANCE_CONTROL_PLANE
+    migration_aliases:
+      - GOVERNANCE_CONFLICT
+  GOV.POLICY_CONFLICT:
+    source: GOVERNANCE
+    resolution_authority: GOVERNANCE_CONTROL_PLANE
+    migration_aliases:
+      - AUTHORITY_VIOLATION
+      - COIN_ATTACHMENT_BIAS_BLOCKED
+  EVID.MISSING_CRITICAL_EVIDENCE:
+    source: EVIDENCE
+    resolution_authority: EVIDENCE_FABRIC
+    migration_aliases:
+      - CRITICAL_EVIDENCE_MISSING
+      - WALLET_POSITION_CONTEXT_UNVERIFIED
+      - STRUCTURAL_INVALIDATION_MISSING
+  EVID.CONFLICT_UNRESOLVED:
+    source: EVIDENCE
+    resolution_authority: EVIDENCE_FABRIC
+    migration_aliases:
+      - MTF_ALIGNMENT_CONFLICT
+      - NEGATIVE_EVIDENCE_PRESENT
+  VAL.OOS_NOT_VALIDATED:
+    source: VALIDATION
+    resolution_authority: VALIDATION_ENGINE
+    migration_aliases:
+      - OOS_NOT_VALIDATED
+      - OOS_APPROVAL_MISSING
+  VAL.ROBUSTNESS_FAILED:
+    source: VALIDATION
+    resolution_authority: VALIDATION_ENGINE
+    migration_aliases:
+      - VALIDATION_VETO
+  VAL.REGIME_NOT_VALIDATED:
+    source: VALIDATION
+    resolution_authority: VALIDATION_ENGINE
+    migration_aliases:
+      - REGIME_INCOMPATIBLE_WITH_STRATEGY
+  RISK.VETO:
+    source: RISK
+    resolution_authority: RISK_ENGINE
+    migration_aliases:
+      - RISK_VETO
+      - RISK_APPROVAL_MISSING
+  RISK.DAILY_LOSS_LIMIT:
+    source: RISK
+    resolution_authority: RISK_ENGINE
+    migration_aliases:
+      - DAILY_LOSS_LIMIT
+  RISK.EXPOSURE_LIMIT:
+    source: RISK
+    resolution_authority: RISK_ENGINE
+    migration_aliases:
+      - RISK_BUDGET_EXCEEDED
+  RISK.BUDGET_UNAVAILABLE:
+    source: RISK
+    resolution_authority: RISK_ENGINE
+    migration_aliases:
+      - EXTERNAL_CAPITAL_NOT_ALLOWED
+      - RISK_BUDGET_UNAVAILABLE
+  LIQ.APPROVAL_MISSING:
+    source: LIQUIDITY
+    resolution_authority: LIQUIDITY_ENGINE
+    migration_aliases:
+      - LIQUIDITY_FAIL
+      - LIQUIDITY_APPROVAL_MISSING
+  SEC.SECRET_EXPOSURE:
+    source: SECURITY
+    resolution_authority: SECURITY_ASSURANCE
+  SEC.AUTHORIZATION_FAILURE:
+    source: SECURITY
+    resolution_authority: SECURITY_ASSURANCE
+    migration_aliases:
+      - SECURITY_CRITICAL
+  EXEC.ORDER_CONSTRAINT_FAILED:
+    source: EXECUTION
+    resolution_authority: EXECUTION_ENGINE
+    migration_aliases:
+      - EXECUTION_NOT_ALLOWED
+      - EXECUTION_FEASIBILITY_MISSING
+  EXEC.LIVE_DISABLED:
+    source: EXECUTION
+    resolution_authority: EXECUTION_ENGINE
+    migration_aliases:
+      - LIVE_EXECUTION_DISABLED
+  EXEC.HUMAN_CONFIRMATION_MISSING:
+    source: EXECUTION
+    resolution_authority: EXECUTION_ENGINE
+    migration_aliases:
+      - HUMAN_REVIEW_REQUIRED
+soft_penalty_policy:
+  global_cap: "30"
+  group_caps:
+    LIQUIDITY_QUALITY: "12"
+    MARKET_STRUCTURE: "10"
+    EVIDENCE_QUALITY: "12"
+    GOVERNANCE_REVIEW: "10"
+  penalties:
+    WEAK_RELATIVE_VOLUME:
+      value: "5"
+      max_value: "10"
+      penalty_group: LIQUIDITY_QUALITY
+    MINOR_SPREAD_DEGRADATION:
+      value: "3"
+      max_value: "10"
+      penalty_group: LIQUIDITY_QUALITY
+    PARTIAL_TIMEFRAME_CONFLICT:
+      value: "5"
+      max_value: "15"
+      penalty_group: MARKET_STRUCTURE
+    EVIDENCE_DIVERSITY_LOW:
+      value: "4"
+      max_value: "10"
+      penalty_group: EVIDENCE_QUALITY
+    MINOR_AGENT_DISAGREEMENT:
+      value: "3"
+      max_value: "10"
+      penalty_group: GOVERNANCE_REVIEW
+llm_boundary: ADVISORY_ONLY

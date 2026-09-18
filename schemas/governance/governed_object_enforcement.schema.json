@@ -1,0 +1,321 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/governance/governed_object_enforcement.schema.json",
+  "title": "AI4BINANCE Governed Object Enforcement Contracts",
+  "description": "Machine-readable contracts for universal governed-object enforcement envelopes, requests, profiles, and decisions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "governed_object_envelope",
+    "enforcement_request",
+    "enforcement_profile",
+    "enforcement_decision"
+  ],
+  "properties": {
+    "governed_object_envelope": {
+      "$ref": "#/$defs/GovernedObjectEnvelope"
+    },
+    "enforcement_request": {
+      "$ref": "#/$defs/EnforcementRequest"
+    },
+    "enforcement_profile": {
+      "$ref": "#/$defs/EnforcementProfile"
+    },
+    "enforcement_decision": {
+      "$ref": "#/$defs/EnforcementDecision"
+    }
+  },
+  "$defs": {
+    "GovernedObjectEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_id",
+        "object_type",
+        "version",
+        "lifecycle_state",
+        "owner",
+        "authority_layer",
+        "source_of_truth",
+        "canonical_ref",
+        "classification"
+      ],
+      "properties": {
+        "object_id": { "type": "string", "minLength": 1 },
+        "object_type": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "lifecycle_state": { "type": "string", "minLength": 1 },
+        "owner": { "type": "string", "minLength": 1 },
+        "authority_layer": { "type": "string", "minLength": 1 },
+        "authority_effect": { "type": ["string", "null"] },
+        "authority_scope": { "type": ["string", "null"] },
+        "source_of_truth": { "type": "boolean" },
+        "canonical_ref": { "type": "string", "minLength": 1 },
+        "schema_ref": { "type": ["string", "null"] },
+        "content_hash": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+        "policy_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "dependencies": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "evidence_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "permission_profile_ref": { "type": ["string", "null"] },
+        "classification": { "type": "string", "minLength": 1 }
+      }
+    },
+    "VerificationAttestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attestation_id",
+        "gate",
+        "subject_hash",
+        "provider_id",
+        "provider_version",
+        "policy_version",
+        "evaluated_at",
+        "valid_until",
+        "evidence_refs",
+        "evidence_hash",
+        "result",
+        "reason_codes"
+      ],
+      "properties": {
+        "attestation_id": { "type": "string", "minLength": 1 },
+        "gate": {
+          "type": "string",
+          "enum": ["IDENTITY", "SCHEMA", "AUTHORITY", "LIFECYCLE", "POLICY", "EVIDENCE", "LINEAGE", "BLOCKER", "EXECUTION", "AUDIT"]
+        },
+        "subject_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "provider_id": { "type": "string", "minLength": 1 },
+        "provider_version": { "type": "string", "minLength": 1 },
+        "policy_version": { "type": "string", "minLength": 1 },
+        "evaluated_at": { "type": "string", "minLength": 1 },
+        "valid_until": { "type": "string", "minLength": 1 },
+        "evidence_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "evidence_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "result": { "type": "string", "enum": ["VERIFIED", "DENIED", "INCOMPLETE", "UNKNOWN"] },
+        "reason_codes": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+      }
+    },
+    "VerifiedApprovalSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approval_set_id",
+        "subject_hash",
+        "scope_hash",
+        "change_class",
+        "required_roles",
+        "satisfied_roles",
+        "principal_ids",
+        "approval_ids",
+        "evidence_hash",
+        "verified_at",
+        "expires_at",
+        "verification_policy_hash"
+      ],
+      "properties": {
+        "approval_set_id": { "type": "string", "minLength": 1 },
+        "subject_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "scope_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "change_class": { "type": "string", "minLength": 1 },
+        "required_roles": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "satisfied_roles": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "principal_ids": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "approval_ids": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "evidence_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "verified_at": { "type": "string", "minLength": 1 },
+        "expires_at": { "type": "string", "minLength": 1 },
+        "verification_policy_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "BlockerSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "blocker_snapshot_id",
+        "blocker_registry_hash",
+        "active_blockers",
+        "resolved_blockers",
+        "evaluated_at",
+        "subject_id"
+      ],
+      "properties": {
+        "blocker_snapshot_id": { "type": "string", "minLength": 1 },
+        "blocker_registry_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "active_blockers": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "resolved_blockers": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "evaluated_at": { "type": "string", "minLength": 1 },
+        "subject_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "AuditReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receipt_id", "subject_hash", "audit_log_ref", "commit_hash", "recorded_at"],
+      "properties": {
+        "receipt_id": { "type": "string", "minLength": 1 },
+        "subject_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "audit_log_ref": { "type": "string", "minLength": 1 },
+        "commit_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "recorded_at": { "type": "string", "minLength": 1 }
+      }
+    },
+    "ActionTransitionRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "transition_required", "allowed_from", "allowed_to"],
+      "properties": {
+        "action": { "type": "string", "minLength": 1 },
+        "transition_required": { "type": "boolean" },
+        "allowed_from": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "allowed_to": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+      }
+    },
+    "EnforcementRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_id",
+        "actor",
+        "action",
+        "environment",
+        "execution_mode"
+      ],
+      "properties": {
+        "request_id": { "type": "string", "minLength": 1 },
+        "actor": { "type": "string", "minLength": 1 },
+        "action": { "type": "string", "minLength": 1 },
+        "environment": { "type": "string", "minLength": 1 },
+        "execution_mode": { "type": "string", "minLength": 1 },
+        "requested_transition": { "type": ["string", "null"] },
+        "evidence_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "authorities": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "correlation_id": { "type": "string" },
+        "context_hash": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+        "gate_attestations": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/VerificationAttestation" }
+        },
+        "blocker_snapshot": { "anyOf": [{ "$ref": "#/$defs/BlockerSnapshot" }, { "type": "null" }] },
+        "verified_approval_set": { "anyOf": [{ "$ref": "#/$defs/VerifiedApprovalSet" }, { "type": "null" }] },
+        "audit_receipt": { "anyOf": [{ "$ref": "#/$defs/AuditReceipt" }, { "type": "null" }] },
+        "policy_facts": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "EnforcementProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_id",
+        "profile_version",
+        "object_type",
+        "allowed_actions",
+        "required_gates",
+        "side_effect_class",
+        "human_approval_class"
+      ],
+      "properties": {
+        "profile_id": { "type": "string", "minLength": 1 },
+        "profile_version": { "type": "string", "minLength": 1 },
+        "object_type": { "type": "string", "minLength": 1 },
+        "allowed_actions": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "required_gates": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["IDENTITY", "SCHEMA", "AUTHORITY", "LIFECYCLE", "POLICY", "EVIDENCE", "LINEAGE", "BLOCKER", "EXECUTION", "AUDIT"]
+          },
+          "uniqueItems": true
+        },
+        "required_evidence": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "required_authorities": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "allowed_lifecycle_transitions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "uniqueItems": true
+          }
+        },
+        "action_transition_rules": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/ActionTransitionRule" }
+        },
+        "side_effect_class": { "type": "string", "minLength": 1 },
+        "human_approval_class": { "type": "string", "minLength": 1 }
+      }
+    },
+    "EnforcementControlResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gate", "outcome", "reason_codes"],
+      "properties": {
+        "gate": {
+          "type": "string",
+          "enum": ["IDENTITY", "SCHEMA", "AUTHORITY", "LIFECYCLE", "POLICY", "EVIDENCE", "LINEAGE", "BLOCKER", "EXECUTION", "AUDIT"]
+        },
+        "outcome": {
+          "type": "string",
+          "enum": ["ALLOW", "DENY", "REQUIRE_APPROVAL", "QUARANTINE"]
+        },
+        "reason_codes": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "blockers": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "details": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "EnforcementDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision_id",
+        "outcome",
+        "evaluated_controls",
+        "blockers",
+        "reason_codes",
+        "policy_versions",
+        "object_hash",
+        "evidence_hash",
+        "authority_snapshot_hash",
+        "enforcement_profile_version",
+        "enforcement_profile_hash",
+        "approval_set_hash",
+        "blocker_snapshot_hash",
+        "audit_receipt_hash",
+        "consequence",
+        "replay_fingerprint"
+      ],
+      "properties": {
+        "decision_id": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "outcome": {
+          "type": "string",
+          "enum": ["ALLOW", "DENY", "REQUIRE_APPROVAL", "QUARANTINE"]
+        },
+        "evaluated_controls": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/EnforcementControlResult" }
+        },
+        "blockers": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "reason_codes": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "policy_versions": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "object_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "evidence_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "authority_snapshot_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "enforcement_profile_version": { "type": "string", "minLength": 1 },
+        "enforcement_profile_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "approval_set_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "blocker_snapshot_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "audit_receipt_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "consequence": { "type": "string", "minLength": 1 },
+        "replay_fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "execution_allowed": { "type": "boolean" },
+        "promotion_status": { "type": "string", "minLength": 1 },
+        "live_eligibility_status": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

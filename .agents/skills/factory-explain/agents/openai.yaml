@@ -1,0 +1,4 @@
+interface:
+  display_name: "Factory Explain"
+  short_description: "Explain factory plans and outcomes"
+  default_prompt: "Use /factory-explain to produce plain-language plans, diagrams, and owner guides."

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ai4binance:schema:snapshots:market-snapshot:1.0.0",
+  "title": "AI4Binance Market Snapshot Wire Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "snapshot_id", "created_at", "exchange", "market_type", "symbol", "timeframes", "ohlcv_by_timeframe", "latest_price", "bid", "ask", "spread", "server_time", "data_quality", "data_freshness"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "snapshot_id": {"$ref": "urn:ai4binance:schema:primitives:identifier-primitives:1.0.0#/$defs/snapshot_id"},
+    "created_at": {"$ref": "urn:ai4binance:schema:primitives:temporal-primitives:1.0.0#/$defs/timestamp_utc"},
+    "exchange": {"type": "string", "minLength": 1},
+    "market_type": {"enum": ["SPOT", "USD_M_FUTURES"]},
+    "symbol": {"$ref": "urn:ai4binance:schema:primitives:identifier-primitives:1.0.0#/$defs/symbol"},
+    "timeframes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "ohlcv_by_timeframe": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/candle"}}},
+    "latest_price": {"type": ["null", "string"], "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"},
+    "bid": {"type": ["null", "string"], "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"},
+    "ask": {"type": ["null", "string"], "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"},
+    "spread": {"type": ["null", "string"], "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"},
+    "server_time": {"type": ["null", "string"], "format": "date-time"},
+    "data_quality": {"enum": ["DATA_VALID", "DATA_DEGRADED", "DATA_INVALID"]},
+    "data_freshness": {"type": "object"}
+  },
+  "$defs": {
+    "candle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timestamp", "open", "high", "low", "close", "volume"],
+      "properties": {
+        "timestamp": {"$ref": "urn:ai4binance:schema:primitives:temporal-primitives:1.0.0#/$defs/timestamp_utc"},
+        "open": {"$ref": "urn:ai4binance:schema:primitives:decimal-primitives:1.0.0#/$defs/nonnegative_decimal_string"},
+        "high": {"$ref": "urn:ai4binance:schema:primitives:decimal-primitives:1.0.0#/$defs/nonnegative_decimal_string"},
+        "low": {"$ref": "urn:ai4binance:schema:primitives:decimal-primitives:1.0.0#/$defs/nonnegative_decimal_string"},
+        "close": {"$ref": "urn:ai4binance:schema:primitives:decimal-primitives:1.0.0#/$defs/nonnegative_decimal_string"},
+        "volume": {"$ref": "urn:ai4binance:schema:primitives:decimal-primitives:1.0.0#/$defs/nonnegative_decimal_string"}
+      }
+    }
+  }
+}

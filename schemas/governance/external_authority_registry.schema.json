@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/governance/external_authority_registry.schema.json",
+  "title": "AI4BINANCE External Authority Registry",
+  "description": "A derived applicability projection. It does not replace official sources or grant execution authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["registry_id", "document_id", "canonical_path", "authority_layer", "authority_effect", "authority_scope", "status", "content_role", "source_of_truth_scope", "version", "source_of_truth", "execution_allowed", "live_eligibility_status", "entries"],
+  "properties": {
+    "registry_id": {"const": "AI4B-GOV-EXT-AUTH-001"},
+    "document_id": {"const": "AI4B-GOV-EXT-AUTH-001"},
+    "canonical_path": {"const": "config/governance/external_authorities.yaml"},
+    "authority_layer": {"const": "L0_EXTERNAL_MANDATORY_CONSTRAINTS"},
+    "authority_effect": {"const": "REFERENCE_ONLY"},
+    "authority_scope": {"const": "external_authority_applicability"},
+    "status": {"const": "ACTIVE"},
+    "content_role": {"const": "DERIVED"},
+    "source_of_truth_scope": {"const": "external_authority_projection"},
+    "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+    "source_of_truth": {"const": false},
+    "execution_allowed": {"const": false},
+    "live_eligibility_status": {"const": "LIVE_ORDER_BLOCKED"},
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/entry"}
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authority_id", "title", "kind", "effect", "jurisdiction", "source_reference", "source_status", "effective_from", "last_verified_at", "review_due_on", "applicability_status", "applicability_basis", "control_refs"],
+      "properties": {
+        "authority_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]+$"},
+        "title": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["LAW", "STANDARD", "FRAMEWORK", "PRINCIPLE"]},
+        "effect": {"enum": ["MANDATORY", "NORMATIVE", "GUIDANCE", "VALUES"]},
+        "jurisdiction": {"type": "string", "minLength": 1},
+        "source_reference": {"type": "string", "format": "uri", "pattern": "^https://"},
+        "source_status": {"enum": ["ACTIVE", "SUPERSEDED", "REPEALED", "DRAFT", "UNKNOWN"]},
+        "effective_from": {"type": ["string", "null"], "format": "date"},
+        "last_verified_at": {"type": "string", "format": "date-time"},
+        "review_due_on": {"type": "string", "format": "date"},
+        "applicability_status": {"enum": ["ADOPTED_INTERNAL", "APPLICABLE", "NOT_APPLICABLE", "REVIEW_REQUIRED"]},
+        "applicability_basis": {"type": "string", "minLength": 1},
+        "control_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    }
+  }
+}

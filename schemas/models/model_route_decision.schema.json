@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/models/model_route_decision.schema.json",
+  "title": "AI4BINANCE Model Route Decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "canonical_model_id",
+    "provider",
+    "task_type",
+    "model_family",
+    "allowed",
+    "blockers",
+    "route_sha256",
+    "execution_allowed",
+    "live_eligibility_status"
+  ],
+  "properties": {
+    "canonical_model_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,127}$"},
+    "provider": {"type": "string", "minLength": 1, "maxLength": 128},
+    "task_type": {"type": "string", "minLength": 1, "maxLength": 128},
+    "model_family": {"type": ["string", "null"]},
+    "allowed": {"type": "boolean"},
+    "blockers": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "route_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "execution_allowed": {"const": false},
+    "live_eligibility_status": {"const": "LIVE_ORDER_BLOCKED"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"allowed": {"const": true}}},
+      "then": {"properties": {"blockers": {"maxItems": 0}}},
+      "else": {"properties": {"blockers": {"minItems": 1}}}
+    }
+  ]
+}

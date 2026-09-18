@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/governance/authority_edge.schema.json",
+  "title": "AI4BINANCE AuthorityEdge",
+  "description": "A typed authority-graph relationship. Relationship family determines future cycle validation and does not imply numeric precedence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["edge_id", "from_node_id", "to_node_id", "relation", "edge_family"],
+  "properties": {
+    "edge_id": {"type": "string", "minLength": 1},
+    "from_node_id": {"type": "string", "minLength": 1},
+    "to_node_id": {"type": "string", "minLength": 1},
+    "relation": {
+      "enum": [
+        "GOVERNS",
+        "SPECIALIZES",
+        "MUST_ALIGN_WITH",
+        "SUPERSEDES",
+        "IMPLEMENTS",
+        "ENFORCES",
+        "VALIDATES",
+        "EVIDENCES",
+        "GENERATES",
+        "DERIVED_FROM",
+        "REFERENCES",
+        "AFFECTS"
+      ]
+    },
+    "edge_family": {"enum": ["AUTHORITY", "LIFECYCLE", "DEPENDENCY"]}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"relation": {"enum": ["GOVERNS", "SPECIALIZES", "MUST_ALIGN_WITH"]}}},
+      "then": {"properties": {"edge_family": {"const": "AUTHORITY"}}}
+    },
+    {
+      "if": {"properties": {"relation": {"const": "SUPERSEDES"}}},
+      "then": {"properties": {"edge_family": {"const": "LIFECYCLE"}}}
+    },
+    {
+      "if": {"properties": {"relation": {"enum": ["IMPLEMENTS", "ENFORCES", "VALIDATES", "EVIDENCES", "GENERATES", "DERIVED_FROM", "REFERENCES", "AFFECTS"]}}},
+      "then": {"properties": {"edge_family": {"const": "DEPENDENCY"}}}
+    }
+  ]
+}

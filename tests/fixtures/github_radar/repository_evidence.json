@@ -1,0 +1,41 @@
+{
+  "capability_id": "R26-C01",
+  "source": {
+    "repository": "example/research-engine",
+    "url": "https://github.com/example/research-engine",
+    "pinned_revision": "0123456789abcdef0123456789abcdef01234567",
+    "license_id": "MIT",
+    "language": "Python"
+  },
+  "evidence": [
+    {
+      "evidence_type": "TEST",
+      "reference": "tests/test_realistic_fills.py",
+      "claim": "Pinned tests cover fee, slippage and partial-fill assumptions.",
+      "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "risks": ["LOCAL_REPRODUCTION_PENDING"],
+  "ratings": [
+    {"dimension": "capability_fit", "rating": 0.95, "rationale": "Directly targets realistic fills."},
+    {"dimension": "determinism", "rating": 0.95, "rationale": "Seeded and clock-injected tests are present."},
+    {"dimension": "tests", "rating": 0.95, "rationale": "Focused tests are pinned."},
+    {"dimension": "lookahead_leakage", "rating": 0.95, "rationale": "Temporal ordering checks are documented."},
+    {"dimension": "oos_evidence", "rating": 0.95, "rationale": "OOS artifacts are cited."},
+    {"dimension": "data_correctness", "rating": 0.95, "rationale": "Input contracts are explicit."},
+    {"dimension": "maintenance", "rating": 0.95, "rationale": "Maintenance evidence is current."},
+    {"dimension": "license", "rating": 0.95, "rationale": "MIT license is pinned."},
+    {"dimension": "security", "rating": 0.95, "rationale": "Static security review is complete."},
+    {"dimension": "performance", "rating": 0.95, "rationale": "Bounded benchmark evidence exists."},
+    {"dimension": "modularity", "rating": 0.95, "rationale": "The algorithm boundary is isolated."},
+    {"dimension": "auditability", "rating": 0.95, "rationale": "Inputs and results are traceable."}
+  ],
+  "passed_gates": [
+    "PINNED_REVISION_REQUIRED",
+    "HTTPS_SOURCE_REQUIRED",
+    "CAPABILITY_ID_REQUIRED",
+    "AUTHORITY_BOUNDARY_REQUIRED",
+    "STATIC_SECURITY_REVIEW_REQUIRED",
+    "LICENSE_REVIEW_REQUIRED"
+  ]
+}

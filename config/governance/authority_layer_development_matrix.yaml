@@ -1,0 +1,82 @@
+document_id: "AI4B-GOV-AUTH-LAYER-DEV-001"
+matrix_id: "AI4B-GOV-AUTH-LAYER-DEV-001"
+version: "1.0.0"
+status: "ACTIVE"
+authority_layer: "L4_REPOSITORY_STANDARDS_CONTROLS_QUALITY_POLICIES"
+authority_effect: "IMPLEMENTATION"
+authority_scope: "authority_layer_development"
+content_role: "POLICY_AS_CODE"
+source_of_truth: false
+source_of_truth_scope: "enforcement_projection"
+canonical_path: "config/governance/authority_layer_development_matrix.yaml"
+authority:
+  human_authority_ref: "docs/governance/framework_core_vnext_governance.md"
+  projection_role: "AUTHORITY_LAYER_DEVELOPMENT_MATRIX"
+  not_authoritative_for:
+    - "enterprise_constitution"
+    - "risk_policy"
+    - "trading_policy"
+    - "execution_authority"
+    - "promotion_authority"
+safety:
+  execution_allowed: false
+  promotion_status: "RESEARCH_ONLY"
+  live_eligibility_status: "LIVE_ORDER_BLOCKED"
+groups:
+  - group_id: "boundary_decision_authority"
+    development_responsibility: "Defines hard system boundaries and consequential decision authority."
+  - group_id: "contract_binding"
+    development_responsibility: "Binds rules to machine-verifiable contracts and schemas."
+  - group_id: "control_acceptance"
+    development_responsibility: "Defines controls and acceptance conditions."
+  - group_id: "ownership_traceability"
+    development_responsibility: "Maintains ownership, dependencies, and traceability."
+  - group_id: "operational_specialization"
+    development_responsibility: "Specializes implementation mechanics without widening authority."
+  - group_id: "evidence_reference_archive"
+    development_responsibility: "Carries outcomes and references without independently creating authority."
+layers:
+  - authority_layer: "L0_EXTERNAL_MANDATORY_CONSTRAINTS"
+    group_id: "boundary_decision_authority"
+    allowed_authority_effects: ["MANDATORY_CONSTRAINT", "REFERENCE_ONLY"]
+    source_of_truth_allowed: true
+  - authority_layer: "L1_CORE_CONSTITUTION"
+    group_id: "boundary_decision_authority"
+    allowed_authority_effects: ["NORMATIVE_CONSTRAINT"]
+    source_of_truth_allowed: true
+  - authority_layer: "L2_GOVERNANCE_COMPLIANCE"
+    group_id: "boundary_decision_authority"
+    allowed_authority_effects: ["NORMATIVE_CONSTRAINT"]
+    source_of_truth_allowed: true
+  - authority_layer: "L3_CANONICAL_CONTRACTS_SCHEMAS"
+    group_id: "contract_binding"
+    allowed_authority_effects: ["NORMATIVE_CONSTRAINT", "IMPLEMENTATION"]
+    source_of_truth_allowed: true
+  - authority_layer: "L4_REPOSITORY_STANDARDS_CONTROLS_QUALITY_POLICIES"
+    group_id: "control_acceptance"
+    allowed_authority_effects: ["NORMATIVE_CONSTRAINT", "IMPLEMENTATION"]
+    source_of_truth_allowed: true
+  - authority_layer: "L5_REGISTRIES_ROADMAP"
+    group_id: "ownership_traceability"
+    allowed_authority_effects: ["IMPLEMENTATION", "EVIDENCE_ONLY", "REFERENCE_ONLY"]
+    source_of_truth_allowed: true
+  - authority_layer: "L6_ARCHITECTURE_ONTOLOGY_ADR"
+    group_id: "ownership_traceability"
+    allowed_authority_effects: ["NORMATIVE_CONSTRAINT", "IMPLEMENTATION"]
+    source_of_truth_allowed: true
+  - authority_layer: "L7_WORKFLOWS_PROCEDURES_RUNBOOKS_PROVIDERS"
+    group_id: "operational_specialization"
+    allowed_authority_effects: ["OPERATIONAL_SPECIALIZATION"]
+    source_of_truth_allowed: true
+  - authority_layer: "L8_REPORTS_EVIDENCE_INVENTORIES"
+    group_id: "evidence_reference_archive"
+    allowed_authority_effects: ["EVIDENCE_ONLY"]
+    source_of_truth_allowed: false
+  - authority_layer: "L9_REFERENCES_TEMPLATES"
+    group_id: "evidence_reference_archive"
+    allowed_authority_effects: ["REFERENCE_ONLY"]
+    source_of_truth_allowed: false
+  - authority_layer: "L10_ARCHIVE_STRUCTURAL_PLACEHOLDERS"
+    group_id: "evidence_reference_archive"
+    allowed_authority_effects: ["ARCHIVE_ONLY"]
+    source_of_truth_allowed: false

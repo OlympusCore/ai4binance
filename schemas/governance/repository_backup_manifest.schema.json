@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/governance/repository_backup_manifest.schema.json",
+  "title": "AI4BINANCE RepositoryBackupManifest",
+  "description": "Machine-readable contract for backup and mirror manifests. Backup manifests preserve evidence and recovery context but must not define repository authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "backup_id",
+    "source_repository_root",
+    "git_commit",
+    "created_at_utc",
+    "checksum_file",
+    "authority",
+    "source_of_truth",
+    "contains_runtime_data",
+    "contains_secrets",
+    "may_override_repository",
+    "may_define_authority",
+    "may_promote_runtime_artifacts"
+  ],
+  "properties": {
+    "backup_id": {
+      "type": "string",
+      "pattern": "^AI4B-BACKUP-[0-9]{8}-[0-9]{3}$"
+    },
+    "source_repository_root": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Runtime context path for the source checkout. This is evidence metadata, not canonical repository authority."
+    },
+    "git_commit": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{7,64}$"
+    },
+    "created_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "checksum_file": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authority": {
+      "const": "BACKUP_ONLY"
+    },
+    "source_of_truth": {
+      "const": false
+    },
+    "contains_runtime_data": {
+      "type": "boolean"
+    },
+    "contains_secrets": {
+      "const": false
+    },
+    "may_override_repository": {
+      "const": false
+    },
+    "may_define_authority": {
+      "const": false
+    },
+    "may_promote_runtime_artifacts": {
+      "const": false
+    },
+    "manifest_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "backup_role": {
+      "type": "string",
+      "enum": [
+        "OFFSITE_COPY",
+        "EVIDENCE_MIRROR",
+        "RECOVERY_SNAPSHOT"
+      ]
+    },
+    "contains_generated_reports": {
+      "type": "boolean"
+    },
+    "checksum_algorithm": {
+      "type": "string",
+      "enum": [
+        "SHA256"
+      ]
+    }
+  }
+}

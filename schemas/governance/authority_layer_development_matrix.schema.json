@@ -1,0 +1,155 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://ai4binance.local/schemas/governance/authority_layer_development_matrix.schema.json",
+    "title": "AI4BINANCE Authority Layer Development Matrix",
+    "description": "A non-authoritative policy projection for authority-layer development responsibilities. It cannot grant execution, promotion, or live-trading authority.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "document_id",
+        "matrix_id",
+        "version",
+        "status",
+        "authority_layer",
+        "authority_effect",
+        "authority_scope",
+        "content_role",
+        "source_of_truth",
+        "source_of_truth_scope",
+        "canonical_path",
+        "authority",
+        "safety",
+        "groups",
+        "layers"
+    ],
+    "properties": {
+        "document_id": {"const": "AI4B-GOV-AUTH-LAYER-DEV-001"},
+        "matrix_id": {"const": "AI4B-GOV-AUTH-LAYER-DEV-001"},
+        "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+        "status": {"const": "ACTIVE"},
+        "authority_layer": {
+            "const": "L4_REPOSITORY_STANDARDS_CONTROLS_QUALITY_POLICIES"
+        },
+        "authority_effect": {"const": "IMPLEMENTATION"},
+        "authority_scope": {"const": "authority_layer_development"},
+        "content_role": {"const": "POLICY_AS_CODE"},
+        "source_of_truth": {"const": false},
+        "source_of_truth_scope": {"const": "enforcement_projection"},
+        "canonical_path": {
+            "const": "config/governance/authority_layer_development_matrix.yaml"
+        },
+        "authority": {"$ref": "#/$defs/authority"},
+        "safety": {"$ref": "#/$defs/safety"},
+        "groups": {
+            "type": "array",
+            "minItems": 6,
+            "uniqueItems": true,
+            "items": {"$ref": "#/$defs/group"}
+        },
+        "layers": {
+            "type": "array",
+            "minItems": 11,
+            "uniqueItems": true,
+            "items": {"$ref": "#/$defs/layer"}
+        }
+    },
+    "$defs": {
+        "authority": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "human_authority_ref",
+                "projection_role",
+                "not_authoritative_for"
+            ],
+            "properties": {
+                "human_authority_ref": {
+                    "const": "docs/governance/framework_core_vnext_governance.md"
+                },
+                "projection_role": {"const": "AUTHORITY_LAYER_DEVELOPMENT_MATRIX"},
+                "not_authoritative_for": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {"type": "string", "minLength": 1}
+                }
+            }
+        },
+        "safety": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "execution_allowed",
+                "promotion_status",
+                "live_eligibility_status"
+            ],
+            "properties": {
+                "execution_allowed": {"const": false},
+                "promotion_status": {"const": "RESEARCH_ONLY"},
+                "live_eligibility_status": {"const": "LIVE_ORDER_BLOCKED"}
+            }
+        },
+        "group": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["group_id", "development_responsibility"],
+            "properties": {
+                "group_id": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"
+                },
+                "development_responsibility": {"type": "string", "minLength": 1}
+            }
+        },
+        "layer": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "authority_layer",
+                "group_id",
+                "allowed_authority_effects",
+                "source_of_truth_allowed"
+            ],
+            "properties": {
+                "authority_layer": {"$ref": "#/$defs/authority_layer"},
+                "group_id": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"
+                },
+                "allowed_authority_effects": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {"$ref": "#/$defs/authority_effect"}
+                },
+                "source_of_truth_allowed": {"type": "boolean"}
+            }
+        },
+        "authority_layer": {
+            "enum": [
+                "L0_EXTERNAL_MANDATORY_CONSTRAINTS",
+                "L1_CORE_CONSTITUTION",
+                "L2_GOVERNANCE_COMPLIANCE",
+                "L3_CANONICAL_CONTRACTS_SCHEMAS",
+                "L4_REPOSITORY_STANDARDS_CONTROLS_QUALITY_POLICIES",
+                "L5_REGISTRIES_ROADMAP",
+                "L6_ARCHITECTURE_ONTOLOGY_ADR",
+                "L7_WORKFLOWS_PROCEDURES_RUNBOOKS_PROVIDERS",
+                "L8_REPORTS_EVIDENCE_INVENTORIES",
+                "L9_REFERENCES_TEMPLATES",
+                "L10_ARCHIVE_STRUCTURAL_PLACEHOLDERS"
+            ]
+        },
+        "authority_effect": {
+            "enum": [
+                "MANDATORY_CONSTRAINT",
+                "NORMATIVE_CONSTRAINT",
+                "OPERATIONAL_SPECIALIZATION",
+                "IMPLEMENTATION",
+                "EVIDENCE_ONLY",
+                "REFERENCE_ONLY",
+                "ARCHIVE_ONLY"
+            ]
+        }
+    }
+}

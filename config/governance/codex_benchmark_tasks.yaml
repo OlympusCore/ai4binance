@@ -1,0 +1,72 @@
+schema_version: "1.0"
+manifest_version: "codex-baseline-phase0-v1"
+status: BASELINE_REQUIRED
+token_source_required: EXACT_PROVIDER
+missing_data_status: DATA_UNAVAILABLE
+
+tasks:
+  - task_id: baseline-repository-discovery
+    task_type: repository_discovery
+    description: Bounded repository metadata and targeted file discovery.
+    validation_commands: ["git status --short", "rg --files src tests"]
+    mutates_trading_core: false
+    live_execution: false
+  - task_id: baseline-simple-bug-fix
+    task_type: simple_bug_fix
+    description: Replay a bounded historical non-trading defect in an isolated fixture.
+    validation_commands: ["pytest focused_bug_fixture --no-cov"]
+    mutates_trading_core: false
+    live_execution: false
+  - task_id: baseline-normal-feature
+    task_type: normal_feature
+    description: Implement and validate a typed non-executing feature fixture.
+    validation_commands: ["pytest focused_feature_fixture --no-cov"]
+    mutates_trading_core: false
+    live_execution: false
+  - task_id: baseline-unit-tests
+    task_type: unit_tests
+    description: Add deterministic unit tests to an isolated governance fixture.
+    validation_commands: ["pytest focused_unit_fixture --no-cov"]
+    mutates_trading_core: false
+    live_execution: false
+  - task_id: baseline-integration-tests
+    task_type: integration_tests
+    description: Validate a report-only governance pipeline fixture.
+    validation_commands: ["pytest focused_integration_fixture --no-cov"]
+    mutates_trading_core: false
+    live_execution: false
+  - task_id: baseline-refactoring
+    task_type: refactoring
+    description: Replay a behavior-preserving bounded refactor fixture.
+    validation_commands: ["pytest focused_refactor_fixture --no-cov"]
+    mutates_trading_core: false
+    live_execution: false
+  - task_id: baseline-architecture-review
+    task_type: architecture_review
+    description: Review a fixed sanitized architecture evidence bundle.
+    validation_commands: ["python architecture_review_contract.py --check"]
+    mutates_trading_core: false
+    live_execution: false
+  - task_id: baseline-risk-engine-review
+    task_type: risk_engine_review
+    description: Review immutable risk evidence without changing risk or orders.
+    validation_commands: ["pytest risk_review_contract --no-cov"]
+    mutates_trading_core: false
+    live_execution: false
+  - task_id: baseline-security-review
+    task_type: security_review
+    description: Review a synthetic secret-redaction fixture without credentials.
+    validation_commands: ["pytest security_review_contract --no-cov"]
+    mutates_trading_core: false
+    live_execution: false
+  - task_id: baseline-documentation
+    task_type: documentation
+    description: Produce a concise structured summary from a fixed public fixture.
+    validation_commands: ["python documentation_contract.py --check"]
+    mutates_trading_core: false
+    live_execution: false
+
+authority:
+  execution_allowed: false
+  promotion_status: RESEARCH_ONLY
+  live_eligibility_status: LIVE_ORDER_BLOCKED

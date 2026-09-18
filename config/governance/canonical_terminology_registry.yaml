@@ -1,0 +1,368 @@
+document_id: "AI4B-GOV-TERM-REG-001"
+registry_id: "AI4B-GOV-TERM-REG-001"
+version: "1.0.0"
+status: "ACTIVE"
+authority_layer: "L4_REPOSITORY_STANDARDS_CONTROLS_QUALITY_POLICIES"
+authority_effect: "IMPLEMENTATION"
+authority_scope: "terminology_governance"
+content_role: "POLICY_AS_CODE"
+source_of_truth: false
+source_of_truth_scope: "enforcement_projection"
+canonical_path: "config/governance/canonical_terminology_registry.yaml"
+authority:
+  standard_id: "AI4B-GOV-STD-TERM-001"
+  standard_path: "docs/standards/standard_terminology_governance.md"
+  standard_version: "1.2.1"
+  authority_scope: "terminology_governance"
+  projection_role: "ENFORCEMENT_PROJECTION"
+  source_of_truth: false
+  not_authoritative_for:
+    - "trading_policy"
+    - "risk_policy"
+    - "execution_authority"
+    - "canonical_schema_field_semantics"
+enforcement:
+  scan_roots:
+    - "config/"
+    - "schemas/"
+    - "src/"
+  excluded_paths:
+    - "config/governance/canonical_terminology_registry.yaml"
+  deprecated_alias_severity: "WARNING"
+terms:
+  - term_id: "AI4B-TERM-OPPORTUNITY-001"
+    canonical_concept: "Opportunity"
+    canonical_term: "opportunity"
+    domain: "decision_pipeline"
+    definition: "A reviewable setup before deterministic decisioning."
+    artifact_forms:
+      prose: "opportunity"
+      abbreviation: null
+      python_identifier: "opportunity"
+      schema_property: "opportunity"
+      enum_token: null
+      event_type: null
+      cli_form: null
+      display_label: "Opportunity"
+    allowed_aliases: []
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["signal", "candidate", "decision"]
+    compatibility:
+      migration_status: "KEEP"
+      verification_status: "VERIFIED"
+  - term_id: "AI4B-TERM-SIGNAL-001"
+    canonical_concept: "Signal"
+    canonical_term: "signal"
+    domain: "decision_pipeline"
+    definition: "An observation that requires deterministic downstream governance."
+    artifact_forms:
+      prose: "signal"
+      abbreviation: null
+      python_identifier: "signal"
+      schema_property: "signal"
+      enum_token: null
+      event_type: null
+      cli_form: null
+      display_label: "Signal"
+    allowed_aliases: []
+    deprecated_aliases: []
+    prohibited_terms: ["signal = trade"]
+    semantic_boundaries: ["opportunity", "candidate", "decision"]
+    compatibility:
+      migration_status: "KEEP"
+      verification_status: "VERIFIED"
+  - term_id: "AI4B-TERM-CANDIDATE-001"
+    canonical_concept: "Candidate"
+    canonical_term: "candidate"
+    domain: "decision_pipeline"
+    definition: "A bounded input to governance and decision evaluation."
+    artifact_forms:
+      prose: "candidate"
+      abbreviation: null
+      python_identifier: "candidate"
+      schema_property: "candidate"
+      enum_token: null
+      event_type: null
+      cli_form: null
+      display_label: "Candidate"
+    allowed_aliases: []
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["opportunity", "signal", "decision"]
+    compatibility:
+      migration_status: "KEEP"
+      verification_status: "VERIFIED"
+  - term_id: "AI4B-TERM-DECISION-001"
+    canonical_concept: "Decision"
+    canonical_term: "decision"
+    domain: "decision_pipeline"
+    definition: "A deterministic governed decision, not an order or position."
+    artifact_forms:
+      prose: "decision"
+      abbreviation: null
+      python_identifier: "decision"
+      schema_property: "decision"
+      enum_token: null
+      event_type: null
+      cli_form: null
+      display_label: "Decision"
+    allowed_aliases: []
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["candidate", "execution intent", "order", "position"]
+    compatibility:
+      migration_status: "KEEP"
+      verification_status: "VERIFIED"
+  - term_id: "AI4B-TERM-EXECUTION-INTENT-001"
+    canonical_concept: "ExecutionIntent"
+    canonical_term: "execution intent"
+    domain: "decision_pipeline"
+    definition: "A bounded plan candidate that is not an order authorization."
+    artifact_forms:
+      prose: "execution intent"
+      abbreviation: null
+      python_identifier: "execution_intent"
+      schema_property: "execution_intent"
+      enum_token: null
+      event_type: null
+      cli_form: null
+      display_label: "Execution Intent"
+    allowed_aliases: []
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["decision", "order", "position"]
+    compatibility:
+      migration_status: "KEEP"
+      verification_status: "VERIFIED"
+  - term_id: "AI4B-TERM-ORDER-001"
+    canonical_concept: "Order"
+    canonical_term: "order"
+    domain: "decision_pipeline"
+    definition: "An exchange-facing order record, distinct from a decision or position."
+    artifact_forms:
+      prose: "order"
+      abbreviation: null
+      python_identifier: "order"
+      schema_property: "order"
+      enum_token: null
+      event_type: null
+      cli_form: null
+      display_label: "Order"
+    allowed_aliases: []
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["decision", "execution intent", "position"]
+    compatibility:
+      migration_status: "KEEP"
+      verification_status: "VERIFIED"
+  - term_id: "AI4B-TERM-POSITION-001"
+    canonical_concept: "Position"
+    canonical_term: "position"
+    domain: "decision_pipeline"
+    definition: "A portfolio holding state, distinct from order submission."
+    artifact_forms:
+      prose: "position"
+      abbreviation: null
+      python_identifier: "position"
+      schema_property: "position"
+      enum_token: null
+      event_type: null
+      cli_form: null
+      display_label: "Position"
+    allowed_aliases: []
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["decision", "execution intent", "order"]
+    compatibility:
+      migration_status: "KEEP"
+      verification_status: "VERIFIED"
+  - term_id: "AI4B-TERM-ONTOLOGY-001"
+    canonical_concept: "Ontology"
+    canonical_term: "ontology"
+    domain: "knowledge_structure"
+    definition: "A semantic model of entities, relations, constraints, and meanings."
+    artifact_forms:
+      prose: "ontology"
+      abbreviation: null
+      python_identifier: "ontology"
+      schema_property: "ontology"
+      enum_token: null
+      event_type: null
+      cli_form: null
+      display_label: "Ontology"
+    allowed_aliases: []
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["taxonomy", "registry"]
+    compatibility:
+      migration_status: "KEEP"
+      verification_status: "VERIFIED"
+  - term_id: "AI4B-TERM-TAXONOMY-001"
+    canonical_concept: "Taxonomy"
+    canonical_term: "taxonomy"
+    domain: "knowledge_structure"
+    definition: "A classification hierarchy, distinct from ontology and registry."
+    artifact_forms:
+      prose: "taxonomy"
+      abbreviation: null
+      python_identifier: "taxonomy"
+      schema_property: "taxonomy"
+      enum_token: null
+      event_type: null
+      cli_form: null
+      display_label: "Taxonomy"
+    allowed_aliases: []
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["ontology", "registry"]
+    compatibility:
+      migration_status: "KEEP"
+      verification_status: "VERIFIED"
+  - term_id: "AI4B-TERM-REGISTRY-001"
+    canonical_concept: "Registry"
+    canonical_term: "registry"
+    domain: "knowledge_structure"
+    definition: "A governed catalog of controlled objects."
+    artifact_forms:
+      prose: "registry"
+      abbreviation: null
+      python_identifier: "registry"
+      schema_property: "registry"
+      enum_token: null
+      event_type: null
+      cli_form: null
+      display_label: "Registry"
+    allowed_aliases: []
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["ontology", "taxonomy"]
+    compatibility:
+      migration_status: "KEEP"
+      verification_status: "VERIFIED"
+  - term_id: "AI4B-TERM-EVIDENCE-001"
+    canonical_concept: "Evidence"
+    canonical_term: "evidence"
+    domain: "governance_state"
+    definition: "Information that supports or opposes a conclusion."
+    artifact_forms:
+      prose: "evidence"
+      abbreviation: null
+      python_identifier: "evidence"
+      schema_property: "evidence"
+      enum_token: null
+      event_type: null
+      cli_form: null
+      display_label: "Evidence"
+    allowed_aliases: []
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["validation", "confidence", "decision state", "risk state", "lifecycle state"]
+    compatibility:
+      migration_status: "KEEP"
+      verification_status: "VERIFIED"
+  - term_id: "AI4B-TERM-VALIDATION-001"
+    canonical_concept: "Validation"
+    canonical_term: "validation"
+    domain: "governance_state"
+    definition: "A deterministic or evidentiary check against a rule or expectation."
+    artifact_forms:
+      prose: "validation"
+      abbreviation: null
+      python_identifier: "validation"
+      schema_property: "validation"
+      enum_token: null
+      event_type: null
+      cli_form: null
+      display_label: "Validation"
+    allowed_aliases: ["OOS"]
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["evidence", "confidence", "decision state", "risk state", "lifecycle state"]
+    compatibility:
+      migration_status: "KEEP"
+      verification_status: "VERIFIED"
+  - term_id: "AI4B-TERM-CONFIDENCE-001"
+    canonical_concept: "Confidence"
+    canonical_term: "confidence"
+    domain: "governance_state"
+    definition: "A measured uncertainty or strength expression, not validation evidence."
+    artifact_forms:
+      prose: "confidence"
+      abbreviation: null
+      python_identifier: "confidence"
+      schema_property: "confidence"
+      enum_token: null
+      event_type: null
+      cli_form: null
+      display_label: "Confidence"
+    allowed_aliases: []
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["evidence", "validation", "decision state", "risk state", "lifecycle state"]
+    compatibility:
+      migration_status: "KEEP"
+      verification_status: "VERIFIED"
+  - term_id: "AI4B-TERM-DECISION-STATE-001"
+    canonical_concept: "DecisionState"
+    canonical_term: "decision state"
+    domain: "governance_state"
+    definition: "The state of deterministic decision evaluation, not risk or lifecycle state."
+    artifact_forms:
+      prose: "decision state"
+      abbreviation: null
+      python_identifier: "decision_state"
+      schema_property: "decision_state"
+      enum_token: null
+      event_type: null
+      cli_form: null
+      display_label: "Decision State"
+    allowed_aliases: []
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["evidence", "validation", "confidence", "risk state", "lifecycle state"]
+    compatibility:
+      migration_status: "KEEP"
+      verification_status: "VERIFIED"
+  - term_id: "AI4B-TERM-RISK-STATE-001"
+    canonical_concept: "RiskState"
+    canonical_term: "risk state"
+    domain: "governance_state"
+    definition: "The state of risk assessment, not decision or lifecycle state."
+    artifact_forms:
+      prose: "risk state"
+      abbreviation: null
+      python_identifier: "risk_state"
+      schema_property: "risk_state"
+      enum_token: null
+      event_type: null
+      cli_form: null
+      display_label: "Risk State"
+    allowed_aliases: []
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["evidence", "validation", "confidence", "decision state", "lifecycle state"]
+    compatibility:
+      migration_status: "KEEP"
+      verification_status: "VERIFIED"
+  - term_id: "AI4B-TERM-LIFECYCLE-STATE-001"
+    canonical_concept: "LifecycleState"
+    canonical_term: "lifecycle state"
+    domain: "governance_state"
+    definition: "The controlled maturity state of a governed object."
+    artifact_forms:
+      prose: "lifecycle state"
+      abbreviation: null
+      python_identifier: "lifecycle_state"
+      schema_property: "lifecycle_state"
+      enum_token: null
+      event_type: null
+      cli_form: null
+      display_label: "Lifecycle State"
+    allowed_aliases: []
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["evidence", "validation", "confidence", "decision state", "risk state"]
+    compatibility:
+      migration_status: "KEEP"
+      verification_status: "VERIFIED"

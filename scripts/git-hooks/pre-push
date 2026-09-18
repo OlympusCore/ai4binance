@@ -1,0 +1,145 @@
+#!/bin/sh
+set -u
+
+repo_root=$(git rev-parse --show-toplevel)
+git_common_dir=$(git rev-parse --path-format=absolute --git-common-dir)
+quality_gate_guard="$repo_root/scripts/check_quality_gate_git_write_guard.ps1"
+quality_gate_lease="$git_common_dir/ai4binance-quality-gate-write-lease.json"
+authorization_helper="$repo_root/scripts/git_write_authorization.ps1"
+
+if [ ! -f "$quality_gate_guard" ]; then
+    echo "QUALITY_GATE_GIT_WRITE_GUARD_MISSING: $quality_gate_guard" >&2
+    echo "RESEARCH_ONLY" >&2
+    echo "LIVE_ORDER_BLOCKED" >&2
+    exit 1
+fi
+
+if [ -f "$quality_gate_lease" ]; then
+    if ! powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+        -File "$quality_gate_guard" -RepositoryRoot "$repo_root"; then
+        exit 1
+    fi
+fi
+
+if [ ! -f "$authorization_helper" ]; then
+    echo "GIT_WRITE_AUTHORIZATION_HELPER_MISSING: $authorization_helper" >&2
+    echo "RESEARCH_ONLY" >&2
+    echo "LIVE_ORDER_BLOCKED" >&2
+    exit 1
+fi
+
+if [ -n "${AI4BINANCE_EXPLICIT_GIT_PUSH_APPROVAL:-}" ]; then
+    echo "LEGACY_GIT_PUSH_APPROVAL_TOKEN_REJECTED" >&2
+    echo "Static environment values cannot authorize a Git push." >&2
+    echo "RESEARCH_ONLY" >&2
+    echo "LIVE_ORDER_BLOCKED" >&2
+    exit 1
+fi
+
+authorization_tmp_root="$git_common_dir/ai4binance-git-write-authorizations/tmp"
+umask 077
+mkdir -p "$authorization_tmp_root" || {
+    echo "GIT_WRITE_AUTHORIZATION_TEMP_DIRECTORY_UNAVAILABLE" >&2
+    echo "RESEARCH_ONLY" >&2
+    echo "LIVE_ORDER_BLOCKED" >&2
+    exit 1
+}
+push_updates_path=$(mktemp "$authorization_tmp_root/push-updates.XXXXXX") || {
+    echo "GIT_WRITE_AUTHORIZATION_PUSH_UPDATES_UNAVAILABLE" >&2
+    echo "RESEARCH_ONLY" >&2
+    echo "LIVE_ORDER_BLOCKED" >&2
+    exit 1
+}
+trap 'rm -f "$push_updates_path"' EXIT HUP INT TERM
+cat > "$push_updates_path"
+
+# Git invokes pre-push even when no refs require an update.  No remote write
+# occurs in that case, so there is no update set to bind to an authorization.
+if [ ! -s "$push_updates_path" ]; then
+    exit 0
+fi
+
+authorization_path="${AI4BINANCE_GIT_WRITE_AUTHORIZATION_PATH:-}"
+if [ -n "$authorization_path" ]; then
+    if ! powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+        -File "$authorization_helper" \
+        -Mode Consume \
+        -Operation Push \
+        -RepositoryRoot "$repo_root" \
+        -Channel NonInteractive \
+        -ChallengePath "$authorization_path" \
+        -RemoteName "$1" \
+        -PushUpdatesPath "$push_updates_path"; then
+        exit 1
+    fi
+elif [ -t 1 ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then
+    authorization_output=$(powershell.exe \
+        -NoLogo \
+        -NoProfile \
+        -NonInteractive \
+        -ExecutionPolicy Bypass \
+        -File "$authorization_helper" \
+        -Mode Prepare \
+        -Operation Push \
+        -RepositoryRoot "$repo_root" \
+        -Channel Interactive \
+        -RemoteName "$1" \
+        -PushUpdatesPath "$push_updates_path") || exit 1
+    challenge_path=$(printf '%s\n' "$authorization_output" | \
+        sed -n 's/^CHALLENGE_PATH=//p' | tail -n 1)
+    if [ -z "$challenge_path" ]; then
+        echo "GIT_WRITE_AUTHORIZATION_CHALLENGE_PATH_MISSING" >&2
+        echo "RESEARCH_ONLY" >&2
+        echo "LIVE_ORDER_BLOCKED" >&2
+        exit 1
+    fi
+
+    printf "Type PUSH to authorize this exact ref update set (case-insensitive; empty cancels): " > /dev/tty
+    explicit_approval=""
+    IFS= read -r explicit_approval < /dev/tty || explicit_approval=""
+    case "$explicit_approval" in
+        [Pp][Uu][Ss][Hh]) explicit_approval="PUSH" ;;
+    esac
+    if [ "$explicit_approval" != "PUSH" ]; then
+        echo "EXPLICIT_GIT_PUSH_APPROVAL_DECLINED" >&2
+        echo "Git push was not authorized at the interactive prompt. Type push or PUSH to approve." >&2
+        echo "RESEARCH_ONLY" >&2
+        echo "LIVE_ORDER_BLOCKED" >&2
+        exit 1
+    fi
+
+    if ! powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+        -File "$authorization_helper" \
+        -Mode Consume \
+        -Operation Push \
+        -RepositoryRoot "$repo_root" \
+        -Channel Interactive \
+        -ChallengePath "$challenge_path" \
+        -ApprovalText "$explicit_approval" \
+        -RemoteName "$1" \
+        -PushUpdatesPath "$push_updates_path"; then
+        exit 1
+    fi
+else
+    authorization_output=$(powershell.exe \
+        -NoLogo \
+        -NoProfile \
+        -NonInteractive \
+        -ExecutionPolicy Bypass \
+        -File "$authorization_helper" \
+        -Mode Prepare \
+        -Operation Push \
+        -RepositoryRoot "$repo_root" \
+        -Channel NonInteractive \
+        -RemoteName "$1" \
+        -PushUpdatesPath "$push_updates_path") || exit 1
+    printf '%s\n' "$authorization_output" >&2
+    echo "EXPLICIT_GIT_PUSH_APPROVAL_REQUIRED" >&2
+    echo "Commit or implementation approval does not authorize a Git push." >&2
+    echo "Approve the exact Git-specific challenge, then retry with its authorization path." >&2
+    echo "RESEARCH_ONLY" >&2
+    echo "LIVE_ORDER_BLOCKED" >&2
+    exit 1
+fi
+
+exit 0

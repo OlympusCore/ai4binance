@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/models/model_inference.schema.json",
+  "title": "AI4BINANCE Model Inference Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "canonical_model_id",
+    "model_version",
+    "task_type",
+    "input_snapshot_sha256",
+    "provenance_sha256",
+    "artifact_sha256",
+    "execution_allowed",
+    "live_eligibility_status"
+  ],
+  "properties": {
+    "canonical_model_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{2,127}$"
+    },
+    "model_version": {"type": "string", "minLength": 1, "maxLength": 128},
+    "task_type": {"type": "string", "minLength": 1, "maxLength": 128},
+    "input_snapshot_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "provenance_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "artifact_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+    "execution_allowed": {"const": false},
+    "live_eligibility_status": {"const": "LIVE_ORDER_BLOCKED"}
+  }
+}

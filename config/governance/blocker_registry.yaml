@@ -1,0 +1,870 @@
+---
+version: "2.0.0"
+owner: "Enterprise Governance"
+source_of_truth: true
+schema_ref: "schemas/governance/blocker.schema.json"
+standard_ref: "docs/standards/standard_blocker_taxonomy_enforcement.md"
+default_execution_allowed: false
+default_promotion_status: "RESEARCH_ONLY"
+default_live_eligibility_status: "LIVE_ORDER_BLOCKED"
+blocker_definitions:
+  - definition_id: "AI4B-BLK-GOV-001"
+    blocker_code: "GOV.AUTHORITY_CONFLICT"
+    domain: "GOVERNANCE"
+    blocker_class: "HARD_BLOCKER"
+    severity: "CRITICAL"
+    scope: "GLOBAL"
+    authority: "GOVERNANCE_ENGINE"
+    effects: ["QUALITY_GATE_BLOCKED", "RUNNING_WITH_BLOCKERS", "GOVERNANCE_REVIEW_REQUIRED", "LIVE_ORDER_BLOCKED"]
+    waiver: {allowed: false}
+    clearance:
+      detect_authorities: ["GOVERNANCE_ENGINE"]
+      clear_authorities: ["GOVERNANCE_ENGINE", "CORE_CONSTITUTION"]
+    semantic_key: "governance_authority_conflict"
+    description: "A governed authority source conflicts with another active authority source."
+    policy_ref: "policy:governance:authority"
+    policy_version: "2.0.0"
+    control_ref: "control:governance:authority-conflict"
+    control_version: "2.0.0"
+    producer: "GovernanceEngine"
+    source_component: "governance.control_plane"
+    remediation: "Resolve the authority conflict against the canonical source of truth."
+    precedence: 0
+  - definition_id: "AI4B-BLK-GOV-002"
+    blocker_code: "GOV.CORE_CONSTITUTION_CONFLICT"
+    domain: "GOVERNANCE"
+    blocker_class: "HARD_BLOCKER"
+    severity: "CRITICAL"
+    scope: "GLOBAL"
+    authority: "CORE_CONSTITUTION"
+    effects: ["QUALITY_GATE_BLOCKED", "RUNNING_WITH_BLOCKERS", "GOVERNANCE_REVIEW_REQUIRED", "LIVE_ORDER_BLOCKED"]
+    waiver: {allowed: false}
+    clearance:
+      detect_authorities: ["GOVERNANCE_ENGINE"]
+      clear_authorities: ["CORE_CONSTITUTION"]
+    semantic_key: "core_constitution_conflict"
+    description: "An active artifact conflicts with the Core Constitution or a constitutional boundary."
+    policy_ref: "policy:governance:constitution"
+    policy_version: "2.0.0"
+    control_ref: "control:governance:constitution-conflict"
+    control_version: "2.0.0"
+    producer: "GovernanceEngine"
+    source_component: "governance.control_plane"
+    remediation: "Restore constitutional alignment before any execution-impacting action."
+    precedence: 0
+  - definition_id: "AI4B-BLK-GOV-003"
+    blocker_code: "GOV.BYPASS_ATTEMPT"
+    domain: "GOVERNANCE"
+    blocker_class: "HARD_BLOCKER"
+    severity: "CRITICAL"
+    scope: "REPOSITORY"
+    authority: "GOVERNANCE_ENGINE"
+    effects: ["QUALITY_GATE_BLOCKED", "RUNNING_WITH_BLOCKERS", "GOVERNANCE_REVIEW_REQUIRED", "LIVE_ORDER_BLOCKED"]
+    waiver: {allowed: false}
+    clearance:
+      detect_authorities: ["GOVERNANCE_ENGINE", "REPOSITORY_VALIDATOR"]
+      clear_authorities: ["GOVERNANCE_ENGINE"]
+    semantic_key: "governance_bypass_attempt"
+    description: "An implementation or artifact attempts to bypass governed authority, validation, or control planes."
+    policy_ref: "policy:governance:bypass"
+    policy_version: "2.0.0"
+    control_ref: "control:governance:bypass-attempt"
+    control_version: "2.0.0"
+    producer: "GovernanceEngine"
+    source_component: "governance.control_plane"
+    remediation: "Remove the bypass path and re-run governance validation."
+    precedence: 0
+  - definition_id: "AI4B-BLK-GOV-004"
+    blocker_code: "GOV.UNKNOWN_CONTROL_CLASSIFICATION"
+    domain: "GOVERNANCE"
+    blocker_class: "HARD_BLOCKER"
+    severity: "CRITICAL"
+    scope: "GLOBAL"
+    authority: "GOVERNANCE_ENGINE"
+    effects: ["QUALITY_GATE_BLOCKED", "RUNNING_WITH_BLOCKERS", "GOVERNANCE_REVIEW_REQUIRED", "LIVE_ORDER_BLOCKED"]
+    waiver: {allowed: false}
+    clearance:
+      detect_authorities: ["GOVERNANCE_ENGINE"]
+      clear_authorities: ["GOVERNANCE_ENGINE"]
+    semantic_key: "unknown_control_classification"
+    description: "A trading-sensitive control cannot be classified into a canonical blocking, scoring, advisory, or warning channel."
+    policy_ref: "policy:governance:control-classification"
+    policy_version: "2.0.0"
+    control_ref: "control:governance:unknown-control-classification"
+    control_version: "2.0.0"
+    producer: "GovernanceEngine"
+    source_component: "governance.controls"
+    remediation: "Classify the control through the canonical registry before replay or execution."
+    precedence: 0
+  - definition_id: "AI4B-BLK-GOV-005"
+    blocker_code: "GOV.POLICY_CONFLICT"
+    domain: "GOVERNANCE"
+    blocker_class: "HARD_BLOCKER"
+    severity: "CRITICAL"
+    scope: "REPOSITORY"
+    authority: "GOVERNANCE_ENGINE"
+    effects: ["QUALITY_GATE_BLOCKED", "RUNNING_WITH_BLOCKERS", "GOVERNANCE_REVIEW_REQUIRED"]
+    waiver:
+      allowed: true
+      required_authorities: ["HUMAN_GOVERNANCE"]
+      requires_written_approval: true
+      requires_justification: true
+      requires_evidence: true
+      requires_expiry: true
+      max_duration_hours: 24
+      execution_scope_allowed: false
+    clearance:
+      detect_authorities: ["GOVERNANCE_ENGINE"]
+      clear_authorities: ["GOVERNANCE_ENGINE"]
+      waive_authorities: ["HUMAN_GOVERNANCE"]
+    semantic_key: "governance_policy_conflict"
+    description: "A governed policy, standard, or operational contract conflicts with another active governed rule."
+    policy_ref: "policy:governance:policy-conflict"
+    policy_version: "2.0.0"
+    control_ref: "control:governance:policy-conflict"
+    control_version: "2.0.0"
+    producer: "GovernanceEngine"
+    source_component: "governance.control_plane"
+    remediation: "Align the conflicting governed policy surfaces."
+    precedence: 0
+  - definition_id: "AI4B-BLK-GOV-006"
+    blocker_code: "GOV.SOURCE_OF_TRUTH_CONFLICT"
+    domain: "GOVERNANCE"
+    blocker_class: "HARD_BLOCKER"
+    severity: "CRITICAL"
+    scope: "REPOSITORY"
+    authority: "GOVERNANCE_ENGINE"
+    effects: ["QUALITY_GATE_BLOCKED", "RUNNING_WITH_BLOCKERS", "GOVERNANCE_REVIEW_REQUIRED"]
+    waiver:
+      allowed: true
+      required_authorities: ["HUMAN_GOVERNANCE"]
+      requires_written_approval: true
+      requires_justification: true
+      requires_evidence: true
+      requires_expiry: true
+      max_duration_hours: 24
+      execution_scope_allowed: false
+    clearance:
+      detect_authorities: ["GOVERNANCE_ENGINE"]
+      clear_authorities: ["GOVERNANCE_ENGINE"]
+      waive_authorities: ["HUMAN_GOVERNANCE"]
+    semantic_key: "source_of_truth_conflict"
+    description: "Multiple active artifacts claim source-of-truth ownership for the same governed concept."
+    policy_ref: "policy:governance:source-of-truth"
+    policy_version: "2.0.0"
+    control_ref: "control:governance:source-of-truth-conflict"
+    control_version: "2.0.0"
+    producer: "GovernanceEngine"
+    source_component: "governance.repository_validator"
+    remediation: "Retain one canonical source of truth and demote or remove duplicate authority."
+    precedence: 0
+  - definition_id: "AI4B-BLK-SEC-001"
+    blocker_code: "SEC.SECRET_EXPOSURE"
+    domain: "SECURITY"
+    blocker_class: "HARD_BLOCKER"
+    severity: "CRITICAL"
+    scope: "REPOSITORY"
+    authority: "SECURITY_CONTROL"
+    effects: ["QUALITY_GATE_BLOCKED", "RUNNING_WITH_BLOCKERS", "LIVE_ORDER_BLOCKED"]
+    waiver: {allowed: false}
+    clearance:
+      detect_authorities: ["SECURITY_CONTROL"]
+      clear_authorities: ["SECURITY_CONTROL"]
+    semantic_key: "secret_exposure"
+    description: "A secret, credential, token, or private key is exposed in a governed or runtime artifact."
+    policy_ref: "policy:security:secrets"
+    policy_version: "2.0.0"
+    control_ref: "control:security:secret-exposure"
+    control_version: "2.0.0"
+    producer: "SecurityControl"
+    source_component: "security.assurance"
+    remediation: "Remove the exposed secret, rotate it outside the repository, and audit affected artifacts."
+    precedence: 0
+    security_impact: true
+  - definition_id: "AI4B-BLK-SEC-002"
+    blocker_code: "SEC.INTEGRITY_VIOLATION"
+    domain: "SECURITY"
+    blocker_class: "HARD_BLOCKER"
+    severity: "CRITICAL"
+    scope: "COMPONENT"
+    authority: "SECURITY_CONTROL"
+    effects: ["QUALITY_GATE_BLOCKED", "RUNNING_WITH_BLOCKERS", "EXECUTION_NOT_ALLOWED", "LIVE_ORDER_BLOCKED"]
+    waiver: {allowed: false}
+    clearance:
+      detect_authorities: ["SECURITY_CONTROL"]
+      clear_authorities: ["SECURITY_CONTROL"]
+    semantic_key: "security_integrity_violation"
+    description: "A governed artifact, dependency, runtime component, or evidence object failed integrity verification."
+    policy_ref: "policy:security:integrity"
+    policy_version: "2.0.0"
+    control_ref: "control:security:integrity-violation"
+    control_version: "2.0.0"
+    producer: "SecurityControl"
+    source_component: "security.assurance"
+    remediation: "Restore trusted integrity evidence before the component is used."
+    precedence: 0
+    security_impact: true
+  - definition_id: "AI4B-BLK-SEC-003"
+    blocker_code: "SEC.AUTHORIZATION_FAILURE"
+    domain: "SECURITY"
+    blocker_class: "HARD_BLOCKER"
+    severity: "CRITICAL"
+    scope: "COMPONENT"
+    authority: "SECURITY_CONTROL"
+    effects: ["QUALITY_GATE_BLOCKED", "RUNNING_WITH_BLOCKERS", "EXECUTION_NOT_ALLOWED", "LIVE_ORDER_BLOCKED"]
+    waiver: {allowed: false}
+    clearance:
+      detect_authorities: ["SECURITY_CONTROL"]
+      clear_authorities: ["SECURITY_CONTROL"]
+    semantic_key: "security_authorization_failure"
+    description: "A required authorization, permission, or least-privilege control failed."
+    policy_ref: "policy:security:authorization"
+    policy_version: "2.0.0"
+    control_ref: "control:security:authorization-failure"
+    control_version: "2.0.0"
+    producer: "SecurityControl"
+    source_component: "security.assurance"
+    remediation: "Restore authorized least-privilege access before the component is used."
+    precedence: 0
+    security_impact: true
+  - definition_id: "AI4B-BLK-DATA-001"
+    blocker_code: "DATA.STALE_MARKET_DATA"
+    domain: "DATA"
+    blocker_class: "CONDITIONAL_BLOCKER"
+    severity: "HIGH"
+    scope: "DECISION_CYCLE"
+    authority: "DATA_QUALITY_ENGINE"
+    effects: ["RESEARCH_ONLY", "DECISION_CYCLE_BLOCKED", "EXECUTION_NOT_ALLOWED", "LIVE_ORDER_BLOCKED"]
+    waiver:
+      allowed: true
+      required_authorities: ["DATA_QUALITY_ENGINE", "HUMAN_GOVERNANCE"]
+      requires_written_approval: true
+      requires_justification: true
+      requires_evidence: true
+      requires_expiry: true
+      max_duration_hours: 4
+      execution_scope_allowed: false
+    clearance:
+      detect_authorities: ["DATA_QUALITY_ENGINE"]
+      clear_authorities: ["DATA_QUALITY_ENGINE"]
+      waive_authorities: ["HUMAN_GOVERNANCE"]
+    semantic_key: "stale_market_data"
+    description: "Required market data is older than the governed freshness limit for the declared decision scope."
+    policy_ref: "policy:data:freshness"
+    policy_version: "2.0.0"
+    control_ref: "control:data:market-snapshot-freshness"
+    control_version: "2.0.0"
+    producer: "DataQualityEngine"
+    source_component: "data_quality.snapshot_gate"
+    remediation: "Refresh the canonical market snapshot and replay the decision cycle."
+    precedence: 1
+  - definition_id: "AI4B-BLK-DATA-002"
+    blocker_code: "DATA.DATA_QUALITY_FAILED"
+    domain: "DATA"
+    blocker_class: "CONDITIONAL_BLOCKER"
+    severity: "HIGH"
+    scope: "DECISION_CYCLE"
+    authority: "DATA_QUALITY_ENGINE"
+    effects: ["RESEARCH_ONLY", "DECISION_CYCLE_BLOCKED", "EXECUTION_NOT_ALLOWED", "LIVE_ORDER_BLOCKED"]
+    waiver:
+      allowed: true
+      required_authorities: ["DATA_QUALITY_ENGINE", "HUMAN_GOVERNANCE"]
+      requires_written_approval: true
+      requires_justification: true
+      requires_evidence: true
+      requires_expiry: true
+      max_duration_hours: 4
+      execution_scope_allowed: false
+    clearance:
+      detect_authorities: ["DATA_QUALITY_ENGINE"]
+      clear_authorities: ["DATA_QUALITY_ENGINE"]
+      waive_authorities: ["HUMAN_GOVERNANCE"]
+    semantic_key: "data_quality_failed"
+    description: "A governed data-quality gate failed for the declared decision scope."
+    policy_ref: "policy:data:quality"
+    policy_version: "2.0.0"
+    control_ref: "control:data:quality-gate"
+    control_version: "2.0.0"
+    producer: "DataQualityEngine"
+    source_component: "data_quality.quality_gate"
+    remediation: "Restore the failed data-quality contract before decision replay."
+    precedence: 1
+  - definition_id: "AI4B-BLK-DATA-003"
+    blocker_code: "DATA.SNAPSHOT_INCOMPLETE"
+    domain: "DATA"
+    blocker_class: "CONDITIONAL_BLOCKER"
+    severity: "HIGH"
+    scope: "DECISION_CYCLE"
+    authority: "DATA_QUALITY_ENGINE"
+    effects: ["RESEARCH_ONLY", "DECISION_CYCLE_BLOCKED", "EXECUTION_NOT_ALLOWED", "LIVE_ORDER_BLOCKED"]
+    waiver:
+      allowed: true
+      required_authorities: ["DATA_QUALITY_ENGINE", "HUMAN_GOVERNANCE"]
+      requires_written_approval: true
+      requires_justification: true
+      requires_evidence: true
+      requires_expiry: true
+      max_duration_hours: 4
+      execution_scope_allowed: false
+    clearance:
+      detect_authorities: ["DATA_QUALITY_ENGINE"]
+      clear_authorities: ["DATA_QUALITY_ENGINE"]
+      waive_authorities: ["HUMAN_GOVERNANCE"]
+    semantic_key: "snapshot_incomplete"
+    description: "Required canonical snapshot fields or timeframes are missing for the declared decision scope."
+    policy_ref: "policy:data:snapshot-completeness"
+    policy_version: "2.0.0"
+    control_ref: "control:data:snapshot-completeness"
+    control_version: "2.0.0"
+    producer: "DataQualityEngine"
+    source_component: "data_quality.snapshot_gate"
+    remediation: "Rebuild the canonical snapshot with every required field and timeframe."
+    precedence: 1
+  - definition_id: "AI4B-BLK-DATA-004"
+    blocker_code: "DATA.TIMESTAMP_INCONSISTENCY"
+    domain: "DATA"
+    blocker_class: "CONDITIONAL_BLOCKER"
+    severity: "HIGH"
+    scope: "DECISION_CYCLE"
+    authority: "DATA_QUALITY_ENGINE"
+    effects: ["RESEARCH_ONLY", "DECISION_CYCLE_BLOCKED", "EXECUTION_NOT_ALLOWED", "LIVE_ORDER_BLOCKED"]
+    waiver:
+      allowed: true
+      required_authorities: ["DATA_QUALITY_ENGINE", "HUMAN_GOVERNANCE"]
+      requires_written_approval: true
+      requires_justification: true
+      requires_evidence: true
+      requires_expiry: true
+      max_duration_hours: 4
+      execution_scope_allowed: false
+    clearance:
+      detect_authorities: ["DATA_QUALITY_ENGINE"]
+      clear_authorities: ["DATA_QUALITY_ENGINE"]
+      waive_authorities: ["HUMAN_GOVERNANCE"]
+    semantic_key: "timestamp_inconsistency"
+    description: "Required data timestamps, candle windows, or snapshot clocks are inconsistent."
+    policy_ref: "policy:data:timestamp-consistency"
+    policy_version: "2.0.0"
+    control_ref: "control:data:timestamp-consistency"
+    control_version: "2.0.0"
+    producer: "DataQualityEngine"
+    source_component: "data_quality.timestamp_gate"
+    remediation: "Synchronize canonical timestamps and replay dependent evidence."
+    precedence: 1
+  - definition_id: "AI4B-BLK-EVID-001"
+    blocker_code: "EVID.CRITICAL_EVIDENCE_MISSING"
+    domain: "EVIDENCE"
+    blocker_class: "CONDITIONAL_BLOCKER"
+    severity: "HIGH"
+    scope: "STRATEGY"
+    authority: "GOVERNANCE_ENGINE"
+    effects: ["RESEARCH_ONLY", "PROMOTION_BLOCKED", "LIVE_ORDER_BLOCKED"]
+    waiver:
+      allowed: true
+      required_authorities: ["GOVERNANCE_ENGINE", "HUMAN_GOVERNANCE"]
+      requires_written_approval: true
+      requires_justification: true
+      requires_evidence: true
+      requires_expiry: true
+      max_duration_hours: 24
+      execution_scope_allowed: false
+    clearance:
+      detect_authorities: ["GOVERNANCE_ENGINE", "VALIDATION_ENGINE"]
+      clear_authorities: ["GOVERNANCE_ENGINE"]
+      waive_authorities: ["HUMAN_GOVERNANCE"]
+    semantic_key: "critical_evidence_missing"
+    description: "A required evidence item is missing for a validation, promotion, or execution-impacting claim."
+    policy_ref: "policy:evidence:critical-evidence"
+    policy_version: "2.0.0"
+    control_ref: "control:evidence:critical-evidence"
+    control_version: "2.0.0"
+    producer: "GovernanceEngine"
+    source_component: "evidence.fabric"
+    remediation: "Attach the missing governed evidence before promotion or execution eligibility."
+    precedence: 2
+  - definition_id: "AI4B-BLK-EVID-002"
+    blocker_code: "EVID.PROVENANCE_MISSING"
+    domain: "EVIDENCE"
+    blocker_class: "CONDITIONAL_BLOCKER"
+    severity: "HIGH"
+    scope: "OBJECT"
+    authority: "GOVERNANCE_ENGINE"
+    effects: ["RESEARCH_ONLY", "GOVERNANCE_REVIEW_REQUIRED"]
+    waiver:
+      allowed: true
+      required_authorities: ["GOVERNANCE_ENGINE", "HUMAN_GOVERNANCE"]
+      requires_written_approval: true
+      requires_justification: true
+      requires_evidence: true
+      requires_expiry: true
+      max_duration_hours: 24
+      execution_scope_allowed: false
+    clearance:
+      detect_authorities: ["GOVERNANCE_ENGINE"]
+      clear_authorities: ["GOVERNANCE_ENGINE"]
+      waive_authorities: ["HUMAN_GOVERNANCE"]
+    semantic_key: "evidence_provenance_missing"
+    description: "Required evidence provenance, lineage, or hash traceability is missing."
+    policy_ref: "policy:evidence:provenance"
+    policy_version: "2.0.0"
+    control_ref: "control:evidence:provenance"
+    control_version: "2.0.0"
+    producer: "GovernanceEngine"
+    source_component: "evidence.fabric"
+    remediation: "Restore provenance, lineage, and hash references for the evidence object."
+    precedence: 2
+  - definition_id: "AI4B-BLK-EVID-003"
+    blocker_code: "EVID.CRITICAL_CONFLICT_UNRESOLVED"
+    domain: "EVIDENCE"
+    blocker_class: "CONDITIONAL_BLOCKER"
+    severity: "HIGH"
+    scope: "DECISION_CYCLE"
+    authority: "GOVERNANCE_ENGINE"
+    effects: ["RESEARCH_ONLY", "DECISION_CYCLE_BLOCKED", "EXECUTION_NOT_ALLOWED", "LIVE_ORDER_BLOCKED"]
+    waiver:
+      allowed: true
+      required_authorities: ["GOVERNANCE_ENGINE", "HUMAN_GOVERNANCE"]
+      requires_written_approval: true
+      requires_justification: true
+      requires_evidence: true
+      requires_expiry: true
+      max_duration_hours: 24
+      execution_scope_allowed: false
+    clearance:
+      detect_authorities: ["GOVERNANCE_ENGINE"]
+      clear_authorities: ["GOVERNANCE_ENGINE"]
+      waive_authorities: ["HUMAN_GOVERNANCE"]
+    semantic_key: "critical_conflict_unresolved"
+    description: "Material evidence conflict remains unresolved for the declared decision scope."
+    policy_ref: "policy:evidence:conflict"
+    policy_version: "2.0.0"
+    control_ref: "control:evidence:critical-conflict"
+    control_version: "2.0.0"
+    producer: "GovernanceEngine"
+    source_component: "evidence.fabric"
+    remediation: "Resolve the conflicting evidence and replay the decision cycle."
+    precedence: 2
+  - definition_id: "AI4B-BLK-VAL-001"
+    blocker_code: "VAL.OOS_NOT_VALIDATED"
+    domain: "VALIDATION"
+    blocker_class: "CONDITIONAL_BLOCKER"
+    severity: "HIGH"
+    scope: "STRATEGY"
+    authority: "VALIDATION_ENGINE"
+    effects: ["RESEARCH_ONLY", "PROMOTION_BLOCKED", "LIVE_ORDER_BLOCKED"]
+    waiver:
+      allowed: true
+      required_authorities: ["VALIDATION_ENGINE", "HUMAN_GOVERNANCE"]
+      requires_written_approval: true
+      requires_justification: true
+      requires_evidence: true
+      requires_expiry: true
+      max_duration_hours: 24
+      execution_scope_allowed: false
+    clearance:
+      detect_authorities: ["VALIDATION_ENGINE"]
+      clear_authorities: ["VALIDATION_ENGINE"]
+      waive_authorities: ["HUMAN_GOVERNANCE"]
+    semantic_key: "oos_not_validated"
+    description: "Out-of-sample validation evidence is missing or insufficient for the strategy or setup."
+    policy_ref: "policy:validation:oos"
+    policy_version: "2.0.0"
+    control_ref: "control:validation:oos"
+    control_version: "2.0.0"
+    producer: "ValidationEngine"
+    source_component: "validation.oos_gate"
+    remediation: "Complete out-of-sample validation before promotion or execution eligibility."
+    precedence: 3
+  - definition_id: "AI4B-BLK-VAL-002"
+    blocker_code: "VAL.ROBUSTNESS_NOT_VALIDATED"
+    domain: "VALIDATION"
+    blocker_class: "CONDITIONAL_BLOCKER"
+    severity: "HIGH"
+    scope: "STRATEGY"
+    authority: "VALIDATION_ENGINE"
+    effects: ["RESEARCH_ONLY", "PROMOTION_BLOCKED", "LIVE_ORDER_BLOCKED"]
+    waiver:
+      allowed: true
+      required_authorities: ["VALIDATION_ENGINE", "HUMAN_GOVERNANCE"]
+      requires_written_approval: true
+      requires_justification: true
+      requires_evidence: true
+      requires_expiry: true
+      max_duration_hours: 24
+      execution_scope_allowed: false
+    clearance:
+      detect_authorities: ["VALIDATION_ENGINE"]
+      clear_authorities: ["VALIDATION_ENGINE"]
+      waive_authorities: ["HUMAN_GOVERNANCE"]
+    semantic_key: "robustness_not_validated"
+    description: "Robustness, sensitivity, or stress validation is missing or insufficient for the declared strategy or setup."
+    policy_ref: "policy:validation:robustness"
+    policy_version: "2.0.0"
+    control_ref: "control:validation:robustness"
+    control_version: "2.0.0"
+    producer: "ValidationEngine"
+    source_component: "validation.robustness_gate"
+    remediation: "Complete robustness validation before promotion or execution eligibility."
+    precedence: 3
+  - definition_id: "AI4B-BLK-VAL-003"
+    blocker_code: "VAL.REGIME_NOT_VALIDATED"
+    domain: "VALIDATION"
+    blocker_class: "CONDITIONAL_BLOCKER"
+    severity: "HIGH"
+    scope: "STRATEGY"
+    authority: "VALIDATION_ENGINE"
+    effects: ["RESEARCH_ONLY", "PROMOTION_BLOCKED", "LIVE_ORDER_BLOCKED"]
+    waiver:
+      allowed: true
+      required_authorities: ["VALIDATION_ENGINE", "HUMAN_GOVERNANCE"]
+      requires_written_approval: true
+      requires_justification: true
+      requires_evidence: true
+      requires_expiry: true
+      max_duration_hours: 24
+      execution_scope_allowed: false
+    clearance:
+      detect_authorities: ["VALIDATION_ENGINE"]
+      clear_authorities: ["VALIDATION_ENGINE"]
+      waive_authorities: ["HUMAN_GOVERNANCE"]
+    semantic_key: "regime_not_validated"
+    description: "Required market-regime validation evidence is missing or insufficient."
+    policy_ref: "policy:validation:regime"
+    policy_version: "2.0.0"
+    control_ref: "control:validation:regime"
+    control_version: "2.0.0"
+    producer: "ValidationEngine"
+    source_component: "validation.regime_gate"
+    remediation: "Validate the setup in the applicable market regime."
+    precedence: 3
+  - definition_id: "AI4B-BLK-RISK-001"
+    blocker_code: "RISK.VETO"
+    domain: "RISK"
+    blocker_class: "HARD_BLOCKER"
+    severity: "CRITICAL"
+    scope: "DECISION_CYCLE"
+    authority: "RISK_ENGINE"
+    effects: ["PAPER_ORDER_BLOCKED", "LIVE_ORDER_BLOCKED", "EXECUTION_NOT_ALLOWED"]
+    waiver: {allowed: false}
+    clearance:
+      detect_authorities: ["RISK_ENGINE"]
+      clear_authorities: ["RISK_ENGINE"]
+    semantic_key: "risk_veto"
+    description: "Risk governance vetoes the action for the declared scope."
+    policy_ref: "policy:risk:veto"
+    policy_version: "2.0.0"
+    control_ref: "control:risk:veto"
+    control_version: "2.0.0"
+    producer: "RiskEngine"
+    source_component: "risk.manager"
+    remediation: "Resolve the risk veto before any paper or live order attempt."
+    precedence: 4
+  - definition_id: "AI4B-BLK-RISK-002"
+    blocker_code: "RISK.RISK_BUDGET_UNAVAILABLE"
+    domain: "RISK"
+    blocker_class: "CONDITIONAL_BLOCKER"
+    severity: "HIGH"
+    scope: "DECISION_CYCLE"
+    authority: "RISK_ENGINE"
+    effects: ["PAPER_ORDER_BLOCKED", "LIVE_ORDER_BLOCKED", "EXECUTION_NOT_ALLOWED"]
+    waiver:
+      allowed: true
+      required_authorities: ["RISK_ENGINE", "HUMAN_GOVERNANCE"]
+      requires_written_approval: true
+      requires_justification: true
+      requires_evidence: true
+      requires_expiry: true
+      max_duration_hours: 8
+      execution_scope_allowed: false
+    clearance:
+      detect_authorities: ["RISK_ENGINE"]
+      clear_authorities: ["RISK_ENGINE"]
+      waive_authorities: ["HUMAN_GOVERNANCE"]
+    semantic_key: "risk_budget_unavailable"
+    description: "A required risk, capital, or loss budget is unavailable for the declared action."
+    policy_ref: "policy:risk:budget"
+    policy_version: "2.0.0"
+    control_ref: "control:risk:budget-availability"
+    control_version: "2.0.0"
+    producer: "RiskEngine"
+    source_component: "risk.manager"
+    remediation: "Restore validated risk-budget evidence before order eligibility."
+    precedence: 4
+  - definition_id: "AI4B-BLK-RISK-003"
+    blocker_code: "RISK.DAILY_LOSS_LIMIT_REACHED"
+    domain: "RISK"
+    blocker_class: "HARD_BLOCKER"
+    severity: "CRITICAL"
+    scope: "GLOBAL"
+    authority: "RISK_ENGINE"
+    effects: ["PAPER_ORDER_BLOCKED", "LIVE_ORDER_BLOCKED", "EXECUTION_NOT_ALLOWED"]
+    waiver: {allowed: false}
+    clearance:
+      detect_authorities: ["RISK_ENGINE"]
+      clear_authorities: ["RISK_ENGINE"]
+    semantic_key: "daily_loss_limit_reached"
+    description: "A governed daily loss limit has been reached or cannot be verified."
+    policy_ref: "policy:risk:daily-loss"
+    policy_version: "2.0.0"
+    control_ref: "control:risk:daily-loss-limit"
+    control_version: "2.0.0"
+    producer: "RiskEngine"
+    source_component: "risk.manager"
+    remediation: "Keep execution blocked until the daily-loss condition is cleared by Risk."
+    precedence: 4
+  - definition_id: "AI4B-BLK-RISK-004"
+    blocker_code: "RISK.RISK_LIMIT_EXCEEDED"
+    domain: "RISK"
+    blocker_class: "HARD_BLOCKER"
+    severity: "CRITICAL"
+    scope: "GLOBAL"
+    authority: "RISK_ENGINE"
+    effects: ["PAPER_ORDER_BLOCKED", "LIVE_ORDER_BLOCKED", "EXECUTION_NOT_ALLOWED"]
+    waiver: {allowed: false}
+    clearance:
+      detect_authorities: ["RISK_ENGINE"]
+      clear_authorities: ["RISK_ENGINE"]
+    semantic_key: "risk_limit_exceeded"
+    description: "A governed portfolio, symbol, market, strategy, or position-size risk limit failed."
+    policy_ref: "policy:risk:limits"
+    policy_version: "2.0.0"
+    control_ref: "control:risk:limit-check"
+    control_version: "2.0.0"
+    producer: "RiskEngine"
+    source_component: "risk.manager"
+    remediation: "Reduce exposure or restore verified limit compliance before eligibility."
+    precedence: 4
+  - definition_id: "AI4B-BLK-LIQ-001"
+    blocker_code: "LIQ.APPROVAL_MISSING"
+    domain: "LIQUIDITY"
+    blocker_class: "CONDITIONAL_BLOCKER"
+    severity: "HIGH"
+    scope: "MARKET"
+    authority: "RISK_ENGINE"
+    effects: ["PAPER_ORDER_BLOCKED", "LIVE_ORDER_BLOCKED", "EXECUTION_NOT_ALLOWED"]
+    waiver:
+      allowed: true
+      required_authorities: ["RISK_ENGINE", "HUMAN_GOVERNANCE"]
+      requires_written_approval: true
+      requires_justification: true
+      requires_evidence: true
+      requires_expiry: true
+      max_duration_hours: 4
+      execution_scope_allowed: false
+    clearance:
+      detect_authorities: ["RISK_ENGINE"]
+      clear_authorities: ["RISK_ENGINE"]
+      waive_authorities: ["HUMAN_GOVERNANCE"]
+    semantic_key: "liquidity_approval_missing"
+    description: "Spread, depth, slippage, or liquidity evidence has not approved the action."
+    policy_ref: "policy:liquidity:approval"
+    policy_version: "2.0.0"
+    control_ref: "control:liquidity:approval"
+    control_version: "2.0.0"
+    producer: "RiskEngine"
+    source_component: "liquidity.gate"
+    remediation: "Wait for spread, depth, and slippage evidence to normalize."
+    precedence: 5
+  - definition_id: "AI4B-BLK-EXEC-001"
+    blocker_code: "EXEC.EXECUTION_MODE_UNAUTHORIZED"
+    domain: "EXECUTION"
+    blocker_class: "HARD_BLOCKER"
+    severity: "CRITICAL"
+    scope: "EXECUTION_MODE"
+    authority: "EXECUTION_GATE"
+    effects: ["LIVE_ORDER_BLOCKED", "EXECUTION_NOT_ALLOWED", "GOVERNANCE_REVIEW_REQUIRED"]
+    waiver: {allowed: false}
+    clearance:
+      detect_authorities: ["EXECUTION_GATE"]
+      clear_authorities: ["EXECUTION_GATE", "GOVERNANCE_ENGINE"]
+    semantic_key: "execution_mode_unauthorized"
+    description: "The requested execution mode is not authorized by governed configuration."
+    policy_ref: "policy:execution:mode"
+    policy_version: "2.0.0"
+    control_ref: "control:execution:mode-authorization"
+    control_version: "2.0.0"
+    producer: "ExecutionGate"
+    source_component: "execution.gate"
+    remediation: "Return to an authorized execution mode before any order path is considered."
+    precedence: 6
+  - definition_id: "AI4B-BLK-EXEC-002"
+    blocker_code: "EXEC.LIVE_EXECUTION_UNAUTHORIZED"
+    domain: "EXECUTION"
+    blocker_class: "HARD_BLOCKER"
+    severity: "CRITICAL"
+    scope: "EXECUTION_MODE"
+    authority: "EXECUTION_GATE"
+    effects: ["LIVE_ORDER_BLOCKED", "EXECUTION_NOT_ALLOWED", "GOVERNANCE_REVIEW_REQUIRED"]
+    waiver: {allowed: false}
+    clearance:
+      detect_authorities: ["EXECUTION_GATE"]
+      clear_authorities: ["EXECUTION_GATE", "GOVERNANCE_ENGINE"]
+    semantic_key: "live_execution_unauthorized"
+    description: "Live execution was requested without governed authorization."
+    policy_ref: "policy:execution:live"
+    policy_version: "2.0.0"
+    control_ref: "control:execution:live-authorization"
+    control_version: "2.0.0"
+    producer: "ExecutionGate"
+    source_component: "execution.gate"
+    remediation: "Keep live execution blocked until explicit governed live authorization exists."
+    precedence: 6
+  - definition_id: "AI4B-BLK-EXEC-003"
+    blocker_code: "EXEC.ORDER_CONSTRAINT_INVALID"
+    domain: "EXECUTION"
+    blocker_class: "CONDITIONAL_BLOCKER"
+    severity: "HIGH"
+    scope: "DECISION_CYCLE"
+    authority: "EXECUTION_GATE"
+    effects: ["PAPER_ORDER_BLOCKED", "LIVE_ORDER_BLOCKED", "EXECUTION_NOT_ALLOWED"]
+    waiver:
+      allowed: true
+      required_authorities: ["EXECUTION_GATE", "HUMAN_GOVERNANCE"]
+      requires_written_approval: true
+      requires_justification: true
+      requires_evidence: true
+      requires_expiry: true
+      max_duration_hours: 4
+      execution_scope_allowed: false
+    clearance:
+      detect_authorities: ["EXECUTION_GATE"]
+      clear_authorities: ["EXECUTION_GATE"]
+      waive_authorities: ["HUMAN_GOVERNANCE"]
+    semantic_key: "order_constraint_invalid"
+    description: "Order feasibility, exchange constraint, or execution-readiness evidence failed."
+    policy_ref: "policy:execution:order-constraints"
+    policy_version: "2.0.0"
+    control_ref: "control:execution:order-constraints"
+    control_version: "2.0.0"
+    producer: "ExecutionGate"
+    source_component: "execution.gate"
+    remediation: "Restore exchange and order-constraint evidence before paper eligibility."
+    precedence: 6
+  - definition_id: "AI4B-BLK-EXEC-004"
+    blocker_code: "EXEC.HUMAN_CONFIRMATION_MISSING"
+    domain: "EXECUTION"
+    blocker_class: "CONDITIONAL_BLOCKER"
+    severity: "HIGH"
+    scope: "DECISION_CYCLE"
+    authority: "EXECUTION_GATE"
+    effects: ["PAPER_ORDER_BLOCKED", "LIVE_ORDER_BLOCKED", "EXECUTION_NOT_ALLOWED"]
+    waiver:
+      allowed: true
+      required_authorities: ["HUMAN_GOVERNANCE"]
+      requires_written_approval: true
+      requires_justification: true
+      requires_evidence: true
+      requires_expiry: true
+      max_duration_hours: 4
+      execution_scope_allowed: false
+    clearance:
+      detect_authorities: ["EXECUTION_GATE"]
+      clear_authorities: ["EXECUTION_GATE"]
+      waive_authorities: ["HUMAN_GOVERNANCE"]
+    semantic_key: "human_confirmation_missing"
+    description: "Required human confirmation is missing for an execution-impacting action."
+    policy_ref: "policy:execution:human-confirmation"
+    policy_version: "2.0.0"
+    control_ref: "control:execution:human-confirmation"
+    control_version: "2.0.0"
+    producer: "ExecutionGate"
+    source_component: "execution.gate"
+    remediation: "Record governed human confirmation before paper eligibility."
+    precedence: 6
+  - definition_id: "AI4B-BLK-STRAT-001"
+    blocker_code: "STRAT.NOT_APPROVED_FOR_STAGE"
+    domain: "STRATEGY"
+    blocker_class: "CONDITIONAL_BLOCKER"
+    severity: "HIGH"
+    scope: "STRATEGY"
+    authority: "GOVERNANCE_ENGINE"
+    effects: ["RESEARCH_ONLY", "CANDIDATE_BLOCKED", "PROMOTION_BLOCKED", "LIVE_ORDER_BLOCKED"]
+    waiver:
+      allowed: true
+      required_authorities: ["GOVERNANCE_ENGINE", "HUMAN_GOVERNANCE"]
+      requires_written_approval: true
+      requires_justification: true
+      requires_evidence: true
+      requires_expiry: true
+      max_duration_hours: 24
+      execution_scope_allowed: false
+    clearance:
+      detect_authorities: ["GOVERNANCE_ENGINE"]
+      clear_authorities: ["GOVERNANCE_ENGINE"]
+      waive_authorities: ["HUMAN_GOVERNANCE"]
+    semantic_key: "strategy_not_approved_for_stage"
+    description: "A strategy or setup is not approved for the requested lifecycle stage."
+    policy_ref: "policy:strategy:stage-approval"
+    policy_version: "2.0.0"
+    control_ref: "control:strategy:stage-approval"
+    control_version: "2.0.0"
+    producer: "GovernanceEngine"
+    source_component: "strategy.governance"
+    remediation: "Keep the strategy in research until governed stage approval exists."
+    precedence: 7
+  - definition_id: "AI4B-BLK-SCHEMA-001"
+    blocker_code: "SCHEMA.PAYLOAD_VALIDATION_FAILED"
+    domain: "SCHEMA"
+    blocker_class: "HARD_BLOCKER"
+    severity: "HIGH"
+    scope: "OBJECT"
+    authority: "GOVERNANCE_ENGINE"
+    effects: ["QUALITY_GATE_BLOCKED", "RUNNING_WITH_BLOCKERS"]
+    waiver:
+      allowed: true
+      required_authorities: ["GOVERNANCE_ENGINE", "HUMAN_GOVERNANCE"]
+      requires_written_approval: true
+      requires_justification: true
+      requires_evidence: true
+      requires_expiry: true
+      max_duration_hours: 24
+      execution_scope_allowed: false
+    clearance:
+      detect_authorities: ["GOVERNANCE_ENGINE"]
+      clear_authorities: ["GOVERNANCE_ENGINE"]
+      waive_authorities: ["HUMAN_GOVERNANCE"]
+    semantic_key: "payload_validation_failed"
+    description: "A governed object failed its schema validation contract."
+    policy_ref: "policy:schema:payload-validation"
+    policy_version: "2.0.0"
+    control_ref: "control:schema:payload-validation"
+    control_version: "2.0.0"
+    producer: "GovernanceEngine"
+    source_component: "schema.validator"
+    remediation: "Correct the governed payload and re-run schema validation."
+    precedence: 1
+aliases:
+  GOVERNANCE_CONFLICT: "GOV.AUTHORITY_CONFLICT"
+  GOVERNANCE_BYPASS: "GOV.BYPASS_ATTEMPT"
+  AUTHORITY_VIOLATION: "GOV.POLICY_CONFLICT"
+  LIVE_ORDER_BLOCKED: "EXEC.LIVE_EXECUTION_UNAUTHORIZED"
+  GOVERNED_DOCUMENT_LOCK_VIOLATION: "GOV.POLICY_CONFLICT"
+  SNAPSHOT_INTEGRITY_UNVERIFIED: "DATA.SNAPSHOT_INCOMPLETE"
+  DATA_QUALITY_GATE_FAILED: "DATA.DATA_QUALITY_FAILED"
+  REQUIRED_TIMEFRAMES_MISSING: "DATA.SNAPSHOT_INCOMPLETE"
+  LIQUIDITY_APPROVAL_MISSING: "LIQ.APPROVAL_MISSING"
+  WALLET_POSITION_CONTEXT_UNVERIFIED: "EVID.CRITICAL_EVIDENCE_MISSING"
+  COIN_ATTACHMENT_BIAS_BLOCKED: "GOV.POLICY_CONFLICT"
+  EXTERNAL_CAPITAL_NOT_ALLOWED: "RISK.RISK_BUDGET_UNAVAILABLE"
+  REGIME_INCOMPATIBLE_WITH_STRATEGY: "VAL.REGIME_NOT_VALIDATED"
+  MTF_ALIGNMENT_CONFLICT: "EVID.CRITICAL_CONFLICT_UNRESOLVED"
+  NEGATIVE_EVIDENCE_PRESENT: "EVID.CRITICAL_CONFLICT_UNRESOLVED"
+  STRUCTURAL_INVALIDATION_MISSING: "EVID.CRITICAL_EVIDENCE_MISSING"
+  OOS_APPROVAL_MISSING: "VAL.OOS_NOT_VALIDATED"
+  OOS_NOT_VALIDATED: "VAL.OOS_NOT_VALIDATED"
+  RISK_APPROVAL_MISSING: "RISK.VETO"
+  RISK_VETO: "RISK.VETO"
+  RISK_BUDGET_UNAVAILABLE: "RISK.RISK_BUDGET_UNAVAILABLE"
+  DAILY_LOSS_LIMIT: "RISK.DAILY_LOSS_LIMIT_REACHED"
+  RISK_BUDGET_EXCEEDED: "RISK.RISK_LIMIT_EXCEEDED"
+  EXECUTION_FEASIBILITY_MISSING: "EXEC.ORDER_CONSTRAINT_INVALID"
+  EXECUTION_NOT_ALLOWED: "EXEC.ORDER_CONSTRAINT_INVALID"
+  LIVE_EXECUTION_DISABLED: "EXEC.LIVE_EXECUTION_UNAUTHORIZED"
+  HUMAN_REVIEW_REQUIRED: "EXEC.HUMAN_CONFIRMATION_MISSING"
+  DATA_STALE: "DATA.STALE_MARKET_DATA"
+  DATA_QUALITY_FAIL: "DATA.DATA_QUALITY_FAILED"
+  CRITICAL_DATA_MISSING: "DATA.SNAPSHOT_INCOMPLETE"
+  CRITICAL_EVIDENCE_MISSING: "EVID.CRITICAL_EVIDENCE_MISSING"
+  SETUP_SCORE_BELOW_DGE_THRESHOLD: "STRAT.NOT_APPROVED_FOR_STAGE"
+  SETUP_CONFIDENCE_BELOW_DGE_THRESHOLD: "STRAT.NOT_APPROVED_FOR_STAGE"
+  MIN_RISK_REWARD_NOT_MET: "RISK.RISK_LIMIT_EXCEEDED"

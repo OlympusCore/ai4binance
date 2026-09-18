@@ -1,0 +1,9 @@
+setup_tiers:
+  A*: exceptional_validated_setup
+  A: strong_setup
+  B+: acceptable_controlled_opportunity
+  B: paper_or_watch_only
+  C: watch_only
+  NO_TRADE: rejected
+default_standard_scan_minimum_tier: B+
+live_execution_allowed_by_tier_policy: false

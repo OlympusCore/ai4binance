@@ -1,0 +1,59 @@
+{
+  "schema_version": "AI4BINANCE-OPEN-WEB-1.0",
+  "network_mode": "ALLOWLISTED_PUBLIC_WEB",
+  "search_mode": "DIRECT_SOURCES_ONLY",
+  "llm_mode": "DISABLED",
+  "cloud_llm_allowed": false,
+  "credentialed_provider_allowed": false,
+  "persist_full_article_text": false,
+  "seed_allowed_hosts": [
+    "arxiv.org",
+    "github.blog",
+    "github.com",
+    "t.co",
+    "www.binance.com",
+    "www.coindesk.com",
+    "www.reddit.com"
+  ],
+  "sources": [
+    {
+      "source_id": "github_changelog",
+      "feed_url": "https://github.blog/changelog/feed/",
+      "allowed_hosts": ["github.blog"],
+      "mission": "TECHNOLOGY_DEVELOPMENT",
+      "source_type": "OFFICIAL_DOCUMENT",
+      "source_tier": "TIER_0",
+      "reliability": 0.9,
+      "enabled": true,
+      "required": true,
+      "robots_required": true,
+      "max_items": 3
+    },
+    {
+      "source_id": "coindesk_news",
+      "feed_url": "https://www.coindesk.com/arc/outboundfeeds/rss/",
+      "allowed_hosts": ["www.coindesk.com"],
+      "mission": "BINANCE_OPPORTUNITY_NEWS",
+      "source_type": "NEWS_ARTICLE",
+      "source_tier": "TIER_1",
+      "reliability": 0.75,
+      "enabled": true,
+      "required": false,
+      "robots_required": true,
+      "max_items": 3
+    },
+    {
+      "source_id": "reddit_cryptocurrency",
+      "feed_url": "https://www.reddit.com/r/CryptoCurrency/new/.rss",
+      "allowed_hosts": ["www.reddit.com"],
+      "mission": "MARKET_NARRATIVE",
+      "source_type": "REDDIT_POST",
+      "source_tier": "TIER_3",
+      "reliability": 0.35,
+      "enabled": false,
+      "required": false,
+      "robots_required": true,
+      "max_items": 3
+    }
+  ]
+}

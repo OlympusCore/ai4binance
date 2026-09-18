@@ -1,0 +1,291 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/governance/repository_artifact.schema.json",
+  "title": "AI4BINANCE RepositoryArtifact",
+  "description": "Machine-readable schema for governed repository files and folders represented by the deterministic repository validator. Use lifecycle_status as the canonical field; status is the frontmatter alias.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_id",
+    "file_id",
+    "artifact_type",
+    "artifact_class",
+    "domain",
+    "owner",
+    "canonical_path",
+    "path",
+    "filename",
+    "mime_type",
+    "size",
+    "modified_time",
+    "shared_status",
+    "schema_version",
+    "lifecycle_status",
+    "generated",
+    "immutable",
+    "sensitive",
+    "git_tracked",
+    "checksum",
+    "authority_layer",
+    "authority_effect",
+    "authority_scope",
+    "observed_expected_layer",
+    "authority_basis",
+    "action",
+    "result",
+    "source_of_truth",
+    "machine_enforceable",
+    "audit_required",
+    "classification"
+  ],
+  "properties": {
+    "artifact_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifact_type": {
+      "type": "string",
+      "enum": [
+        "SOURCE_CODE",
+        "CONFIG",
+        "SCHEMA",
+        "POLICY",
+        "GOVERNANCE",
+        "ONTOLOGY",
+        "DATA",
+        "MODEL",
+        "REPORT",
+        "LOG",
+        "STATE",
+        "RUNTIME",
+        "CACHE",
+        "TEST",
+        "WORKFLOW",
+        "MIGRATION",
+        "EVIDENCE",
+        "ARCHIVE",
+        "ARTIFACT"
+      ]
+    },
+    "artifact_class": {
+      "type": "string",
+      "enum": [
+        "SOURCE",
+        "GOVERNANCE",
+        "RUNTIME",
+        "CACHE",
+        "REPORT",
+        "ARCHIVE"
+      ]
+    },
+    "file_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "canonical_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^\\\\/].*[^\\\\]$"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^\\\\/].*[^\\\\]$"
+    },
+    "filename": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mime_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "size": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "modified_time": {
+      "type": "string",
+      "minLength": 1
+    },
+    "shared_status": {
+      "type": "string",
+      "enum": [
+        "LOCAL_REPOSITORY",
+        "DRIVE_MIRROR",
+        "EXTERNAL_REFERENCE",
+        "UNKNOWN"
+      ]
+    },
+    "schema_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lifecycle_status": {
+      "type": "string",
+      "description": "Use lifecycle_status as the canonical field; status is the frontmatter alias.",
+      "enum": [
+        "DRAFT",
+        "RESEARCH",
+        "BACKTESTED",
+        "WALK_FORWARD_VALIDATED",
+        "OOS_VALIDATED",
+        "PAPER_APPROVED",
+        "LIVE_CANDIDATE",
+        "LIVE_APPROVED",
+        "ACTIVE",
+        "SUSPENDED",
+        "DEPRECATED",
+        "REJECTED",
+        "QUARANTINED",
+        "ARCHIVED"
+      ]
+    },
+    "generated": {
+      "type": "boolean"
+    },
+    "immutable": {
+      "type": "boolean"
+    },
+    "sensitive": {
+      "type": "boolean"
+    },
+    "git_tracked": {
+      "type": "boolean"
+    },
+    "checksum": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "authority_layer": {
+      "type": "string",
+      "description": "Canonical authority layer derived from governed evidence and authority_basis.",
+      "enum": [
+        "L0_EXTERNAL_MANDATORY_CONSTRAINTS",
+        "L1_CORE_CONSTITUTION",
+        "L2_GOVERNANCE_COMPLIANCE",
+        "L3_CANONICAL_CONTRACTS_SCHEMAS",
+        "L4_REPOSITORY_STANDARDS_CONTROLS_QUALITY_POLICIES",
+        "L5_REGISTRIES_ROADMAP",
+        "L6_ARCHITECTURE_ONTOLOGY_ADR",
+        "L7_WORKFLOWS_PROCEDURES_RUNBOOKS_PROVIDERS",
+        "L8_REPORTS_EVIDENCE_INVENTORIES",
+        "L9_REFERENCES_TEMPLATES",
+        "L10_ARCHIVE_STRUCTURAL_PLACEHOLDERS"
+      ]
+    },
+    "authority_effect": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Explicit authority effect from governed metadata when present; null for non-governed artifacts.",
+      "enum": [
+        "MANDATORY_CONSTRAINT",
+        "NORMATIVE_CONSTRAINT",
+        "OPERATIONAL_SPECIALIZATION",
+        "IMPLEMENTATION",
+        "EVIDENCE_ONLY",
+        "REFERENCE_ONLY",
+        "ARCHIVE_ONLY",
+        null
+      ]
+    },
+    "authority_scope": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Explicit lower_snake_case authority scope from governed metadata when present; null for non-governed artifacts.",
+      "pattern": "^[a-z0-9]+(?:_[a-z0-9]+)*$"
+    },
+    "observed_expected_layer": {
+      "type": "string",
+      "description": "Validator-computed filing signal based on canonical placement expectations. This field is diagnostic evidence and not a source of authority.",
+      "enum": [
+        "L0_EXTERNAL_MANDATORY_CONSTRAINTS",
+        "L1_CORE_CONSTITUTION",
+        "L2_GOVERNANCE_COMPLIANCE",
+        "L3_CANONICAL_CONTRACTS_SCHEMAS",
+        "L4_REPOSITORY_STANDARDS_CONTROLS_QUALITY_POLICIES",
+        "L5_REGISTRIES_ROADMAP",
+        "L6_ARCHITECTURE_ONTOLOGY_ADR",
+        "L7_WORKFLOWS_PROCEDURES_RUNBOOKS_PROVIDERS",
+        "L8_REPORTS_EVIDENCE_INVENTORIES",
+        "L9_REFERENCES_TEMPLATES",
+        "L10_ARCHIVE_STRUCTURAL_PLACEHOLDERS"
+      ]
+    },
+    "authority_basis": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "COMPLIANT",
+        "WARNING",
+        "BLOCKER",
+        "MOVE_RECOMMENDED",
+        "ARCHIVE_RECOMMENDED",
+        "QUARANTINE_REQUIRED",
+        "NO_CHANGE"
+      ]
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "COMPLIANT",
+        "WARNING",
+        "BLOCKER",
+        "MOVE_RECOMMENDED",
+        "ARCHIVE_RECOMMENDED",
+        "QUARANTINE_REQUIRED",
+        "NO_CHANGE"
+      ]
+    },
+    "source_of_truth": {
+      "type": "boolean"
+    },
+    "machine_enforceable": {
+      "type": "boolean"
+    },
+    "audit_required": {
+      "type": "boolean"
+    },
+    "classification": {
+      "type": "string",
+      "enum": [
+        "PUBLIC",
+        "INTERNAL",
+        "CONFIDENTIAL",
+        "RESTRICTED",
+        "SECRET"
+      ]
+    },
+    "proposed_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

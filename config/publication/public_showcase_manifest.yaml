@@ -1,0 +1,41 @@
+version: 1
+publication:
+  name: AI4BINANCE EnterpriseAI vNext Reference Architecture
+  mode: LOCAL_STAGING_ONLY
+  remote_publication_allowed: false
+  human_approval_required: true
+allowed_artifacts:
+  - source: examples/public_showcase/README.md
+    destination: README.md
+    sha256: 8a6c272ec9c984bdd605e83d1c2be3bf96ff3302d185868982efbcc408a93411
+  - source: examples/public_showcase/DISCLAIMER.md
+    destination: DISCLAIMER.md
+    sha256: 3f4c3af61c71526f62b25558d186bb1cf2ab29a5e88bd824169931a3164fc30b
+denied_paths:
+  - .git
+  - .github
+  - .agents
+  - .codex
+  - config
+  - data
+  - docs
+  - factory
+  - migrations
+  - ontology
+  - opportunities
+  - policies
+  - research
+  - runtime
+  - secrets
+  - src
+  - tests
+  - tools
+  - workflows
+  - AGENTS.md
+  - CLAUDE.md
+  - GEMINI.md
+  - pyproject.toml
+  - uv.lock
+secret_scan:
+  required: true
+  gitleaks_version: 8.30.1

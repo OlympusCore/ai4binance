@@ -1,0 +1,308 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/governance/blocker.schema.json",
+  "title": "AI4BINANCE Canonical Blocker Occurrence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "occurrence_id",
+    "definition_id",
+    "blocker_code",
+    "domain",
+    "blocker_class",
+    "severity",
+    "scope",
+    "scope_ref",
+    "authority",
+    "effects",
+    "lifecycle_state",
+    "evidence_refs",
+    "detected_at",
+    "policy_ref",
+    "policy_version",
+    "control_ref",
+    "control_version",
+    "producer",
+    "source_component",
+    "remediation",
+    "correlation_id",
+    "cycle_id",
+    "snapshot_id",
+    "fingerprint",
+    "occurrence_count",
+    "first_seen_at",
+    "last_seen_at",
+    "root_cause_codes",
+    "resolution_evidence",
+    "waiver"
+  ],
+  "properties": {
+    "occurrence_id": {"type": "string", "minLength": 1},
+    "definition_id": {"type": "string", "minLength": 1},
+    "blocker_code": {"$ref": "#/$defs/blocker_code"},
+    "domain": {"$ref": "#/$defs/domain"},
+    "blocker_class": {"$ref": "#/$defs/blocker_class"},
+    "severity": {"$ref": "#/$defs/severity"},
+    "scope": {"$ref": "#/$defs/scope"},
+    "scope_ref": {"type": ["string", "null"]},
+    "authority": {"$ref": "#/$defs/authority"},
+    "effects": {"$ref": "#/$defs/effects"},
+    "lifecycle_state": {"$ref": "#/$defs/lifecycle_state"},
+    "evidence_refs": {"$ref": "#/$defs/nonempty_unique_strings"},
+    "detected_at": {"type": "string", "minLength": 1},
+    "policy_ref": {"type": "string", "minLength": 1},
+    "policy_version": {"type": "string", "minLength": 1},
+    "control_ref": {"type": "string", "minLength": 1},
+    "control_version": {"type": "string", "minLength": 1},
+    "producer": {"type": "string", "minLength": 1},
+    "source_component": {"type": "string", "minLength": 1},
+    "remediation": {"type": "string", "minLength": 1},
+    "correlation_id": {"type": ["string", "null"]},
+    "cycle_id": {"type": ["string", "null"]},
+    "snapshot_id": {"type": ["string", "null"]},
+    "fingerprint": {"type": "string", "minLength": 1},
+    "occurrence_count": {"type": "integer", "minimum": 1},
+    "first_seen_at": {"type": "string", "minLength": 1},
+    "last_seen_at": {"type": "string", "minLength": 1},
+    "root_cause_codes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/blocker_code"}
+    },
+    "resolution_evidence": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "waiver": {
+      "anyOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/waiver"}
+      ]
+    }
+  },
+  "$defs": {
+    "blocker_definition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "definition_id",
+        "blocker_code",
+        "domain",
+        "blocker_class",
+        "severity",
+        "scope",
+        "authority",
+        "effects",
+        "waiver",
+        "clearance",
+        "semantic_key",
+        "description",
+        "policy_ref",
+        "policy_version",
+        "control_ref",
+        "control_version",
+        "producer",
+        "source_component",
+        "remediation",
+        "precedence"
+      ],
+      "properties": {
+        "definition_id": {"type": "string", "minLength": 1},
+        "blocker_code": {"$ref": "#/$defs/blocker_code"},
+        "domain": {"$ref": "#/$defs/domain"},
+        "blocker_class": {"$ref": "#/$defs/blocker_class"},
+        "severity": {"$ref": "#/$defs/severity"},
+        "scope": {"$ref": "#/$defs/scope"},
+        "authority": {"$ref": "#/$defs/authority"},
+        "effects": {"$ref": "#/$defs/effects"},
+        "waiver": {"$ref": "#/$defs/waiver"},
+        "clearance": {"$ref": "#/$defs/clearance"},
+        "semantic_key": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1},
+        "policy_ref": {"type": "string", "minLength": 1},
+        "policy_version": {"type": "string", "minLength": 1},
+        "control_ref": {"type": "string", "minLength": 1},
+        "control_version": {"type": "string", "minLength": 1},
+        "producer": {"type": "string", "minLength": 1},
+        "source_component": {"type": "string", "minLength": 1},
+        "remediation": {"type": "string", "minLength": 1},
+        "precedence": {"type": "integer", "minimum": 0},
+        "security_impact": {"type": "boolean"}
+      }
+    },
+    "blocker_code": {
+      "type": "string",
+      "pattern": "^[A-Z]+(?:_[A-Z]+)?\\.[A-Z0-9_]+$",
+      "not": {
+        "enum": [
+          "RUNNING_WITH_BLOCKERS",
+          "LIVE_ORDER_BLOCKED",
+          "RESEARCH_ONLY",
+          "NO_TRADE",
+          "BLOCKED",
+          "CRITICAL",
+          "SECURITY_CRITICAL"
+        ]
+      }
+    },
+    "domain": {
+      "enum": [
+        "GOVERNANCE",
+        "SECURITY",
+        "DATA",
+        "EVIDENCE",
+        "RISK",
+        "VALIDATION",
+        "STRATEGY",
+        "MODEL",
+        "AGENT",
+        "EXECUTION",
+        "PORTFOLIO",
+        "MARKET",
+        "LIQUIDITY",
+        "OPERATIONS",
+        "ARCHITECTURE",
+        "CONTRACT",
+        "SCHEMA",
+        "REPOSITORY",
+        "DEPENDENCY",
+        "TEST",
+        "CONFIGURATION",
+        "COMPLIANCE",
+        "RESEARCH",
+        "PROMOTION"
+      ]
+    },
+    "blocker_class": {
+      "enum": ["HARD_BLOCKER", "CONDITIONAL_BLOCKER", "ADVISORY_FINDING"]
+    },
+    "severity": {
+      "enum": ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    },
+    "scope": {
+      "enum": [
+        "OBJECT",
+        "COMPONENT",
+        "PIPELINE_STAGE",
+        "DECISION_CYCLE",
+        "SYMBOL",
+        "MARKET",
+        "STRATEGY",
+        "MODEL",
+        "AGENT",
+        "EXPERIMENT",
+        "REPOSITORY",
+        "DEPLOYMENT",
+        "EXECUTION_MODE",
+        "GLOBAL"
+      ]
+    },
+    "authority": {
+      "enum": [
+        "CORE_CONSTITUTION",
+        "GOVERNANCE_ENGINE",
+        "RISK_ENGINE",
+        "VALIDATION_ENGINE",
+        "SECURITY_CONTROL",
+        "COMPLIANCE_CONTROL",
+        "DATA_QUALITY_ENGINE",
+        "REPOSITORY_VALIDATOR",
+        "EXECUTION_GATE",
+        "HUMAN_GOVERNANCE"
+      ]
+    },
+    "effects": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "QUALITY_GATE_BLOCKED",
+          "RUNNING_WITH_BLOCKERS",
+          "RESEARCH_ONLY",
+          "CANDIDATE_BLOCKED",
+          "DECISION_CYCLE_BLOCKED",
+          "STRATEGY_BLOCKED",
+          "SYMBOL_BLOCKED",
+          "MARKET_BLOCKED",
+          "EXPERIMENT_BLOCKED",
+          "BACKTEST_BLOCKED",
+          "PAPER_ORDER_BLOCKED",
+          "LIVE_ORDER_BLOCKED",
+          "PROMOTION_BLOCKED",
+          "DEPLOYMENT_BLOCKED",
+          "GOVERNANCE_REVIEW_REQUIRED",
+          "EXECUTION_NOT_ALLOWED"
+        ]
+      }
+    },
+    "lifecycle_state": {
+      "enum": [
+        "DETECTED",
+        "CONFIRMED",
+        "ACTIVE",
+        "MITIGATED",
+        "PENDING_VERIFICATION",
+        "RESOLVED",
+        "WAIVED",
+        "SUPERSEDED",
+        "FALSE_POSITIVE"
+      ]
+    },
+    "nonempty_unique_strings": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "waiver": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed"],
+      "properties": {
+        "allowed": {"type": "boolean"},
+        "required_authorities": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/authority"}
+        },
+        "requires_written_approval": {"type": "boolean"},
+        "requires_justification": {"type": "boolean"},
+        "requires_evidence": {"type": "boolean"},
+        "requires_expiry": {"type": "boolean"},
+        "max_duration_hours": {"type": ["integer", "null"], "minimum": 1},
+        "execution_scope_allowed": {"type": "boolean"}
+      }
+    },
+    "clearance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["detect_authorities", "clear_authorities"],
+      "properties": {
+        "detect_authorities": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/authority"}
+        },
+        "clear_authorities": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/authority"}
+        },
+        "waive_authorities": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/authority"}
+        },
+        "downgrade_authorities": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/authority"}
+        }
+      }
+    }
+  }
+}

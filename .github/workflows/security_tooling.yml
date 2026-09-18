@@ -1,0 +1,59 @@
+name: Security Tooling Evidence
+
+on:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "43 2 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-tooling-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  security-tooling:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout full history read-only
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.10"
+          enable-cache: true
+
+      - name: Install canonical Python
+        shell: pwsh
+        run: uv python install 3.14.7
+
+      - name: Create canonical virtual environment
+        shell: pwsh
+        run: uv venv --python 3.14.7 .venv
+
+      - name: Install pinned security tooling
+        shell: pwsh
+        run: .\scripts\install_security_tooling.ps1
+
+      - name: Run redacted report-only security audit
+        shell: pwsh
+        run: >-
+          .\scripts\security_tooling_audit.ps1
+          -VulnerabilityService osv
+          -PipAuditTimeoutSeconds 10
+
+      - name: Upload security evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-tooling-${{ github.run_id }}
+          path: runtime/artifacts/assurance/security_tooling/
+          if-no-files-found: error
+          retention-days: 30
+

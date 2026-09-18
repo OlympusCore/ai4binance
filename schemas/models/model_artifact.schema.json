@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/models/model_artifact.schema.json",
+  "title": "AI4BINANCE Model Artifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact_type", "artifact_uri", "artifact_sha256", "license_status", "rollback_binding"],
+  "properties": {
+    "artifact_type": {"type": "string", "enum": ["LOCAL_MODEL_MANIFEST", "SOURCE_CONTRACT"]},
+    "artifact_uri": {"type": "string", "minLength": 1, "maxLength": 512},
+    "artifact_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+    "license_status": {"type": "string", "enum": ["UNVERIFIED", "VERIFIED"]},
+    "rollback_binding": {"type": "string", "minLength": 1, "maxLength": 256}
+  }
+}

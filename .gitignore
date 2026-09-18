@@ -1,0 +1,236 @@
+# ============================================================
+# AI4BINANCE ENTERPRISEAI vNEXT
+# Repository Ignore Policy
+# ============================================================
+
+# ------------------------------------------------------------
+# Secrets and environment files
+# ------------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+*.keystore
+
+/secrets/*
+!/secrets/.gitkeep
+credentials/
+private/
+.local-secrets/
+
+# ------------------------------------------------------------
+# API keys / account configuration
+# ------------------------------------------------------------
+config/local/
+config/private/
+config/secrets/
+config/credentials/
+config/accounts/
+
+# ------------------------------------------------------------
+# Runtime state
+# ------------------------------------------------------------
+/runtime/*
+!/runtime/*/
+/runtime/*/**
+!/runtime/*/.gitkeep
+state/
+cache/
+tmp/
+temp/
+
+# ------------------------------------------------------------
+# Market and analytical data
+# ------------------------------------------------------------
+data/
+datasets/
+market_data/
+historical_data/
+snapshots/
+feature_store/
+
+*.parquet
+*.feather
+*.arrow
+
+# ------------------------------------------------------------
+# Databases
+# ------------------------------------------------------------
+*.db
+*.sqlite
+*.sqlite3
+*.duckdb
+
+# ------------------------------------------------------------
+# Logs, telemetry, and audit artifacts
+# ------------------------------------------------------------
+logs/
+audit/
+telemetry/
+traces/
+metrics/
+
+*.log
+
+# ------------------------------------------------------------
+# Generated reports and artifacts
+# ------------------------------------------------------------
+artifacts/
+reports/generated/
+outputs/
+generated/
+
+# ------------------------------------------------------------
+# Models and model artifacts
+# ------------------------------------------------------------
+models/
+checkpoints/
+weights/
+
+*.gguf
+*.safetensors
+*.onnx
+*.pt
+*.pth
+*.ckpt
+
+# ------------------------------------------------------------
+# Research and proprietary experiments
+# ------------------------------------------------------------
+research/private/
+experiments/private/
+backtests/private/
+oos/private/
+walk_forward/private/
+optimization/private/
+
+# ------------------------------------------------------------
+# Internal strategy and decision artifacts
+# ------------------------------------------------------------
+strategies/private/
+risk/private/
+decision/private/
+governance/private/
+prompts/private/
+
+# ------------------------------------------------------------
+# Python
+# ------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# ------------------------------------------------------------
+# Virtual environments
+# ------------------------------------------------------------
+.venv/
+venv/
+env/
+
+# ------------------------------------------------------------
+# Packaging
+# ------------------------------------------------------------
+build/
+dist/
+*.egg-info/
+
+# ------------------------------------------------------------
+# IDEs and editors
+# ------------------------------------------------------------
+.vscode/
+.idea/
+
+# Keep intentionally shared VS Code examples if required
+!.vscode/extensions.json
+
+# ------------------------------------------------------------
+# OS generated files
+# ------------------------------------------------------------
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ------------------------------------------------------------
+# Local notebooks and scratch work
+# ------------------------------------------------------------
+.ipynb_checkpoints/
+scratch/
+notebooks/private/
+
+# ------------------------------------------------------------
+# Local LLM / RAG stores
+# ------------------------------------------------------------
+vector_store/
+embeddings/
+rag_cache/
+llm_cache/
+
+*.faiss
+*.index
+
+# ------------------------------------------------------------
+# Test-generated artifacts
+# ------------------------------------------------------------
+test-results/
+coverage/
+benchmark-results/
+
+# ------------------------------------------------------------
+# Backup files
+# ------------------------------------------------------------
+*.bak
+*.backup
+*.old
+*.orig
+*~
+
+# ------------------------------------------------------------
+# Local developer overrides
+# ------------------------------------------------------------
+*.local.yaml
+*.local.yml
+*.local.toml
+*.local.json
+
+# ------------------------------------------------------------
+# Sensitive internal documentation
+# ------------------------------------------------------------
+docs/internal/
+docs/private/
+docs/reports/private/
+
+# ------------------------------------------------------------
+# Repository-local security and validation tools
+# ------------------------------------------------------------
+/tools/*
+!/tools/*/
+!/tools/repository_validator/
+!/tools/repository_validator/.gitkeep
+!/tools/governance_checker/
+!/tools/governance_checker/.gitkeep
+!/tools/schema_validator/
+!/tools/schema_validator/.gitkeep
+!/tools/evidence_exporter/
+!/tools/evidence_exporter/.gitkeep
+/tools/downloads/
+/tools/gitleaks/
+/tools/llama.cpp/
+/skill_staging/
+/computer_local.md
+/docs/archive/reference_local_computer_profile.md
+/coverage.xml

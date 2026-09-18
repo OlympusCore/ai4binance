@@ -1,0 +1,1375 @@
+"""Loopback-only dashboard host and bounded read-only local projections."""
+
+from __future__ import annotations
+
+import json
+import math
+import mimetypes
+import os
+import subprocess
+import sys
+import threading
+from datetime import UTC, datetime
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
+from uuid import uuid4
+
+APP = Path(__file__).resolve().parent
+MAX_BYTES = 2_000_000
+PUBLIC_FILES = {
+    "/": "index.html",
+    "/index.html": "index.html",
+    "/app.js": "app.js",
+    "/app.css": "app.css",
+    "/lucide.js": "lucide.js",
+}
+RADAR_LOCK = threading.RLock()
+RADAR_PROCESSES: dict[str, dict[str, object]] = {}
+RADAR_NAMES = frozenset({"web", "github", "news", "learning"})
+WALLET_REFRESH_LOCK = threading.RLock()
+WALLET_REFRESH_JOB: dict[str, object] | None = None
+WALLET_REFRESH_TIMEOUT_SECONDS = 120
+GITHUB_RESEARCH_TOPIC_CAPABILITIES = (
+    "R05-C03",
+    "R01-C03",
+    "R27-C03",
+    "R28-C03",
+    "R05-C04",
+    "R25-C03",
+    "R24-C03",
+    "R02-C03",
+    "R27-C04",
+    "R26-C03",
+    "R30-C03",
+    "R21-C03",
+    "R28-C04",
+    "R22-C03",
+)
+
+
+def load_json(path: Path) -> dict:
+    with path.open("rb") as stream:
+        raw = stream.read(MAX_BYTES + 1)
+    if len(raw) > MAX_BYTES:
+        raise ValueError("SOURCE_TOO_LARGE")
+    data = json.loads(raw.decode("utf-8-sig"))
+    if not isinstance(data, dict):
+        raise ValueError("SOURCE_INVALID_SHAPE")
+    return data
+
+
+def scalar(value):
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, (int, float)):
+        return value if math.isfinite(value) else None
+    if isinstance(value, str) and len(value) <= 240:
+        return value
+    return None
+
+
+def fields(data, names):
+    return (
+        {name: scalar(data.get(name)) for name in names}
+        if isinstance(data, dict)
+        else {}
+    )
+
+
+def records(data, names, limit=250):
+    return (
+        [fields(row, names) for row in data[:limit] if isinstance(row, dict)]
+        if isinstance(data, list)
+        else []
+    )
+
+
+def reasons(data):
+    return (
+        [value for value in data[:40] if isinstance(value, str) and len(value) <= 180]
+        if isinstance(data, (list, tuple))
+        else []
+    )
+
+
+def timeframe_schedule(data):
+    """Expose only bounded, schema-shaped local collection schedule rows."""
+    result = []
+    for item in data[:6] if isinstance(data, list) else []:
+        if not isinstance(item, dict):
+            continue
+        timeframe = item.get("timeframe")
+        interval = item.get("interval_seconds")
+        source = item.get("source")
+        network_download = item.get("network_download")
+        if (
+            not isinstance(timeframe, str)
+            or timeframe not in {"1m", "5m", "15m", "1h", "4h", "1d"}
+            or isinstance(interval, bool)
+            or not isinstance(interval, int)
+            or not 60 <= interval <= 86_400
+            or not isinstance(source, str)
+            or len(source) > 80
+            or not isinstance(network_download, bool)
+        ):
+            continue
+        result.append(
+            {
+                "timeframe": timeframe,
+                "interval_seconds": interval,
+                "source": source,
+                "network_download": network_download,
+            }
+        )
+    return result
+
+
+def collector_coverage(data):
+    """Expose bounded per-market candle coverage without scanning candle archives."""
+    projected = {}
+    if not isinstance(data, dict):
+        return projected
+    allowed_markets = {"SPOT", "USD_M_FUTURES", "COIN_M_FUTURES"}
+    names = (
+        "timeframe",
+        "universe_count",
+        "current_count",
+        "stale_count",
+        "invalid_count",
+        "unavailable_count",
+        "refresh_required_count",
+        "pending_count",
+    )
+    for market, rows in data.items():
+        if market not in allowed_markets or not isinstance(rows, list):
+            continue
+        projected[market] = records(rows, names, limit=6)
+    return projected
+
+
+def write_json(path: Path, payload: dict) -> None:
+    """Atomically persist bounded local-only dashboard runtime metadata."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(payload, ensure_ascii=False, allow_nan=False), encoding="utf-8"
+    )
+    os.replace(temporary, path)
+
+
+def radar_paths(radar: str) -> tuple[Path, Path, Path]:
+    root = APP / "radar"
+    return (
+        root / f"{radar}-status.json",
+        root / f"{radar}-result.json",
+        root / f"{radar}-stderr.log",
+    )
+
+
+def radar_result_summary(radar: str, result_path: Path) -> dict:
+    """Expose a small safe projection; raw research evidence remains local."""
+    if radar == "learning":
+        config = load_json(APP / "config.json")
+        meta, data = read_source(
+            Path(config["repository_root"]) / "runtime/state/learning_summary.json",
+            86400,
+            safety=False,
+        )
+        return {
+            "result_status": meta["status"],
+            "items": [],
+            "blockers": [] if data else ["LEARNING_SUMMARY_" + meta["status"]],
+        }
+    try:
+        payload = load_json(result_path)
+    except (OSError, ValueError, TypeError):
+        return {
+            "result_status": "INVALID",
+            "items": [],
+            "blockers": ["RADAR_RESULT_INVALID"],
+        }
+    result = fields(
+        payload,
+        (
+            "status",
+            "command",
+            "mission",
+            "mode",
+            "engine",
+            "candidate_count",
+            "execution_allowed",
+            "promotion_status",
+            "live_eligibility_status",
+        ),
+    )
+    result["result_status"] = result.pop("status", "UNKNOWN")
+    report = payload.get("report") if isinstance(payload.get("report"), dict) else {}
+    result.update(
+        fields(report, ("generated_at", "status", "fetch_count", "cache_hits"))
+    )
+    if radar == "web":
+        assessments = (
+            {
+                scalar(item.get("finding_id")): item
+                for item in report.get("research_assessments", [])
+                if isinstance(item, dict) and scalar(item.get("finding_id"))
+            }
+            if isinstance(report.get("research_assessments"), list)
+            else {}
+        )
+        items: list[dict] = []
+        for candidate in (
+            report.get("technology_candidates", [])[:25]
+            if isinstance(report.get("technology_candidates"), list)
+            else []
+        ):
+            if not isinstance(candidate, dict):
+                continue
+            assessment = assessments.get(scalar(candidate.get("candidate_id")), {})
+            items.append(
+                {
+                    **fields(
+                        candidate,
+                        ("technology_area", "title", "recommendation", "confidence"),
+                    ),
+                    "research_topic": scalar(assessment.get("topic_id")),
+                    "recommended_action": scalar(assessment.get("recommended_action")),
+                }
+            )
+        result["items"] = items
+        result["item_count"] = len(result["items"])
+        result["blockers"] = reasons(payload.get("blockers"))
+    elif radar == "news":
+        result["items"] = records(
+            report.get("findings"),
+            (
+                "asset",
+                "symbol",
+                "event_type",
+                "claim",
+                "verification_status",
+                "confidence",
+            ),
+            limit=12,
+        )
+        result["item_count"] = len(result["items"])
+        result["blockers"] = reasons(payload.get("blockers"))
+    else:
+        items: list[dict] = []
+        for candidate in (
+            payload.get("candidates", [])[:12]
+            if isinstance(payload.get("candidates"), list)
+            else []
+        ):
+            if not isinstance(candidate, dict):
+                continue
+            source = (
+                candidate.get("source")
+                if isinstance(candidate.get("source"), dict)
+                else {}
+            )
+            items.append(
+                {
+                    "capability_id": scalar(candidate.get("capability_id")),
+                    "repository": scalar(source.get("repository")),
+                    "url": scalar(source.get("url")),
+                    "license_id": scalar(source.get("license_id")),
+                    "research_topic": scalar(
+                        (candidate.get("research_assessment") or {}).get("topic_id")
+                    )
+                    if isinstance(candidate.get("research_assessment"), dict)
+                    else None,
+                    "recommended_action": scalar(
+                        (candidate.get("research_assessment") or {}).get(
+                            "recommended_action"
+                        )
+                    )
+                    if isinstance(candidate.get("research_assessment"), dict)
+                    else None,
+                }
+            )
+        result["items"] = items
+        result["item_count"] = len(items)
+        result["blockers"] = reasons(payload.get("blockers"))
+    return result
+
+
+def _radar_command(config: dict, radar: str, result_path: Path) -> list[str]:
+    root = Path(config["repository_root"]).resolve()
+    python = str(Path(config.get("python", config["pythonw"])).resolve())
+    if radar == "learning":
+        return [python, "-B", str(APP / "refresh_learning.py")]
+    if radar == "github":
+        capabilities = [
+            value
+            for capability in GITHUB_RESEARCH_TOPIC_CAPABILITIES
+            for value in ("--capability", capability)
+        ]
+        return [
+            python,
+            "-B",
+            "-m",
+            "ai4binance.github_radar",
+            "--repository-root",
+            str(root),
+            "discover",
+            *capabilities,
+            "--maximum-queries",
+            str(len(GITHUB_RESEARCH_TOPIC_CAPABILITIES)),
+            "--repositories-per-query",
+            "1",
+            "--documents-per-repository",
+            "3",
+            "--output",
+            str(result_path),
+        ]
+    mission = "TECHNOLOGY_DEVELOPMENT" if radar == "web" else "BINANCE_OPPORTUNITY_NEWS"
+    return [
+        python,
+        "-B",
+        "-m",
+        "ai4binance.external_intel",
+        "open-web",
+        "--mission",
+        mission,
+    ]
+
+
+def _refresh_radar_process(radar: str) -> None:
+    with RADAR_LOCK:
+        job = RADAR_PROCESSES.get(radar)
+        if not job:
+            return
+        process = job["process"]
+        assert isinstance(process, subprocess.Popen)
+        code = process.poll()
+        if (
+            code is None
+            and radar == "learning"
+            and (
+                datetime.now(UTC) - datetime.fromisoformat(str(job["started_at"]))
+            ).total_seconds()
+            > 180
+        ):
+            process.kill()
+            code = process.wait(timeout=5)
+        if code is None:
+            return
+        handle = job.get("handle")
+        if handle is not None:
+            handle.close()
+        error_handle = job.get("error_handle")
+        if error_handle is not None:
+            error_handle.close()
+        status_path = job["status_path"]
+        result_path = job["result_path"]
+        assert isinstance(status_path, Path) and isinstance(result_path, Path)
+        summary = radar_result_summary(radar, result_path)
+        write_json(
+            status_path,
+            {
+                "radar": radar,
+                "state": "COMPLETED"
+                if code == 0
+                and (radar != "learning" or summary["result_status"] == "CURRENT")
+                else "COMPLETED_WITH_BLOCKERS",
+                "started_at": job["started_at"],
+                "completed_at": datetime.now(UTC).isoformat(),
+                "exit_code": code,
+                "result": summary,
+                "execution_allowed": False,
+                "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+            },
+        )
+        del RADAR_PROCESSES[radar]
+
+
+def radar_status(config: dict, radar: str) -> dict:
+    if radar not in RADAR_NAMES:
+        raise ValueError("RADAR_UNKNOWN")
+    _refresh_radar_process(radar)
+    status_path, _, _ = radar_paths(radar)
+    try:
+        status = load_json(status_path)
+    except (OSError, ValueError, TypeError):
+        return {
+            "radar": radar,
+            "state": "NOT_RUN",
+            "execution_allowed": False,
+            "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+        }
+    if (
+        radar == "learning"
+        and status.get("state") == "RUNNING"
+        and radar not in RADAR_PROCESSES
+    ):
+        status["state"] = "COMPLETED_WITH_BLOCKERS"
+    _, result_path, _ = radar_paths(radar)
+    result = (
+        radar_result_summary(radar, result_path)
+        if status.get("state") != "RUNNING"
+        else {}
+    )
+    return {
+        **fields(
+            status,
+            (
+                "radar",
+                "state",
+                "started_at",
+                "completed_at",
+                "exit_code",
+                "execution_allowed",
+                "live_eligibility_status",
+            ),
+        ),
+        "result": result,
+    }
+
+
+def radar_statuses(config: dict) -> dict:
+    return {radar: radar_status(config, radar) for radar in sorted(RADAR_NAMES)}
+
+
+def start_radar(config: dict, radar: str) -> dict:
+    """Start one bounded, credentialless, research-only canonical radar."""
+    if radar not in RADAR_NAMES:
+        raise ValueError("RADAR_UNKNOWN")
+    _refresh_radar_process(radar)
+    with RADAR_LOCK:
+        if radar in RADAR_PROCESSES:
+            return radar_status(config, radar)
+        if radar == "learning":
+            previous = radar_status(config, radar)
+            started = previous.get("started_at")
+            if (
+                started
+                and (
+                    datetime.now(UTC) - datetime.fromisoformat(started)
+                ).total_seconds()
+                < 60
+            ):
+                return previous
+        status_path, result_path, error_path = radar_paths(radar)
+        started_at = datetime.now(UTC).isoformat()
+        run_id = f"{radar}-{uuid4().hex}"
+        root = Path(config["repository_root"]).resolve()
+        environment = os.environ.copy()
+        environment.pop("GITHUB_TOKEN", None)
+        environment["PYTHONPATH"] = str(root / "src")
+        environment["PYTHONIOENCODING"] = "utf-8"
+        command = _radar_command(config, radar, result_path)
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        stdout = (
+            open(result_path, "wb")
+            if radar not in {"github", "learning"}
+            else subprocess.DEVNULL
+        )
+        stderr = open(error_path, "wb") if radar != "learning" else subprocess.DEVNULL
+        try:
+            process = subprocess.Popen(
+                command,
+                cwd=root,
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                stdout=stdout,
+                stderr=stderr,
+                shell=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except Exception:
+            if stdout is not subprocess.DEVNULL:
+                stdout.close()
+            if stderr is not subprocess.DEVNULL:
+                stderr.close()
+            raise
+        write_json(
+            status_path,
+            {
+                "radar": radar,
+                "state": "RUNNING",
+                "run_id": run_id,
+                "started_at": started_at,
+                "execution_allowed": False,
+                "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+            },
+        )
+        RADAR_PROCESSES[radar] = {
+            "process": process,
+            "handle": stdout if stdout is not subprocess.DEVNULL else None,
+            "error_handle": stderr if stderr is not subprocess.DEVNULL else None,
+            "status_path": status_path,
+            "result_path": result_path,
+            "started_at": started_at,
+        }
+        return radar_status(config, radar)
+
+
+def _wallet_refresh_command(config: dict) -> list[str]:
+    """Use the canonical wallet-owning runtime command without order authority."""
+    python_path = config.get("python") or config["pythonw"]
+    python = str(Path(str(python_path)).resolve())
+    return [python, "-B", "-m", "ai4binance.cli", "runtime-once", "--format", "json"]
+
+
+def _wallet_refresh_projection(job: dict[str, object]) -> dict:
+    return {
+        key: job.get(key)
+        for key in (
+            "state",
+            "run_id",
+            "started_at",
+            "completed_at",
+            "exit_code",
+            "account_source_status",
+            "blockers",
+            "execution_allowed",
+            "live_eligibility_status",
+        )
+    }
+
+
+def wallet_refresh_status(config: dict) -> dict:
+    """Return bounded refresh state while never exposing command output or secrets."""
+    global WALLET_REFRESH_JOB
+    with WALLET_REFRESH_LOCK:
+        if WALLET_REFRESH_JOB is None:
+            return {
+                "state": "NOT_RUN",
+                "blockers": (),
+                "execution_allowed": False,
+                "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+            }
+        job = WALLET_REFRESH_JOB
+        process = job.get("process")
+        assert isinstance(process, subprocess.Popen)
+        exit_code = process.poll()
+        started_at = datetime.fromisoformat(str(job["started_at"]))
+        if exit_code is None:
+            if (
+                datetime.now(UTC) - started_at
+            ).total_seconds() <= WALLET_REFRESH_TIMEOUT_SECONDS:
+                return _wallet_refresh_projection(job)
+            process.kill()
+            exit_code = process.wait(timeout=5)
+            job["blockers"] = ("WALLET_REFRESH_TIMEOUT",)
+
+        if job.get("state") == "RUNNING":
+            root = Path(config["repository_root"]).resolve()
+            source, _ = read_source(
+                root / "runtime" / "state" / "private" / "account-management.json",
+                180,
+            )
+            blockers = list(job.get("blockers", ()))
+            if exit_code != 0:
+                blockers.append("WALLET_REFRESH_RUNTIME_EXIT_NONZERO")
+            if source["status"] != "CURRENT":
+                blockers.append(f"ACCOUNT_SOURCE_{source['status']}")
+            job.update(
+                state="COMPLETED" if not blockers else "COMPLETED_WITH_BLOCKERS",
+                completed_at=datetime.now(UTC).isoformat(),
+                exit_code=exit_code,
+                account_source_status=source["status"],
+                blockers=tuple(dict.fromkeys(blockers)),
+            )
+        return _wallet_refresh_projection(job)
+
+
+def start_wallet_refresh(config: dict) -> dict:
+    """Start one bounded canonical wallet refresh with live orders still blocked."""
+    global WALLET_REFRESH_JOB
+    with WALLET_REFRESH_LOCK:
+        current = wallet_refresh_status(config)
+        if current["state"] == "RUNNING":
+            return current
+        root = Path(config["repository_root"]).resolve()
+        environment = os.environ.copy()
+        environment["PYTHONPATH"] = str(root / "src")
+        environment["PYTHONIOENCODING"] = "utf-8"
+        now = datetime.now(UTC)
+        try:
+            process = subprocess.Popen(
+                _wallet_refresh_command(config),
+                cwd=root,
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                shell=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except OSError:
+            WALLET_REFRESH_JOB = {
+                "state": "COMPLETED_WITH_BLOCKERS",
+                "run_id": f"wallet-{uuid4().hex}",
+                "started_at": now.isoformat(),
+                "completed_at": now.isoformat(),
+                "exit_code": None,
+                "account_source_status": "UNAVAILABLE",
+                "blockers": ("WALLET_REFRESH_START_FAILED",),
+                "execution_allowed": False,
+                "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+            }
+            return _wallet_refresh_projection(WALLET_REFRESH_JOB)
+        WALLET_REFRESH_JOB = {
+            "state": "RUNNING",
+            "run_id": f"wallet-{uuid4().hex}",
+            "started_at": now.isoformat(),
+            "blockers": (),
+            "execution_allowed": False,
+            "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+            "process": process,
+        }
+        return _wallet_refresh_projection(WALLET_REFRESH_JOB)
+
+
+def read_source(path: Path, max_age: int, *, safety=True, now=None):
+    now = now or datetime.now(UTC)
+    meta = {
+        "file": path.name,
+        "status": "UNAVAILABLE",
+        "observed_at": None,
+        "age_seconds": None,
+    }
+    try:
+        data = load_json(path)
+        timestamp = (
+            data.get("created_at") or data.get("updated_at") or data.get("observed_at")
+        )
+        dt = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            raise ValueError("SOURCE_TIMESTAMP_INVALID")
+        age = (now - dt).total_seconds()
+        meta.update(observed_at=dt.isoformat(), age_seconds=round(max(0, age)))
+        if data.get("execution_allowed") is not False or (
+            safety and data.get("live_eligibility_status") != "LIVE_ORDER_BLOCKED"
+        ):
+            raise ValueError("SOURCE_AUTHORITY_INVALID")
+        if age < -30:
+            raise ValueError("SOURCE_TIMESTAMP_FUTURE")
+        if age > max_age:
+            meta["status"] = "STALE"
+            return meta, {}
+        meta["status"] = "CURRENT"
+        return meta, data
+    except FileNotFoundError:
+        return meta, {}
+    except (ValueError, OSError, TypeError, OverflowError):
+        meta["status"] = "INVALID"
+        return meta, {}
+
+
+def market_projection(data):
+    return {
+        **fields(
+            data, ("market", "action", "bias", "wallet_status", "promotion_status")
+        ),
+        "blockers": reasons(data.get("blockers")),
+        "setup_count": len(data.get("setup_radar", []))
+        if isinstance(data.get("setup_radar"), list)
+        else 0,
+    }
+
+
+def market_history_projection(data, root: Path):
+    """Project the canonical all-market collector without duplicating its state."""
+    interval_seconds = None
+    try:
+        from ai4binance.config import Settings
+
+        interval_seconds = Settings(
+            _env_file=root / ".env"
+        ).market_history_live_interval_seconds
+    except (ImportError, OSError, TypeError, ValueError):
+        pass
+    completed_streams = data.get("completed_streams")
+    total_streams = data.get("total_streams")
+    ready = (
+        data.get("status") == "READY"
+        and isinstance(completed_streams, int)
+        and not isinstance(completed_streams, bool)
+        and isinstance(total_streams, int)
+        and not isinstance(total_streams, bool)
+        and total_streams > 0
+        and completed_streams == total_streams
+        and not reasons(data.get("blockers"))
+    )
+    readiness_status = (
+        "READY"
+        if ready
+        else ("COLLECTING" if data.get("status") == "COLLECTING" else "DEGRADED")
+    )
+    return {
+        **fields(
+            data,
+            (
+                "status",
+                "active_market",
+                "spot_universe_count",
+                "futures_universe_count",
+                "completed_symbols",
+                "total_symbols",
+                "completed_streams",
+                "total_streams",
+                "completion_ratio",
+            ),
+        ),
+        "timeframe_refresh_schedule": timeframe_schedule(
+            data.get("timeframe_refresh_schedule")
+        ),
+        "collector_coverage": collector_coverage(data.get("collector_coverage")),
+        "readiness_status": readiness_status,
+        "refresh_interval_seconds": scalar(interval_seconds),
+        "blockers": reasons(data.get("blockers")),
+    }
+
+
+def market_depth_projection(data, database_path: Path):
+    """Project bounded L2 health; never scan the potentially multi-gigabyte journal."""
+    groups = data.get("groups")
+    declared_status = scalar(data.get("status"))
+    configured_symbols = 0
+    live_symbols = 0
+    group_count = 0
+    non_collecting_groups = 0
+    if isinstance(groups, dict):
+        for name, group in list(groups.items())[:40]:
+            if (
+                not isinstance(name, str)
+                or len(name) > 80
+                or not isinstance(group, dict)
+            ):
+                continue
+            symbol_count = group.get("symbol_count")
+            live_count = group.get("live_symbols")
+            if not isinstance(symbol_count, int) or isinstance(symbol_count, bool):
+                continue
+            if not isinstance(live_count, int) or isinstance(live_count, bool):
+                continue
+            if symbol_count < 0 or live_count < 0 or live_count > symbol_count:
+                continue
+            group_count += 1
+            configured_symbols += symbol_count
+            live_symbols += live_count
+            if group.get("status") != "COLLECTING":
+                non_collecting_groups += 1
+    try:
+        database_bytes = database_path.stat().st_size
+    except OSError:
+        database_bytes = None
+    fully_observed = (
+        group_count > 0
+        and configured_symbols > 0
+        and live_symbols == configured_symbols
+        and non_collecting_groups == 0
+    )
+    status = (
+        "NO_ELIGIBLE_DEPTH_TARGETS"
+        if declared_status == "NO_ELIGIBLE_DEPTH_TARGETS"
+        else
+        "READY"
+        if fully_observed
+        else (
+            "COLLECTING"
+            if group_count > 0 and non_collecting_groups == 0
+            else "DEGRADED"
+        )
+    )
+    return {
+        **fields(
+            data,
+            ("coverage", "offline_depth_backfill", "promotion_status"),
+        ),
+        "status": status,
+        "database_bytes": database_bytes,
+        "group_count": group_count,
+        "configured_symbol_count": configured_symbols,
+        "live_symbol_count": live_symbols,
+        "non_collecting_group_count": non_collecting_groups,
+        "blockers": reasons(data.get("blockers")),
+    }
+
+
+def futures_research_projection(data):
+    """Expose bounded Futures research, outcome, and learning summaries."""
+    monitor = data.get("opportunity_monitor")
+    learning = data.get("learning")
+    return {
+        **fields(
+            data,
+            (
+                "status",
+                "phase",
+                "eligible_symbol_count",
+                "completed_symbol_count",
+                "pending_symbol_count",
+                "unavailable_symbol_count",
+                "active_symbol",
+                "active_timeframe",
+                "attempted_symbol_count",
+                "monitor_symbol",
+            ),
+        ),
+        "opportunity_monitor": fields(
+            monitor,
+            (
+                "status",
+                "symbol",
+                "candidate_count",
+                "history_count",
+                "evaluated_outcome_count",
+                "favorable_outcome_count",
+                "adverse_outcome_count",
+            ),
+        ),
+        "learning": {
+            **fields(
+                learning, ("status", "summary_id", "lesson_count", "experiment_count")
+            ),
+            "lesson_codes": reasons(learning.get("lesson_codes"))
+            if isinstance(learning, dict)
+            else [],
+        },
+        "blockers": reasons(data.get("blockers")),
+    }
+
+
+def virtual_simulation_projection(data):
+    """Expose bounded all-symbol virtual-simulation coverage to the dashboard."""
+    projection = (
+        data.get("dashboard_simulation_projection") if isinstance(data, dict) else {}
+    )
+    result = fields(
+        projection,
+        (
+            "status",
+            "eligible_symbol_count",
+            "scanned_symbol_count",
+            "pending_symbol_count",
+            "candidate_symbol_count",
+            "order_ready_symbol_count",
+            "last_full_coverage_at",
+        ),
+    )
+    raw_observations = (
+        projection.get("symbol_observations") if isinstance(projection, dict) else []
+    )
+    observations = []
+    for row in raw_observations[:1_000] if isinstance(raw_observations, list) else []:
+        if not isinstance(row, dict):
+            continue
+        observations.append(
+            {
+                **fields(
+                    row,
+                    (
+                        "symbol",
+                        "observed_at",
+                        "scan_lane",
+                        "state",
+                        "virtual_decision_status",
+                        "virtual_order_ready",
+                        "candidate_count",
+                    ),
+                ),
+                "blockers": reasons(row.get("blockers")),
+            }
+        )
+    result["symbol_observations"] = observations
+    return result
+
+
+def dashboard_health_findings(result):
+    """Build deterministic, bounded health findings from canonical projections."""
+    findings = []
+
+    def add(finding_id, area, severity, status, evidence, **facts):
+        findings.append(
+            {
+                "finding_id": finding_id,
+                "area": area,
+                "severity": severity,
+                "status": status,
+                "evidence": str(evidence)[:240],
+                "facts": {key: scalar(value) for key, value in facts.items()},
+            }
+        )
+
+    history = result.get("market_history") or {}
+    history_source = (result.get("sources") or {}).get("market_history") or {}
+    if history_source.get("status") != "READY":
+        completed = history.get("completed_streams")
+        total = history.get("total_streams")
+        add(
+            "MARKET_HISTORY_INCOMPLETE",
+            "MARKET_DATA",
+            "P1",
+            history_source.get("status") or "UNAVAILABLE",
+            (
+                f"candle_streams={completed}/{total}; blockers="
+                f"{','.join(history.get('blockers') or []) or 'NONE'}"
+            ),
+            completed_streams=completed,
+            total_streams=total,
+        )
+
+    depth = result.get("market_depth") or {}
+    depth_source = (result.get("sources") or {}).get("market_depth") or {}
+    if depth_source.get("status") != "READY":
+        add(
+            "MARKET_DEPTH_PARTIAL_COVERAGE",
+            "MARKET_DATA",
+            "P2",
+            depth_source.get("status") or "UNAVAILABLE",
+            (
+                f"l2_live_symbols={depth.get('live_symbol_count')}/"
+                f"{depth.get('configured_symbol_count')}; database_bytes="
+                f"{depth.get('database_bytes')}"
+            ),
+            live_symbol_count=depth.get("live_symbol_count"),
+            configured_symbol_count=depth.get("configured_symbol_count"),
+            database_bytes=depth.get("database_bytes"),
+        )
+
+    research = result.get("futures_research") or {}
+    research_source = (result.get("sources") or {}).get("futures_research") or {}
+    if research_source.get("status") != "READY":
+        add(
+            "FUTURES_RESEARCH_NOT_READY",
+            "RESEARCH",
+            "P1",
+            research_source.get("status") or "UNAVAILABLE",
+            (
+                f"symbols={research.get('completed_symbol_count')}/"
+                f"{research.get('eligible_symbol_count')}; blockers="
+                f"{','.join(research.get('blockers') or []) or 'NONE'}"
+            ),
+            completed_symbol_count=research.get("completed_symbol_count"),
+            eligible_symbol_count=research.get("eligible_symbol_count"),
+        )
+
+    for service in (result.get("services") or [])[:20]:
+        if not isinstance(service, dict) or service.get("status") in {
+            "READY",
+            "DISABLED",
+        }:
+            continue
+        service_name = str(service.get("service") or "unknown")[:80]
+        add(
+            "SERVICE_NOT_READY",
+            "OPERATIONS",
+            "P2" if service.get("required") else "P3",
+            service.get("status") or "UNAVAILABLE",
+            (
+                f"service={service_name}; blockers="
+                f"{','.join(service.get('blockers') or []) or 'NONE'}"
+            ),
+            service=service_name,
+            required=service.get("required"),
+        )
+
+    learning = result.get("learning") or {}
+    if (learning.get("lesson_count") or 0) == 0 and (
+        learning.get("experiment_count") or 0
+    ) == 0:
+        add(
+            "LEARNING_SUMMARY_EMPTY",
+            "LEARNING",
+            "P3",
+            "NOT_APPLIED",
+            "lessons=0; experiments=0",
+            lesson_count=0,
+            experiment_count=0,
+        )
+    return findings[:20]
+
+
+def warm_dashboard_dependencies() -> None:
+    """Warm bounded read-only adapters before accepting loopback requests."""
+    # These imports are deliberately deferred from module import so the file can
+    # still be inspected without the repository package on ``sys.path``.  The
+    # executable entrypoint warms them before binding the listener, preventing
+    # the first dashboard interaction from paying the adapter import cost.
+    import market_views  # noqa: F401
+
+    from ai4binance.ops.runtime import SingleInstanceLease  # noqa: F401
+    from ai4binance.ops.service_health import (  # noqa: F401
+        load_service_manifest,
+        service_health_from_spec,
+    )
+
+
+def snapshot(config):
+    root = Path(config["repository_root"])
+    state = root / "runtime" / "state"
+    now = datetime.now(UTC)
+    result = {
+        "generated_at": now.isoformat(),
+        "execution_allowed": False,
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+        "sources": {},
+        "services": [],
+        "radars": radar_statuses(config),
+        "wallet_refresh": wallet_refresh_status(config),
+    }
+    definitions = {
+        "account": (state / "private" / "account-management.json", 180),
+        "runtime": (state / "runtime.json", 180),
+        "virtual": (state / "virtual-market.json", 180),
+        "market_history": (state / "market-history-latest.json", 900),
+        "market_depth": (root / "runtime/data/market/depth/status.json", 120),
+        "futures_research": (state / "futures-multitf-latest.json", 900),
+        "learning": (state / "learning_summary.json", 86400),
+        "discovery": (state / "skill_discovery.json", 86400),
+    }
+    for name, (path, age) in definitions.items():
+        meta, data = read_source(path, age, safety=name != "learning", now=now)
+        result["sources"][name] = meta
+        result[name] = {}
+        if not data:
+            continue
+        if name in ("account", "runtime"):
+            projected = {
+                "state": scalar(data.get("state")),
+                "blockers": reasons(data.get("blockers")),
+                "spot": market_projection(data.get("spot") or {}),
+                "futures": market_projection(data.get("futures") or {}),
+            }
+            if name == "account":
+                analytics = data.get("portfolio_analytics") or {}
+                projected["portfolio"] = fields(
+                    analytics,
+                    (
+                        "total_value_usdt",
+                        "unrealized_pnl_usdt",
+                        "largest_asset",
+                        "largest_weight",
+                    ),
+                )
+                projected["inventory"] = records(
+                    data.get("inventory"), ("asset", "free", "locked", "total")
+                )
+                projected["valued_assets"] = records(
+                    analytics.get("valued_assets"),
+                    (
+                        "asset",
+                        "quantity",
+                        "price_usdt",
+                        "value_usdt",
+                        "weight",
+                        "unrealized_pnl_usdt",
+                    ),
+                )
+                projected["unpriced_asset_count"] = (
+                    len(analytics.get("unpriced_assets", []))
+                    if isinstance(analytics.get("unpriced_assets"), list)
+                    else None
+                )
+                projected["futures_position_count"] = (
+                    len(data.get("futures_positions", []))
+                    if isinstance(data.get("futures_positions"), list)
+                    else None
+                )
+                projected["reconciliation"] = fields(
+                    data.get("open_order_reconciliation"),
+                    ("status", "exchange_count", "local_count"),
+                )
+            result[name] = projected
+        elif name == "virtual":
+            result[name] = {
+                **fields(
+                    data,
+                    (
+                        "status",
+                        "research_status",
+                        "cycle_count",
+                        "candidate_count",
+                        "market",
+                        "symbol",
+                        "scan_lane",
+                        "virtual_decision_status",
+                        "last_success_at",
+                        "virtual_order_ready",
+                    ),
+                ),
+                "blockers": reasons(data.get("cycle_blockers"))
+                + reasons(data.get("research_blockers")),
+                "dashboard_simulation_projection": virtual_simulation_projection(data),
+            }
+        elif name == "market_history":
+            result[name] = market_history_projection(data, root)
+            if meta["status"] == "CURRENT":
+                meta["freshness_status"] = "CURRENT"
+                meta["status"] = result[name]["readiness_status"]
+        elif name == "market_depth":
+            result[name] = market_depth_projection(
+                data, root / "runtime/data/market/depth/depth.sqlite3"
+            )
+            if meta["status"] == "CURRENT":
+                meta["freshness_status"] = "CURRENT"
+                meta["status"] = result[name]["status"]
+        elif name == "futures_research":
+            result[name] = futures_research_projection(data)
+            if meta["status"] == "CURRENT" and result[name].get("status") == "CURRENT":
+                meta["freshness_status"] = "CURRENT"
+                meta["status"] = "READY"
+            elif meta["status"] == "CURRENT" and result[name].get("status") != "READY":
+                meta["freshness_status"] = "CURRENT"
+                meta["status"] = "DEGRADED"
+        elif name == "learning":
+            result[name] = {
+                "lesson_count": len(data.get("lessons", [])),
+                "experiment_count": len(data.get("experiments", [])),
+            }
+        else:
+            result[name] = {
+                **fields(
+                    data, ("candidates_seen", "candidates_kept", "drafts_created")
+                ),
+                "blockers": reasons(data.get("blockers")),
+            }
+    try:
+        from ai4binance.ops.runtime import SingleInstanceLease
+        from ai4binance.ops.service_health import (
+            load_service_manifest,
+            service_health_from_spec,
+        )
+
+        for spec in load_service_manifest(
+            root / "config" / "operations" / "services.json"
+        ):
+            health = service_health_from_spec(
+                spec, state, now, pid_is_alive=SingleInstanceLease._pid_is_alive
+            )
+            result["services"].append(
+                {
+                    **fields(
+                        health,
+                        (
+                            "service",
+                            "status",
+                            "enabled",
+                            "updated_at",
+                            "last_success_at",
+                            "age_seconds",
+                            "pid",
+                            "child_pid",
+                        ),
+                    ),
+                    "required": spec.required,
+                    "blockers": reasons(health.get("blockers")),
+                }
+            )
+    except Exception:
+        result["service_status"] = "UNAVAILABLE"
+    producer_services = {
+        "account": "accounting",
+        "runtime": "runtime",
+        "virtual": "virtual-market",
+        "market_history": "market-history",
+        "market_depth": "market-history",
+        "futures_research": "futures-multitf",
+        "learning": "auto-audit",
+        "discovery": "skill-discovery",
+    }
+    services_by_name = {
+        item.get("service"): item
+        for item in result["services"]
+        if isinstance(item, dict)
+    }
+    for source_name, service_name in producer_services.items():
+        source = result["sources"].get(source_name)
+        producer = services_by_name.get(service_name)
+        if not isinstance(source, dict) or not isinstance(producer, dict):
+            continue
+        source["producer_service"] = service_name
+        source["producer_status"] = producer.get("status")
+        source["producer_blockers"] = producer.get("blockers") or []
+    result["health_findings"] = dashboard_health_findings(result)
+    required_services = [
+        item for item in result["services"] if item.get("required") is True
+    ]
+    ready_services = [
+        item for item in required_services if item.get("status") == "READY"
+    ]
+    result["operational_readiness"] = {
+        "status": "DEGRADED" if result["health_findings"] else "READY",
+        "finding_count": len(result["health_findings"]),
+        "high_priority_finding_count": sum(
+            item.get("severity") in {"P1", "P2"} for item in result["health_findings"]
+        ),
+        "required_service_ready_count": len(ready_services),
+        "required_service_count": len(required_services),
+    }
+    return result
+
+
+def create_server(config, port=None):
+    selected_port = config["port"] if port is None else port
+
+    class Handler(BaseHTTPRequestHandler):
+        server_version = "AI4BinanceDashboard/1"
+
+        def log_message(self, format, *args):
+            pass  # Do not persist private URLs, payloads, or account data.
+
+        def send_body(self, status, body, kind="application/json; charset=utf-8"):
+            self.send_response(status)
+            self.send_header("Content-Type", kind)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Referrer-Policy", "no-referrer")
+            self.send_header(
+                "Content-Security-Policy",
+                "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+            )
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(body)
+
+        def authorized(self) -> bool:
+            authority = self.headers.get("Host", "")
+            allowed = {
+                f"127.0.0.1:{self.server.server_port}",
+                f"localhost:{self.server.server_port}",
+            }
+            return (
+                authority in allowed
+                and self.headers.get("Sec-Fetch-Site", "none")
+                in {"none", "same-origin"}
+                and self.headers.get("Origin") in (None, "http://" + authority)
+            )
+
+        def do_GET(self):
+            if not self.authorized():
+                self.send_body(403, b'{"error":"ORIGIN_DENIED"}')
+                return
+            path = urlsplit(self.path).path
+            if path == "/health":
+                payload = {
+                    "service": "AI4Binance-Dashboard",
+                    "installation_id": config["installation_id"],
+                    "status": "RUNNING",
+                    "execution_allowed": False,
+                }
+            elif path == "/api/state":
+                payload = snapshot(config)
+            elif path == "/api/markets":
+                import market_views
+
+                query = parse_qs(urlsplit(self.path).query)
+                try:
+                    if set(query) - {"market", "symbol"} or any(
+                        len(v) != 1 for v in query.values()
+                    ):
+                        raise ValueError("REQUEST_INVALID")
+                    payload = market_views.view(
+                        config,
+                        query.get("market", ["SPOT"])[0],
+                        query.get("symbol", [""])[0],
+                    )
+                except (ImportError, OSError, ValueError, KeyError, TypeError):
+                    self.send_body(400, b'{"error":"MARKET_VIEW_UNAVAILABLE"}')
+                    return
+            elif path == "/api/wallet/refresh":
+                payload = wallet_refresh_status(config)
+            elif path in PUBLIC_FILES:
+                file = APP / PUBLIC_FILES[path]
+                kind = mimetypes.guess_type(file.name)[0] or "application/octet-stream"
+                self.send_body(200, file.read_bytes(), kind + "; charset=utf-8")
+                return
+            elif path == "/favicon.ico":
+                self.send_body(204, b"")
+                return
+            else:
+                self.send_body(404, b'{"error":"NOT_FOUND"}')
+                return
+            self.send_body(200, json.dumps(payload, allow_nan=False).encode("utf-8"))
+
+        do_HEAD = do_GET
+
+        def do_POST(self):
+            if not self.authorized():
+                # Consume only a bounded body before closing on Windows so the
+                # TCP reset does not discard the origin-denied response.
+                previous_timeout = self.connection.gettimeout()
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                    if 0 < length <= 512:
+                        self.connection.settimeout(0.25)
+                        self.rfile.read(length)
+                except (ValueError, OSError):
+                    pass
+                finally:
+                    self.connection.settimeout(previous_timeout)
+                self.send_body(403, b'{"error":"ORIGIN_DENIED"}')
+                return
+            path = urlsplit(self.path).path
+            if path not in {
+                "/api/radars/run",
+                "/api/markets/refresh",
+                "/api/wallet/refresh",
+            }:
+                self.send_body(405, b'{"error":"READ_ONLY"}')
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 1 <= length <= 512:
+                    raise ValueError("REQUEST_INVALID")
+                request = json.loads(self.rfile.read(length).decode("utf-8"))
+                if path == "/api/markets/refresh":
+                    import market_views
+
+                    if (
+                        not isinstance(request, dict)
+                        or set(request) != {"market", "symbol"}
+                        or not all(isinstance(v, str) for v in request.values())
+                    ):
+                        raise ValueError("REQUEST_INVALID")
+                    payload = market_views.start(
+                        config, request["market"], request["symbol"]
+                    )
+                    self.send_body(
+                        202, json.dumps(payload, allow_nan=False).encode("utf-8")
+                    )
+                    return
+                if path == "/api/wallet/refresh":
+                    if request != {"action": "refresh"}:
+                        raise ValueError("REQUEST_INVALID")
+                    payload = start_wallet_refresh(config)
+                    self.send_body(
+                        202, json.dumps(payload, allow_nan=False).encode("utf-8")
+                    )
+                    return
+                if (
+                    not isinstance(request, dict)
+                    or set(request) != {"radar"}
+                    or not isinstance(request["radar"], str)
+                ):
+                    raise ValueError("REQUEST_INVALID")
+                payload = start_radar(config, request["radar"])
+            except (ValueError, json.JSONDecodeError):
+                self.send_body(400, b'{"error":"REQUEST_INVALID"}')
+                return
+            except OSError:
+                self.send_body(503, b'{"error":"RADAR_START_FAILED"}')
+                return
+            self.send_body(202, json.dumps(payload, allow_nan=False).encode("utf-8"))
+
+    server = ThreadingHTTPServer(("127.0.0.1", selected_port), Handler)
+    server.daemon_threads = True
+    return server
+
+
+if __name__ == "__main__":
+    settings = load_json(APP / "config.json")
+    sys.path.insert(0, str(Path(settings["repository_root"]) / "src"))
+    try:
+        warm_dashboard_dependencies()
+    except (ImportError, OSError, TypeError, ValueError):
+        # Preserve the existing fail-closed endpoint behavior: an unavailable
+        # optional projection must not make the loopback health endpoint fail.
+        pass
+    create_server(settings).serve_forever(poll_interval=1)

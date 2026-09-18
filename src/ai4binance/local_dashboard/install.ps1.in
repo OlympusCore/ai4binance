@@ -1,0 +1,44 @@
+$ErrorActionPreference = 'Stop'
+$appDirectory = $PSScriptRoot
+$taskName = 'AI4BINANCE-Dashboard'
+$shellPath = (Get-Command powershell.exe).Source
+$launcher = Join-Path $appDirectory 'launch.ps1'
+$config = Get-Content -LiteralPath (Join-Path $appDirectory 'config.json') -Raw | ConvertFrom-Json
+$arguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $launcher + '"'
+$startupMode = 'ScheduledTask'
+$action = New-ScheduledTaskAction -Execute $shellPath -Argument $arguments -WorkingDirectory $config.repository_root
+$trigger = New-ScheduledTaskTrigger -AtLogOn -User ([Security.Principal.WindowsIdentity]::GetCurrent().Name)
+$principal = New-ScheduledTaskPrincipal -UserId ([Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited
+$settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -Hidden
+try {
+    $existing = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+    if ($existing -and ($existing.Actions.Arguments -notlike ('*' + $launcher + '*'))) { throw 'DASHBOARD_TASK_NAME_COLLISION' }
+    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Local read-only AI4Binance dashboard. Opens at sign-in and recovers the dashboard service and app window.' -Force | Out-Null
+    Start-ScheduledTask -TaskName $taskName
+} catch {
+    if ($_.Exception.Message -match 'DASHBOARD_TASK_NAME_COLLISION') { throw }
+    $startupMode = 'UserStartupShortcut'
+    $startupPath = Join-Path ([Environment]::GetFolderPath('Startup')) 'AI4Binance Dashboard.lnk'
+    $wsh = New-Object -ComObject WScript.Shell
+    $link = $wsh.CreateShortcut($startupPath)
+    $link.TargetPath = $shellPath
+    $link.Arguments = $arguments
+    $link.WorkingDirectory = $appDirectory
+    $link.WindowStyle = 7
+    $link.Description = 'Start the local AI4Binance dashboard guardian.'
+    $link.Save()
+    Start-Process -FilePath $shellPath -ArgumentList $arguments -WindowStyle Hidden | Out-Null
+}
+$desktopPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'AI4Binance Dashboard.lnk'
+$wsh = New-Object -ComObject WScript.Shell
+$shortcut = $wsh.CreateShortcut($desktopPath)
+$shortcut.TargetPath = $shellPath
+$shortcut.Arguments = $arguments
+$shortcut.WorkingDirectory = $appDirectory
+$shortcut.WindowStyle = 7
+$shortcut.Description = 'AI4Binance dashboard and automatic recovery.'
+$shortcut.Save()
+$config = Get-Content -LiteralPath (Join-Path $appDirectory 'config.json') -Raw | ConvertFrom-Json
+$receipt = [ordered]@{installed_at=[DateTimeOffset]::UtcNow.ToString('o');startup_mode=$startupMode;task_name=$taskName;url="http://127.0.0.1:$($config.port)/";startup_trigger='AtLogOn';restart_interval_seconds=10;execution_allowed=$false;live_eligibility_status='LIVE_ORDER_BLOCKED';desktop_shortcut=$desktopPath}
+$receipt | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $appDirectory 'installation.json') -Encoding UTF8
+$receipt | ConvertTo-Json -Compress

@@ -1,0 +1,372 @@
+version: 1
+profiles:
+  fast:
+    verification_status: FAST_VERIFIED
+    canonical_quality_authority: false
+    format_check: ruff
+    lint: ruff
+    maintainability_check: ruff_ratchet
+    type_check: dmypy
+    pytest_scope: affected
+    execution_trigger: per_change
+    fail_fast: true
+    full_suite: false
+  standard:
+    verification_status: STANDARD_VERIFIED
+    canonical_quality_authority: false
+    format_check: ruff
+    lint: ruff
+    maintainability_check: ruff_ratchet
+    type_check: mypy
+    pytest_scope: required
+    execution_trigger: affected_module
+    fail_fast: true
+    full_suite: false
+  full:
+    verification_status: FULL_VERIFIED
+    canonical_quality_authority: true
+    format_check: ruff
+    lint: ruff
+    maintainability_check: ruff_ratchet
+    type_check: mypy
+    pytest_scope: full
+    execution_trigger: milestone_pr_release
+    fail_fast: false
+    full_suite: true
+runtime:
+  evidence_root: runtime/quality
+  compatibility_evidence_root: runtime/artifacts/quality/gate
+  capture_timing: true
+  capture_exit_code: true
+  compact_console_output: true
+affected_tests:
+  default_when_clean:
+    - tests/test_artifact_hygiene_scripts.py
+  mappings:
+    - name: instruction_contracts
+      path_prefixes:
+        - AGENTS.md
+        - CLAUDE.md
+        - GEMINI.md
+        - docs/providers/instruction_claude_provider.md
+        - docs/providers/instruction_codex_provider.md
+        - src/ai4binance/governance/AGENTS.md
+        - tests/AGENTS.md
+      tests:
+        - tests/test_governance_constitution_sync.py
+        - tests/test_docs_hygiene.py
+        - tests/test_kaizen_quality.py
+        - tests/test_repository_validator.py
+    - name: quality_gate_policy_and_wrapper
+      path_prefixes:
+        - scripts/quality.ps1
+        - pyproject.toml
+        - config/quality/
+      tests:
+        - tests/test_artifact_hygiene_scripts.py::test_quality_script_isolates_coverage_artifacts
+        - tests/test_artifact_hygiene_scripts.py::test_quality_script_runs_gate_steps_in_governed_order
+        - tests/test_artifact_hygiene_scripts.py::test_quality_script_profiles_preserve_canonical_full_authority
+        - tests/test_artifact_hygiene_scripts.py::test_quality_gate_profile_config_separates_fast_standard_full
+        - tests/test_artifact_hygiene_scripts.py::test_quality_script_fast_affected_mapping_is_fail_closed
+        - tests/test_artifact_hygiene_scripts.py::test_quality_script_final_metadata_tracks_completion_step
+        - tests/test_quality_gate_profiles.py
+    - name: script_hygiene
+      path_prefixes:
+        - scripts/
+      tests:
+        - tests/test_artifact_hygiene_scripts.py
+        - tests/test_powershell_source_hygiene.py
+    - name: quality_gate_engine
+      path_prefixes:
+        - src/ai4binance/ops/quality_gate/
+      tests:
+        - tests/test_quality_gate_profiles.py
+    - name: maintainability_ratchet
+      path_prefixes:
+        - config/quality/ruff-maintainability-baseline.json
+        - src/ai4binance/ops/maintainability_ratchet.py
+        - tests/test_maintainability_ratchet.py
+      tests:
+        - tests/test_maintainability_ratchet.py
+    - name: embedded_sql_contracts
+      path_prefixes:
+        - src/ai4binance/data/market_depth.py
+        - src/ai4binance/execution/authorization.py
+        - src/ai4binance/governance/capability_store.py
+        - src/ai4binance/infrastructure/persistence/memory_projection.py
+        - tests/test_sqlite_query_contracts.py
+      tests:
+        - tests/test_sqlite_query_contracts.py
+        - tests/test_market_depth.py
+        - tests/test_execution_authorization.py
+        - tests/test_governance_capability_store.py
+        - tests/test_memory_projection.py
+    - name: architecture_conformance
+      path_prefixes:
+        - docs/registries/registry_logical_architecture.yaml
+        - schemas/architecture/
+        - src/ai4binance/application/research.py
+        - src/ai4binance/governance/adapters.py
+        - src/ai4binance/governance/architecture/
+        - src/ai4binance/governance/dge_engine.py
+        - src/ai4binance/governance/dge_models.py
+        - src/ai4binance/governance/rules.py
+        - src/ai4binance/research_runtime.py
+      tests:
+        - tests/governance/architecture/test_logical_architecture_registry.py
+        - tests/test_dge_models.py
+        - tests/test_dge_engine.py
+        - tests/test_research_application.py
+    - name: governance
+      path_prefixes:
+        - src/ai4binance/governance/
+        - policies/
+      tests:
+        - tests/test_governance_constitution_sync.py
+        - tests/test_repository_validator.py
+    - name: canonical_import_compatibility
+      path_prefixes:
+        - src/ai4binance/application/opportunity_monitor.py
+        - src/ai4binance/application/context/memory.py
+        - src/ai4binance/compatibility/
+        - src/ai4binance/ops/architecture_migration.py
+        - policies/repository-validator/manifest-policy.json
+      tests:
+        - tests/test_repository_validator.py
+        - tests/test_opportunity_monitor.py
+        - tests/test_governed_memory_fabric.py
+        - tests/test_futures_multitf.py
+        - tests/test_kaizen_quality.py
+        - tests/test_repository_cleanup_audit.py
+    - name: enforcement_inventory
+      path_prefixes:
+        - config/governance/enforcement_inventory.yaml
+        - config/governance/enforcement_profiles.yaml
+        - docs/standards/standard_governed_object_enforcement.md
+        - src/ai4binance/governance/enforcement/
+        - tests/test_governed_object_enforcement.py
+      tests:
+        - tests/test_governed_object_enforcement.py
+        - tests/test_quality_gate_profiles.py
+    - name: semantic_governance_enforcement_fabric
+      path_prefixes:
+        - config/governance/governance_enforcement_fabric.yaml
+        - config/governance/canonical_terminology_registry.yaml
+        - config/governance/technology_language_ownership.yaml
+        - policies/repository-validator/manifest-policy.json
+        - schemas/governance/governance_enforcement_fabric.schema.json
+        - schemas/governance/canonical_terminology_registry.schema.json
+        - schemas/governance/technology_language_ownership.schema.json
+        - docs/standards/standard_terminology_governance.md
+        - docs/standards/standard_repository_naming_governance.md
+        - docs/standards/standard_technology_language_ownership.md
+        - src/ai4binance/governance/governance_enforcement_fabric.py
+        - src/ai4binance/governance/terminology_policy.py
+        - src/ai4binance/governance/technology_language_policy.py
+      tests:
+        - tests/governance/terminology/test_governance_enforcement_fabric.py
+        - tests/governance/architecture/test_technology_language_policy.py
+        - tests/test_repository_validator.py
+    - name: authority_layer_development
+      path_prefixes:
+        - config/governance/authority_layer_development_matrix.yaml
+        - schemas/governance/authority_layer_development_matrix.schema.json
+        - docs/registries/registry_authority_graph.yaml
+        - src/ai4binance/governance/authority/development.py
+        - src/ai4binance/governance/authority/__init__.py
+      tests:
+        - tests/governance/authority/test_authority_development.py
+        - tests/governance/authority/test_authority_metadata.py
+        - tests/governance/authority/test_authority_repository_integration.py
+        - tests/test_repository_validator.py
+    - name: kaizen_culture
+      path_prefixes:
+        - src/ai4binance/ops/kaizen_quality.py
+      tests:
+        - tests/test_kaizen_quality.py
+    - name: lean_process
+      path_prefixes:
+        - src/ai4binance/governance/lean.py
+      tests:
+        - tests/test_lean_governance.py
+    - name: six_sigma_performance
+      path_prefixes:
+        - src/ai4binance/governance/lean.py
+        - src/ai4binance/ops/performance.py
+      tests:
+        - tests/test_lean_governance.py
+        - tests/test_performance_guard.py
+    - name: schemas_and_contracts
+      path_prefixes:
+        - schemas/
+        - contracts/
+        - src/ai4binance/schema_validation.py
+        - src/ai4binance/wire_contracts.py
+      tests:
+        - tests/test_repository_validator.py
+        - tests/contract/schema/test_market_snapshot_wire_contract.py
+    - name: governed_docs
+      path_prefixes:
+        - docs/
+      tests:
+        - tests/test_docs_hygiene.py
+        - tests/test_repository_validator.py
+    - name: tests
+      path_prefixes:
+        - tests/
+      tests_from_changed_paths: true
+  unknown_impact_escalates_to: standard
+standard_impact_tests:
+  mappings:
+    - name: instruction_contracts
+      path_prefixes:
+        - AGENTS.md
+        - CLAUDE.md
+        - GEMINI.md
+        - docs/providers/instruction_claude_provider.md
+        - docs/providers/instruction_codex_provider.md
+        - src/ai4binance/governance/AGENTS.md
+        - tests/AGENTS.md
+      tests:
+        - tests/test_governance_constitution_sync.py
+        - tests/test_docs_hygiene.py
+        - tests/test_kaizen_quality.py
+        - tests/test_repository_validator.py
+    - name: changed_tests
+      path_prefixes:
+        - tests/
+      tests_from_changed_paths: true
+    - name: critical_architecture_conformance
+      path_prefixes:
+        - docs/registries/registry_logical_architecture.yaml
+        - schemas/architecture/
+        - src/ai4binance/application/research.py
+        - src/ai4binance/governance/adapters.py
+        - src/ai4binance/governance/architecture/
+        - src/ai4binance/governance/dge_engine.py
+        - src/ai4binance/governance/dge_models.py
+        - src/ai4binance/governance/rules.py
+        - src/ai4binance/research_runtime.py
+      tests:
+        - tests/governance/architecture/test_logical_architecture_registry.py
+        - tests/test_dge_models.py
+        - tests/test_dge_engine.py
+        - tests/test_research_application.py
+    - name: critical_governance
+      path_prefixes:
+        - src/ai4binance/governance/
+        - policies/
+      tests:
+        - tests/test_governance_constitution_sync.py
+        - tests/test_repository_validator.py
+        - tests/test_governance_gate.py
+        - tests/test_determinism_replay_qaqc.py
+        - tests/test_agent_evidence_contracts.py
+    - name: critical_enforcement_inventory
+      path_prefixes:
+        - config/governance/enforcement_inventory.yaml
+        - config/governance/enforcement_profiles.yaml
+        - docs/standards/standard_governed_object_enforcement.md
+        - src/ai4binance/governance/enforcement/
+        - tests/test_governed_object_enforcement.py
+      tests:
+        - tests/test_governed_object_enforcement.py
+        - tests/test_governance_gate.py
+        - tests/test_repository_validator.py
+        - tests/test_requirement_assurance_chain.py
+    - name: critical_semantic_governance_enforcement_fabric
+      path_prefixes:
+        - config/governance/governance_enforcement_fabric.yaml
+        - config/governance/canonical_terminology_registry.yaml
+        - config/governance/technology_language_ownership.yaml
+        - policies/repository-validator/manifest-policy.json
+        - schemas/governance/governance_enforcement_fabric.schema.json
+        - schemas/governance/canonical_terminology_registry.schema.json
+        - schemas/governance/technology_language_ownership.schema.json
+        - docs/standards/standard_terminology_governance.md
+        - docs/standards/standard_repository_naming_governance.md
+        - docs/standards/standard_technology_language_ownership.md
+        - src/ai4binance/governance/governance_enforcement_fabric.py
+        - src/ai4binance/governance/terminology_policy.py
+        - src/ai4binance/governance/technology_language_policy.py
+      tests:
+        - tests/governance/terminology/test_governance_enforcement_fabric.py
+        - tests/governance/architecture/test_technology_language_policy.py
+        - tests/governance/authority/test_authority_development.py
+        - tests/governance/architecture/test_logical_architecture_registry.py
+        - tests/test_governed_object_enforcement.py
+        - tests/test_kaizen_quality.py
+        - tests/test_lean_governance.py
+        - tests/test_performance_guard.py
+        - tests/test_requirement_assurance_chain.py
+        - tests/test_repository_validator.py
+        - tests/test_governance_gate.py
+        - tests/test_determinism_replay_qaqc.py
+    - name: critical_authority_layer_development
+      path_prefixes:
+        - config/governance/authority_layer_development_matrix.yaml
+        - schemas/governance/authority_layer_development_matrix.schema.json
+        - docs/registries/registry_authority_graph.yaml
+        - src/ai4binance/governance/authority/development.py
+        - src/ai4binance/governance/authority/__init__.py
+      tests:
+        - tests/governance/authority/test_authority_development.py
+        - tests/governance/authority/test_authority_graph.py
+        - tests/governance/authority/test_authority_metadata.py
+        - tests/governance/authority/test_authority_repository_integration.py
+        - tests/test_repository_validator.py
+        - tests/test_governance_gate.py
+    - name: kaizen_culture
+      path_prefixes:
+        - src/ai4binance/ops/kaizen_quality.py
+      tests:
+        - tests/test_kaizen_quality.py
+    - name: lean_process
+      path_prefixes:
+        - src/ai4binance/governance/lean.py
+      tests:
+        - tests/test_lean_governance.py
+    - name: six_sigma_performance
+      path_prefixes:
+        - src/ai4binance/governance/lean.py
+        - src/ai4binance/ops/performance.py
+      tests:
+        - tests/test_lean_governance.py
+        - tests/test_performance_guard.py
+    - name: critical_contracts
+      path_prefixes:
+        - schemas/
+        - contracts/
+        - src/ai4binance/core/contracts/
+        - src/ai4binance/schema_validation.py
+        - src/ai4binance/wire_contracts.py
+      tests:
+        - tests/test_repository_validator.py
+        - tests/test_enterprise_contracts.py
+        - tests/test_agent_evidence_contracts.py
+        - tests/test_determinism_replay_qaqc.py
+        - tests/contract/schema/test_market_snapshot_wire_contract.py
+    - name: critical_risk_decision_execution_validation
+      path_prefixes:
+        - src/ai4binance/risk/
+        - src/ai4binance/decision/
+        - src/ai4binance/execution/
+        - src/ai4binance/validation/
+      tests:
+        - tests/test_strategy_risk.py
+        - tests/test_execution_authority.py
+        - tests/test_execution_envelope.py
+        - tests/test_validation_integrity.py
+        - tests/test_determinism_replay_qaqc.py
+required_tests:
+  - tests/test_artifact_hygiene_scripts.py
+  - tests/test_maintainability_ratchet.py
+  - tests/test_powershell_source_hygiene.py
+  - tests/test_quality_gate_profiles.py
+  - tests/test_sqlite_query_contracts.py
+  - tests/test_governance_constitution_sync.py
+  - tests/test_repository_validator.py
+governance:
+  fast_pass_is_not_full_verified: true
+  dmypy_is_local_accelerator_only: true
+  unknown_affected_scope_escalates: standard

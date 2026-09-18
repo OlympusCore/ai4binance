@@ -1,0 +1,19 @@
+"""Refresh learning through the existing read-only runtime analysis pipeline."""
+
+import os
+import threading
+
+from ai4binance.cli.runtime import build_read_only_runtime
+from ai4binance.config import Settings
+
+
+if __name__ == "__main__":
+    # Reuse the runtime's evidence provider and virtual-learning merge. Do not
+    # serialize the report: it can contain private account information.
+    deadline = threading.Timer(180, lambda: os._exit(124))
+    deadline.daemon = True
+    deadline.start()
+    try:
+        build_read_only_runtime(Settings()).run()
+    finally:
+        deadline.cancel()

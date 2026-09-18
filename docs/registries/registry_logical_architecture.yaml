@@ -1,0 +1,696 @@
+registry_id: AI4B-LOGICAL-ARCHITECTURE-REGISTRY-001
+version: 1.12.0
+status: ACTIVE
+source_of_truth: false
+execution_allowed: false
+live_eligibility_status: LIVE_ORDER_BLOCKED
+components:
+  - component_id: closure-review
+    component_kind: CAPABILITY
+    canonical_domain: 10_EXECUTION
+    logical_plane: DECISION & EXECUTION PLANE
+    dependency_layer: execution
+    runtime_class: IMMUTABLE_CONTRACT
+    owner: Execution Governance
+    authority_effect: EVIDENCE_ONLY
+    source_paths:
+      - src/ai4binance/execution/lifecycle.py
+    contract_refs:
+      - docs/governance/framework_core_vnext_governance.md
+    test_refs:
+      - tests/test_paper_lifecycle.py
+    hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: core-architecture-framework
+    component_kind: ENGINE
+    canonical_domain: 13_GOVERNANCE
+    logical_plane: CONTROL & ASSURANCE PLANE
+    dependency_layer: governance
+    runtime_class: GOVERNED_DETERMINISTIC
+    owner: Governance
+    authority_effect: IMPLEMENTATION
+    source_paths:
+      - src/ai4binance/governance/framework.py
+    contract_refs:
+      - docs/governance/framework_core_vnext_governance.md
+    test_refs:
+      - tests/test_governance_framework_v2.py
+    hot_path: false
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: data-quality
+    component_kind: CONTROL
+    canonical_domain: 02_MARKET_DATA
+    logical_plane: DATA & EVIDENCE PLANE
+    dependency_layer: data
+    runtime_class: GOVERNED_DETERMINISTIC
+    owner: Data Quality Governance
+    authority_effect: EVIDENCE_ONLY
+    source_paths:
+      - src/ai4binance/data/binance_vision.py
+    contract_refs:
+      - docs/architecture/framework_architecture_overview.md
+    test_refs:
+      - tests/test_binance_vision.py
+    hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: decision-candidate
+    component_kind: CAPABILITY
+    canonical_domain: 07_DECISION
+    logical_plane: DECISION & EXECUTION PLANE
+    dependency_layer: governance
+    runtime_class: IMMUTABLE_CONTRACT
+    owner: Decision Governance
+    authority_effect: EVIDENCE_ONLY
+    source_paths:
+      - src/ai4binance/governance/dge_models.py
+    contract_refs:
+      - docs/governance/framework_core_vnext_governance.md
+      - schemas/decisions/decision_candidate.schema.json
+    test_refs:
+      - tests/contract/schema/test_decision_candidate_wire_contract.py
+      - tests/test_dge_models.py
+    hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: decision-governance
+    component_kind: ENGINE
+    canonical_domain: 13_GOVERNANCE
+    logical_plane: CONTROL & ASSURANCE PLANE
+    dependency_layer: governance
+    runtime_class: GOVERNED_DETERMINISTIC
+    owner: Decision Governance
+    authority_effect: IMPLEMENTATION
+    source_paths:
+      - src/ai4binance/governance/dge_engine.py
+    contract_refs:
+      - docs/governance/framework_core_vnext_governance.md
+      - docs/governance/framework_decision_governance_engine.md
+    test_refs:
+      - tests/test_dge_engine.py
+    hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: deterministic-core
+    component_kind: ENGINE
+    canonical_domain: 07_DECISION
+    logical_plane: DECISION & EXECUTION PLANE
+    dependency_layer: governance
+    runtime_class: GOVERNED_DETERMINISTIC
+    owner: Decision Governance
+    authority_effect: IMPLEMENTATION
+    source_paths:
+      - src/ai4binance/governance/framework.py
+    contract_refs:
+      - docs/governance/framework_core_vnext_governance.md
+    test_refs:
+      - tests/test_governance_framework_v2.py
+    hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: event-replay
+    component_kind: SERVICE
+    canonical_domain: 17_EVENT_FABRIC
+    logical_plane: ORCHESTRATION + EVENT FABRIC
+    dependency_layer: evidence
+    runtime_class: DETERMINISTIC_REPLAY
+    owner: Event Fabric Governance
+    authority_effect: EVIDENCE_ONLY
+    source_paths:
+      - src/ai4binance/governance/replay.py
+    contract_refs:
+      - docs/governance/framework_core_vnext_governance.md
+    test_refs:
+      - tests/test_dge_recovery_replay_shadow.py
+    hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: execution-gate-result
+    component_kind: GATE
+    canonical_domain: 10_EXECUTION
+    logical_plane: DECISION & EXECUTION PLANE
+    dependency_layer: governance
+    runtime_class: DETERMINISTIC_HOT_PATH
+    owner: Execution Governance
+    authority_effect: VETO
+    source_paths:
+      - src/ai4binance/governance/framework.py
+    contract_refs:
+      - docs/governance/framework_core_vnext_governance.md
+    test_refs:
+      - tests/test_governance_framework_v2.py
+    hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: execution-record
+    component_kind: CAPABILITY
+    canonical_domain: 10_EXECUTION
+    logical_plane: DECISION & EXECUTION PLANE
+    dependency_layer: governance
+    runtime_class: IMMUTABLE_CONTRACT
+    owner: Execution Governance
+    authority_effect: EVIDENCE_ONLY
+    source_paths:
+      - src/ai4binance/governance/framework.py
+    contract_refs:
+      - docs/governance/framework_core_vnext_governance.md
+    test_refs:
+      - tests/test_governance_framework_v2.py
+    hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: kaizen-quality-snapshot
+    component_kind: ENGINE
+    canonical_domain: 15_AUDIT_OBSERVABILITY
+    logical_plane: CONTROL & ASSURANCE PLANE
+    dependency_layer: ops
+    runtime_class: REPORT_ONLY
+    owner: EvaluationObservability
+    authority_effect: EVIDENCE_ONLY
+    source_paths:
+      - src/ai4binance/ops/kaizen_quality.py
+    contract_refs:
+      - docs/reports/governance/report_kaizen_quality_snapshot.md
+    test_refs:
+      - tests/test_kaizen_quality.py
+    hot_path: false
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: learning-candidate
+    component_kind: CAPABILITY
+    canonical_domain: 12_LEARNING
+    logical_plane: CONTROL & ASSURANCE PLANE
+    dependency_layer: governance
+    runtime_class: CANONICAL_CONTRACT
+    owner: Learning Governance
+    authority_effect: EVIDENCE_ONLY
+    source_paths:
+      - src/ai4binance/governance/framework.py
+    contract_refs:
+      - docs/governance/framework_core_vnext_governance.md
+    test_refs:
+      - tests/test_governance_framework_v2.py
+    hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: lesson
+    component_kind: CAPABILITY
+    canonical_domain: 12_LEARNING
+    logical_plane: CONTROL & ASSURANCE PLANE
+    dependency_layer: governance
+    runtime_class: CANONICAL_CONTRACT
+    owner: Learning Governance
+    authority_effect: EVIDENCE_ONLY
+    source_paths:
+      - src/ai4binance/governance/framework.py
+    contract_refs:
+      - docs/governance/framework_core_vnext_governance.md
+    test_refs:
+      - tests/test_governance_framework_v2.py
+    hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: logical-architecture-registry
+    component_kind: REGISTRY
+    canonical_domain: 01_REGISTRIES
+    logical_plane: CONTROL & ASSURANCE PLANE
+    dependency_layer: governance
+    runtime_class: REPORT_ONLY
+    owner: ArchitectureGovernance
+    authority_effect: EVIDENCE_ONLY
+    source_paths:
+      - src/ai4binance/governance/architecture/model.py
+      - src/ai4binance/governance/architecture/loader.py
+      - src/ai4binance/governance/architecture/graph.py
+    contract_refs:
+      - schemas/architecture/logical_architecture.schema.json
+      - docs/registries/registry_logical_architecture.yaml
+    test_refs:
+      - tests/governance/architecture/test_logical_architecture_registry.py
+    hot_path: false
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: opportunity-intelligence
+    component_kind: ENGINE
+    canonical_domain: 04_INTELLIGENCE
+    logical_plane: INTELLIGENCE PLANE
+    dependency_layer: intelligence
+    runtime_class: DETERMINISTIC_RESEARCH
+    owner: MarketIntelligence
+    authority_effect: EVIDENCE_ONLY
+    source_paths:
+      - src/ai4binance/opportunity_intelligence.py
+    contract_refs:
+      - docs/architecture/framework_architecture_overview.md
+    test_refs:
+      - tests/test_opportunity_intelligence.py
+    hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: opportunity-lifecycle-ledger
+    component_kind: SERVICE
+    canonical_domain: 14_EVIDENCE
+    logical_plane: DATA & EVIDENCE PLANE
+    dependency_layer: evidence
+    runtime_class: APPEND_ONLY_RESEARCH_EVIDENCE
+    owner: EvidenceKnowledge
+    authority_effect: EVIDENCE_ONLY
+    source_paths:
+      - src/ai4binance/historical_replay_state.py
+      - src/ai4binance/opportunity_ledger.py
+    contract_refs:
+      - docs/architecture/framework_architecture_overview.md
+    test_refs:
+      - tests/test_historical_replay_state.py
+      - tests/test_opportunity_intelligence.py
+    hot_path: false
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: opportunity-outcome-evaluation
+    component_kind: ENGINE
+    canonical_domain: 11_VALIDATION
+    logical_plane: CONTROL & ASSURANCE PLANE
+    dependency_layer: validation
+    runtime_class: POST_HOC_RESEARCH_EVALUATION
+    owner: BacktestValidation
+    authority_effect: EVIDENCE_ONLY
+    source_paths:
+      - src/ai4binance/opportunity_outcomes.py
+      - src/ai4binance/research/backtesting/futures_engine.py
+    contract_refs:
+      - docs/architecture/framework_architecture_overview.md
+    test_refs:
+      - tests/test_futures_backtest_engine.py
+      - tests/test_opportunity_intelligence.py
+    hot_path: false
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: policy
+    component_kind: CONTROL
+    canonical_domain: 13_GOVERNANCE
+    logical_plane: CONTROL & ASSURANCE PLANE
+    dependency_layer: governance
+    runtime_class: GOVERNED_DETERMINISTIC
+    owner: Governance
+    authority_effect: VETO
+    source_paths:
+      - src/ai4binance/governance/policy_as_code.py
+    contract_refs:
+      - docs/governance/framework_core_vnext_governance.md
+    test_refs:
+      - tests/test_governance_framework_v2.py
+    hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: portfolio-accounting
+    component_kind: SERVICE
+    canonical_domain: 09_PORTFOLIO
+    logical_plane: DECISION & EXECUTION PLANE
+    dependency_layer: portfolio
+    runtime_class: READ_ONLY_ACCOUNTING
+    owner: Portfolio Accounting
+    authority_effect: EVIDENCE_ONLY
+    source_paths:
+      - src/ai4binance/portfolio/cost_basis.py
+    contract_refs:
+      - docs/architecture/framework_architecture_overview.md
+    test_refs:
+      - tests/test_cost_basis.py
+    hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: position-lifecycle
+    component_kind: CAPABILITY
+    canonical_domain: 10_EXECUTION
+    logical_plane: DECISION & EXECUTION PLANE
+    dependency_layer: governance
+    runtime_class: CANONICAL_CONTRACT
+    owner: Execution Governance
+    authority_effect: EVIDENCE_ONLY
+    source_paths:
+      - src/ai4binance/governance/framework.py
+    contract_refs:
+      - docs/governance/framework_core_vnext_governance.md
+    test_refs:
+      - tests/test_governance_framework_v2.py
+    hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: risk-assessment
+    component_kind: GATE
+    canonical_domain: 08_RISK
+    logical_plane: DECISION & EXECUTION PLANE
+    dependency_layer: governance
+    runtime_class: DETERMINISTIC_HOT_PATH
+    owner: Risk Governance
+    authority_effect: VETO
+    source_paths:
+      - src/ai4binance/governance/framework.py
+    contract_refs:
+      - docs/governance/framework_core_vnext_governance.md
+    test_refs:
+      - tests/test_governance_framework_v2.py
+    hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: security-controls
+    component_kind: CONTROL
+    canonical_domain: 16_SECURITY
+    logical_plane: CONTROL & ASSURANCE PLANE
+    dependency_layer: governance
+    runtime_class: GOVERNED_DETERMINISTIC
+    owner: Security Governance
+    authority_effect: EVIDENCE_ONLY
+    source_paths:
+      - src/ai4binance/governance/mcp_gateway.py
+    contract_refs:
+      - docs/governance/framework_core_vnext_governance.md
+    test_refs:
+      - tests/test_governance_tool_gateway.py
+    hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: setup
+    component_kind: CAPABILITY
+    canonical_domain: 07_DECISION
+    logical_plane: DECISION & EXECUTION PLANE
+    dependency_layer: governance
+    runtime_class: CANONICAL_CONTRACT
+    owner: Decision Governance
+    authority_effect: EVIDENCE_ONLY
+    source_paths:
+      - src/ai4binance/governance/framework.py
+    contract_refs:
+      - docs/governance/framework_core_vnext_governance.md
+    test_refs:
+      - tests/test_governance_framework_v2.py
+    hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: technology-language-policy-enforcement
+    component_kind: CONTROL
+    canonical_domain: 13_GOVERNANCE
+    logical_plane: CONTROL & ASSURANCE PLANE
+    dependency_layer: governance
+    runtime_class: GOVERNED_DETERMINISTIC
+    owner: Enterprise Architecture
+    authority_effect: IMPLEMENTATION
+    source_paths:
+      - src/ai4binance/governance/technology_language_policy.py
+    contract_refs:
+      - docs/standards/standard_technology_language_ownership.md
+      - schemas/governance/technology_language_ownership.schema.json
+    test_refs:
+      - tests/governance/architecture/test_technology_language_policy.py
+    hot_path: false
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: trade-decision
+    component_kind: CAPABILITY
+    canonical_domain: 07_DECISION
+    logical_plane: DECISION & EXECUTION PLANE
+    dependency_layer: governance
+    runtime_class: IMMUTABLE_CONTRACT
+    owner: Decision Governance
+    authority_effect: EVIDENCE_ONLY
+    source_paths:
+      - src/ai4binance/governance/dge_models.py
+    contract_refs:
+      - docs/governance/framework_core_vnext_governance.md
+    test_refs:
+      - tests/test_dge_engine.py
+      - tests/test_dge_models.py
+    hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: trade-plan
+    component_kind: CAPABILITY
+    canonical_domain: 10_EXECUTION
+    logical_plane: DECISION & EXECUTION PLANE
+    dependency_layer: governance
+    runtime_class: CANONICAL_CONTRACT
+    owner: Execution Governance
+    authority_effect: EVIDENCE_ONLY
+    source_paths:
+      - src/ai4binance/governance/framework.py
+    contract_refs:
+      - docs/governance/framework_core_vnext_governance.md
+    test_refs:
+      - tests/test_governance_framework_v2.py
+    hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: validation
+    component_kind: GATE
+    canonical_domain: 11_VALIDATION
+    logical_plane: CONTROL & ASSURANCE PLANE
+    dependency_layer: governance
+    runtime_class: DETERMINISTIC_HOT_PATH
+    owner: Validation Governance
+    authority_effect: VETO
+    source_paths:
+      - src/ai4binance/governance/framework.py
+    contract_refs:
+      - docs/governance/framework_core_vnext_governance.md
+    test_refs:
+      - tests/test_governance_framework_v2.py
+    hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+relations:
+  - relation_id: candidate-constrained-by-risk-assessment
+    from_component_id: decision-candidate
+    to_component_id: risk-assessment
+    relation_type: CONSTRAINED_BY
+  - relation_id: candidate-validated-by-validation
+    from_component_id: decision-candidate
+    to_component_id: validation
+    relation_type: VALIDATED_BY
+  - relation_id: closure-review-produces-lesson
+    from_component_id: closure-review
+    to_component_id: lesson
+    relation_type: PRODUCES_LESSON
+  - relation_id: decision-governance-produces-trade-decision
+    from_component_id: decision-governance
+    to_component_id: trade-decision
+    relation_type: PRODUCES
+  - relation_id: deterministic-core-produces-decision-candidate
+    from_component_id: deterministic-core
+    to_component_id: decision-candidate
+    relation_type: PRODUCES
+  - relation_id: execution-record-creates-position-lifecycle
+    from_component_id: execution-record
+    to_component_id: position-lifecycle
+    relation_type: CREATES
+  - relation_id: kaizen-snapshot-consumes-registry
+    from_component_id: kaizen-quality-snapshot
+    to_component_id: logical-architecture-registry
+    relation_type: CONSUMES
+  - relation_id: lesson-proposes-learning-candidate
+    from_component_id: lesson
+    to_component_id: learning-candidate
+    relation_type: PROPOSES
+  - relation_id: position-lifecycle-evaluated-by-closure-review
+    from_component_id: position-lifecycle
+    to_component_id: closure-review
+    relation_type: EVALUATED_BY
+  - relation_id: registry-mirrors-core-architecture
+    from_component_id: logical-architecture-registry
+    to_component_id: core-architecture-framework
+    relation_type: DEPENDS_ON
+  - relation_id: setup-evaluated-by-deterministic-core
+    from_component_id: setup
+    to_component_id: deterministic-core
+    relation_type: EVALUATED_BY
+  - relation_id: trade-decision-governed-by-policy
+    from_component_id: trade-decision
+    to_component_id: policy
+    relation_type: GOVERNED_BY
+  - relation_id: trade-plan-subject-to-execution-gate-result
+    from_component_id: trade-plan
+    to_component_id: execution-gate-result
+    relation_type: SUBJECT_TO

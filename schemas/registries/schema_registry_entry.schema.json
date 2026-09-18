@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ai4binance:schema:registries:schema-registry-entry:1.0.0",
+  "title": "AI4Binance Schema Registry Entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_id", "schema_family", "version", "canonical_path", "python_contract", "compatibility_policy", "network_schema_resolution"],
+  "properties": {
+    "schema_id": {"type": "string", "pattern": "^urn:ai4binance:schema:"},
+    "schema_family": {"type": "string", "minLength": 1},
+    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "canonical_path": {"type": "string", "pattern": "^schemas/.+\\.schema\\.json$"},
+    "python_contract": {"type": ["string", "null"]},
+    "compatibility_policy": {"enum": ["STRICT_VERSIONED", "REVIEW_REQUIRED"]},
+    "network_schema_resolution": {"const": "DISABLED"}
+  }
+}

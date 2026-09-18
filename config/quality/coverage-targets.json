@@ -1,0 +1,608 @@
+{
+  "coverage_policy": {
+    "policy_id": "AI4B-POL-QUALITY-COVERAGE-001",
+    "governed_minimum": 95.0,
+    "remediation_trigger": 93.0,
+    "enforcement_mode": "baseline_migration",
+    "branch_minimum": 95.0
+  },
+  "architecture_assurance": {
+    "registry_path": "docs/registries/registry_logical_architecture.yaml",
+    "statement_minimum": 95.0,
+    "branch_minimum": 95.0,
+    "critical_target_groups": {
+      "governance": {
+        "tier": "T0",
+        "priority": "P0",
+        "authority_class": "GOVERNANCE",
+        "economic_impact": "HIGH",
+        "execution_impact": "HIGH",
+        "blast_radius": "HIGH",
+        "canonical_domains": ["13_GOVERNANCE"],
+        "component_ids": ["core-architecture-framework", "decision-governance", "policy"],
+        "required_relation_ids": ["decision-governance-produces-trade-decision", "trade-decision-governed-by-policy"],
+        "requires_runtime_evidence": false
+      },
+      "decision": {
+        "tier": "T0",
+        "priority": "P0",
+        "authority_class": "DECISION_GOVERNANCE",
+        "economic_impact": "HIGH",
+        "execution_impact": "HIGH",
+        "blast_radius": "HIGH",
+        "canonical_domains": ["07_DECISION"],
+        "component_ids": ["decision-candidate", "deterministic-core", "setup", "trade-decision"],
+        "required_relation_ids": ["deterministic-core-produces-decision-candidate", "setup-evaluated-by-deterministic-core"],
+        "requires_runtime_evidence": false
+      },
+      "risk": {
+        "tier": "T0",
+        "priority": "P0",
+        "authority_class": "RISK",
+        "economic_impact": "HIGH",
+        "execution_impact": "HIGH",
+        "blast_radius": "HIGH",
+        "canonical_domains": ["08_RISK"],
+        "component_ids": ["risk-assessment"],
+        "required_relation_ids": ["candidate-constrained-by-risk-assessment"],
+        "requires_runtime_evidence": false
+      },
+      "validation": {
+        "tier": "T0",
+        "priority": "P0",
+        "authority_class": "VALIDATION",
+        "economic_impact": "HIGH",
+        "execution_impact": "HIGH",
+        "blast_radius": "HIGH",
+        "canonical_domains": ["11_VALIDATION"],
+        "component_ids": ["opportunity-outcome-evaluation", "validation"],
+        "required_relation_ids": ["candidate-validated-by-validation"],
+        "requires_runtime_evidence": false
+      },
+      "execution": {
+        "tier": "T0",
+        "priority": "P0",
+        "authority_class": "EXECUTION_GOVERNANCE",
+        "economic_impact": "HIGH",
+        "execution_impact": "HIGH",
+        "blast_radius": "HIGH",
+        "canonical_domains": ["10_EXECUTION"],
+        "component_ids": ["closure-review", "execution-gate-result", "execution-record", "position-lifecycle", "trade-plan"],
+        "required_relation_ids": ["closure-review-produces-lesson", "execution-record-creates-position-lifecycle", "position-lifecycle-evaluated-by-closure-review", "trade-plan-subject-to-execution-gate-result"],
+        "requires_runtime_evidence": false
+      },
+      "portfolio_accounting": {
+        "tier": "T1",
+        "priority": "P1",
+        "authority_class": "PORTFOLIO_ACCOUNTING",
+        "economic_impact": "HIGH",
+        "execution_impact": "MEDIUM",
+        "blast_radius": "MEDIUM",
+        "canonical_domains": ["09_PORTFOLIO"],
+        "component_ids": ["portfolio-accounting"],
+        "requires_runtime_evidence": false
+      },
+      "data_quality": {
+        "tier": "T1",
+        "priority": "P1",
+        "authority_class": "DATA_QUALITY",
+        "economic_impact": "MEDIUM",
+        "execution_impact": "HIGH",
+        "blast_radius": "HIGH",
+        "canonical_domains": ["02_MARKET_DATA", "03_SHARED_MARKET_STATE"],
+        "component_ids": ["data-quality"],
+        "requires_runtime_evidence": false
+      },
+      "evidence_lineage": {
+        "tier": "T1",
+        "priority": "P1",
+        "authority_class": "EVIDENCE",
+        "economic_impact": "MEDIUM",
+        "execution_impact": "MEDIUM",
+        "blast_radius": "MEDIUM",
+        "canonical_domains": ["14_EVIDENCE"],
+        "component_ids": ["opportunity-lifecycle-ledger"],
+        "requires_runtime_evidence": false
+      },
+      "event_replay": {
+        "tier": "T1",
+        "priority": "P1",
+        "authority_class": "EVENT_FABRIC",
+        "economic_impact": "MEDIUM",
+        "execution_impact": "HIGH",
+        "blast_radius": "HIGH",
+        "canonical_domains": ["17_EVENT_FABRIC"],
+        "component_ids": ["event-replay"],
+        "requires_runtime_evidence": false
+      },
+      "security_controls": {
+        "tier": "T0",
+        "priority": "P0",
+        "authority_class": "SECURITY",
+        "economic_impact": "HIGH",
+        "execution_impact": "HIGH",
+        "blast_radius": "HIGH",
+        "canonical_domains": ["16_SECURITY"],
+        "component_ids": ["security-controls"],
+        "requires_runtime_evidence": false
+      }
+    },
+    "relation_proofs": [
+      {
+        "relation_id": "candidate-constrained-by-risk-assessment",
+        "test_assertion_refs": ["tests/test_dge_engine.py::test_dge_perfect_score_cannot_override_authority_vetoes"],
+        "expected_outcome": "NO_TRADE",
+        "requires_runtime_evidence": false
+      },
+      {
+        "relation_id": "candidate-validated-by-validation",
+        "test_assertion_refs": ["tests/test_dge_engine.py::test_dge_data_quality_failure_is_first_class_and_non_executable"],
+        "expected_outcome": "NO_TRADE",
+        "requires_runtime_evidence": false
+      },
+      {
+        "relation_id": "closure-review-produces-lesson",
+        "test_assertion_refs": ["tests/test_governance_framework_v2.py::test_controlled_learning_contract_is_research_only_and_lifecycle_bound"],
+        "expected_outcome": "LIVE_ORDER_BLOCKED",
+        "requires_runtime_evidence": false
+      },
+      {
+        "relation_id": "decision-governance-produces-trade-decision",
+        "test_assertion_refs": ["tests/test_dge_engine.py::test_dge_blocks_high_score_candidate_when_required_evidence_is_missing"],
+        "expected_outcome": "NO_TRADE",
+        "requires_runtime_evidence": false
+      },
+      {
+        "relation_id": "deterministic-core-produces-decision-candidate",
+        "test_assertion_refs": ["tests/test_dge_engine.py::test_dge_blocks_high_score_candidate_when_required_evidence_is_missing"],
+        "expected_outcome": "NO_TRADE",
+        "requires_runtime_evidence": false
+      },
+      {
+        "relation_id": "execution-record-creates-position-lifecycle",
+        "test_assertion_refs": ["tests/test_governance_framework_v2.py::test_canonical_hard_blockers_fail_closed_and_live_candidates_block"],
+        "expected_outcome": "LIVE_ORDER_BLOCKED",
+        "requires_runtime_evidence": false
+      },
+      {
+        "relation_id": "lesson-proposes-learning-candidate",
+        "test_assertion_refs": ["tests/test_governance_framework_v2.py::test_canonical_capability_contracts_require_formula_oracle_and_validation"],
+        "expected_outcome": "RESEARCH_ONLY",
+        "requires_runtime_evidence": false
+      },
+      {
+        "relation_id": "position-lifecycle-evaluated-by-closure-review",
+        "test_assertion_refs": ["tests/test_governance_framework_v2.py::test_controlled_learning_contract_is_research_only_and_lifecycle_bound"],
+        "expected_outcome": "LIVE_ORDER_BLOCKED",
+        "requires_runtime_evidence": false
+      },
+      {
+        "relation_id": "setup-evaluated-by-deterministic-core",
+        "test_assertion_refs": ["tests/test_governance_framework_v2.py::test_core_vnext_identity_maps_unsafe_states_to_no_trade"],
+        "expected_outcome": "NO_TRADE",
+        "requires_runtime_evidence": false
+      },
+      {
+        "relation_id": "trade-decision-governed-by-policy",
+        "test_assertion_refs": ["tests/test_governance_framework_v2.py::test_core_vnext_identity_maps_unsafe_states_to_no_trade"],
+        "expected_outcome": "NO_TRADE",
+        "requires_runtime_evidence": false
+      },
+      {
+        "relation_id": "trade-plan-subject-to-execution-gate-result",
+        "test_assertion_refs": ["tests/test_governance_framework_v2.py::test_canonical_hard_blockers_fail_closed_and_live_candidates_block"],
+        "expected_outcome": "LIVE_ORDER_BLOCKED",
+        "requires_runtime_evidence": false
+      }
+    ],
+    "critical_behavior_obligations": [
+      {
+        "obligation_id": "hard_blocker_denial",
+        "category": "HARD_BLOCKER_PATH",
+        "component_id": "decision-governance",
+        "requirement_ref": "docs/policies/quality/coverage_improvement_strategy_policy.md",
+        "expected_outcome": "NO_TRADE",
+        "test_assertion_refs": ["tests/test_dge_engine.py::test_dge_blocks_high_score_candidate_when_required_evidence_is_missing"],
+        "required_relation_ids": ["decision-governance-produces-trade-decision"],
+        "requires_runtime_evidence": true
+      },
+      {
+        "obligation_id": "risk_veto_denial",
+        "category": "RISK_VETO_PATH",
+        "component_id": "risk-assessment",
+        "requirement_ref": "docs/governance/framework_core_vnext_governance.md",
+        "expected_outcome": "NO_TRADE",
+        "test_assertion_refs": ["tests/test_dge_engine.py::test_dge_perfect_score_cannot_override_authority_vetoes"],
+        "required_relation_ids": ["candidate-constrained-by-risk-assessment"],
+        "requires_runtime_evidence": true
+      },
+      {
+        "obligation_id": "validation_veto_denial",
+        "category": "VALIDATION_VETO_PATH",
+        "component_id": "validation",
+        "requirement_ref": "docs/governance/framework_core_vnext_governance.md",
+        "expected_outcome": "NO_TRADE",
+        "test_assertion_refs": ["tests/test_dge_engine.py::test_dge_data_quality_failure_is_first_class_and_non_executable"],
+        "required_relation_ids": ["candidate-validated-by-validation"],
+        "requires_runtime_evidence": true
+      },
+      {
+        "obligation_id": "governance_conflict_denial",
+        "category": "GOVERNANCE_CONFLICT_PATH",
+        "component_id": "policy",
+        "requirement_ref": "docs/governance/framework_core_vnext_governance.md",
+        "expected_outcome": "NO_TRADE",
+        "test_assertion_refs": ["tests/test_governance_framework_v2.py::test_core_vnext_identity_maps_unsafe_states_to_no_trade"],
+        "required_relation_ids": ["trade-decision-governed-by-policy"],
+        "requires_runtime_evidence": true
+      },
+      {
+        "obligation_id": "live_execution_disabled",
+        "category": "LIVE_ORDER_BLOCK_PATH",
+        "component_id": "execution-gate-result",
+        "requirement_ref": "docs/governance/framework_core_vnext_governance.md",
+        "expected_outcome": "LIVE_ORDER_BLOCKED",
+        "test_assertion_refs": ["tests/test_dge_engine.py::test_dge_blocks_high_score_candidate_when_required_evidence_is_missing"],
+        "required_relation_ids": ["trade-plan-subject-to-execution-gate-result"],
+        "requires_runtime_evidence": true
+      },
+      {
+        "obligation_id": "stale_data_denial",
+        "category": "STALE_DATA_PATH",
+        "component_id": "validation",
+        "requirement_ref": "docs/policies/quality/coverage_improvement_strategy_policy.md",
+        "expected_outcome": "NO_TRADE",
+        "test_assertion_refs": ["tests/test_dge_engine.py::test_dge_snapshot_integrity_failure_is_critical_data_unavailable"],
+        "required_relation_ids": ["candidate-validated-by-validation"],
+        "requires_runtime_evidence": true
+      },
+      {
+        "obligation_id": "insufficient_evidence_denial",
+        "category": "INSUFFICIENT_EVIDENCE_PATH",
+        "component_id": "decision-governance",
+        "requirement_ref": "docs/policies/quality/coverage_improvement_strategy_policy.md",
+        "expected_outcome": "NO_TRADE",
+        "test_assertion_refs": ["tests/test_dge_engine.py::test_dge_blocks_high_score_candidate_when_required_evidence_is_missing"],
+        "required_relation_ids": ["decision-governance-produces-trade-decision"],
+        "requires_runtime_evidence": true
+      },
+      {
+        "obligation_id": "serialization_contract_denial",
+        "category": "SERIALIZATION_PATH",
+        "component_id": "decision-candidate",
+        "requirement_ref": "schemas/decisions/decision_candidate.schema.json",
+        "expected_outcome": "NO_TRADE",
+        "test_assertion_refs": ["tests/test_coverage_assurance_behavior_closure.py::test_trade_decision_serialization_denial_is_semantic"],
+        "required_relation_ids": ["deterministic-core-produces-decision-candidate"],
+        "requires_runtime_evidence": true
+      },
+      {
+        "obligation_id": "replay_integrity_denial",
+        "category": "REPLAY_PATH",
+        "component_id": "opportunity-lifecycle-ledger",
+        "requirement_ref": "docs/architecture/framework_architecture_overview.md",
+        "expected_outcome": "LIVE_ORDER_BLOCKED",
+        "test_assertion_refs": ["tests/test_historical_replay_state.py::test_replay_state_store_round_trips_and_is_idempotent"],
+        "requires_runtime_evidence": true
+      },
+      {
+        "obligation_id": "recovery_fail_closed",
+        "category": "RECOVERY_PATH",
+        "component_id": "closure-review",
+        "requirement_ref": "docs/governance/framework_core_vnext_governance.md",
+        "expected_outcome": "LIVE_ORDER_BLOCKED",
+        "test_assertion_refs": ["tests/test_dge_recovery_replay_shadow.py::test_recovery_radar_candidates_are_governed_without_live_authority"],
+        "required_relation_ids": ["position-lifecycle-evaluated-by-closure-review"],
+        "requires_runtime_evidence": true
+      },
+      {
+        "obligation_id": "counterfactual_research_only",
+        "category": "COUNTERFACTUAL_PATH",
+        "component_id": "opportunity-outcome-evaluation",
+        "requirement_ref": "docs/architecture/framework_architecture_overview.md",
+        "expected_outcome": "RESEARCH_ONLY",
+        "test_assertion_refs": ["tests/test_futures_backtest_engine.py::test_futures_engine_exposes_only_replay_prefix_and_is_deterministic"],
+        "requires_runtime_evidence": true
+      }
+    ]
+  },
+  "audit_policy": {
+    "default_threshold": 93.0,
+    "default_target_coverage": 95.0,
+    "output_basename": "coverage_audit_below_93",
+    "minimum_priority_target": 95.0,
+    "high_authority_target": 97.0,
+    "classification_rules": {
+      "blocker_governance": {
+        "description": "Hard blockers, blocker taxonomy, and default-deny governance.",
+        "priority": "P0",
+        "tier": "T0",
+        "authority_class": "GOVERNANCE",
+        "economic_impact": "HIGH",
+        "execution_impact": "HIGH",
+        "blast_radius": "HIGH",
+        "target_coverage": 97.0,
+        "criticality_score": 99,
+        "include": [
+          "src/ai4binance/governance/blockers.py",
+          "src/ai4binance/governance/tool_policy.py",
+          "src/ai4binance/governance/tool_gateway.py",
+          "src/ai4binance/governance/mcp_gateway.py"
+        ],
+        "test_gap_types": [
+          "HARD_BLOCKER_PATH",
+          "FAIL_CLOSED_PATH",
+          "GOVERNANCE_CONFLICT_PATH"
+        ],
+        "recommended_test_types": [
+          "boundary",
+          "negative",
+          "fail_closed",
+          "determinism"
+        ]
+      },
+      "decision_governance": {
+        "description": "DGE, policy-as-code, and execution eligibility decision surfaces.",
+        "priority": "P0",
+        "tier": "T0",
+        "authority_class": "DECISION_GOVERNANCE",
+        "economic_impact": "HIGH",
+        "execution_impact": "HIGH",
+        "blast_radius": "HIGH",
+        "target_coverage": 97.0,
+        "criticality_score": 96,
+        "include": [
+          "src/ai4binance/governance/dge_engine.py",
+          "src/ai4binance/governance/policy_as_code.py",
+          "src/ai4binance/governance/constitution_sync.py",
+          "src/ai4binance/governance/decision_*.py"
+        ],
+        "test_gap_types": [
+          "VALIDATION_VETO_PATH",
+          "LIVE_ORDER_BLOCK_PATH",
+          "INSUFFICIENT_EVIDENCE_PATH"
+        ],
+        "recommended_test_types": [
+          "fail_closed",
+          "contract",
+          "negative",
+          "replay"
+        ]
+      },
+      "risk_execution": {
+        "description": "Risk veto, live preview, exchange constraints, and execution guards.",
+        "priority": "P0",
+        "tier": "T0",
+        "authority_class": "RISK_EXECUTION",
+        "economic_impact": "HIGH",
+        "execution_impact": "HIGH",
+        "blast_radius": "HIGH",
+        "target_coverage": 97.0,
+        "criticality_score": 94,
+        "include": [
+          "src/ai4binance/risk/**",
+          "src/ai4binance/execution/**",
+          "src/ai4binance/exchange/**",
+          "src/ai4binance/cli/live.py"
+        ],
+        "test_gap_types": [
+          "RISK_VETO_PATH",
+          "LIVE_ORDER_BLOCK_PATH",
+          "RECOVERY_PATH"
+        ],
+        "recommended_test_types": [
+          "boundary",
+          "negative",
+          "fail_closed",
+          "replay"
+        ]
+      },
+      "validation_data_quality": {
+        "description": "Validation, data quality, stale data, and integrity surfaces.",
+        "priority": "P1",
+        "tier": "T1",
+        "authority_class": "VALIDATION",
+        "economic_impact": "MEDIUM",
+        "execution_impact": "HIGH",
+        "blast_radius": "HIGH",
+        "target_coverage": 96.0,
+        "criticality_score": 88,
+        "include": [
+          "src/ai4binance/validation/**",
+          "src/ai4binance/data_quality/**",
+          "src/ai4binance/application/validation_pipeline.py"
+        ],
+        "test_gap_types": [
+          "STALE_DATA_PATH",
+          "VALIDATION_VETO_PATH",
+          "INSUFFICIENT_EVIDENCE_PATH"
+        ],
+        "recommended_test_types": [
+          "boundary",
+          "stale_data",
+          "negative",
+          "contract"
+        ]
+      },
+      "portfolio_accounting": {
+        "description": "Portfolio state, cost basis, rebalancing, and accounting surfaces.",
+        "priority": "P1",
+        "tier": "T1",
+        "authority_class": "PORTFOLIO_ACCOUNTING",
+        "economic_impact": "HIGH",
+        "execution_impact": "MEDIUM",
+        "blast_radius": "MEDIUM",
+        "target_coverage": 96.0,
+        "criticality_score": 84,
+        "include": [
+          "src/ai4binance/portfolio/**",
+          "src/ai4binance/accounting/**"
+        ],
+        "test_gap_types": [
+          "ECONOMIC_IMPACT_PATH",
+          "RECOVERY_PATH",
+          "SERIALIZATION_PATH"
+        ],
+        "recommended_test_types": [
+          "boundary",
+          "reconciliation",
+          "negative",
+          "serialization"
+        ]
+      },
+      "opportunity_research": {
+        "description": "Opportunity research, scanning, ranking, and reports.",
+        "priority": "P2",
+        "tier": "T2",
+        "authority_class": "RESEARCH",
+        "economic_impact": "MEDIUM",
+        "execution_impact": "LOW",
+        "blast_radius": "MEDIUM",
+        "target_coverage": 95.0,
+        "criticality_score": 72,
+        "include": [
+          "src/ai4binance/opportunities.py",
+          "src/ai4binance/opportunity_*.py",
+          "src/ai4binance/comparison/**"
+        ],
+        "test_gap_types": [
+          "COUNTERFACTUAL_PATH",
+          "INSUFFICIENT_EVIDENCE_PATH",
+          "SERIALIZATION_PATH"
+        ],
+        "recommended_test_types": [
+          "ranking",
+          "boundary",
+          "negative",
+          "serialization"
+        ]
+      },
+      "operational_support": {
+        "description": "Report-only ops, hygiene, local audits, and support tooling.",
+        "priority": "P2",
+        "tier": "T3",
+        "authority_class": "SUPPORT",
+        "economic_impact": "LOW",
+        "execution_impact": "LOW",
+        "blast_radius": "LOW",
+        "target_coverage": 95.0,
+        "criticality_score": 42,
+        "include": [
+          "src/ai4binance/ops/**",
+          "src/ai4binance/reports/**"
+        ],
+        "test_gap_types": [
+          "BRANCH_PATHS",
+          "ERROR_PATHS",
+          "REPORTING_PATH"
+        ],
+        "recommended_test_types": [
+          "unit",
+          "failure_path",
+          "serialization"
+        ]
+      },
+      "integration_adapters": {
+        "description": "External adapters, providers, and integration mapping.",
+        "priority": "P2",
+        "tier": "T2",
+        "authority_class": "ADAPTER",
+        "economic_impact": "MEDIUM",
+        "execution_impact": "MEDIUM",
+        "blast_radius": "MEDIUM",
+        "target_coverage": 95.0,
+        "criticality_score": 76,
+        "include": [
+          "src/ai4binance/integrations/**",
+          "src/ai4binance/external_intel/**",
+          "src/ai4binance/whale_fusion/**/providers.py"
+        ],
+        "test_gap_types": [
+          "PROVIDER_FAILURE_PATH",
+          "STALE_DATA_PATH",
+          "SCHEMA_PATH"
+        ],
+        "recommended_test_types": [
+          "adapter",
+          "timeout",
+          "stale_data",
+          "contract"
+        ]
+      }
+    }
+  },
+  "families": {
+    "adapter": {
+      "description": "Provider, external integration adapter, and mapping surfaces.",
+      "include": [
+        "src/ai4binance/integrations/**",
+        "src/ai4binance/external_intel/radars/**/adapter.py",
+        "src/ai4binance/external_intel/integration/**adapter.py",
+        "src/ai4binance/github_radar/catalog_adapter.py",
+        "src/ai4binance/whale_fusion/**/providers.py"
+      ]
+    },
+    "id": {
+      "description": "Identifier generation, parsing, validation, and lineage IDs.",
+      "include": [
+        "src/ai4binance/external_intel/core/ids.py"
+      ]
+    },
+    "ontology": {
+      "description": "Ontology entities, relationships, taxonomy, and semantic contracts.",
+      "include": [
+        "src/ai4binance/ontology/**",
+        "src/ai4binance/github_radar/ontology.py"
+      ]
+    },
+    "policy": {
+      "description": "Policy evaluation, authority, blockers, and enforcement logic.",
+      "include": [
+        "src/ai4binance/governance/**",
+        "src/ai4binance/content/policy.py",
+        "src/ai4binance/opportunity_policy.py",
+        "src/ai4binance/multiops/**/policy.py"
+      ],
+      "exclude": [
+        "src/ai4binance/governance/repository_validator.py"
+      ]
+    },
+    "opportunity": {
+      "description": "Opportunity discovery, scoring, ranking, and reporting logic.",
+      "include": [
+        "src/ai4binance/opportunities.py",
+        "src/ai4binance/opportunity_scanner.py",
+        "src/ai4binance/opportunity_report.py",
+        "src/ai4binance/opportunity_radar.py",
+        "src/ai4binance/portfolio/opportunity_recovery.py",
+        "src/ai4binance/portfolio/holding_opportunity.py",
+        "src/ai4binance/comparison/opportunity_comparison.py"
+      ]
+    },
+    "position": {
+      "description": "Position context, portfolio state, sizing inputs, and reconciliation.",
+      "include": [
+        "src/ai4binance/portfolio/position_context.py",
+        "src/ai4binance/portfolio/asset_policy.py",
+        "src/ai4binance/portfolio/cost_basis.py",
+        "src/ai4binance/portfolio/current_holding_review.py",
+        "src/ai4binance/portfolio/inventory_rotation.py",
+        "src/ai4binance/portfolio/rebalancing.py",
+        "src/ai4binance/portfolio/rebalancing_agent.py"
+      ]
+    },
+    "handoff": {
+      "description": "Producer and consumer handoff contracts, routing, and validation.",
+      "include": [
+        "src/ai4binance/core/contracts/handoffs/**",
+        "src/ai4binance/application/orchestration/handoffs/**"
+      ]
+    },
+    "repository_validator": {
+      "description": "Repository governance, structure, manifest, and compliance validator.",
+      "include": [
+        "src/ai4binance/governance/repository_validator.py"
+      ]
+    }
+  }
+}

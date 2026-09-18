@@ -1,0 +1,4 @@
+interface:
+  display_name: "Factory Plan"
+  short_description: "Interview and blueprint factory work"
+  default_prompt: "Use /factory-plan to create or refine BRIEF.md and PLAN.md with small testable tasks."

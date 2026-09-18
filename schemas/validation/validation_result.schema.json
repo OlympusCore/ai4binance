@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ai4binance:schema:validation:validation-result:1.0.0",
+  "title": "AI4Binance Validation Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "validation_id", "snapshot_id", "status", "blockers", "reason_codes", "execution_allowed", "live_eligibility_status"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "validation_id": {"type": "string", "minLength": 1},
+    "snapshot_id": {"$ref": "urn:ai4binance:schema:primitives:identifier-primitives:1.0.0#/$defs/snapshot_id"},
+    "status": {"enum": ["PASS", "REJECTED", "BLOCKED", "UNKNOWN"]},
+    "blockers": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "reason_codes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "execution_allowed": {"const": false},
+    "live_eligibility_status": {"const": "LIVE_ORDER_BLOCKED"}
+  }
+}

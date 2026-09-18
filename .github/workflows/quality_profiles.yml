@@ -1,0 +1,73 @@
+name: Quality Profiles
+
+on:
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Quality profile for a manual run
+        required: true
+        default: standard
+        type: choice
+        options:
+          - standard
+          - full
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-profiles-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  quality:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository read-only
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.10"
+          enable-cache: true
+
+      - name: Install canonical Python
+        shell: pwsh
+        run: uv python install 3.14.7
+
+      - name: Sync locked development environment
+        shell: pwsh
+        run: uv sync --frozen --extra dev
+
+      - name: Run standard profile for pull requests
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        run: .\scripts\quality.ps1 -Profile standard
+
+      - name: Run full profile for published releases
+        if: github.event_name == 'release'
+        shell: pwsh
+        run: .\scripts\quality.ps1 -Profile full
+
+      - name: Run selected profile for manual milestone verification
+        if: github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: .\scripts\quality.ps1 -Profile "${{ inputs.profile }}"
+
+      - name: Upload quality evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-profile-${{ github.run_id }}
+          path: |
+            runtime/quality/
+            runtime/artifacts/quality/gate/
+          if-no-files-found: warn
+          retention-days: 30

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ai4binance:schema:decisions:trade-decision:1.0.0",
+  "title": "AI4Binance Governed Trade Decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "timestamp_utc", "decision_id", "candidate_id", "symbol", "market_type", "governed_action", "governance_status", "data_snapshot_id", "hard_blockers", "execution_allowed", "live_eligibility_status"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "timestamp_utc": {"$ref": "urn:ai4binance:schema:primitives:temporal-primitives:1.0.0#/$defs/timestamp_utc"},
+    "decision_id": {"type": "string", "minLength": 1},
+    "candidate_id": {"type": "string", "minLength": 1},
+    "symbol": {"$ref": "urn:ai4binance:schema:primitives:identifier-primitives:1.0.0#/$defs/symbol"},
+    "market_type": {"enum": ["SPOT", "USD_M_FUTURES"]},
+    "governed_action": {"enum": ["BUY", "SELL", "HOLD", "NO_TRADE"]},
+    "governance_status": {"enum": ["APPROVED", "NO_TRADE", "DATA_UNAVAILABLE", "LOW_CONFIDENCE", "BLOCKED"]},
+    "data_snapshot_id": {"$ref": "urn:ai4binance:schema:primitives:identifier-primitives:1.0.0#/$defs/snapshot_id"},
+    "hard_blockers": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "execution_allowed": {"const": false},
+    "live_eligibility_status": {"const": "LIVE_ORDER_BLOCKED"}
+  }
+}

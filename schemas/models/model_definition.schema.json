@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/models/model_definition.schema.json",
+  "title": "AI4BINANCE Model Definition",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "model_id",
+    "name",
+    "model_family",
+    "provider",
+    "owner",
+    "intended_use",
+    "prohibited_use",
+    "authority"
+  ],
+  "properties": {
+    "model_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,127}$"},
+    "name": {"type": "string", "minLength": 1, "maxLength": 256},
+    "model_family": {
+      "type": "string",
+      "enum": ["LLM", "SCENARIO_MODEL", "STATISTICAL_MODEL", "TABULAR_ML_MODEL", "REGIME_MODEL", "ANOMALY_MODEL", "TIME_SERIES_MODEL", "TIME_SERIES_FOUNDATION_MODEL", "EMBEDDING_MODEL", "RERANKER_MODEL", "EVALUATOR_MODEL", "ENSEMBLE_MODEL", "META_MODEL"]
+    },
+    "provider": {"type": "string", "minLength": 1, "maxLength": 128},
+    "owner": {"type": "string", "minLength": 1, "maxLength": 128},
+    "intended_use": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "prohibited_use": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authority_ceiling", "decision_authority", "risk_override", "strategy_promotion", "execution_authority", "live_order_authority"],
+      "properties": {
+        "authority_ceiling": {"const": "ADVISORY_ONLY"},
+        "decision_authority": {"const": false},
+        "risk_override": {"const": false},
+        "strategy_promotion": {"const": false},
+        "execution_authority": {"const": false},
+        "live_order_authority": {"const": false}
+      }
+    }
+  }
+}

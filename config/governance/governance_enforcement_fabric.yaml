@@ -1,0 +1,127 @@
+document_id: "AI4B-GOV-FABRIC-001"
+fabric_id: "AI4B-GOV-FABRIC-001"
+version: "1.2.0"
+status: "ACTIVE"
+authority_layer: "L4_REPOSITORY_STANDARDS_CONTROLS_QUALITY_POLICIES"
+authority_effect: "IMPLEMENTATION"
+authority_scope: "governance_enforcement_fabric"
+content_role: "POLICY_AS_CODE"
+source_of_truth: false
+source_of_truth_scope: "enforcement_projection"
+canonical_path: "config/governance/governance_enforcement_fabric.yaml"
+safety:
+  execution_allowed: false
+  promotion_status: "RESEARCH_ONLY"
+  live_eligibility_status: "LIVE_ORDER_BLOCKED"
+families:
+  terminology:
+    authority_scope: "terminology_governance"
+    standard_path: "docs/standards/standard_terminology_governance.md"
+    standard_id: "AI4B-GOV-STD-TERM-001"
+    standard_version: "1.2.1"
+    standard_content_sha256: "3afc73fd1c11e960c33445d184754e0a3c1a998c222660e88e14d0d4a673e954"
+    projection_path: "config/governance/canonical_terminology_registry.yaml"
+    schema_path: "schemas/governance/canonical_terminology_registry.schema.json"
+  repository_naming:
+    authority_scope: "repository_naming_governance"
+    standard_path: "docs/standards/standard_repository_naming_governance.md"
+    standard_id: "AI4B-GOV-STD-RFG-102"
+    standard_version: "1.0.1"
+    standard_content_sha256: "27e65580f54f082dff90741392da467f62571851b46b64e623f2de5ef17e4559"
+    projection_path: "policies/repository-validator/manifest-policy.json"
+    schema_path: null
+  technology_language:
+    authority_scope: "technology_language_ownership"
+    standard_path: "docs/standards/standard_technology_language_ownership.md"
+    standard_id: "AI4B-ARCH-STD-LANG-001"
+    standard_version: "1.0.1"
+    standard_content_sha256: "6f32b0af7880f453a08a31ce5db4ac91e540912999f740a7376e7cfc890a3beb"
+    projection_path: "config/governance/technology_language_ownership.yaml"
+    schema_path: "schemas/governance/technology_language_ownership.schema.json"
+quality_gate:
+  authority_pyramid_ref: "docs/governance/framework_core_vnext_governance.md"
+  authority_graph_path: "docs/registries/registry_authority_graph.yaml"
+  authority_development_matrix_path: "config/governance/authority_layer_development_matrix.yaml"
+  quality_policy_path: "config/quality/gates.yaml"
+  minimum_profile: "standard"
+  authority_separation:
+    deterministic_quality_gate: "TECHNICAL_TRUTH"
+    deterministic_governance_gate: "POLICY_ELIGIBILITY"
+    human_governance: "CONSEQUENTIAL_AUTHORITY"
+  pillars:
+    kaizen:
+      semantic_role: "CULTURE"
+      standard_mapping_names: ["kaizen_culture"]
+      required_paths:
+        - "src/ai4binance/ops/kaizen_quality.py"
+      required_tests:
+        - "tests/test_kaizen_quality.py"
+    lean:
+      semantic_role: "PROCESS"
+      standard_mapping_names: ["lean_process"]
+      required_paths:
+        - "src/ai4binance/governance/lean.py"
+      required_tests:
+        - "tests/test_lean_governance.py"
+    six_sigma:
+      semantic_role: "PERFORMANCE"
+      standard_mapping_names: ["six_sigma_performance"]
+      required_paths:
+        - "src/ai4binance/governance/lean.py"
+        - "src/ai4binance/ops/performance.py"
+      required_tests:
+        - "tests/test_lean_governance.py"
+        - "tests/test_performance_guard.py"
+  evaluation_axes:
+    layer:
+      objective: "Validate every L0-L10 authority layer against its allowed authority effects and source-of-truth ceiling."
+      standard_mapping_names: ["critical_authority_layer_development"]
+      required_paths:
+        - "config/governance/authority_layer_development_matrix.yaml"
+        - "docs/registries/registry_authority_graph.yaml"
+      required_tests:
+        - "tests/governance/authority/test_authority_development.py"
+        - "tests/governance/authority/test_authority_repository_integration.py"
+    capability:
+      objective: "Validate semantic and technology ownership for each governed capability without creating duplicate authority."
+      standard_mapping_names: ["critical_semantic_governance_enforcement_fabric"]
+      required_paths:
+        - "config/governance/technology_language_ownership.yaml"
+        - "docs/registries/registry_logical_architecture.yaml"
+      required_tests:
+        - "tests/governance/architecture/test_technology_language_policy.py"
+        - "tests/governance/terminology/test_governance_enforcement_fabric.py"
+    component:
+      objective: "Validate registered component ownership, dependency direction, deterministic boundaries, and authority ceilings."
+      standard_mapping_names: ["critical_architecture_conformance"]
+      required_paths:
+        - "docs/registries/registry_logical_architecture.yaml"
+        - "src/ai4binance/governance/architecture/loader.py"
+      required_tests:
+        - "tests/governance/architecture/test_logical_architecture_registry.py"
+    guardrail:
+      objective: "Validate hard blockers, veto paths, enforcement coverage, and fail-closed bypass resistance."
+      standard_mapping_names: ["critical_enforcement_inventory"]
+      required_paths:
+        - "config/governance/enforcement_inventory.yaml"
+        - "config/governance/enforcement_profiles.yaml"
+      required_tests:
+        - "tests/test_governed_object_enforcement.py"
+        - "tests/test_governance_gate.py"
+    eval:
+      objective: "Validate deterministic process evaluation and measured performance regression decisions."
+      standard_mapping_names: ["lean_process", "six_sigma_performance"]
+      required_paths:
+        - "src/ai4binance/governance/lean.py"
+        - "src/ai4binance/ops/performance.py"
+      required_tests:
+        - "tests/test_lean_governance.py"
+        - "tests/test_performance_guard.py"
+    assurance:
+      objective: "Validate snapshot-bound evidence, requirement traceability, technical truth, policy eligibility, and human authority separation."
+      standard_mapping_names: ["critical_enforcement_inventory"]
+      required_paths:
+        - "config/governance/enforcement_inventory.yaml"
+        - "config/quality/gates.yaml"
+      required_tests:
+        - "tests/test_requirement_assurance_chain.py"

@@ -1,0 +1,30 @@
+rule_set_version: dge-rules-v1
+rules:
+  - rule_id: DGE_SNAPSHOT_INTEGRITY
+    category: system_safety
+    severity: CRITICAL
+    evidence_status: PROMOTED
+  - rule_id: DGE_DATA_QUALITY_GATE
+    category: data_quality
+    severity: HARD
+    evidence_status: PROMOTED
+  - rule_id: DGE_REQUIRED_TIMEFRAMES_PRESENT
+    category: data_quality
+    severity: HARD
+    evidence_status: PROMOTED
+  - rule_id: DGE_LIQUIDITY_APPROVED
+    category: liquidity
+    severity: HARD
+    evidence_status: PROMOTED
+  - rule_id: DGE_MTF_ALIGNED
+    category: mtf
+    severity: SOFT
+    evidence_status: OOS_WEAK
+  - rule_id: DGE_OOS_APPROVED
+    category: validation
+    severity: HARD
+    evidence_status: PROMOTED
+  - rule_id: DGE_RISK_APPROVED
+    category: risk
+    severity: HARD
+    evidence_status: PROMOTED

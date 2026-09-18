@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "source_code_root": "src/ai4binance/research/backtesting",
+  "legacy_source_roots": [
+    "src/ai4binance/research/backtesting"
+  ],
+  "artifact_roots": {
+    "validation": "runtime/artifacts/research/backtest/validation",
+    "walk_forward": "runtime/artifacts/research/backtest/walk_forward",
+    "oos": "runtime/artifacts/research/backtest/oos",
+    "robustness": "runtime/artifacts/research/backtest/robustness",
+    "holdout": "runtime/artifacts/research/backtest/holdout",
+    "ledgers": "runtime/artifacts/research/backtest"
+  },
+  "report_root": "runtime/reports/backtest",
+  "legacy_artifact_roots": {
+    "validation": "backtest/validation",
+    "walk_forward": "backtest/walk-forward",
+    "oos": "backtest/oos",
+    "robustness": "backtest/robustness",
+    "holdout": "backtest/holdout"
+  }
+}

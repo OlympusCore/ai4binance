@@ -1,0 +1,217 @@
+{
+  "editor.formatOnSave": true,
+  "editor.rulers": [
+    88
+  ],
+  "files.encoding": "utf8",
+  "files.eol": "\n",
+  "files.autoSave": "off",
+  "files.exclude": {
+    "**/.hypothesis": true,
+    "**/.mypy_cache": true,
+    "**/.pytest_cache": true,
+    "**/.ruff_cache": true,
+    "**/__pycache__": true,
+    ".tmp": true,
+    ".tmp-alias-check": true,
+    ".venv": true,
+    "runtime": true,
+    "secrets": true,
+    "skill_staging": true
+  },
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/.hypothesis/**": true,
+    "**/.mypy_cache/**": true,
+    "**/.pytest_cache/**": true,
+    "**/.ruff_cache/**": true,
+    "**/__pycache__/**": true,
+    ".tmp/**": true,
+    ".tmp-alias-check/**": true,
+    ".venv/**": true,
+    "runtime/**": true,
+    "secrets/**": true,
+    "skill_staging/**": true
+  },
+  "search.exclude": {
+    "**/.hypothesis": true,
+    "**/.mypy_cache": true,
+    "**/.pytest_cache": true,
+    "**/.ruff_cache": true,
+    "**/__pycache__": true,
+    ".tmp": true,
+    ".tmp-alias-check": true,
+    ".venv": true,
+    "runtime": true,
+    "secrets": true,
+    "skill_staging": true
+  },
+  "search.followSymlinks": false,
+  "telemetry.telemetryLevel": "off",
+  "editor.minimap.enabled": false,
+  "editor.largeFileOptimizations": true,
+  "terminal.integrated.gpuAcceleration": "on",
+  "git.autofetch": false,
+  "git.autoRepositoryDetection": "openEditors",
+  "files.associations": {
+    "*.cu": "cuda-cpp",
+    "*.cuh": "cuda-cpp",
+    "*.jl": "julia",
+    "*.schema.json": "json",
+    "*.sql": "sql"
+  },
+  "typescript.disableAutomaticTypeAcquisition": true,
+  "js/ts.tsc.autoDetect": "off",
+  "eslint.run": "onSave",
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact"
+  ],
+  "stylelint.validate": [
+    "css"
+  ],
+  "shellcheck.run": "onSave",
+  "go.toolsManagement.autoUpdate": false,
+  "go.formatTool": "gofmt",
+  "rust-analyzer.check.command": "clippy",
+  "java.configuration.updateBuildConfiguration": "interactive",
+  "json.validate.enable": true,
+  "yaml.validate": true,
+  "yaml.format.enable": true,
+  "yaml.schemas": {
+    "./schemas/governance/technology_language_ownership.schema.json": "config/governance/technology_language_ownership.yaml"
+  },
+  "terminal.integrated.defaultProfile.windows": "AI4BINANCE PowerShell",
+  "terminal.integrated.profiles.windows": {
+    "AI4BINANCE PowerShell": {
+      "source": "PowerShell",
+      "args": [
+        "-NoLogo",
+        "-NoExit",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        ". .\\scripts\\activate_dev.ps1"
+      ],
+      "icon": "terminal-powershell"
+    }
+  },
+  "terminal.integrated.env.windows": {
+    "AI4BINANCE_ADVISORY_LLM_MODE": "RESEARCH_ONLY",
+    "AI4BINANCE_ALLOW_AUTO_LIVE_ORDERS": "false",
+    "AI4BINANCE_PROMPTER_MODEL": "qwen3:8b",
+    "LLAMA_CPP_ROOT": "${workspaceFolder}\\tools\\llama.cpp\\gpu",
+    "LLAMA_CTX_LIMIT": "4096",
+    "LLAMA_GPU_LAYERS": "99",
+    "LLAMA_ARG_DEVICE": "Vulkan0",
+    "LLAMA_HOST": "127.0.0.1",
+    "LLAMA_PARALLEL": "2",
+    "LLAMA_PORT": "8080",
+    "LLAMA_REQUEST_TIMEOUT": "120",
+    "LLAMA_SERVER_URL": "http://127.0.0.1:8080/completion",
+    "LLAMA_THREADS": "8",
+    "OLLAMA_HOST": "127.0.0.1:11434",
+    "OLLAMA_MAX_LOADED_MODELS": "1",
+    "OLLAMA_NUM_PARALLEL": "1",
+    "PATH": "${workspaceFolder}\\.venv\\Scripts;${env:PATH}",
+    "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+    "PIP_NO_PYTHON_VERSION_WARNING": "1",
+    "PYTHONIOENCODING": "utf-8",
+    "PYTHONPATH": "${workspaceFolder}/src",
+    "PYTHONUTF8": "1",
+    "VIRTUAL_ENV": "${workspaceFolder}\\.venv",
+    "VIRTUAL_ENV_PROMPT": "(.venv)"
+  },
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+  "python.envFile": "${workspaceFolder}/.env",
+  "python.terminal.activateEnvironment": true,
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/src"
+  ],
+  "python.analysis.diagnosticMode": "openFilesOnly",
+  "python.analysis.autoImportCompletions": false,
+  "python.analysis.indexing": false,
+  "python.languageServer": "Pylance",
+  "python.analysis.exclude": [
+    "**/.hypothesis",
+    "**/__pycache__",
+    ".venv/**",
+    "runtime/**",
+    "secrets/**",
+    "skill_staging/**"
+  ],
+  "python.analysis.typeCheckingMode": "off",
+  "python.testing.autoTestDiscoverOnSaveEnabled": false,
+  "python.testing.pytestArgs": [
+    "tests",
+    "--no-cov"
+  ],
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "mypy-type-checker.importStrategy": "fromEnvironment",
+  "mypy-type-checker.reportingScope": "file",
+  "ruff.configurationPreference": "filesystemFirst",
+  "ruff.importStrategy": "fromEnvironment",
+  "ruff.nativeServer": "on",
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    }
+  },
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+  },
+  "[cuda-cpp]": {
+    "editor.defaultFormatter": "ms-vscode.cpptools"
+  },
+  "[go]": {
+    "editor.defaultFormatter": "golang.go",
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+  "[julia]": {
+    "editor.defaultFormatter": "julialang.language-julia"
+  },
+  "[java]": {
+    "editor.defaultFormatter": "redhat.java"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit"
+    }
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit"
+    }
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit"
+    }
+  },
+  "[css]": {
+    "editor.defaultFormatter": "vscode.css-language-features"
+  },
+  "[yaml]": {
+    "editor.defaultFormatter": "redhat.vscode-yaml"
+  },
+  "[toml]": {
+    "editor.defaultFormatter": "tamasfe.even-better-toml"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
+  }
+}

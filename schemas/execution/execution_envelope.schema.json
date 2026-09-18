@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ai4binance:schema:execution:execution-envelope:1.0.0",
+  "title": "AI4Binance Execution Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "authority_profile_id", "execution_surface", "automation_mode", "manual_confirmation_required", "virtual_simulation_allowed", "auto_simulation_allowed", "paper_execution_allowed", "external_order_allowed", "live_order_allowed", "bounded_simulation_only", "reason_codes"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "authority_profile_id": {"type": "string", "minLength": 1},
+    "execution_surface": {"enum": ["BINANCE_MARKET", "VIRTUAL_MARKET"]},
+    "automation_mode": {"type": "string", "minLength": 1},
+    "manual_confirmation_required": {"type": "boolean"},
+    "virtual_simulation_allowed": {"type": "boolean"},
+    "auto_simulation_allowed": {"type": "boolean"},
+    "paper_execution_allowed": {"type": "boolean"},
+    "external_order_allowed": {"const": false},
+    "live_order_allowed": {"const": false},
+    "bounded_simulation_only": {"type": "boolean"},
+    "reason_codes": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  }
+}

@@ -1,0 +1,380 @@
+version: 1.1.0
+profiles:
+  - &generic_registry
+    profile_id: enforcement-repository-artifact
+    profile_version: 1.0.0
+    object_type: REPOSITORY_ARTIFACT
+    allowed_actions: [READ, UPDATE, SUPERSEDE, QUARANTINE]
+    required_gates: [IDENTITY, SCHEMA, AUTHORITY, LIFECYCLE, LINEAGE, BLOCKER, AUDIT]
+    required_evidence: []
+    required_authorities: [repository_governance]
+    allowed_lifecycle_transitions:
+      ACTIVE: [SUPERSEDED, ARCHIVED, QUARANTINED]
+      DRAFT: [ACTIVE, QUARANTINED]
+    side_effect_class: LOCAL_METADATA
+    human_approval_class: GOVERNED_CHANGE
+  - &authoritative_doc
+    profile_id: enforcement-authoritative-document
+    profile_version: 1.0.0
+    object_type: POLICY
+    allowed_actions: [READ, UPDATE, ACTIVATE, SUPERSEDE]
+    required_gates: [IDENTITY, SCHEMA, AUTHORITY, LIFECYCLE, POLICY, EVIDENCE, LINEAGE, BLOCKER, AUDIT]
+    required_evidence: [quality_gate_evidence]
+    required_authorities: [enterprise_governance]
+    allowed_lifecycle_transitions:
+      DRAFT: [ACTIVE, REJECTED]
+      ACTIVE: [SUPERSEDED, DEPRECATED, ARCHIVED]
+    action_transition_rules:
+      ACTIVATE:
+        transition_required: true
+        allowed_from: [DRAFT]
+        allowed_to: [ACTIVE]
+      SUPERSEDE:
+        transition_required: true
+        allowed_from: [ACTIVE]
+        allowed_to: [SUPERSEDED]
+    side_effect_class: GOVERNANCE
+    human_approval_class: GOVERNED_CHANGE
+  - <<: *authoritative_doc
+    profile_id: enforcement-constraint
+    object_type: CONSTRAINT
+  - <<: *authoritative_doc
+    profile_id: enforcement-decision-rule
+    object_type: DECISION_RULE
+  - <<: *authoritative_doc
+    profile_id: enforcement-interface-contract
+    object_type: INTERFACE_CONTRACT
+  - <<: *authoritative_doc
+    profile_id: enforcement-event-contract
+    object_type: EVENT_CONTRACT
+  - <<: *authoritative_doc
+    profile_id: enforcement-data-contract
+    object_type: DATA_CONTRACT
+  - <<: *authoritative_doc
+    profile_id: enforcement-output-contract
+    object_type: OUTPUT_CONTRACT
+  - <<: *authoritative_doc
+    profile_id: enforcement-state-model
+    object_type: STATE_MODEL
+  - <<: *authoritative_doc
+    profile_id: enforcement-entity-rule
+    object_type: ENTITY_RULE
+  - <<: *authoritative_doc
+    profile_id: enforcement-relationship-rule
+    object_type: RELATIONSHIP_RULE
+  - <<: *authoritative_doc
+    profile_id: enforcement-framework
+    object_type: FRAMEWORK
+  - <<: *authoritative_doc
+    profile_id: enforcement-instruction
+    object_type: INSTRUCTION
+  - <<: *authoritative_doc
+    profile_id: enforcement-regulation
+    object_type: REGULATION
+  - <<: *authoritative_doc
+    profile_id: enforcement-workflow
+    object_type: WORKFLOW
+  - <<: *authoritative_doc
+    profile_id: enforcement-standard-document
+    object_type: STANDARD
+  - <<: *authoritative_doc
+    profile_id: enforcement-control-document
+    object_type: CONTROL
+  - <<: *authoritative_doc
+    profile_id: enforcement-schema-document
+    object_type: SCHEMA
+  - <<: *authoritative_doc
+    profile_id: enforcement-registry-document
+    object_type: REGISTRY
+  - <<: *authoritative_doc
+    profile_id: enforcement-permission-profile
+    object_type: PERMISSION_PROFILE
+    allowed_actions: [READ, UPDATE, ACTIVATE, GRANT_PERMISSION, SUPERSEDE]
+  - <<: *authoritative_doc
+    profile_id: enforcement-authority-matrix
+    object_type: AUTHORITY_MATRIX
+  - <<: *authoritative_doc
+    profile_id: enforcement-validation-spec
+    object_type: VALIDATION_SPEC
+  - <<: *authoritative_doc
+    profile_id: enforcement-test-contract
+    object_type: TEST_CONTRACT
+  - <<: *authoritative_doc
+    profile_id: enforcement-evidence-requirement
+    object_type: EVIDENCE_REQUIREMENT
+  - <<: *authoritative_doc
+    profile_id: enforcement-failure-policy
+    object_type: FAILURE_POLICY
+  - <<: *authoritative_doc
+    profile_id: enforcement-recovery-rule
+    object_type: RECOVERY_RULE
+  - <<: *authoritative_doc
+    profile_id: enforcement-escalation-rule
+    object_type: ESCALATION_RULE
+  - <<: *authoritative_doc
+    profile_id: enforcement-alert-rule
+    object_type: ALERT_RULE
+  - <<: *authoritative_doc
+    profile_id: enforcement-retention-rule
+    object_type: RETENTION_RULE
+  - &strategy_family
+    profile_id: enforcement-strategy-family
+    profile_version: 1.0.0
+    object_type: STRATEGY_DEFINITION
+    allowed_actions: [READ, UPDATE, ACTIVATE, PROMOTE, SUPERSEDE]
+    required_gates: [IDENTITY, SCHEMA, AUTHORITY, LIFECYCLE, POLICY, EVIDENCE, LINEAGE, BLOCKER, EXECUTION, AUDIT]
+    required_evidence: [oos_validation, walk_forward_validation, paper_readiness]
+    required_authorities: [strategy_governance]
+    allowed_lifecycle_transitions:
+      DRAFT: [BACKTESTED, REJECTED]
+      BACKTESTED: [WALK_FORWARD_VALIDATED, REJECTED]
+      WALK_FORWARD_VALIDATED: [OOS_VALIDATED, REJECTED]
+      OOS_VALIDATED: [PAPER_APPROVED, REJECTED]
+      PAPER_APPROVED: [ACTIVE, DEPRECATED]
+      ACTIVE: [SUPERSEDED, DEPRECATED, ARCHIVED]
+    action_transition_rules:
+      ACTIVATE:
+        transition_required: true
+        allowed_from: [PAPER_APPROVED]
+        allowed_to: [ACTIVE]
+      PROMOTE:
+        transition_required: true
+        allowed_from: [OOS_VALIDATED]
+        allowed_to: [PAPER_APPROVED]
+      SUPERSEDE:
+        transition_required: true
+        allowed_from: [ACTIVE]
+        allowed_to: [SUPERSEDED]
+    side_effect_class: STRATEGY_MUTATION
+    human_approval_class: CONSEQUENTIAL_PROMOTION
+  - <<: *strategy_family
+    profile_id: enforcement-setup-definition
+    object_type: SETUP_DEFINITION
+  - <<: *strategy_family
+    profile_id: enforcement-feature-definition
+    object_type: FEATURE_DEFINITION
+    required_evidence: [quality_gate_evidence]
+  - <<: *strategy_family
+    profile_id: enforcement-indicator-definition
+    object_type: INDICATOR_DEFINITION
+    required_evidence: [quality_gate_evidence]
+  - <<: *strategy_family
+    profile_id: enforcement-regime-definition
+    object_type: REGIME_DEFINITION
+    required_evidence: [quality_gate_evidence]
+  - <<: *strategy_family
+    profile_id: enforcement-risk-model
+    object_type: RISK_MODEL
+    allowed_actions: [READ, UPDATE, ACTIVATE, CHANGE_RISK, SUPERSEDE]
+    required_authorities: [risk_governance]
+    required_evidence: [risk_validation, quality_gate_evidence]
+    action_transition_rules:
+      ACTIVATE:
+        transition_required: true
+        allowed_from: [PAPER_APPROVED]
+        allowed_to: [ACTIVE]
+      CHANGE_RISK:
+        transition_required: true
+        allowed_from: [ACTIVE]
+        allowed_to: [ACTIVE]
+      SUPERSEDE:
+        transition_required: true
+        allowed_from: [ACTIVE]
+        allowed_to: [SUPERSEDED]
+    side_effect_class: RISK_MUTATION
+  - <<: *strategy_family
+    profile_id: enforcement-execution-profile
+    object_type: EXECUTION_PROFILE
+    allowed_actions: [READ, UPDATE, ACTIVATE, EXECUTE, SUPERSEDE]
+    required_authorities: [execution_governance]
+    required_evidence: [execution_readiness, quality_gate_evidence]
+    action_transition_rules:
+      ACTIVATE:
+        transition_required: true
+        allowed_from: [PAPER_APPROVED]
+        allowed_to: [ACTIVE]
+      EXECUTE:
+        transition_required: true
+        allowed_from: [ACTIVE]
+        allowed_to: [ACTIVE]
+      SUPERSEDE:
+        transition_required: true
+        allowed_from: [ACTIVE]
+        allowed_to: [SUPERSEDED]
+    side_effect_class: EXECUTION_SURFACE
+  - <<: *strategy_family
+    profile_id: enforcement-parameter-set
+    object_type: PARAMETER_SET
+    allowed_actions: [READ, UPDATE, ACTIVATE, CHANGE_PARAMETER, SUPERSEDE]
+    required_authorities: [parameter_governance]
+    required_evidence: [parameter_validation, quality_gate_evidence]
+    action_transition_rules:
+      ACTIVATE:
+        transition_required: true
+        allowed_from: [PAPER_APPROVED]
+        allowed_to: [ACTIVE]
+      CHANGE_PARAMETER:
+        transition_required: true
+        allowed_from: [ACTIVE]
+        allowed_to: [ACTIVE]
+      SUPERSEDE:
+        transition_required: true
+        allowed_from: [ACTIVE]
+        allowed_to: [SUPERSEDED]
+    side_effect_class: PARAMETER_MUTATION
+  - <<: *strategy_family
+    profile_id: enforcement-agent-contract
+    object_type: AGENT_CONTRACT
+    required_authorities: [agent_governance]
+    required_evidence: [agent_validation, quality_gate_evidence]
+  - <<: *strategy_family
+    profile_id: enforcement-prompt-contract
+    object_type: PROMPT_CONTRACT
+    required_authorities: [prompt_governance]
+    required_evidence: [prompt_review, quality_gate_evidence]
+  - <<: *strategy_family
+    profile_id: enforcement-tool-contract
+    object_type: TOOL_CONTRACT
+    allowed_actions: [READ, UPDATE, ACTIVATE, GRANT_PERMISSION, SUPERSEDE]
+    required_authorities: [tool_governance]
+    required_evidence: [tool_policy_validation, quality_gate_evidence]
+    action_transition_rules:
+      ACTIVATE:
+        transition_required: true
+        allowed_from: [PAPER_APPROVED]
+        allowed_to: [ACTIVE]
+      GRANT_PERMISSION:
+        transition_required: true
+        allowed_from: [ACTIVE]
+        allowed_to: [ACTIVE]
+      SUPERSEDE:
+        transition_required: true
+        allowed_from: [ACTIVE]
+        allowed_to: [SUPERSEDED]
+  - <<: *strategy_family
+    profile_id: enforcement-model-card
+    object_type: MODEL_CARD
+    required_authorities: [model_governance]
+    required_evidence: [model_validation, quality_gate_evidence]
+  - <<: *strategy_family
+    profile_id: enforcement-agent-card
+    object_type: AGENT_CARD
+    required_authorities: [agent_governance]
+    required_evidence: [agent_validation, quality_gate_evidence]
+  - <<: *strategy_family
+    profile_id: enforcement-strategy-card
+    object_type: STRATEGY_CARD
+    required_authorities: [strategy_governance]
+    required_evidence: [oos_validation, paper_readiness]
+  - &advisory_doc
+    profile_id: enforcement-advisory-doc
+    profile_version: 1.0.0
+    object_type: PROCEDURE
+    allowed_actions: [READ, UPDATE, ACTIVATE, SUPERSEDE]
+    required_gates: [IDENTITY, SCHEMA, AUTHORITY, LIFECYCLE, POLICY, LINEAGE, BLOCKER, AUDIT]
+    required_evidence: [quality_gate_evidence]
+    required_authorities: [enterprise_governance]
+    allowed_lifecycle_transitions:
+      DRAFT: [ACTIVE, REJECTED]
+      ACTIVE: [SUPERSEDED, DEPRECATED, ARCHIVED]
+    action_transition_rules:
+      ACTIVATE:
+        transition_required: true
+        allowed_from: [DRAFT]
+        allowed_to: [ACTIVE]
+      SUPERSEDE:
+        transition_required: true
+        allowed_from: [ACTIVE]
+        allowed_to: [SUPERSEDED]
+    side_effect_class: GOVERNANCE
+    human_approval_class: GOVERNED_CHANGE
+  - <<: *advisory_doc
+    profile_id: enforcement-provenance
+    object_type: PROVENANCE
+  - <<: *advisory_doc
+    profile_id: enforcement-lineage
+    object_type: LINEAGE
+  - <<: *advisory_doc
+    profile_id: enforcement-runbook
+    object_type: RUNBOOK
+  - <<: *advisory_doc
+    profile_id: enforcement-experiment
+    object_type: EXPERIMENT
+    allowed_actions: [READ, UPDATE, ACTIVATE, WAIVE, SUPERSEDE]
+    required_authorities: [research_governance]
+    required_evidence: [experiment_design, quality_gate_evidence]
+    action_transition_rules:
+      ACTIVATE:
+        transition_required: true
+        allowed_from: [DRAFT]
+        allowed_to: [ACTIVE]
+      WAIVE:
+        transition_required: true
+        allowed_from: [ACTIVE]
+        allowed_to: [WAIVED]
+      SUPERSEDE:
+        transition_required: true
+        allowed_from: [ACTIVE]
+        allowed_to: [SUPERSEDED]
+  - <<: *advisory_doc
+    profile_id: enforcement-lesson
+    object_type: LESSON
+    required_authorities: [research_governance]
+    required_evidence: [quality_gate_evidence]
+    action_transition_rules:
+      ACTIVATE:
+        transition_required: true
+        allowed_from: [DRAFT]
+        allowed_to: [ACTIVE]
+      SUPERSEDE:
+        transition_required: true
+        allowed_from: [ACTIVE]
+        allowed_to: [SUPERSEDED]
+  - <<: *advisory_doc
+    profile_id: enforcement-failure-pattern
+    object_type: FAILURE_PATTERN
+  - <<: *advisory_doc
+    profile_id: enforcement-drift-observation
+    object_type: DRIFT_OBSERVATION
+  - <<: *advisory_doc
+    profile_id: enforcement-improvement-candidate
+    object_type: IMPROVEMENT_CANDIDATE
+  - <<: *advisory_doc
+    profile_id: enforcement-exception
+    object_type: EXCEPTION
+    allowed_actions: [READ, UPDATE, ACTIVATE, WAIVE, SUPERSEDE]
+    required_authorities: [enterprise_governance]
+  - <<: *advisory_doc
+    profile_id: enforcement-waiver
+    object_type: WAIVER
+    allowed_actions: [READ, UPDATE, ACTIVATE, WAIVE, SUPERSEDE]
+    required_authorities: [enterprise_governance]
+  - <<: *advisory_doc
+    profile_id: enforcement-adr
+    object_type: ADR
+  - <<: *advisory_doc
+    profile_id: enforcement-reference
+    object_type: REFERENCE
+    allowed_actions: [READ, UPDATE, SUPERSEDE]
+    required_gates: [IDENTITY, SCHEMA, AUTHORITY, LIFECYCLE, LINEAGE, BLOCKER, AUDIT]
+    required_authorities: [enterprise_governance]
+    human_approval_class: NONE
+  - <<: *advisory_doc
+    profile_id: enforcement-template-set
+    object_type: TEMPLATE_SET
+    required_authorities: [enterprise_governance]
+  - <<: *advisory_doc
+    profile_id: enforcement-provider-adapter
+    object_type: PROVIDER_ADAPTER
+  - <<: *advisory_doc
+    profile_id: enforcement-definition
+    object_type: DEFINITION
+  - <<: *advisory_doc
+    profile_id: enforcement-glossary
+    object_type: GLOSSARY
+  - <<: *advisory_doc
+    profile_id: enforcement-role
+    object_type: ROLE
+  - <<: *advisory_doc
+    profile_id: enforcement-invariant
+    object_type: INVARIANT
