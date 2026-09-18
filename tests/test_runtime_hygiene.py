@@ -154,7 +154,9 @@ def test_runtime_hygiene_helper_fail_closed_paths_and_retention(tmp_path: Path) 
     previous.write_text('{"capacity": []}', encoding="utf-8")
     assert runtime_hygiene._load_previous(previous) == {"capacity": []}
     with pytest.raises(ValueError, match="repository root"):
-        runtime_hygiene._repository_root_from_output(Path("C:/runtime-hygiene-no-repo/report.json"))
+        runtime_hygiene._repository_root_from_output(
+            Path("C:/runtime-hygiene-no-repo/report.json")
+        )
 
 
 def test_runtime_hygiene_main_resolves_relative_paths_and_persists(
@@ -174,6 +176,28 @@ def test_runtime_hygiene_main_resolves_relative_paths_and_persists(
         "persist_runtime_hygiene_report",
         lambda payload, output: observed.update(payload=payload, output=output),
     )
+    previous = tmp_path / "previous.json"
+    previous.write_text('{"capacity": []}', encoding="utf-8")
+    assert (
+        runtime_hygiene.main(
+            [
+                "--repository-root",
+                str(tmp_path),
+                "--output",
+                "runtime/artifacts/maintenance_archive/runtime_hygiene/report.json",
+                "--previous-report",
+                str(previous),
+            ]
+        )
+        == 0
+    )
+    assert observed["root"] == tmp_path.resolve()
+    assert (
+        observed["output"]
+        == tmp_path
+        / "runtime/artifacts/maintenance_archive/runtime_hygiene/report.json"
+    )
+    assert observed["previous_payload"] == {"capacity": []}
     assert (
         runtime_hygiene.main(
             [
@@ -187,11 +211,4 @@ def test_runtime_hygiene_main_resolves_relative_paths_and_persists(
         )
         == 0
     )
-    assert observed["root"] == tmp_path.resolve()
-    assert (
-        observed["output"]
-        == tmp_path
-        / "runtime/artifacts/maintenance_archive/runtime_hygiene/report.json"
-    )
-    assert observed["previous_payload"] is None
     assert '"status": "PASS"' in capsys.readouterr().out
