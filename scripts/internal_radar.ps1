@@ -1,10 +1,10 @@
 param(
     [ValidateSet("Once", "RunLoop", "Install", "Status")]
     [string]$Mode = "Once",
-    [Parameter(Mandatory = $true)]
     [string]$SourcePath,
     [int]$PollSeconds = 60,
-    [switch]$IncludeExisting
+    [switch]$IncludeExisting,
+    [switch]$EnableVision
 )
 
 $ErrorActionPreference = "Stop"
@@ -55,6 +55,12 @@ function Invoke-InternalRadar {
     else {
         Remove-Item Env:AI4BINANCE_INTERNAL_RADAR_INCLUDE_EXISTING -ErrorAction SilentlyContinue
     }
+    if ($EnableVision) {
+        $env:AI4BINANCE_INTERNAL_RADAR_VISION_ENABLED = "1"
+    }
+    else {
+        Remove-Item Env:AI4BINANCE_INTERNAL_RADAR_VISION_ENABLED -ErrorAction SilentlyContinue
+    }
     Push-Location -LiteralPath $root
     try {
         & $python -B -m ai4binance.internal_radar
@@ -64,11 +70,18 @@ function Invoke-InternalRadar {
         Pop-Location
     }
     $blockers = [System.Collections.Generic.List[string]]::new()
-    $blockers.Add("VISION_ANALYZER_NOT_CONFIGURED")
+    if (-not $EnableVision) {
+        $blockers.Add("VISION_ANALYZER_NOT_CONFIGURED")
+    }
     $newCandidateCount = 0
     try {
         $radar = Get-Content -LiteralPath $radarLatestPath -Raw | ConvertFrom-Json
         $newCandidateCount = [int]$radar.new_candidate_count
+        foreach ($radarBlocker in @($radar.blockers)) {
+            if ($radarBlocker) {
+                $blockers.Add([string]$radarBlocker)
+            }
+        }
     }
     catch {
         $blockers.Add("INTERNAL_RADAR_LATEST_EVIDENCE_UNAVAILABLE")
@@ -121,7 +134,8 @@ if (-not (Test-Path -LiteralPath $SourcePath -PathType Container)) {
     throw "Internal radar source directory not found: $SourcePath"
 }
 $powerShell = (Get-Command powershell.exe -ErrorAction Stop).Source
-$arguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`" -Mode RunLoop -SourcePath `"$((Resolve-Path -LiteralPath $SourcePath).Path)`" -PollSeconds $PollSeconds"
+$visionArgument = if ($EnableVision) { " -EnableVision" } else { "" }
+$arguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`" -Mode RunLoop -SourcePath `"$((Resolve-Path -LiteralPath $SourcePath).Path)`" -PollSeconds $PollSeconds$visionArgument"
 $action = New-ScheduledTaskAction -Execute $powerShell -Argument $arguments -WorkingDirectory $root
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited

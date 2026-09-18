@@ -5,7 +5,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
+from ai4binance.governance.model_registry import build_advisory_inference_envelope
 from ai4binance.internal_radar import run_internal_radar_once
+from ai4binance.internal_radar_vision import VisionEvidence
 
 
 def test_internal_radar_persists_redacted_new_image_candidate(tmp_path: Path) -> None:
@@ -30,6 +32,99 @@ def test_internal_radar_persists_redacted_new_image_candidate(tmp_path: Path) ->
     assert "relative_path" not in candidate
     assert payload["privacy"]["source_images_copied"] is False
     assert payload["execution_allowed"] is False
+
+
+def test_internal_radar_vision_mode_persists_blocked_evidence_without_image_copy(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "images"
+    source.mkdir()
+    (source / "private-name.jpg").write_bytes(b"bounded-fixture")
+
+    class BlockingVisionRunner:
+        def analyze(self, **kwargs: object) -> VisionEvidence:
+            source_hash = str(kwargs["source_content_sha256"])
+            return VisionEvidence(
+                candidate_id=str(kwargs["candidate_id"]),
+                source_content_sha256=source_hash,
+                status="BLOCKED",
+                image_category=None,
+                system_contribution=None,
+                benefit_categories=(),
+                tradeoff_categories=(),
+                extracted_text_present=None,
+                uncertainty_categories=(),
+                confidence=None,
+                blockers=("UNREGISTERED_MODEL:local-llamacpp-qwen25vl-3b",),
+                inference_envelope=build_advisory_inference_envelope(
+                    canonical_model_id="local-llamacpp-qwen25vl-3b",
+                    model_version="Qwen2.5-VL-3B-Instruct-Q4_K_M",
+                    task_type="LOCAL_IMAGE_ADVISORY_ANALYSIS",
+                    prompt_sha256="a" * 64,
+                    source_content_sha256=(source_hash,),
+                ),
+                route_decision=None,
+            )
+
+    result = run_internal_radar_once(
+        repository_root=tmp_path,
+        source_root=source,
+        vision_enabled=True,
+        vision_runner=BlockingVisionRunner(),  # type: ignore[arg-type]
+    )
+
+    candidate = result.to_payload()["candidates"][0]
+    assert isinstance(candidate, dict)
+    assert candidate["assessment_status"] == "BLOCKED"
+    assert "private-name" not in str(candidate)
+    assert "UNREGISTERED_MODEL:local-llamacpp-qwen25vl-3b" in result.blockers
+    assert result.to_payload()["privacy"]["source_images_copied"] is False
+
+
+def test_internal_radar_vision_summary_only_counts_validated_observations(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "images"
+    source.mkdir()
+    (source / "dashboard.jpg").write_bytes(b"bounded-fixture")
+
+    class ObservedVisionRunner:
+        def analyze(self, **kwargs: object) -> VisionEvidence:
+            source_hash = str(kwargs["source_content_sha256"])
+            return VisionEvidence(
+                candidate_id=str(kwargs["candidate_id"]),
+                source_content_sha256=source_hash,
+                status="OBSERVED_UNVERIFIED",
+                image_category="DASHBOARD",
+                system_contribution="RELEVANT",
+                benefit_categories=("OPERATIONAL_VISIBILITY",),
+                tradeoff_categories=("HUMAN_REVIEW_REQUIRED",),
+                extracted_text_present=True,
+                uncertainty_categories=("OCR_UNCERTAIN",),
+                confidence=0.75,
+                blockers=("VISION_OBSERVATION_REQUIRES_HUMAN_REVIEW",),
+                inference_envelope=build_advisory_inference_envelope(
+                    canonical_model_id="local-llamacpp-qwen25vl-3b",
+                    model_version="Qwen2.5-VL-3B-Instruct-Q4_K_M",
+                    task_type="LOCAL_IMAGE_ADVISORY_ANALYSIS",
+                    prompt_sha256="b" * 64,
+                    source_content_sha256=(source_hash,),
+                ),
+                route_decision=None,
+            )
+
+    result = run_internal_radar_once(
+        repository_root=tmp_path,
+        source_root=source,
+        vision_enabled=True,
+        vision_runner=ObservedVisionRunner(),  # type: ignore[arg-type]
+    )
+
+    summary = result.to_payload()["vision_summary"]
+    assert isinstance(summary, dict)
+    assert summary["observed_count"] == 1
+    assert summary["benefit_categories"] == {"OPERATIONAL_VISIBILITY": 1}
+    assert summary["tradeoff_categories"] == {"HUMAN_REVIEW_REQUIRED": 1}
 
 
 def test_internal_radar_deduplicates_unchanged_image(tmp_path: Path) -> None:

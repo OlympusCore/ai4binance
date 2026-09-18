@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
 
+from ai4binance.internal_radar_vision import LlamaCppVisionRunner
 from ai4binance.storage import write_json_object_verified
 
 _SUPPORTED_SUFFIXES: Final = frozenset(
@@ -24,6 +25,7 @@ _SUPPORTED_SUFFIXES: Final = frozenset(
 )
 _MAX_FILES_PER_SCAN: Final = 2_500
 _MAX_IMAGE_BYTES: Final = 25 * 1024 * 1024
+_MAX_VISION_ANALYSES_PER_SCAN: Final = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +38,8 @@ class InternalRadarResult:
     scanned_count: int
     new_candidate_count: int
     review_candidate_count: int
+    vision_enabled: bool
+    vision_analysis_count: int
     blockers: tuple[str, ...]
     state_path: Path
     latest_path: Path
@@ -50,6 +54,9 @@ class InternalRadarResult:
             "scanned_count": self.scanned_count,
             "new_candidate_count": self.new_candidate_count,
             "review_candidate_count": self.review_candidate_count,
+            "vision_enabled": self.vision_enabled,
+            "vision_analysis_count": self.vision_analysis_count,
+            "vision_summary": _vision_summary(self.candidates),
             "candidates": list(self.candidates),
             "blockers": list(self.blockers),
             "state_path": str(self.state_path),
@@ -58,7 +65,9 @@ class InternalRadarResult:
                 "source_images_copied": False,
                 "source_paths_disclosed": False,
                 "exif_extracted": False,
-                "visual_inference": "NOT_CONFIGURED",
+                "visual_inference": (
+                    "CONFIGURED" if self.vision_enabled else "NOT_CONFIGURED"
+                ),
             },
             "execution_allowed": False,
             "promotion_status": "RESEARCH_ONLY",
@@ -80,11 +89,18 @@ def include_existing_requested() -> bool:
     )
 
 
+def vision_analysis_requested() -> bool:
+    """Read the opt-in vision switch; model admission remains fail-closed."""
+    return os.environ.get("AI4BINANCE_INTERNAL_RADAR_VISION_ENABLED", "").strip() == "1"
+
+
 def run_internal_radar_once(
     *,
     repository_root: Path | None = None,
     source_root: Path | None = None,
     include_existing: bool = False,
+    vision_enabled: bool = False,
+    vision_runner: LlamaCppVisionRunner | None = None,
     observed_at: datetime | None = None,
 ) -> InternalRadarResult:
     """Scan one opt-in folder and persist only local, redacted review evidence."""
@@ -101,6 +117,8 @@ def run_internal_radar_once(
                 now,
                 0,
                 0,
+                0,
+                vision_enabled,
                 0,
                 ("INTERNAL_RADAR_SOURCE_NOT_CONFIGURED",),
                 state_path,
@@ -119,6 +137,8 @@ def run_internal_radar_once(
                 0,
                 0,
                 0,
+                vision_enabled,
+                0,
                 ("INTERNAL_RADAR_SOURCE_UNAVAILABLE",),
                 state_path,
                 latest_path,
@@ -134,6 +154,8 @@ def run_internal_radar_once(
                 0,
                 0,
                 0,
+                vision_enabled,
+                0,
                 ("INTERNAL_RADAR_SOURCE_NOT_DIRECTORY",),
                 state_path,
                 latest_path,
@@ -144,12 +166,14 @@ def run_internal_radar_once(
     known, pending, pending_state_present = _read_state(state_path)
     files, enumeration_blockers = _image_files(source)
     new_candidates: list[dict[str, object]] = []
+    candidates_by_id: dict[str, Path] = {}
     next_known: set[str] = set()
     for path in files:
         candidate, fingerprint = _candidate(path, source)
         if fingerprint is None:
             continue
         next_known.add(fingerprint)
+        candidates_by_id[str(candidate["candidate_id"])] = path
         if include_existing or not pending_state_present or fingerprint not in known:
             new_candidates.append(candidate)
 
@@ -159,13 +183,44 @@ def run_internal_radar_once(
         if isinstance(item.get("candidate_id"), str)
     }
     for candidate in new_candidates:
-        pending_by_id[str(candidate["candidate_id"])] = candidate
+        pending_by_id.setdefault(str(candidate["candidate_id"]), candidate)
+
+    vision_blockers: list[str] = []
+    vision_analysis_count = 0
+    if vision_enabled:
+        runner = vision_runner or LlamaCppVisionRunner()
+        for candidate_id in sorted(pending_by_id, key=str.casefold):
+            if vision_analysis_count >= _MAX_VISION_ANALYSES_PER_SCAN:
+                break
+            candidate = pending_by_id[candidate_id]
+            if candidate.get("assessment_status") == "OBSERVED_UNVERIFIED":
+                continue
+            source_path = candidates_by_id.get(candidate_id)
+            content_sha256 = candidate.get("content_sha256")
+            if source_path is None or not isinstance(content_sha256, str):
+                continue
+            evidence = runner.analyze(
+                candidate_id=candidate_id,
+                source_content_sha256=content_sha256,
+                image_path=source_path,
+            )
+            vision_analysis_count += 1
+            candidate["vision_evidence"] = evidence.to_payload()
+            candidate["assessment_status"] = evidence.status
+            candidate["system_benefit"] = evidence.system_contribution or "NOT_ASSESSED"
+            candidate["system_tradeoff"] = (
+                ",".join(evidence.tradeoff_categories)
+                if evidence.tradeoff_categories
+                else "NOT_ASSESSED"
+            )
+            candidate["recommendation"] = "HUMAN_REVIEW_REQUIRED"
+            vision_blockers.extend(evidence.blockers)
     candidates = tuple(
         pending_by_id[key] for key in sorted(pending_by_id, key=str.casefold)
     )
 
-    blockers = [*enumeration_blockers]
-    if new_candidates:
+    blockers = [*enumeration_blockers, *vision_blockers]
+    if new_candidates and not vision_enabled:
         blockers.append("VISION_ANALYZER_NOT_CONFIGURED")
     if not new_candidates:
         blockers.append("NO_NEW_INTERNAL_IMAGE_CANDIDATE")
@@ -176,6 +231,8 @@ def run_internal_radar_once(
         len(files),
         len(new_candidates),
         len(candidates),
+        vision_enabled,
+        vision_analysis_count,
         tuple(dict.fromkeys(blockers)),
         state_path,
         latest_path,
@@ -220,6 +277,42 @@ def load_internal_radar_latest(repository_root: Path) -> dict[str, object]:
             "latest_path": str(path),
         }
     return value
+
+
+def _vision_summary(candidates: tuple[dict[str, object], ...]) -> dict[str, object]:
+    """Aggregate only validated categorical vision evidence for YKB reporting."""
+    contributions: dict[str, int] = {}
+    benefits: dict[str, int] = {}
+    tradeoffs: dict[str, int] = {}
+    observed_count = 0
+    for candidate in candidates:
+        evidence = candidate.get("vision_evidence")
+        if (
+            not isinstance(evidence, dict)
+            or evidence.get("status") != "OBSERVED_UNVERIFIED"
+        ):
+            continue
+        observed_count += 1
+        _count_text(contributions, evidence.get("system_contribution"))
+        _count_texts(benefits, evidence.get("benefit_categories"))
+        _count_texts(tradeoffs, evidence.get("tradeoff_categories"))
+    return {
+        "observed_count": observed_count,
+        "contributions": contributions,
+        "benefit_categories": benefits,
+        "tradeoff_categories": tradeoffs,
+    }
+
+
+def _count_text(counts: dict[str, int], value: object) -> None:
+    if isinstance(value, str) and value:
+        counts[value] = counts.get(value, 0) + 1
+
+
+def _count_texts(counts: dict[str, int], value: object) -> None:
+    if isinstance(value, list):
+        for item in value:
+            _count_text(counts, item)
 
 
 def _persist_result(result: InternalRadarResult) -> InternalRadarResult:
@@ -309,7 +402,10 @@ def _candidate(path: Path, source: Path) -> tuple[dict[str, object], str | None]
 
 def main() -> int:
     """Run the local radar as a small service entry point."""
-    result = run_internal_radar_once(include_existing=include_existing_requested())
+    result = run_internal_radar_once(
+        include_existing=include_existing_requested(),
+        vision_enabled=vision_analysis_requested(),
+    )
     print(json.dumps(result.to_payload(), ensure_ascii=False, sort_keys=True))
     return 0 if result.status == "READY" else 2
 

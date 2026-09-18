@@ -2719,14 +2719,30 @@ def _internal_radar_payload(brief: YkbExecutiveBrief) -> dict[str, object]:
 
 def _internal_radar_summary_lines(payload: Mapping[str, object]) -> list[str]:
     blockers = _text_tuple(payload.get("blockers"))
+    vision_summary = payload.get("vision_summary")
+    vision = vision_summary if isinstance(vision_summary, Mapping) else {}
     return [
         f"- Status: `{_value_text(payload.get('status'), default='UNAVAILABLE')}`.",
         f"- New review candidates: `{_safe_int(payload.get('new_candidate_count'))}`.",
         f"- Pending review candidates: `{_safe_int(payload.get('review_candidate_count'))}`.",
+        f"- Validated visual observations: `{_safe_int(vision.get('observed_count'))}`.",
+        f"- System benefit categories: `{_radar_category_counts(vision.get('benefit_categories'))}`.",
+        f"- System trade-off categories: `{_radar_category_counts(vision.get('tradeoff_categories'))}`.",
         "- Source images, names, full paths, and EXIF: `NOT_INCLUDED_IN_YKB`.",
         f"- Blockers: `{', '.join(blockers) or '-'}`.",
         "- Authority: `RESEARCH_ONLY`; `LIVE_ORDER_BLOCKED`.",
     ]
+
+
+def _radar_category_counts(value: object) -> str:
+    if not isinstance(value, Mapping):
+        return "-"
+    items = [
+        (str(key), count)
+        for key, count in value.items()
+        if isinstance(key, str) and isinstance(count, int) and count > 0
+    ]
+    return ", ".join(f"{key}={count}" for key, count in sorted(items)) or "-"
 
 
 def _render_markdown(brief: YkbExecutiveBrief) -> str:
