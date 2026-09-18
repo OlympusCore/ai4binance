@@ -4359,6 +4359,9 @@ def test_qwen_prompter_startup_task_is_visible_and_advisory_only() -> None:
     llama_server_text = (Path("scripts") / "start_llama_server.ps1").read_text(
         encoding="utf-8"
     )
+    vision_server_text = (
+        Path("scripts") / "start_local_vision_server.ps1"
+    ).read_text(encoding="utf-8")
     local_llm_text = (Path("scripts") / "start_local_llm.ps1").read_text(
         encoding="utf-8"
     )
@@ -4421,6 +4424,12 @@ def test_qwen_prompter_startup_task_is_visible_and_advisory_only() -> None:
     assert "AI4BINANCE_LLAMA_GPU_LAYERS" in llama_server_text
     assert "AI4BINANCE_LLAMA_PARALLEL" in llama_server_text
     assert "AI4BINANCE_LLAMA_THREADS" in llama_server_text
+    assert '"--mmproj", $MmprojPath' in llama_server_text
+    assert 'model_id = "local-llamacpp-qwen25vl-3b"' in vision_server_text
+    assert '"127.0.0.1"' in vision_server_text
+    assert 'live_eligibility_status = "LIVE_ORDER_BLOCKED"' in vision_server_text
+    assert "A local llama.cpp server is already listening" in vision_server_text
+    assert "Get-FileHash" in vision_server_text
     assert "RequireQwenPrompterTask" in status_text
     assert "AI4BINANCE-Qwen3-Prompter" in status_text
     assert "qwen-prompter-health.json" in status_text

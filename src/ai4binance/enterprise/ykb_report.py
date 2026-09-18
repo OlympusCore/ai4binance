@@ -35,6 +35,7 @@ from ai4binance.governance.audit import (
     persist_dge_decision_event,
     persist_dge_evaluation_record,
 )
+from ai4binance.internal_radar import load_internal_radar_latest
 from ai4binance.ops.auto_audit_loop import AutoAuditLoopResult, run_auto_audit_loop
 from ai4binance.ops.user_reports import (
     canonical_system_root,
@@ -599,6 +600,7 @@ class YkbExecutiveBrief:
         virtual_runtime_evidence = _virtual_runtime_evidence_snapshot(
             self.json_path.parent.parent.parent,
         )
+        internal_radar = _internal_radar_payload(self)
         return {
             "command": "ykb-report",
             "report_id": self.report_id,
@@ -617,6 +619,7 @@ class YkbExecutiveBrief:
             "important_context": [
                 to_primitive(item) for item in self.important_context
             ],
+            "internal_radar": internal_radar,
             "latest_validation": to_primitive(self.latest_validation),
             "virtual_runtime_evidence": virtual_runtime_evidence,
             "virtual_runtime_priority_signal": _virtual_runtime_priority_signal(
@@ -2642,6 +2645,7 @@ def _render_private_financial_markdown(payload: Mapping[str, object]) -> str:
 
 
 def _render_latest_markdown(brief: YkbExecutiveBrief) -> str:
+    internal_radar = _internal_radar_payload(brief)
     opportunity_lines = [
         (
             f"- `{item.symbol}` `{item.market}` `{item.timeframe}` "
@@ -2695,6 +2699,7 @@ def _render_latest_markdown(brief: YkbExecutiveBrief) -> str:
             ("Opportunity Watchlist", opportunity_lines),
             ("Technology Developments", technology_lines),
             ("News and Content Context", context_lines),
+            ("Internal Image Radar", _internal_radar_summary_lines(internal_radar)),
             ("Financial Situation", financial_lines),
             ("Validation and Audit", validation_lines),
         ),
@@ -2705,8 +2710,28 @@ def _latest_validation_tuning_text(brief: YkbExecutiveBrief) -> str:
     return ", ".join(brief.latest_validation.tuning_parameters) or "UNAVAILABLE"
 
 
+def _internal_radar_payload(brief: YkbExecutiveBrief) -> dict[str, object]:
+    """Return only the redacted local-radar digest suitable for YKB output."""
+    parents = brief.json_path.parents
+    root = parents[4] if len(parents) > 4 else Path.cwd()
+    return load_internal_radar_latest(root)
+
+
+def _internal_radar_summary_lines(payload: Mapping[str, object]) -> list[str]:
+    blockers = _text_tuple(payload.get("blockers"))
+    return [
+        f"- Status: `{_value_text(payload.get('status'), default='UNAVAILABLE')}`.",
+        f"- New review candidates: `{_safe_int(payload.get('new_candidate_count'))}`.",
+        f"- Pending review candidates: `{_safe_int(payload.get('review_candidate_count'))}`.",
+        "- Source images, names, full paths, and EXIF: `NOT_INCLUDED_IN_YKB`.",
+        f"- Blockers: `{', '.join(blockers) or '-'}`.",
+        "- Authority: `RESEARCH_ONLY`; `LIVE_ORDER_BLOCKED`.",
+    ]
+
+
 def _render_markdown(brief: YkbExecutiveBrief) -> str:
     financial = brief.financial_situation
+    internal_radar = _internal_radar_payload(brief)
     lines = [
         f"# AI4BINANCE YKB Executive Brief - {brief.report_id}",
         "",
@@ -2841,6 +2866,20 @@ def _render_markdown(brief: YkbExecutiveBrief) -> str:
             ),
             spot_inventory_rows,
         )
+    )
+    lines.extend(
+        [
+            "",
+            "## Internal Image Radar",
+            "",
+            (
+                "This local-only radar stores no source image, file name, full path, "
+                "or EXIF data in YKB. It presents only bounded fingerprints and review "
+                "status; it cannot create trading or production authority."
+            ),
+            "",
+            *_internal_radar_summary_lines(internal_radar),
+        ]
     )
     lines.extend(
         [

@@ -3,6 +3,7 @@ param(
     [string]$LlamaCppRoot = $(if ($env:LLAMA_CPP_ROOT) { $env:LLAMA_CPP_ROOT } else { "" }),
     [string]$HostName = $(if ($env:LLAMA_HOST) { $env:LLAMA_HOST } else { "127.0.0.1" }),
     [int]$Port = $(if ($env:LLAMA_PORT) { [int]$env:LLAMA_PORT } else { 8080 }),
+    [string]$MmprojPath = $env:AI4BINANCE_LLAMA_MMPROJ_PATH,
     [int]$CtxSize = $(if ($env:LLAMA_CTX_LIMIT) { [int]$env:LLAMA_CTX_LIMIT } else { 4096 }),
     [int]$GpuLayers = $(if ($env:AI4BINANCE_LLAMA_GPU_LAYERS) { [int]$env:AI4BINANCE_LLAMA_GPU_LAYERS } elseif ($env:LLAMA_GPU_LAYERS) { [int]$env:LLAMA_GPU_LAYERS } else { 0 }),
     [int]$Parallel = $(if ($env:AI4BINANCE_LLAMA_PARALLEL) { [int]$env:AI4BINANCE_LLAMA_PARALLEL } elseif ($env:LLAMA_PARALLEL) { [int]$env:LLAMA_PARALLEL } else { 2 }),
@@ -137,16 +138,24 @@ if (-not $ModelPath -or -not (Test-Path -LiteralPath $ModelPath)) {
 if (-not $ModelPath -or -not (Test-Path -LiteralPath $ModelPath)) {
     throw "GGUF model was not found. Set AI4BINANCE_LLAMA_MODEL_PATH or place the Qwen3 8B GGUF under .ollama\\models\\blobs or tools\\llama.cpp\\models."
 }
+if ($MmprojPath -and -not (Test-Path -LiteralPath $MmprojPath -PathType Leaf)) {
+    throw "Multimodal projector GGUF was not found: $MmprojPath"
+}
 
 $arguments = @($serverPrefixArgs) + @(
     "--model", $ModelPath,
     "--host", $HostName,
     "--port", "$Port",
+    "--cors-origins", "localhost",
+    "--no-cors-credentials",
     "--ctx-size", "$CtxSize",
     "--threads", "$Threads",
     "--n-gpu-layers", "$GpuLayers",
     "--parallel", "$Parallel"
 )
+if ($MmprojPath) {
+    $arguments += @("--mmproj", $MmprojPath)
+}
 
 New-Item -ItemType Directory -Path (Join-Path $root "runtime\logs") -Force | Out-Null
 $stdoutPath = Join-Path $root "runtime\logs\llama-server.stdout.log"
