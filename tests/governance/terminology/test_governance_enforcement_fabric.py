@@ -439,3 +439,106 @@ def test_quality_gate_reports_invalid_policy_and_missing_routed_mapping(
     )
     assert any(item.code == "QUALITY_GATE_MAPPING_MISSING" for item in violations)
     assert any(item.code == "QUALITY_GATE_TEST_NOT_ROUTED" for item in violations)
+
+
+def test_family_integrity_reports_missing_standard_projection_and_schema(
+    tmp_path: Path,
+) -> None:
+    fabric = load_governance_enforcement_fabric(ROOT)
+    missing = tuple(fabric_module._family_integrity_violations(tmp_path, fabric, {}))
+    assert {item.code for item in missing} == {"STANDARD_MISSING"}
+
+    family = fabric.families[0]
+    standard = tmp_path / family.standard_path
+    standard.parent.mkdir(parents=True)
+    standard.write_text("---\ndocument_id: wrong\n---\n", encoding="utf-8")
+    details = tuple(fabric_module._family_integrity_violations(tmp_path, fabric, {}))
+    assert {item.code for item in details} >= {
+        "STANDARD_VERSION_MISMATCH",
+        "STANDARD_HASH_MISMATCH",
+        "UNREGISTERED_POLICY_PROJECTION",
+        "POLICY_MISSING",
+    }
+
+
+def test_quality_mapping_parser_rejects_malformed_and_duplicate_entries() -> None:
+    for payload in (
+        {"standard_impact_tests": {}},
+        {"standard_impact_tests": {"mappings": [{"name": "x", "tests": "bad"}]}},
+        {
+            "standard_impact_tests": {
+                "mappings": [
+                    {"name": "x", "tests": ["tests/a.py"]},
+                    {"name": "x", "tests": ["tests/b.py"]},
+                ]
+            }
+        },
+    ):
+        with pytest.raises(ValueError):
+            fabric_module._quality_standard_mappings(payload)
+    assert fabric_module._quality_standard_mappings(
+        {
+            "standard_impact_tests": {
+                "mappings": [{"name": "x", "tests": ["tests/a.py"]}]
+            }
+        }
+    ) == {"x": ("tests/a.py",)}
+
+
+def test_fabric_models_reject_invalid_semantics() -> None:
+    fabric = load_governance_enforcement_fabric(ROOT)
+    with pytest.raises(ValueError, match="scope"):
+        replace(fabric, authority_scope="wrong")
+    with pytest.raises(ValueError, match="pillar semantics"):
+        replace(fabric.quality_gate, pillars=())
+    with pytest.raises(ValueError, match="evaluation axes"):
+        replace(fabric.quality_gate, evaluation_axes=())
+    with pytest.raises(ValueError, match="standard profile"):
+        replace(fabric.quality_gate, minimum_profile="fast")
+
+
+def test_fabric_low_level_contracts_cover_metadata_and_duplicate_paths(
+    tmp_path: Path,
+) -> None:
+    frontmatter = tmp_path / "standard.md"
+    frontmatter.write_text("---\ndocument_id: TEST\n---\n", encoding="utf-8")
+    assert fabric_module._frontmatter(frontmatter)["document_id"] == "TEST"
+    with pytest.raises(ValueError):
+        fabric_module._safe_paths(["tests/a.py", "tests/a.py"], "paths")
+    with pytest.raises(ValueError):
+        fabric_module._safe_path("../escape", "path")
+    with pytest.raises(ValueError):
+        fabric_module._sha256_text("A" * 64)
+
+
+def test_fabric_loader_and_authority_gate_fail_closed(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="fabric validation failed"):
+        fabric_module.load_governance_enforcement_fabric(tmp_path)
+    fabric = load_governance_enforcement_fabric(ROOT)
+    with patch.object(
+        fabric_module,
+        "load_authority_layer_development_matrix",
+        side_effect=ValueError("bad"),
+    ):
+        violations = tuple(fabric_module._quality_gate_violations(ROOT, fabric))
+    assert any(item.code == "AUTHORITY_DEVELOPMENT_GATE_INVALID" for item in violations)
+
+
+def test_family_integrity_requires_declared_schema(tmp_path: Path) -> None:
+    fabric = load_governance_enforcement_fabric(ROOT)
+    family = next(item for item in fabric.families if item.schema_path is not None)
+    standard = tmp_path / family.standard_path
+    standard.parent.mkdir(parents=True)
+    standard.write_text(
+        "---\n"
+        f"document_id: {family.standard_id}\n"
+        f"version: {family.standard_version}\n"
+        f"canonical_path: {family.standard_path}\n"
+        f"authority_scope: {family.authority_scope}\n"
+        "---\n",
+        encoding="utf-8",
+    )
+    assert any(
+        item.code == "SCHEMA_MISSING"
+        for item in fabric_module._family_integrity_violations(tmp_path, fabric, {})
+    )

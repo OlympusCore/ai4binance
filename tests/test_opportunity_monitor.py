@@ -79,6 +79,252 @@ def test_monitor_artifact_boundaries_fail_closed(tmp_path: Path) -> None:
         )
 
 
+def test_monitor_helper_boundaries_and_research_estimates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    universe = type(
+        "Universe", (), {"spot_symbols": ("BTCUSDT",), "futures_symbols": ("ETHUSDT",)}
+    )()
+    monkeypatch.setattr(
+        monitor_module, "read_cached_market_universe", lambda *_args: universe
+    )
+    assert monitor_module.market_symbols(tmp_path, "USD_M_FUTURES", NOW) == ("ETHUSDT",)
+
+    monitor_path = monitor_directory(tmp_path, "SPOT", "BTCUSDT")
+    monitor_path.mkdir(parents=True)
+    latest = monitor_path / "latest.json"
+    latest.write_text(
+        json.dumps({**SAFE_STATE, "market": "SPOT", "symbol": "BTCUSDT"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(Path, "is_symlink", lambda _self: True)
+    with pytest.raises(ValueError, match="read boundary"):
+        read_monitor(tmp_path, "SPOT", "BTCUSDT")
+
+    candidate = {
+        "market": "SPOT",
+        "direction": "BULLISH",
+        "entry": "101",
+        "stop_loss": "98",
+        "tp1": "105",
+        "tp2": "108",
+        "tp3": "111",
+        "target_risk_reward": "2",
+    }
+    assert monitor_module._research_position_estimate(candidate)["side"] == "BUY"
+    candidate["market"] = "USD_M_FUTURES"
+    candidate["direction"] = "BEARISH"
+    candidate.update(stop_loss="104", tp1="98", tp2="95", tp3="92")
+    assert monitor_module._research_position_estimate(candidate)["side"] == "SHORT"
+    candidate["stop_loss"] = "101"
+    assert monitor_module._research_position_estimate(candidate) == {}
+    assert monitor_module._decimal("NaN") is None
+
+
+def test_opportunity_monitor_invalid_timeframes_and_history_boundary(
+    tmp_path: Path,
+) -> None:
+    archive = ParquetOHLCVArchive(tmp_path / "archive")
+    with pytest.raises(ValueError, match="timeframes"):
+        inspect_market_data(
+            archive,
+            market="SPOT",
+            symbol="BTCUSDT",
+            now=NOW,
+            minimum_candles=1,
+            candle_limit=1,
+            timeframes=("5m", "5m"),
+        )
+    with pytest.raises(ValueError, match="timeframes"):
+        refresh_monitor(
+            tmp_path,
+            archive,
+            market="SPOT",
+            symbol="BTCUSDT",
+            now=NOW,
+            minimum_candles=2,
+            candle_limit=1,
+            timeframes=("5m", "5m"),
+        )
+    path = tmp_path / "oversized.jsonl"
+    path.write_bytes(b"x" * 16_000_001)
+    with pytest.raises(ValueError, match="requires archival"):
+        monitor_module._history(path)
+
+
+def test_universe_summary_counts_invalid_and_invalid_monitor_symbols(
+    tmp_path: Path,
+) -> None:
+    class Archive:
+        def manifest(self, symbol: str, _timeframe: str) -> object:
+            if symbol == "BAD":
+                raise FileNotFoundError
+            return type(
+                "Manifest",
+                (),
+                {
+                    "last_timestamp": (NOW - timedelta(days=2)).isoformat(),
+                    "row_count": 1,
+                    "gap_count": 1,
+                },
+            )()
+
+    summary = universe_monitor_summary(
+        tmp_path,
+        cast(ParquetOHLCVArchive, Archive()),
+        market="SPOT",
+        symbols=("BTCUSDT", "BAD"),
+        now=NOW,
+        minimum_candles=2,
+    )
+    quality = cast(list[dict[str, object]], summary["quality"])
+    assert all(row["invalid_count"] == 1 for row in quality)
+    assert all(row["unavailable_count"] == 1 for row in quality)
+
+
+def test_universe_summary_publishes_only_safe_complete_candidates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class CurrentArchive:
+        def manifest(self, _symbol: str, timeframe: str) -> object:
+            return type(
+                "Manifest",
+                (),
+                {
+                    "last_timestamp": (
+                        NOW - TIMEFRAME_DURATIONS[timeframe]
+                    ).isoformat(),
+                    "row_count": 10,
+                    "gap_count": 0,
+                },
+            )()
+
+    directory = monitor_directory(tmp_path, "SPOT", "BTCUSDT")
+    directory.mkdir(parents=True)
+    (directory / "latest.json").write_text(
+        json.dumps(
+            {
+                **SAFE_STATE,
+                "market": "SPOT",
+                "symbol": "BTCUSDT",
+                "candidates": [
+                    "invalid",
+                    {"execution_allowed": True},
+                    {"execution_allowed": False, "live_eligibility_status": "NOT_SAFE"},
+                    {
+                        "execution_allowed": False,
+                        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        monitor_module, "has_complete_measurable_opportunity", lambda _: True
+    )
+    summary = universe_monitor_summary(
+        tmp_path,
+        cast(ParquetOHLCVArchive, CurrentArchive()),
+        market="SPOT",
+        symbols=("BTCUSDT",),
+        now=NOW,
+        minimum_candles=2,
+    )
+    assert summary["opportunity_coverage"] == {
+        "monitored_symbol_count": 1,
+        "universe_count": 1,
+        "unmonitored_symbol_count": 0,
+        "published_opportunity_count": 1,
+        "suppressed_opportunity_count": 0,
+    }
+    with pytest.raises(ValueError, match="monitor market"):
+        universe_monitor_summary(
+            tmp_path,
+            cast(ParquetOHLCVArchive, CurrentArchive()),
+            market="INVALID",
+            symbols=(),
+            now=NOW,
+            minimum_candles=2,
+        )
+
+
+def test_monitor_fail_closed_on_dataset_changes_and_invalid_sizing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class ChangedArchive:
+        calls = 0
+
+        def manifest(self, *_args: object) -> object:
+            self.calls += 1
+            return type(
+                "Manifest",
+                (),
+                {
+                    "sha256": str(self.calls),
+                    "gap_count": 0,
+                    "source": "test",
+                    "row_count": 1,
+                },
+            )()
+
+        def read_window(self, *_args: object, **_kwargs: object) -> tuple[object, ...]:
+            return ()
+
+    _, quality = inspect_market_data(
+        cast(ParquetOHLCVArchive, ChangedArchive()),
+        market="SPOT",
+        symbol="BTCUSDT",
+        now=NOW,
+        minimum_candles=2,
+        candle_limit=2,
+        timeframes=("5m",),
+    )
+    assert quality[0]["status"] == "INVALID"
+
+    monkeypatch.setattr(
+        monitor_module, "has_complete_measurable_trade_plan", lambda _: True
+    )
+    assert (
+        monitor_module._research_position_estimate({"entry": "bad", "stop_loss": "1"})
+        == {}
+    )
+    assert (
+        monitor_module._research_position_estimate({"entry": "1", "stop_loss": "1"})
+        == {}
+    )
+
+
+def test_outcome_dataset_change_is_not_evaluable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class ChangedArchive:
+        calls = 0
+
+        def manifest(self, *_args: object) -> object:
+            self.calls += 1
+            return type("Manifest", (), {"sha256": str(self.calls)})()
+
+        def read_window(self, *_args: object, **_kwargs: object) -> tuple[object, ...]:
+            return ()
+
+    monkeypatch.setattr(
+        monitor_module, "has_complete_measurable_opportunity", lambda _: True
+    )
+    result = monitor_module._outcome(
+        {
+            "timeframe": "5m",
+            "entry": "101",
+            "direction": "BULLISH",
+            "observed_at": NOW.isoformat(),
+            "symbol": "BTCUSDT",
+        },
+        cast(ParquetOHLCVArchive, ChangedArchive()),
+        NOW,
+    )
+    assert result["outcome_reason_codes"] == ["OUTCOME_DATA_UNAVAILABLE"]
+
+
 @pytest.mark.parametrize(
     "overrides",
     [

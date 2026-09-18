@@ -97,3 +97,46 @@ def test_layout_contract_helpers_fail_closed_and_canonicalize_aliases(
     loaded = load_runtime_artifact_layout_manifest()
     assert loaded.retention
     assert loaded.capacity_budgets
+
+
+@pytest.mark.parametrize(
+    ("policy", "message"),
+    [
+        (("runtime/a", "", 0, 0, False), "cleanup mode"),
+        (("runtime/a", "keep", -1, 0, False), "bounds"),
+        (("runtime/a", "keep", 0, 0, False, "file"), "entry kind"),
+    ],
+)
+def test_runtime_retention_policy_rejects_invalid_values(
+    policy: tuple[object, ...], message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        layout.RuntimeRetentionPolicy(*policy)  # type: ignore[arg-type]
+
+
+def test_layout_mapping_helpers_cover_all_invalid_contract_shapes() -> None:
+    for value in (None, [], {}, {"": "runtime/a"}, {"a": ""}):
+        with pytest.raises(ValueError):
+            layout._text_mapping(value, "roots")
+    with pytest.raises(ValueError):
+        layout._text({}, "canonical_root")
+    for value in ({"rule": []}, {"": {}}, {"rule": {"automatic_cleanup": "yes"}}):
+        with pytest.raises(ValueError):
+            layout._retention_mapping(value)
+    for policy in (
+        {"automatic_cleanup": True, "minimum_age_days": True, "keep_latest": 0},
+        {"automatic_cleanup": True, "minimum_age_days": 0, "keep_latest": False},
+    ):
+        with pytest.raises(ValueError):
+            layout._retention_mapping({"rule": policy})
+    with pytest.raises(ValueError):
+        layout._retention_entry_kind("unknown")
+
+
+def test_manifest_rejects_empty_paths_and_invalid_capacity_budget() -> None:
+    with pytest.raises(ValueError, match="paths must be non-empty"):
+        CanonicalLayoutManifest("", "runtime", {"x": "runtime/x"}, {})
+    with pytest.raises(ValueError, match="capacity budgets"):
+        CanonicalLayoutManifest(
+            "runtime/a", "runtime", {"x": "runtime/x"}, {}, capacity_budgets={"x": 1}
+        )

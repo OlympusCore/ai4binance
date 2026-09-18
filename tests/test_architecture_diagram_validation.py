@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from unittest.mock import patch
 
 import yaml
 
 from ai4binance.ops.architecture_diagram_validation import (
     validate_architecture_diagrams,
 )
+from ai4binance.ops import architecture_diagram_validation as diagram_validation
 
 ROOT = Path(__file__).parents[1]
 DIAGRAM_ROOT = ROOT / "docs" / "architecture" / "diagrams"
@@ -157,3 +159,88 @@ def test_detects_broken_relation(tmp_path: Path) -> None:
     _write_document(tmp_path, path)
 
     assert "BROKEN_RELATION" in _finding_codes(tmp_path)
+
+
+def test_diagram_helper_contracts_reject_malformed_inputs(tmp_path: Path) -> None:
+    registry = tmp_path / "registry.yaml"
+    registry.write_text("[]", encoding="utf-8")
+    assert diagram_validation._load_registry(registry)[1] == [
+        "registry root must be a mapping"
+    ]
+    registry.write_text("diagrams: invalid", encoding="utf-8")
+    assert diagram_validation._load_registry(registry)[1] == [
+        "registry diagrams must be a list"
+    ]
+    registry.write_text(
+        "diagrams:\n  - invalid\n  - diagram_id: D001\n", encoding="utf-8"
+    )
+    entries, errors = diagram_validation._load_registry(registry)
+    assert entries == [{"diagram_id": "D001"}]
+    assert errors == ["diagrams[0] must be a mapping"]
+    assert diagram_validation._normalize_repository_path(tmp_path, "../escape") is None
+    assert (
+        diagram_validation._normalize_repository_path(tmp_path, "safe")
+        == (tmp_path / "safe").resolve()
+    )
+
+    document = tmp_path / "docs" / "diagram.md"
+    document.parent.mkdir(parents=True)
+    assert (
+        diagram_validation._validate_mermaid(document, "# no block")[0].code
+        == "MISSING_MERMAID"
+    )
+    assert (
+        diagram_validation._validate_mermaid(document, "```mermaid\npie\n```")[0].code
+        == "INVALID_MERMAID_TYPE"
+    )
+    assert (
+        diagram_validation._validate_mermaid(document, "```mermaid\nflowchart LR\n```")
+        == []
+    )
+    links = diagram_validation._validate_local_links(
+        tmp_path,
+        document,
+        "[outside](../../escape) [missing](missing.md) [web](https://example.test)",
+    )
+    assert {item.code for item in links} == {
+        "LINK_OUTSIDE_REPOSITORY",
+        "BROKEN_LOCAL_LINK",
+    }
+
+
+def test_validator_reports_all_registry_document_and_relation_failures(
+    tmp_path: Path,
+) -> None:
+    path = "docs/architecture/diagrams/00_main/d001_test_diagram.md"
+    _write_document(tmp_path, path, "D999")
+    entries = [
+        _entry(diagram_id="wrong"),
+        _entry(diagram_id="D001", path=123),
+        _entry(diagram_id="D002", path="../escape"),
+        _entry(diagram_id="D003", path=path),
+        _entry(diagram_id="D004", path=path),
+        _entry(diagram_id="D005", related_diagrams=[1]),
+    ]
+    _write_registry(tmp_path, entries)
+    codes = _finding_codes(tmp_path)
+    assert {
+        "INVALID_DIAGRAM_ID",
+        "INVALID_PATH",
+        "PATH_OUTSIDE_REPOSITORY",
+        "DIAGRAM_ID_MISMATCH",
+        "DUPLICATE_DIAGRAM_PATH",
+        "INVALID_RELATION_LIST",
+    } <= codes
+
+
+def test_validator_handles_missing_registry_and_cli_statuses(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert (
+        validate_architecture_diagrams(tmp_path).findings[0].code == "REGISTRY_MISSING"
+    )
+    _write_registry(tmp_path, [])
+    assert diagram_validation.main([str(tmp_path)]) == 0
+    assert '"status": "PASS"' in capsys.readouterr().out
+    _write_registry(tmp_path, [_entry()])
+    assert diagram_validation.main([str(tmp_path)]) == 1
