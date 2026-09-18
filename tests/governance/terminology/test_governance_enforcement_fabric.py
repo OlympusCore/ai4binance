@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -333,3 +334,108 @@ def test_authority_graph_closes_all_fabric_family_paths() -> None:
         "config/governance/governance_enforcement_fabric.yaml"
         in impact.required_sync_paths
     )
+
+
+def test_fabric_contract_helpers_reject_untrusted_shapes(tmp_path: Path) -> None:
+    for value in (None, [], "text"):
+        with pytest.raises(ValueError, match="mapping"):
+            fabric_module._mapping(value, "value")
+    for value in (None, "", "   "):
+        with pytest.raises(ValueError, match="non-empty"):
+            fabric_module._string(value, "value")
+    for value in ("/absolute", "folder\\file", "folder/../file"):
+        with pytest.raises(ValueError, match="POSIX"):
+            fabric_module._safe_path(value, "path")
+    for value in (None, [], ["x", "x"]):
+        with pytest.raises(ValueError):
+            fabric_module._safe_paths(value, "paths")
+    for value in ("bad", "A" * 64, "a" * 63):
+        with pytest.raises(ValueError, match="SHA-256"):
+            fabric_module._sha256_text(value)
+    plain = tmp_path / "plain.md"
+    plain.write_text("no metadata", encoding="utf-8")
+    assert fabric_module._frontmatter(plain) == {}
+    with pytest.raises(ValueError, match="retention"):
+        fabric_module._quality_standard_mappings({})
+
+
+def test_fabric_translates_policy_failures_to_blocking_evidence() -> None:
+    fabric = load_governance_enforcement_fabric(ROOT)
+    with (
+        patch.object(fabric_module, "_family_integrity_violations", return_value=()),
+        patch.object(fabric_module, "_quality_gate_violations", return_value=()),
+        patch.object(
+            fabric_module, "load_terminology_policy", side_effect=ValueError("bad")
+        ),
+        patch.object(
+            fabric_module,
+            "load_technology_language_policy",
+            side_effect=ValueError("bad"),
+        ),
+    ):
+        violations = fabric_module.evaluate_governance_enforcement_fabric(
+            ROOT, fabric, ("./src/example.py", ""), {}
+        )
+    assert {item.code for item in violations} == {
+        "TERMINOLOGY_POLICY_INVALID",
+        "TECHNOLOGY_LANGUAGE_POLICY_INVALID",
+    }
+
+    terminology_finding = SimpleNamespace(
+        code="TERM", path="src/example.py", detail="detail", blocker=True
+    )
+    technology_finding = SimpleNamespace(
+        code="TECH", path="src/example.py", detail="detail", blocker=False
+    )
+    with (
+        patch.object(fabric_module, "_family_integrity_violations", return_value=()),
+        patch.object(fabric_module, "_quality_gate_violations", return_value=()),
+        patch.object(fabric_module, "load_terminology_policy", return_value=object()),
+        patch.object(
+            fabric_module,
+            "evaluate_terminology_policy",
+            return_value=(terminology_finding,),
+        ),
+        patch.object(
+            fabric_module, "load_technology_language_policy", return_value=object()
+        ),
+        patch.object(
+            fabric_module,
+            "evaluate_technology_language_policy",
+            return_value=(technology_finding,),
+        ),
+    ):
+        translated = fabric_module.evaluate_governance_enforcement_fabric(
+            ROOT, fabric, ("src/example.py",), {}
+        )
+    assert [(item.family, item.code, item.blocker) for item in translated] == [
+        ("terminology", "TERM", True),
+        ("technology_language", "TECH", True),
+    ]
+
+
+def test_quality_gate_reports_invalid_policy_and_missing_routed_mapping(
+    tmp_path: Path,
+) -> None:
+    fabric = load_governance_enforcement_fabric(ROOT)
+    invalid_gate = replace(fabric.quality_gate, quality_policy_path="missing.yaml")
+    invalid = tuple(
+        fabric_module._quality_gate_violations(
+            tmp_path, replace(fabric, quality_gate=invalid_gate)
+        )
+    )
+    assert any(item.code == "QUALITY_GATE_POLICY_INVALID" for item in invalid)
+
+    pillar = fabric.quality_gate.pillars[0]
+    altered_pillar = replace(pillar, standard_mapping_names=("missing-mapping",))
+    altered_gate = replace(
+        fabric.quality_gate,
+        pillars=(altered_pillar, *fabric.quality_gate.pillars[1:]),
+    )
+    violations = tuple(
+        fabric_module._quality_gate_violations(
+            ROOT, replace(fabric, quality_gate=altered_gate)
+        )
+    )
+    assert any(item.code == "QUALITY_GATE_MAPPING_MISSING" for item in violations)
+    assert any(item.code == "QUALITY_GATE_TEST_NOT_ROUTED" for item in violations)

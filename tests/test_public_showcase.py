@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from ai4binance.ops import public_showcase as showcase
 from ai4binance.ops.public_showcase import (
     PublicShowcaseError,
     load_public_showcase_manifest,
@@ -148,3 +149,124 @@ def test_public_showcase_rejects_hash_drift_and_secret_scan_failure(
             ),
         )
     assert not (tmp_path / "scan-output").exists()
+
+
+@pytest.mark.parametrize("value", ("", "/absolute", "back\\slash", "a/../b"))
+def test_showcase_helpers_reject_unsafe_contract_values(value: str) -> None:
+    with pytest.raises(PublicShowcaseError):
+        showcase._safe_relative_path(value, field="artifact")
+    with pytest.raises(PublicShowcaseError, match="name"):
+        showcase._required_text({}, "name")
+    assert showcase._is_denied("private/a.txt", ("private",))
+    assert not showcase._is_denied("public/a.txt", ("private",))
+
+
+def test_showcase_manifest_contract_parsers_fail_closed(tmp_path: Path) -> None:
+    missing = tmp_path / "missing.yaml"
+    with pytest.raises(PublicShowcaseError, match="cannot read"):
+        showcase._load_manifest_payload(missing)
+    path = tmp_path / "manifest.yaml"
+    path.write_text("version: 2", encoding="utf-8")
+    with pytest.raises(PublicShowcaseError, match="fields"):
+        showcase._load_manifest_payload(path)
+    with pytest.raises(PublicShowcaseError):
+        showcase._parse_publication({"name": "x"})
+    with pytest.raises(PublicShowcaseError):
+        showcase._parse_artifacts([])
+    with pytest.raises(PublicShowcaseError):
+        showcase._parse_denied_paths(["private", "private"])
+    with pytest.raises(PublicShowcaseError):
+        showcase._parse_gitleaks_version({"required": False, "gitleaks_version": "8"})
+
+
+def test_showcase_scan_and_output_preconditions_fail_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with pytest.raises(PublicShowcaseError, match="unavailable"):
+        showcase.run_gitleaks_scan(tmp_path, tmp_path / "missing.exe")
+
+    executable = tmp_path / "gitleaks.exe"
+    executable.write_text("fixture", encoding="utf-8")
+    failed = type("Completed", (), {"returncode": 1})()
+    monkeypatch.setattr(showcase.subprocess, "run", lambda *_args, **_kwargs: failed)
+    with pytest.raises(PublicShowcaseError, match="failed"):
+        showcase.run_gitleaks_scan(tmp_path, executable)
+    monkeypatch.setattr(
+        showcase.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("unavailable")),
+    )
+    with pytest.raises(PublicShowcaseError, match="did not complete"):
+        showcase.run_gitleaks_scan(tmp_path, executable)
+
+    manifest = showcase.PublicShowcaseManifest("name", (), (), "8")
+    with pytest.raises(PublicShowcaseError, match="outside"):
+        stage_public_showcase(
+            tmp_path, manifest, tmp_path, secret_scanner=lambda _: None
+        )
+    existing = tmp_path.parent / "existing-output"
+    existing.mkdir(exist_ok=True)
+    with pytest.raises(PublicShowcaseError, match="already exist"):
+        stage_public_showcase(
+            tmp_path, manifest, existing, secret_scanner=lambda _: None
+        )
+
+
+def test_showcase_rejects_each_authority_expansion_shape(tmp_path: Path) -> None:
+    payload = {
+        "name": "name",
+        "mode": "LOCAL_STAGING_ONLY",
+        "remote_publication_allowed": False,
+        "human_approval_required": True,
+    }
+    for key, value in (
+        ("mode", "REMOTE"),
+        ("remote_publication_allowed", True),
+        ("human_approval_required", False),
+    ):
+        changed = dict(payload)
+        changed[key] = value
+        with pytest.raises(PublicShowcaseError):
+            showcase._parse_publication(changed)
+    valid = {
+        "source": "README.md",
+        "destination": "README.md",
+        "sha256": "a" * 64,
+    }
+    assert showcase._parse_artifacts([valid])[0].source == "README.md"
+    for artifacts in ([{}], [{**valid, "sha256": "A" * 64}], [valid, valid]):
+        with pytest.raises(PublicShowcaseError):
+            showcase._parse_artifacts(artifacts)
+    with pytest.raises(PublicShowcaseError, match="non-empty"):
+        showcase._parse_denied_paths([])
+    with pytest.raises(PublicShowcaseError, match="secret_scan"):
+        showcase._parse_gitleaks_version({})
+
+    manifest_path = tmp_path / "version.yaml"
+    manifest_path.write_text(
+        "version: 2\npublication: {}\nallowed_artifacts: []\ndenied_paths: []\nsecret_scan: {}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(PublicShowcaseError, match="version"):
+        showcase._load_manifest_payload(manifest_path)
+    missing_parent = tmp_path.parent / "missing-parent" / "output"
+    with pytest.raises(PublicShowcaseError, match="parent"):
+        stage_public_showcase(
+            tmp_path,
+            showcase.PublicShowcaseManifest("name", (), (), "8"),
+            missing_parent,
+            secret_scanner=lambda _: None,
+        )
+    missing_source = showcase.PublicShowcaseManifest(
+        "name",
+        (showcase.PublicArtifact("gone.md", "gone.md", "a" * 64),),
+        (),
+        "8",
+    )
+    with pytest.raises(PublicShowcaseError, match="missing"):
+        stage_public_showcase(
+            tmp_path,
+            missing_source,
+            tmp_path.parent / "missing-source-output",
+            secret_scanner=lambda _: None,
+        )

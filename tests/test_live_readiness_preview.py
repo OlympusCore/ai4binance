@@ -1327,6 +1327,95 @@ def test_open_orders_returns_none_when_private_reader_is_unavailable(
     assert cli_live._open_orders(Settings(), "HOTUSDT") is None
 
 
+def test_live_place_never_attempts_a_missing_preview(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        cli_live,
+        "live_preview_payload",
+        lambda *_args, **_kwargs: {
+            "command": "live-preview-spot",
+            "blockers": ("INPUT_INVALID",),
+            "execution_allowed": False,
+            "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+        },
+    )
+    assert (
+        cli_live.run_live_place_spot(
+            Settings(),
+            confirm_live=False,
+            symbol=None,
+            side=None,
+            order_type=None,
+            quantity=None,
+            client_order_id=None,
+            price=None,
+            time_in_force=None,
+            authorization_id=None,
+        )
+        == 2
+    )
+    assert "ORDER_PREVIEW_UNAVAILABLE" in capsys.readouterr().out
+
+
+def test_private_reader_uses_read_only_credentials_and_transport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    credentials = object()
+    monkeypatch.setattr(
+        cli_live.PrivateCredentials,
+        "from_environment_or_file",
+        lambda _path: credentials,
+    )
+    reader = cli_live._private_reader(Settings())
+    assert isinstance(reader, cli_live.BinancePrivateAccountReader)
+
+
+def test_live_place_blocks_invalid_or_mismatched_authorization_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    preview, readiness = allowed_preview_and_readiness()
+    payload = {
+        "command": "live-preview-spot",
+        "preview": preview,
+        "readiness": readiness,
+        "blockers": (),
+        "execution_allowed": False,
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+        "_preview": preview,
+    }
+    monkeypatch.setattr(
+        cli_live, "live_preview_payload", lambda *_args, **_kwargs: dict(payload)
+    )
+
+    class _InvalidQueue:
+        def __init__(self, *_args: object) -> None:
+            pass
+
+        def resolve_execution_authorization(self, _identifier: str) -> object:
+            raise ValueError("invalid evidence")
+
+    monkeypatch.setattr(cli_live, "LocalApprovalQueue", _InvalidQueue)
+    assert (
+        cli_live.run_live_place_spot(
+            Settings(),
+            confirm_live=True,
+            symbol="HOTUSDT",
+            side="BUY",
+            order_type="LIMIT",
+            quantity="1000",
+            client_order_id="cid-1",
+            price="0.01",
+            time_in_force="GTC",
+            authorization_id="id",
+        )
+        == 2
+    )
+    assert "EXECUTION_AUTHORIZATION_EVIDENCE_INVALID" in capsys.readouterr().out
+
+
 def test_live_readiness_helpers_fail_closed_on_malformed_evidence() -> None:
     preview, readiness = allowed_preview_and_readiness()
 

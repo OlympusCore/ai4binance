@@ -3,6 +3,8 @@
 from pathlib import Path
 from typing import cast
 
+import json
+import pytest
 from ai4binance.infrastructure.filesystem.runtime_artifacts import (
     RuntimeArtifactLayoutManifest,
     default_runtime_artifact_layout_manifest_path,
@@ -11,6 +13,7 @@ from ai4binance.infrastructure.filesystem.runtime_artifacts import (
 from ai4binance.infrastructure.filesystem.runtime_artifacts.layout import (
     RuntimeArtifactLayoutManifest as CanonicalLayoutManifest,
 )
+from ai4binance.infrastructure.filesystem.runtime_artifacts import layout
 from ai4binance.ops.kaizen_quality import build_architecture_baseline
 from ai4binance.runtime_artifacts import (
     RuntimeArtifactLayoutManifest as LegacyPackageLayoutManifest,
@@ -56,3 +59,41 @@ def test_runtime_artifact_migration_is_recorded_as_canonical_and_facade() -> Non
         assert facade["execution_allowed"] is False
         assert facade["promotion_status"] == "RESEARCH_ONLY"
         assert facade["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_layout_contract_helpers_fail_closed_and_canonicalize_aliases(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ValueError):
+        layout.RuntimeRetentionPolicy("outside", "keep", 0, 0, False)
+    manifest = CanonicalLayoutManifest(
+        "runtime/artifacts",
+        "runtime",
+        {"evidence": "runtime/artifacts/evidence"},
+        {"runtime/old": "runtime/artifacts/new", "runtime": "runtime/artifacts"},
+    )
+    assert (
+        manifest.canonicalize_uri(" runtime/old/item ") == "runtime/artifacts/new/item"
+    )
+    with pytest.raises(ValueError, match="unknown runtime artifact root"):
+        manifest.root_for("unknown")
+    with pytest.raises(ValueError, match="unknown runtime retention"):
+        manifest.retention_for("unknown")
+    assert layout._capacity_budget_mapping(None) == {}
+    for value in ([], {"outside": 1}, {"runtime/a": True}, {"runtime/a": 0}):
+        with pytest.raises(ValueError):
+            layout._capacity_budget_mapping(value)
+    for value in (None, [], {"x": {}}):
+        if value is None:
+            assert layout._retention_mapping(value) == {}
+        else:
+            with pytest.raises(ValueError):
+                layout._retention_mapping(value)
+
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps({"schema_version": "bad"}), encoding="utf-8")
+    with pytest.raises(ValueError, match="schema version"):
+        load_runtime_artifact_layout_manifest(path)
+    loaded = load_runtime_artifact_layout_manifest()
+    assert loaded.retention
+    assert loaded.capacity_budgets

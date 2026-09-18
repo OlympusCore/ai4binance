@@ -30,6 +30,7 @@ from ai4binance.compatibility.opportunity_monitor import (
 from ai4binance.compatibility.opportunity_monitor import (
     refresh_monitor as compatibility_refresh_monitor,
 )
+from ai4binance.compatibility import opportunity_monitor as monitor_module
 from ai4binance.config import Settings
 from ai4binance.data.archive import ParquetOHLCVArchive
 from ai4binance.data.market_history_sync import read_cached_market_universe
@@ -47,6 +48,35 @@ NOW = datetime(2026, 9, 13, tzinfo=UTC)
 def test_application_facade_preserves_opportunity_monitor_identity() -> None:
     assert refresh_monitor is compatibility_refresh_monitor
     assert SAFE_STATE is COMPATIBILITY_SAFE_STATE
+
+
+def test_monitor_artifact_boundaries_fail_closed(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="market or symbol"):
+        monitor_directory(tmp_path, "INVALID", "BTCUSDT")
+    with pytest.raises(ValueError, match="monitor market"):
+        market_symbols(tmp_path, "INVALID", NOW)
+    assert read_monitor(tmp_path, "SPOT", "BTCUSDT")["status"] == "NOT_SCANNED"
+    path = monitor_directory(tmp_path, "SPOT", "BTCUSDT")
+    path.mkdir(parents=True)
+    latest = path / "latest.json"
+    latest.write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match="authority"):
+        read_monitor(tmp_path, "SPOT", "BTCUSDT")
+    latest.write_text(
+        json.dumps({**SAFE_STATE, "market": "SPOT", "symbol": "ETHUSDT"}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="identity"):
+        read_monitor(tmp_path, "SPOT", "BTCUSDT")
+    with pytest.raises(ValueError, match="timezone-aware"):
+        universe_monitor_summary(
+            tmp_path,
+            ParquetOHLCVArchive(tmp_path / "data"),
+            market="SPOT",
+            symbols=(),
+            now=datetime(2026, 1, 1),
+            minimum_candles=1,
+        )
 
 
 @pytest.mark.parametrize(

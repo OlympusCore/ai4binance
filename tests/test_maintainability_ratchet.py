@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+from ai4binance.ops import maintainability_ratchet as ratchet
 from ai4binance.ops.maintainability_ratchet import (
     RULES,
     MaintainabilityBaseline,
@@ -48,3 +51,64 @@ def test_repository_maintainability_baseline_is_current() -> None:
 
     assert set(baseline.limits) == set(RULES)
     assert result.passed, result.violations
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        "{}",
+        '{"schema_version": 1, "limits": {}, "approved_paths": []}',
+        '{"schema_version": 1, "limits": {"C901": 0, "PLR0912": 0, "PLR0915": -1}, "approved_paths": []}',
+        '{"schema_version": 1, "limits": {"C901": 0, "PLR0912": 0, "PLR0915": 0}, "approved_paths": ["outside.py"]}',
+    ),
+)
+def test_load_baseline_rejects_invalid_governed_shapes(
+    tmp_path: Path, payload: str
+) -> None:
+    path = tmp_path / "baseline.json"
+    path.write_text(payload, encoding="utf-8")
+    with pytest.raises(ValueError):
+        load_baseline(path)
+
+
+def test_collect_findings_and_evaluate_fail_closed_for_bad_tool_data(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    completed = type(
+        "Completed", (), {"returncode": 2, "stderr": "tool failed", "stdout": ""}
+    )()
+    monkeypatch.setattr(
+        ratchet.subprocess, "run", lambda *_args, **_kwargs: completed
+    )
+    with pytest.raises(RuntimeError, match="tool failed"):
+        collect_ruff_findings(ROOT)
+
+    malformed = type("Completed", (), {"returncode": 0, "stderr": "", "stdout": "{}"})()
+    monkeypatch.setattr(
+        ratchet.subprocess, "run", lambda *_args, **_kwargs: malformed
+    )
+    with pytest.raises(ValueError, match="JSON array"):
+        collect_ruff_findings(ROOT)
+
+    baseline = MaintainabilityBaseline(
+        limits=dict.fromkeys(RULES, 0), approved_paths=frozenset()
+    )
+    with pytest.raises(ValueError, match="unexpected rule"):
+        evaluate_findings(ROOT, baseline, ({"code": "BAD", "filename": "x"},))
+    with pytest.raises(ValueError, match="filename is invalid"):
+        evaluate_findings(ROOT, baseline, ({"code": "C901", "filename": 1},))
+    with pytest.raises(ValueError, match="escaped"):
+        evaluate_findings(
+            ROOT, baseline, ({"code": "C901", "filename": "C:/outside.py"},)
+        )
+
+
+def test_main_reports_result_and_resolves_relative_baseline(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(ratchet, "collect_ruff_findings", lambda _root: ())
+    assert (
+        ratchet.main(("--repository-root", str(ROOT), "--baseline", str(BASELINE_PATH)))
+        == 0
+    )
+    assert '"status": "PASS"' in capsys.readouterr().out
