@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-REG-MDL-001
 title: AI4BINANCE Model Registry
 document_type: REGISTRY
-version: 1.4.0
+version: 1.5.0
 status: ACTIVE
 owner: Model Governance
 authority_level: NORMATIVE
@@ -73,6 +73,91 @@ not model approval or runtime admission.
 {
   "schema_version": "1.0.0",
   "entries": [
+    {
+      "definition": {
+        "model_id": "local-llamacpp-qwen3-8b",
+        "name": "Local Qwen 3 8B llama.cpp Advisory Model",
+        "model_family": "LLM",
+        "provider": "llama.cpp",
+        "owner": "Model Governance",
+        "intended_use": [
+          "ADVISORY_RESEARCH_SYNTHESIS",
+          "READ_ONLY_LOCAL_WORKBENCH"
+        ],
+        "prohibited_use": [
+          "FINAL_DECISION",
+          "RISK_OVERRIDE",
+          "STRATEGY_PROMOTION",
+          "ORDER_EXECUTION",
+          "LIVE_ORDER_AUTHORIZATION"
+        ],
+        "authority": {
+          "authority_ceiling": "ADVISORY_ONLY",
+          "decision_authority": false,
+          "risk_override": false,
+          "strategy_promotion": false,
+          "execution_authority": false,
+          "live_order_authority": false
+        }
+      },
+      "version": {
+        "model_id": "local-llamacpp-qwen3-8b",
+        "model_version": "qwen3:8b",
+        "lifecycle_status": "RESEARCH_ONLY",
+        "input_contract_version": "RAG_ADVISORY_PROMPT_V1",
+        "output_contract_version": "ADVISORY_PROVIDER_RESULT_V1",
+        "source_path": "src/ai4binance/rag.py"
+      },
+      "artifact": {
+        "artifact_type": "SOURCE_CONTRACT",
+        "artifact_uri": "scripts/start_llama_server.ps1",
+        "artifact_sha256": "7b2c8e6c9f66a8fe79ba83fc8150ca41302500ef275cefa77e3975710370382a",
+        "license_status": "VERIFIED",
+        "rollback_binding": "STOP_LOCAL_LLAMA_CPP_ADVISORY"
+      }
+    },
+    {
+      "definition": {
+        "model_id": "local-llamacpp-qwen25vl-3b",
+        "name": "Local Qwen 2.5 VL 3B llama.cpp Image Advisory Model",
+        "model_family": "LLM",
+        "provider": "llama.cpp",
+        "owner": "Model Governance",
+        "intended_use": [
+          "LOCAL_IMAGE_ADVISORY_ANALYSIS"
+        ],
+        "prohibited_use": [
+          "FINAL_DECISION",
+          "RISK_OVERRIDE",
+          "STRATEGY_PROMOTION",
+          "ORDER_EXECUTION",
+          "LIVE_ORDER_AUTHORIZATION"
+        ],
+        "authority": {
+          "authority_ceiling": "ADVISORY_ONLY",
+          "decision_authority": false,
+          "risk_override": false,
+          "strategy_promotion": false,
+          "execution_authority": false,
+          "live_order_authority": false
+        }
+      },
+      "version": {
+        "model_id": "local-llamacpp-qwen25vl-3b",
+        "model_version": "Qwen2.5-VL-3B-Instruct-Q4_K_M",
+        "lifecycle_status": "RESEARCH_ONLY",
+        "input_contract_version": "INTERNAL_IMAGE_ADVISORY_PROMPT_V1",
+        "output_contract_version": "INTERNAL_IMAGE_ADVISORY_EVIDENCE_V1",
+        "source_path": "src/ai4binance/internal_radar_vision.py"
+      },
+      "artifact": {
+        "artifact_type": "LOCAL_MODEL_MANIFEST",
+        "artifact_uri": "config/local_models/local-llamacpp-qwen25vl-3b.json",
+        "artifact_sha256": "d05971745162d0dce91c91ecb22eed0955d0f24d35c2dc0a97f77cc3a7adf388",
+        "license_status": "VERIFIED",
+        "rollback_binding": "STOP_LOCAL_VISION_ADVISORY"
+      }
+    },
     {
       "definition": {
         "model_id": "local-ollama-qwen3-8b",

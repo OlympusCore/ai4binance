@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0.0",
+  "model_id": "local-llamacpp-qwen25vl-3b",
+  "provider": "llama.cpp",
+  "model_version": "Qwen2.5-VL-3B-Instruct-Q4_K_M",
+  "runtime_boundary": {
+    "bind_host": "127.0.0.1",
+    "port": 8081,
+    "execution_allowed": false,
+    "promotion_status": "RESEARCH_ONLY",
+    "live_eligibility_status": "LIVE_ORDER_BLOCKED"
+  },
+  "artifacts": [
+    {
+      "role": "model",
+      "path": "models/local-vl/Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf",
+      "byte_length": 1929901056,
+      "sha256": "d02fe9b69ad8cadbbd228e387667af66612c44bed29ffc8eb1e7caf9ac486c12"
+    },
+    {
+      "role": "multimodal_projector",
+      "path": "models/local-vl/mmproj-Qwen2.5-VL-3B-Instruct-Q8_0.gguf",
+      "byte_length": 844757728,
+      "sha256": "980c9b2f78c04e6cff93d277ada09e768394f112d75db3b4e9dea8a69f9fb904"
+    }
+  ]
+}

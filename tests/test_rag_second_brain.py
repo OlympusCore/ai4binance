@@ -786,7 +786,7 @@ def test_rag_contracts_reject_restricted_or_authorized_shapes() -> None:
         )
 
 
-def test_llama_runner_is_loopback_only_and_blocks_provider_drift() -> None:
+def test_llama_runner_is_loopback_only_and_blocks_unavailable_provider() -> None:
     with pytest.raises(ValueError, match="loopback"):
         LlamaCppAdvisoryRunner("http://example.com").run("prompt", ())
 
@@ -797,7 +797,9 @@ def test_llama_runner_is_loopback_only_and_blocks_provider_drift() -> None:
 
     assert result.execution_allowed is False
     assert result.live_eligibility_status == "LIVE_ORDER_BLOCKED"
-    assert "MODEL_PROVIDER_MISMATCH:local-ollama-qwen3-8b:llama.cpp" in result.blockers
+    assert result.blockers == ("LOCAL_LLM_PROVIDER_UNAVAILABLE", "ADVISORY_ONLY")
+    assert result.inference_envelope is not None
+    assert result.inference_envelope.canonical_model_id == "local-llamacpp-qwen3-8b"
 
 
 def test_advisory_provider_guard_bounds_prompt_timeout_and_response_size() -> None:

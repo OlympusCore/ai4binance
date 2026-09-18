@@ -6,6 +6,7 @@ import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import lru_cache
 from hashlib import sha256
 from pathlib import Path
 
@@ -35,6 +36,7 @@ _ARTIFACT_TYPES = frozenset({"LOCAL_MODEL_MANIFEST", "SOURCE_CONTRACT"})
 _ADVISORY_TASK_FAMILIES = {
     "ADVISORY_RESEARCH_SYNTHESIS": frozenset({"LLM"}),
     "READ_ONLY_LOCAL_WORKBENCH": frozenset({"LLM"}),
+    "LOCAL_IMAGE_ADVISORY_ANALYSIS": frozenset({"LLM"}),
 }
 _REGISTRY_FENCE = re.compile(
     r"```json model-registry\s*\n(?P<payload>.*?)\n```", re.DOTALL
@@ -416,9 +418,6 @@ def validate_model_registry(
             blockers.append(f"LICENSE_UNVERIFIED:{model_id}")
         if entry.artifact.artifact_sha256 is None:
             continue
-        if entry.artifact.artifact_type != "SOURCE_CONTRACT":
-            blockers.append(f"ARTIFACT_HASH_UNVERIFIABLE:{model_id}")
-            continue
         source = (root / entry.artifact.artifact_uri).resolve()
         try:
             source.relative_to(root)
@@ -428,15 +427,101 @@ def validate_model_registry(
         if not source.is_file():
             blockers.append(f"ARTIFACT_MISSING:{model_id}")
             continue
-        actual_hash = sha256(source.read_bytes()).hexdigest()
+        actual_hash = _sha256_file(source)
         if actual_hash != entry.artifact.artifact_sha256:
             blockers.append(f"ARTIFACT_HASH_MISMATCH:{model_id}")
+            continue
+        if entry.artifact.artifact_type == "LOCAL_MODEL_MANIFEST":
+            blockers.extend(_local_model_manifest_blockers(root, model_id, source))
     unique_blockers = tuple(dict.fromkeys(blockers))
     return ModelRegistryReport(
         entries=entries,
         blockers=unique_blockers,
         status="RUNNING_WITH_BLOCKERS" if unique_blockers else "PASS",
     )
+
+
+def _local_model_manifest_blockers(
+    repository_root: Path,
+    model_id: str,
+    manifest_path: Path,
+) -> tuple[str, ...]:
+    """Validate a local GGUF manifest without persisting machine paths."""
+
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest = _mapping(payload, "local model manifest")
+        _require_keys(
+            manifest,
+            {
+                "schema_version",
+                "model_id",
+                "provider",
+                "model_version",
+                "runtime_boundary",
+                "artifacts",
+            },
+            "local model manifest",
+        )
+        if manifest["schema_version"] != "1.0.0":
+            raise ValueError("local model manifest schema version is unsupported")
+        if manifest["model_id"] != model_id:
+            raise ValueError("local model manifest model identity mismatch")
+        artifacts = manifest["artifacts"]
+        if not isinstance(artifacts, list) or not artifacts:
+            raise ValueError("local model manifest artifacts are required")
+    except (OSError, ValueError, json.JSONDecodeError):
+        return (f"LOCAL_MODEL_MANIFEST_INVALID:{model_id}",)
+
+    blockers: list[str] = []
+    for item in artifacts:
+        if not isinstance(item, Mapping):
+            return (f"LOCAL_MODEL_MANIFEST_INVALID:{model_id}",)
+        try:
+            _require_keys(
+                item,
+                {"role", "path", "byte_length", "sha256"},
+                "local model artifact",
+            )
+            artifact_path = _text(item["path"], "local model artifact path")
+            expected_sha256 = _text(item["sha256"], "local model artifact sha256")
+            expected_length = item["byte_length"]
+            if (
+                not _SHA256.fullmatch(expected_sha256)
+                or not isinstance(expected_length, int)
+                or expected_length < 1
+                or Path(artifact_path).is_absolute()
+                or not artifact_path.startswith("models/")
+            ):
+                raise ValueError("local model artifact contract is invalid")
+            candidate = (repository_root / artifact_path).resolve()
+            candidate.relative_to(repository_root)
+        except (TypeError, ValueError):
+            return (f"LOCAL_MODEL_MANIFEST_INVALID:{model_id}",)
+        if not candidate.is_file():
+            blockers.append(f"LOCAL_MODEL_ARTIFACT_MISSING:{model_id}:{item['role']}")
+            continue
+        if candidate.stat().st_size != expected_length:
+            blockers.append(f"LOCAL_MODEL_ARTIFACT_SIZE_MISMATCH:{model_id}:{item['role']}")
+            continue
+        if _sha256_file(candidate) != expected_sha256:
+            blockers.append(f"LOCAL_MODEL_ARTIFACT_HASH_MISMATCH:{model_id}:{item['role']}")
+    return tuple(blockers)
+
+
+def _sha256_file(path: Path) -> str:
+    stat = path.stat()
+    return _sha256_file_cached(str(path), stat.st_size, stat.st_mtime_ns)
+
+
+@lru_cache(maxsize=64)
+def _sha256_file_cached(path: str, byte_length: int, modified_at_ns: int) -> str:
+    del byte_length, modified_at_ns
+    digest = sha256()
+    with Path(path).open("rb") as source:
+        while chunk := source.read(1_048_576):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def require_registered_model(

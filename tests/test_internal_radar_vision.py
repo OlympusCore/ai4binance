@@ -12,20 +12,22 @@ from ai4binance.governance.model_registry import ModelGateway
 from ai4binance.internal_radar_vision import LlamaCppVisionRunner
 
 
-def test_vision_runner_blocks_before_network_when_model_is_not_registered(
+def test_vision_runner_stays_advisory_when_local_provider_is_unavailable(
     tmp_path: Path,
 ) -> None:
     image = tmp_path / "private-image.png"
     image.write_bytes(b"image-fixture")
 
-    evidence = LlamaCppVisionRunner(model_gateway=ModelGateway()).analyze(
+    evidence = LlamaCppVisionRunner(
+        base_url="http://127.0.0.1:9", model_gateway=ModelGateway()
+    ).analyze(
         candidate_id="internal-image:0123456789abcdef",
         source_content_sha256="a" * 64,
         image_path=image,
     )
 
     assert evidence.status == "BLOCKED"
-    assert "UNREGISTERED_MODEL:local-llamacpp-qwen25vl-3b" in evidence.blockers
+    assert evidence.blockers == ("LOCAL_VISION_PROVIDER_UNAVAILABLE", "ADVISORY_ONLY")
     assert evidence.execution_allowed is False
     assert evidence.live_eligibility_status == "LIVE_ORDER_BLOCKED"
 

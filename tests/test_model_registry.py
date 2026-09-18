@@ -23,11 +23,16 @@ def test_registry_loads_observed_model_entries() -> None:
     entries = load_model_registry(REGISTRY)
 
     qwen = require_registered_model("local-ollama-qwen3-8b", entries)
+    llama_qwen = require_registered_model("local-llamacpp-qwen3-8b", entries)
+    vision = require_registered_model("local-llamacpp-qwen25vl-3b", entries)
     scenario = require_registered_model("price-action-scenario-catalog", entries)
 
     assert qwen.definition.model_family == "LLM"
     assert qwen.version.lifecycle_status == "OBSERVED_UNVERIFIED"
     assert qwen.artifact.artifact_sha256 is None
+    assert llama_qwen.definition.provider == "llama.cpp"
+    assert llama_qwen.version.lifecycle_status == "RESEARCH_ONLY"
+    assert vision.artifact.artifact_type == "LOCAL_MODEL_MANIFEST"
     assert scenario.definition.model_family == "SCENARIO_MODEL"
     assert scenario.artifact.artifact_sha256 is not None
     assert all(entry.definition.execution_authority is False for entry in entries)
@@ -87,6 +92,29 @@ def test_advisory_gateway_blocks_unverified_and_provider_drift() -> None:
     )
     assert unverified.execution_allowed is False
     assert unverified.live_eligibility_status == "LIVE_ORDER_BLOCKED"
+
+
+def test_advisory_gateway_admits_registered_local_llamacpp_models() -> None:
+    qwen = admit_advisory_model_invocation(
+        ROOT,
+        "local-llamacpp-qwen3-8b",
+        "llama.cpp",
+        "qwen3:8b",
+        REGISTRY,
+    )
+    vision = admit_advisory_model_invocation(
+        ROOT,
+        "local-llamacpp-qwen25vl-3b",
+        "llama.cpp",
+        "Qwen2.5-VL-3B-Instruct-Q4_K_M",
+        REGISTRY,
+        task="LOCAL_IMAGE_ADVISORY_ANALYSIS",
+    )
+
+    assert qwen.allowed is True
+    assert vision.allowed is True
+    assert qwen.execution_allowed is False
+    assert vision.live_eligibility_status == "LIVE_ORDER_BLOCKED"
 
 
 def test_advisory_gateway_fails_closed_when_registry_is_unavailable(
@@ -198,13 +226,24 @@ def test_route_decision_schema_is_canonical_and_fail_closed() -> None:
 def test_registry_detects_source_contract_artifact_substitution(tmp_path: Path) -> None:
     document = REGISTRY.read_text(encoding="utf-8")
     payload = _registry_payload(document)
-    payload["entries"][1]["artifact"]["artifact_sha256"] = "0" * 64
+    payload["entries"][3]["artifact"]["artifact_sha256"] = "0" * 64
     tampered = tmp_path / "registry.md"
     tampered.write_text(_registry_document(payload), encoding="utf-8")
 
     report = validate_model_registry(ROOT, tampered)
 
     assert "ARTIFACT_HASH_MISMATCH:price-action-scenario-catalog" in report.blockers
+
+
+def test_registry_detects_local_model_manifest_artifact_drift(tmp_path: Path) -> None:
+    payload = _registry_payload(REGISTRY.read_text(encoding="utf-8"))
+    payload["entries"][1]["artifact"]["artifact_sha256"] = "0" * 64
+    tampered = tmp_path / "registry.md"
+    tampered.write_text(_registry_document(payload), encoding="utf-8")
+
+    report = validate_model_registry(ROOT, tampered)
+
+    assert "ARTIFACT_HASH_MISMATCH:local-llamacpp-qwen25vl-3b" in report.blockers
 
 
 def test_registry_rejects_authority_escalation(tmp_path: Path) -> None:

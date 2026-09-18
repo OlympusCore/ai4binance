@@ -1794,6 +1794,44 @@
       "approval_evidence_sha256": "adbc21afa84a82b30c9d62bbac2f7f23b77fe50aac29ae9aaaad903609cde9a2"
     },
     {
+      "approval_id": "AI4B-GOV-DOCLOCK-LOCAL-MODEL-GOVERNANCE-20260918-001",
+      "approval_scope": "LOCAL_LLAMA_CPP_QWEN3_AND_QWEN25VL_RESEARCH_ONLY_ACTIVATION",
+      "approval_status": "APPROVED",
+      "approved_at_utc": "2026-09-18T21:32:17Z",
+      "approved_by": "huseyin-governance-owner-principal",
+      "approved_roles": [
+        "GovernanceOwner"
+      ],
+      "approved_principal_ids": [
+        "huseyin-governance-owner-principal"
+      ],
+      "approved_sha256": {
+        "docs/registries/registry_model_registry.md": "50d3a245a7741dcfea2dfd51e5f27268725be6a4c15ed2dd4a3e2ef8e12e4023"
+      },
+      "written_owner_approval": true,
+      "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_local_model_governance_20260918_001.json",
+      "approval_evidence_sha256": "674e8987c23c67915de297f950a87a31dc8b8f860376d7210e6669f991c34e9b"
+    },
+    {
+      "approval_id": "AI4B-GOV-DOCLOCK-LOCAL-MODEL-CONSTITUTION-20260918-001",
+      "approval_scope": "LOCAL_LLAMA_CPP_QWEN3_AND_QWEN25VL_RESEARCH_ONLY_ACTIVATION",
+      "approval_status": "APPROVED",
+      "approved_at_utc": "2026-09-18T21:32:17Z",
+      "approved_by": "huseyin-constitution-owner-principal",
+      "approved_roles": [
+        "ConstitutionOwner"
+      ],
+      "approved_principal_ids": [
+        "huseyin-constitution-owner-principal"
+      ],
+      "approved_sha256": {
+        "docs/registries/registry_model_registry.md": "50d3a245a7741dcfea2dfd51e5f27268725be6a4c15ed2dd4a3e2ef8e12e4023"
+      },
+      "written_owner_approval": true,
+      "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_local_model_constitution_20260918_001.json",
+      "approval_evidence_sha256": "c5fa31957b2212d41a5e1391efc47f6599b629b7b48355025a093b70d09fbe4f"
+    },
+    {
       "approval_id": "AI4B-GOV-DOCLOCK-LOGICAL-ARCHITECTURE-REGISTRY-20260904-001",
       "approval_scope": "LOGICAL_ARCHITECTURE_REGISTRY_ENFORCEMENT_MIRROR_COMPLIANCE_ALIGNMENT",
       "approval_status": "APPROVED",
@@ -2688,13 +2726,13 @@
       "authority_scope": "model_registry",
       "canonical_path": "docs/registries/registry_model_registry.md",
       "document_status": "ACTIVE",
-      "expected_hash": "03fb2d2ab5eaf7a0dd79f64470764ec7e07d0d526573c304de5f1c857a3fa7a9",
+      "expected_hash": "50d3a245a7741dcfea2dfd51e5f27268725be6a4c15ed2dd4a3e2ef8e12e4023",
       "lock_state": "LOCKED",
       "path": "docs/registries/registry_model_registry.md",
-      "sha256": "03fb2d2ab5eaf7a0dd79f64470764ec7e07d0d526573c304de5f1c857a3fa7a9",
+      "sha256": "50d3a245a7741dcfea2dfd51e5f27268725be6a4c15ed2dd4a3e2ef8e12e4023",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "1.4.0"
+      "version": "1.5.0"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",

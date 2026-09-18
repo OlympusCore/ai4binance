@@ -1113,6 +1113,7 @@ class LlamaCppAdvisoryRunner:
         citations = tuple(hit.source_uri for hit in hits)
         prompt_hash = sha256(prompt.encode("utf-8")).hexdigest()
         envelope = _advisory_inference_envelope(
+            "local-llamacpp-qwen3-8b",
             self.model,
             self.advisory_task,
             prompt_hash,
@@ -1120,7 +1121,7 @@ class LlamaCppAdvisoryRunner:
         )
         gateway = self.model_gateway or ModelGateway(self.repository_root)
         decision = gateway.admit_advisory(
-            "local-ollama-qwen3-8b",
+            "local-llamacpp-qwen3-8b",
             "llama.cpp",
             self.model,
             self.advisory_task,
@@ -1210,6 +1211,7 @@ class OllamaAdvisoryRunner:
         citations = tuple(hit.source_uri for hit in hits)
         prompt_hash = sha256(prompt.encode("utf-8")).hexdigest()
         envelope = _advisory_inference_envelope(
+            "local-ollama-qwen3-8b",
             self.model,
             self.advisory_task,
             prompt_hash,
@@ -1290,13 +1292,14 @@ class OllamaAdvisoryRunner:
 
 
 def _advisory_inference_envelope(
+    canonical_model_id: str,
     model: str,
     task: str,
     prompt_sha256: str,
     hits: tuple[RagSearchHit, ...],
 ) -> ModelInferenceEnvelope:
     return build_advisory_inference_envelope(
-        canonical_model_id="local-ollama-qwen3-8b",
+        canonical_model_id=canonical_model_id,
         model_version=model,
         task_type=task,
         prompt_sha256=prompt_sha256,
