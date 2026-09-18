@@ -1,0 +1,63 @@
+version: 1
+
+disclosure_policy:
+  default: CLOSED
+  open:
+    - architecture_philosophy
+    - governance_concepts
+    - ontology_structure
+    - decision_lifecycle
+    - evidence_model
+    - contracts
+    - diagrams
+    - synthetic_examples
+  partial:
+    - schemas
+    - interfaces
+    - event_contracts
+    - simplified_algorithms
+    - example_tests
+  closed:
+    - alpha_generation
+    - strategy_implementation
+    - decision_weights
+    - risk_thresholds
+    - parameter_sets
+    - optimization
+    - execution_internals
+    - prompts
+    - operational_governance
+    - research_evidence
+    - market_datasets
+    - production_configuration
+
+# Default deny: only paths listed here may enter a public export.
+allowed_paths:
+  - README.md
+  - LICENSE
+  - SECURITY.md
+  - CONTRIBUTING.md
+  - docs/public/
+  - docs/architecture/public/
+  - docs/governance/public/
+  - examples/
+  - schemas/public/
+  - src/ai4binance/public_api/
+  - src/ai4binance/contracts/public/
+
+# Defense in depth; an allowlisted path never overrides these exclusions.
+denied_paths:
+  - runtime/
+  - data/
+  - research/
+  - strategies/
+  - risk/
+  - decision/
+  - prompts/
+  - config/private/
+  - docs/internal/
+  - config/
+  - src/ai4binance/strategy/
+  - src/ai4binance/risk/
+  - src/ai4binance/decision/
+  - src/ai4binance/execution/
