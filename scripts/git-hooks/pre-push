@@ -59,6 +59,52 @@ if [ ! -s "$push_updates_path" ]; then
     exit 0
 fi
 
+# Validate the current remote refs before preparing or consuming a one-time
+# authorization.  Git supplies the remote SHA from the local view, which can
+# be stale when another clone has updated the branch.  Without this check, a
+# user can authorize a push only to receive a later non-fast-forward rejection
+# from the server after their authorization has already been consumed.
+zero_oid='0000000000000000000000000000000000000000'
+while IFS=' ' read -r local_ref local_sha remote_ref expected_remote_sha; do
+    if [ -z "$local_ref" ] || [ -z "$local_sha" ] || [ -z "$remote_ref" ] || [ -z "$expected_remote_sha" ]; then
+        echo "REMOTE_REF_PREFLIGHT_UPDATE_INVALID" >&2
+        echo "RESEARCH_ONLY" >&2
+        echo "LIVE_ORDER_BLOCKED" >&2
+        exit 1
+    fi
+
+    if ! remote_listing=$(git ls-remote --refs "$1" "$remote_ref" 2>/dev/null); then
+        echo "REMOTE_REF_PREFLIGHT_UNAVAILABLE: $remote_ref" >&2
+        echo "Fetch or resolve remote access, then retry the push." >&2
+        echo "RESEARCH_ONLY" >&2
+        echo "LIVE_ORDER_BLOCKED" >&2
+        exit 1
+    fi
+    remote_tip=$(printf '%s\n' "$remote_listing" | awk 'NR == 1 { print $1 }')
+
+    if [ "$expected_remote_sha" = "$zero_oid" ]; then
+        if [ -n "$remote_tip" ]; then
+            echo "REMOTE_REF_CHANGED_SINCE_PUSH_PREPARATION: $remote_ref" >&2
+            echo "Fetch, inspect, and integrate the remote branch before retrying." >&2
+            echo "RESEARCH_ONLY" >&2
+            echo "LIVE_ORDER_BLOCKED" >&2
+            exit 1
+        fi
+    elif [ -z "$remote_tip" ] || [ "$remote_tip" != "$expected_remote_sha" ]; then
+        echo "REMOTE_REF_CHANGED_SINCE_PUSH_PREPARATION: $remote_ref" >&2
+        echo "Fetch, inspect, and integrate the remote branch before retrying." >&2
+        echo "RESEARCH_ONLY" >&2
+        echo "LIVE_ORDER_BLOCKED" >&2
+        exit 1
+    elif [ "$local_sha" != "$zero_oid" ] && ! git merge-base --is-ancestor "$expected_remote_sha" "$local_sha" >/dev/null 2>&1; then
+        echo "REMOTE_REF_NOT_FAST_FORWARD: $remote_ref" >&2
+        echo "Integrate the remote branch before retrying." >&2
+        echo "RESEARCH_ONLY" >&2
+        echo "LIVE_ORDER_BLOCKED" >&2
+        exit 1
+    fi
+done < "$push_updates_path"
+
 authorization_path="${AI4BINANCE_GIT_WRITE_AUTHORIZATION_PATH:-}"
 if [ -n "$authorization_path" ]; then
     if ! powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass \

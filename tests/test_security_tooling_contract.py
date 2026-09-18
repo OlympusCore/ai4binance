@@ -1008,6 +1008,128 @@ def test_pre_push_hook_consumes_exact_ref_bound_authorization(tmp_path: Path) ->
     assert audit["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
 
 
+def test_pre_push_hook_blocks_remote_ref_drift_before_consuming_authorization(
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "repository"
+    remote = tmp_path / "remote.git"
+    other_clone = tmp_path / "other-clone"
+    git = _initialize_git_repository(repository)
+    subprocess.run(  # noqa: S603
+        [git, "init", "--quiet", "--bare", str(remote)],
+        check=True,
+    )
+    subprocess.run(  # noqa: S603
+        [git, "-C", str(repository), "remote", "add", "origin", str(remote)],
+        check=True,
+    )
+    subprocess.run(  # noqa: S603
+        [
+            git,
+            "-C",
+            str(repository),
+            "-c",
+            "core.hooksPath=NUL",
+            "push",
+            "origin",
+            "main",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    _install_test_hooks(repository)
+
+    local_file = repository / "tracked.txt"
+    local_file.write_text("local change\n", encoding="utf-8")
+    subprocess.run(  # noqa: S603
+        [git, "-C", str(repository), "add", "tracked.txt"], check=True
+    )
+    subprocess.run(  # noqa: S603
+        [
+            git,
+            "-C",
+            str(repository),
+            "-c",
+            "core.hooksPath=NUL",
+            "commit",
+            "--quiet",
+            "-m",
+            "local change",
+        ],
+        check=True,
+    )
+    local_head = subprocess.run(  # noqa: S603
+        [git, "-C", str(repository), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    expected_remote_head = subprocess.run(  # noqa: S603
+        [git, "--git-dir", str(remote), "rev-parse", "refs/heads/main"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    subprocess.run(  # noqa: S603
+        [git, "clone", "--quiet", "--branch", "main", str(remote), str(other_clone)],
+        check=True,
+    )
+    subprocess.run(  # noqa: S603
+        [git, "-C", str(other_clone), "config", "user.name", "Other Human"],
+        check=True,
+    )
+    subprocess.run(  # noqa: S603
+        [git, "-C", str(other_clone), "config", "user.email", "other@example.invalid"],
+        check=True,
+    )
+    (other_clone / "remote.txt").write_text("remote change\n", encoding="utf-8")
+    subprocess.run(  # noqa: S603
+        [git, "-C", str(other_clone), "add", "remote.txt"], check=True
+    )
+    subprocess.run(  # noqa: S603
+        [git, "-C", str(other_clone), "commit", "--quiet", "-m", "remote change"],
+        check=True,
+    )
+    subprocess.run(  # noqa: S603
+        [git, "-C", str(other_clone), "push", "origin", "main"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    updates_path = tmp_path / "push-updates.txt"
+    updates_path.write_text(
+        f"refs/heads/main {local_head} refs/heads/main {expected_remote_head}\n",
+        encoding="ascii",
+    )
+    challenge_path, approval_command = _prepare_authorization(
+        repository,
+        "Push",
+        remote_name="origin",
+        push_updates_path=updates_path,
+    )
+    authorization_path = _approve_authorization(
+        repository, challenge_path, approval_command
+    )
+    environment = os.environ.copy()
+    environment["AI4BINANCE_GIT_WRITE_AUTHORIZATION_PATH"] = str(authorization_path)
+    blocked = subprocess.run(  # noqa: S603
+        [git, "-C", str(repository), "push", "origin", "main"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=60,
+    )
+
+    assert blocked.returncode != 0
+    assert "REMOTE_REF_NOT_FAST_FORWARD: refs/heads/main" in blocked.stderr
+    assert "GIT_WRITE_AUTHORIZATION_CONSUMED" not in (blocked.stdout + blocked.stderr)
+    assert authorization_path.is_file()
+
+
 def test_pre_push_hook_allows_noop_push_without_authorization(tmp_path: Path) -> None:
     repository = tmp_path / "repository"
     remote = tmp_path / "remote.git"
