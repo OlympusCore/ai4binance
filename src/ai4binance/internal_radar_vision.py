@@ -18,6 +18,10 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Final, TypedDict
 
+from ai4binance.governance.local_model_roles import (
+    load_local_model_role,
+    validate_role_runtime,
+)
 from ai4binance.governance.model_registry import (
     ModelGateway,
     ModelInferenceEnvelope,
@@ -159,6 +163,7 @@ class LlamaCppVisionRunner:
     base_url: str = "http://127.0.0.1:8081"
     timeout_seconds: float = 60.0
     model_gateway: ModelGateway | None = None
+    repository_root: Path | None = None
 
     def analyze(
         self,
@@ -183,6 +188,27 @@ class LlamaCppVisionRunner:
                 source_content_sha256,
                 envelope,
                 ("LOCAL_VISION_PROVIDER_NOT_LOOPBACK",),
+            )
+        root = self.repository_root or Path(__file__).resolve().parents[2]
+        try:
+            role = load_local_model_role(root, "VISION_PERCEPTION_AGENT")
+            role_blockers = validate_role_runtime(
+                role,
+                model_id=_MODEL_ID,
+                provider=_PROVIDER,
+                runtime_model=_MODEL_VERSION,
+                task=_TASK,
+            )
+        except ValueError:
+            role_blockers = (
+                "LOCAL_MODEL_ROLE_CONTRACT_UNAVAILABLE:VISION_PERCEPTION_AGENT",
+            )
+        if role_blockers:
+            return _blocked_evidence(
+                candidate_id,
+                source_content_sha256,
+                envelope,
+                (*role_blockers, "ADVISORY_ONLY"),
             )
         gateway = self.model_gateway or ModelGateway()
         decision = gateway.admit_advisory(

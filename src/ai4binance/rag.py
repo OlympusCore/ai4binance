@@ -17,6 +17,10 @@ from hashlib import sha256
 from pathlib import Path
 
 from ai4binance.agents.context_budget import TokenBudgetGuard
+from ai4binance.governance.local_model_roles import (
+    load_local_model_role,
+    validate_role_runtime,
+)
 from ai4binance.governance.model_registry import (
     ModelGateway,
     ModelInferenceEnvelope,
@@ -1119,6 +1123,32 @@ class LlamaCppAdvisoryRunner:
             prompt_hash,
             hits,
         )
+        try:
+            role = load_local_model_role(
+                self.repository_root or Path(__file__).resolve().parents[2],
+                "PRIMARY_LOCAL_REASONING_AGENT",
+            )
+            role_blockers = validate_role_runtime(
+                role,
+                model_id="local-llamacpp-qwen3-8b",
+                provider="llama.cpp",
+                runtime_model=self.model,
+                task=self.advisory_task,
+            )
+        except ValueError:
+            role_blockers = (
+                "LOCAL_MODEL_ROLE_CONTRACT_UNAVAILABLE:PRIMARY_LOCAL_REASONING_AGENT",
+            )
+        if role_blockers:
+            return AdvisoryProviderResult(
+                "llama.cpp",
+                self.model,
+                prompt_hash,
+                "",
+                citations,
+                (*role_blockers, "ADVISORY_ONLY"),
+                inference_envelope=envelope,
+            )
         gateway = self.model_gateway or ModelGateway(self.repository_root)
         decision = gateway.admit_advisory(
             "local-llamacpp-qwen3-8b",

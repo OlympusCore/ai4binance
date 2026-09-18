@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0.0",
+  "roles": {
+    "VISION_PERCEPTION_AGENT": {
+      "model_id": "local-llamacpp-qwen25vl-3b",
+      "provider": "llama.cpp",
+      "runtime_model": "Qwen2.5-VL-3B-Instruct-Q4_K_M",
+      "allowed_tasks": [
+        "LOCAL_IMAGE_ADVISORY_ANALYSIS"
+      ],
+      "prohibited_capabilities": [
+        "AUTHORIZE_TRADE",
+        "CALCULATE_FINAL_POSITION_SIZE",
+        "OVERRIDE_RISK_CONTROLS",
+        "APPROVE_LIVE_EXECUTION",
+        "MODIFY_GOVERNANCE"
+      ]
+    },
+    "PRIMARY_LOCAL_REASONING_AGENT": {
+      "model_id": "local-llamacpp-qwen3-8b",
+      "provider": "llama.cpp",
+      "runtime_model": "qwen3:8b",
+      "allowed_tasks": [
+        "ADVISORY_RESEARCH_SYNTHESIS",
+        "READ_ONLY_LOCAL_WORKBENCH"
+      ],
+      "prohibited_capabilities": [
+        "AUTHORIZE_LIVE_EXECUTION",
+        "BYPASS_DETERMINISTIC_GATES",
+        "OVERRIDE_RISK_LIMITS",
+        "MODIFY_GOVERNANCE"
+      ]
+    }
+  },
+  "evidence_flow": [
+    "VISION_PERCEPTION_AGENT",
+    "STRUCTURED_EVIDENCE",
+    "SCHEMA_VALIDATION",
+    "PRIMARY_LOCAL_REASONING_AGENT",
+    "DETERMINISTIC_VALIDATION_AND_RISK_GATES",
+    "DECISION_SUPPORT_OUTPUT"
+  ],
+  "execution_allowed": false,
+  "promotion_status": "RESEARCH_ONLY",
+  "live_eligibility_status": "LIVE_ORDER_BLOCKED"
+}
