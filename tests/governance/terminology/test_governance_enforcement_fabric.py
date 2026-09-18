@@ -542,3 +542,32 @@ def test_family_integrity_requires_declared_schema(tmp_path: Path) -> None:
         item.code == "SCHEMA_MISSING"
         for item in fabric_module._family_integrity_violations(tmp_path, fabric, {})
     )
+
+
+def test_authority_binding_and_development_findings_are_projected() -> None:
+    fabric = load_governance_enforcement_fabric(ROOT)
+    graph = load_authority_graph(
+        ROOT / fabric.quality_gate.authority_graph_path, schema_root=ROOT / "schemas"
+    )
+    required_path = fabric.quality_gate.authority_pyramid_ref
+    replacement_nodes = tuple(
+        replace(node, canonical_path="docs/governance/missing.md")
+        if node.canonical_path == required_path
+        else node
+        for node in graph.nodes
+    )
+    altered_graph = replace(graph, nodes=replacement_nodes)
+    assert any(
+        item.code == "AUTHORITY_BINDING_NODE_MISSING"
+        for item in fabric_module._authority_binding_violations(altered_graph, fabric)
+    )
+    finding = SimpleNamespace(
+        code="AUTHORITY_TEST", path="authority/path", detail="test"
+    )
+    with patch.object(
+        fabric_module,
+        "validate_authority_graph_layer_development",
+        return_value=(finding,),
+    ):
+        violations = tuple(fabric_module._quality_gate_violations(ROOT, fabric))
+    assert any(item.code == "AUTHORITY_TEST" for item in violations)
