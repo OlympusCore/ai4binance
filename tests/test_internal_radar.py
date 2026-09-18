@@ -28,11 +28,15 @@ def test_internal_radar_persists_redacted_new_image_candidate(tmp_path: Path) ->
     assert result.latest_path.is_file()
     markdown = result.latest_path.with_suffix(".md").read_text(encoding="utf-8")
     assert "# Internal Image Radar Scan Record" in markdown
-    assert "private-name" not in markdown
+    assert "[private-name.jpg](file://" in markdown
     assert "NOT_ASSESSED_WITHOUT_CONFIGURED_VISION_ANALYZER" in markdown
     candidate = payload["candidates"][0]
     assert isinstance(candidate, dict)
     assert "private-name" not in str(candidate)
+    privacy = payload["privacy"]
+    assert isinstance(privacy, dict)
+    assert privacy["source_paths_disclosed"] is False
+    assert privacy["markdown_local_file_links_included"] is True
     assert "relative_path" not in candidate
     assert payload["privacy"]["source_images_copied"] is False
     assert payload["execution_allowed"] is False

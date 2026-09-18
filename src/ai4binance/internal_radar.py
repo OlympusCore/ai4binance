@@ -63,6 +63,7 @@ class InternalRadarResult:
             "privacy": {
                 "source_images_copied": False,
                 "source_paths_disclosed": False,
+                "markdown_local_file_links_included": True,
                 "exif_extracted": False,
                 "visual_inference": (
                     "CONFIGURED" if self.vision_enabled else "NOT_CONFIGURED"
@@ -248,7 +249,7 @@ def run_internal_radar_once(
         subject_id="internal-radar-state",
         indent=2,
     )
-    return _persist_result(result)
+    return _persist_result(result, candidate_paths=candidates_by_id)
 
 
 def load_internal_radar_latest(repository_root: Path) -> dict[str, object]:
@@ -311,7 +312,11 @@ def _count_texts(counts: dict[str, int], value: object) -> None:
             _count_text(counts, item)
 
 
-def _persist_result(result: InternalRadarResult) -> InternalRadarResult:
+def _persist_result(
+    result: InternalRadarResult,
+    *,
+    candidate_paths: dict[str, Path] | None = None,
+) -> InternalRadarResult:
     write_json_object_verified(
         result.latest_path,
         result.to_payload(),
@@ -319,12 +324,16 @@ def _persist_result(result: InternalRadarResult) -> InternalRadarResult:
         subject_id="internal-radar-latest",
         indent=2,
     )
-    _write_markdown_record(result)
+    _write_markdown_record(result, candidate_paths=candidate_paths)
     return result
 
 
-def _write_markdown_record(result: InternalRadarResult) -> None:
-    """Persist a redacted, human-readable local scan record beside latest JSON."""
+def _write_markdown_record(
+    result: InternalRadarResult,
+    *,
+    candidate_paths: dict[str, Path] | None = None,
+) -> None:
+    """Persist a local scan record with explicit local Markdown file links."""
 
     summary = _vision_summary(result.candidates)
     lines = [
@@ -338,8 +347,8 @@ def _write_markdown_record(result: InternalRadarResult) -> None:
         f"- Pending review candidates: `{result.review_candidate_count}`",
         "- Authority: `RESEARCH_ONLY`; `LIVE_ORDER_BLOCKED`.",
         (
-            "- Privacy: source images, names, paths, EXIF, and raw OCR text "
-            "are not included."
+            "- Privacy: source images, EXIF, and raw OCR text are not included. "
+            "Local file names and file links exist only in this Markdown record."
         ),
         "",
         "## System Contribution Summary",
@@ -353,10 +362,10 @@ def _write_markdown_record(result: InternalRadarResult) -> None:
         "## Candidate Assessments",
         "",
         (
-            "| Candidate ID | Machine status | System contribution | Benefits | "
-            "Trade-offs | Confidence |"
+            "| Image | Candidate ID | Machine status | System contribution | "
+            "Benefits | Trade-offs | Confidence |"
         ),
-        "| --- | --- | --- | --- | --- | --- |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
     ]
     for candidate in result.candidates:
         evidence = candidate.get("vision_evidence")
@@ -368,6 +377,10 @@ def _write_markdown_record(result: InternalRadarResult) -> None:
             "| "
             + " | ".join(
                 (
+                    _markdown_image_link(
+                        candidate_paths,
+                        candidate.get("candidate_id"),
+                    ),
                     _markdown_cell(candidate.get("candidate_id")),
                     _markdown_cell(candidate.get("assessment_status")),
                     _markdown_cell(candidate.get("system_benefit")),
@@ -407,6 +420,18 @@ def _markdown_cell(value: object) -> str:
     if value is None:
         return "-"
     return str(value).replace("|", "\\|").replace("\r", " ").replace("\n", " ")
+
+
+def _markdown_image_link(
+    candidate_paths: dict[str, Path] | None,
+    candidate_id: object,
+) -> str:
+    if candidate_paths is None or not isinstance(candidate_id, str):
+        return "NOT_AVAILABLE"
+    source_path = candidate_paths.get(candidate_id)
+    if source_path is None:
+        return "NOT_AVAILABLE"
+    return f"[{_markdown_cell(source_path.name)}]({source_path.resolve().as_uri()})"
 
 
 def _read_state(
