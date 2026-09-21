@@ -105,6 +105,10 @@ function Invoke-InternalRadar {
 if ($Mode -eq "Once") { exit (Invoke-InternalRadar) }
 
 if ($Mode -eq "RunLoop") {
+    if ($EnableVision) {
+        Write-Health -Status "BLOCKED" -Blockers @("VISION_PERCEPTION_AGENT_MANUAL_ONLY") -ExitCode 2
+        exit 2
+    }
     $mutex = [System.Threading.Mutex]::new($false, "Local\AI4BINANCE-Internal-Image-Radar")
     $hasHandle = $false
     try {
@@ -134,8 +138,7 @@ if (-not (Test-Path -LiteralPath $SourcePath -PathType Container)) {
     throw "Internal radar source directory not found: $SourcePath"
 }
 $powerShell = (Get-Command powershell.exe -ErrorAction Stop).Source
-$visionArgument = if ($EnableVision) { " -EnableVision" } else { "" }
-$arguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`" -Mode RunLoop -SourcePath `"$((Resolve-Path -LiteralPath $SourcePath).Path)`" -PollSeconds $PollSeconds$visionArgument"
+$arguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`" -Mode RunLoop -SourcePath `"$((Resolve-Path -LiteralPath $SourcePath).Path)`" -PollSeconds $PollSeconds"
 $action = New-ScheduledTaskAction -Execute $powerShell -Argument $arguments -WorkingDirectory $root
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited

@@ -46,6 +46,10 @@ def test_service_manifest_is_shared_safe_and_complete() -> None:
     scheduled = {spec.service: spec for spec in specs if not spec.required}
     assert scheduled["ykb-report"].health_mode == "SCHEDULED"
     assert scheduled["qwen-prompter"].enabled is False
+    assert scheduled["primary-local-reasoning"].enabled is True
+    assert scheduled["primary-local-reasoning"].task_name == (
+        "AI4BINANCE-Primary-Local-Reasoning"
+    )
     assert scheduled["auto-audit"].enabled is False
     assert scheduled["futures-multitf"].useful_state_file == (
         "futures-multitf-latest.json"

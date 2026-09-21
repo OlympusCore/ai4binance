@@ -20,9 +20,11 @@ def test_local_model_roles_bind_roles_to_runtime_implementation() -> None:
     assert vision.model_id == "local-llamacpp-qwen25vl-3b"
     assert vision.provider == "llama.cpp"
     assert vision.runtime_model == "Qwen2.5-VL-3B-Instruct-Q4_K_M"
+    assert vision.activation_mode == "MANUAL_ONLY"
     assert reasoning.model_id == "local-llamacpp-qwen3-8b"
     assert reasoning.provider == "llama.cpp"
     assert reasoning.runtime_model == "qwen3:8b"
+    assert reasoning.activation_mode == "BACKGROUND_ALWAYS_ON"
     assert vision.execution_allowed is False
     assert reasoning.live_eligibility_status == "LIVE_ORDER_BLOCKED"
 

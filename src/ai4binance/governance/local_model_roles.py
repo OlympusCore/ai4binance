@@ -20,6 +20,7 @@ _EXPECTED_BINDINGS = {
         "model_id": "local-llamacpp-qwen25vl-3b",
         "provider": "llama.cpp",
         "runtime_model": "Qwen2.5-VL-3B-Instruct-Q4_K_M",
+        "activation_mode": "MANUAL_ONLY",
         "allowed_tasks": ("LOCAL_IMAGE_ADVISORY_ANALYSIS",),
         "prohibited_capabilities": (
             "AUTHORIZE_TRADE",
@@ -33,6 +34,7 @@ _EXPECTED_BINDINGS = {
         "model_id": "local-llamacpp-qwen3-8b",
         "provider": "llama.cpp",
         "runtime_model": "qwen3:8b",
+        "activation_mode": "BACKGROUND_ALWAYS_ON",
         "allowed_tasks": (
             "ADVISORY_RESEARCH_SYNTHESIS",
             "READ_ONLY_LOCAL_WORKBENCH",
@@ -53,6 +55,7 @@ class LocalModelRole:
     model_id: str
     provider: str
     runtime_model: str
+    activation_mode: str
     allowed_tasks: tuple[str, ...]
     prohibited_capabilities: tuple[str, ...]
     execution_allowed: bool = False
@@ -64,7 +67,12 @@ class LocalModelRole:
             raise ValueError("local model role is invalid")
         if not all(
             value.strip()
-            for value in (self.model_id, self.provider, self.runtime_model)
+            for value in (
+                self.model_id,
+                self.provider,
+                self.runtime_model,
+                self.activation_mode,
+            )
         ):
             raise ValueError("local model role identity is required")
         if not self.allowed_tasks or not self.prohibited_capabilities:
@@ -97,7 +105,7 @@ def load_local_model_role(repository_root: Path, role: str) -> LocalModelRole:
             "live_eligibility_status",
         }:
             raise ValueError("local model role contract is invalid")
-        if payload["schema_version"] != "1.0.0" or role not in _ROLE_NAMES:
+        if payload["schema_version"] != "1.1.0" or role not in _ROLE_NAMES:
             raise ValueError("local model role contract is unsupported")
         if payload["evidence_flow"] != list(_EVIDENCE_FLOW):
             raise ValueError("local model role evidence flow is invalid")
@@ -115,6 +123,7 @@ def load_local_model_role(repository_root: Path, role: str) -> LocalModelRole:
             "model_id",
             "provider",
             "runtime_model",
+            "activation_mode",
             "allowed_tasks",
             "prohibited_capabilities",
         }:
@@ -132,6 +141,7 @@ def load_local_model_role(repository_root: Path, role: str) -> LocalModelRole:
             _required_text(binding, "model_id") != expected["model_id"]
             or _required_text(binding, "provider") != expected["provider"]
             or _required_text(binding, "runtime_model") != expected["runtime_model"]
+            or _required_text(binding, "activation_mode") != expected["activation_mode"]
             or tuple(tasks) != expected["allowed_tasks"]
             or tuple(prohibited) != expected["prohibited_capabilities"]
         ):
@@ -141,6 +151,7 @@ def load_local_model_role(repository_root: Path, role: str) -> LocalModelRole:
             model_id=_required_text(binding, "model_id"),
             provider=_required_text(binding, "provider"),
             runtime_model=_required_text(binding, "runtime_model"),
+            activation_mode=_required_text(binding, "activation_mode"),
             allowed_tasks=tuple(tasks),
             prohibited_capabilities=tuple(prohibited),
         )

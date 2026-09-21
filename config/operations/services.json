@@ -131,6 +131,21 @@
       "order_writing_authority": false
     },
     {
+      "service": "primary-local-reasoning",
+      "task_name": "AI4BINANCE-Primary-Local-Reasoning",
+      "command": "primary_local_reasoning_agent.ps1",
+      "mode": "RunLoop",
+      "required": false,
+      "enabled": true,
+      "health_file": "primary-local-reasoning-health.json",
+      "lock_file": "primary-local-reasoning.lock",
+      "max_health_age_seconds": 120,
+      "startup_trigger": "AtLogOn",
+      "allow_start_if_on_batteries": true,
+      "stop_if_going_on_batteries": false,
+      "order_writing_authority": false
+    },
+    {
       "service": "auto-audit",
       "task_name": "AI4BINANCE-Auto-Audit",
       "command": "auto-audit-daemon",
