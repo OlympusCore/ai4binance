@@ -27,7 +27,7 @@ dev = [
   "mypy>=1.14,<2",
   "pytest>=8.3,<10",
   "pytest-cov>=6,<8",
-  "ruff==0.14.14", # Avoid broad PEP 758 rewrites during the runtime migration.
+  "ruff==0.16.8", # Avoid broad PEP 758 rewrites during the runtime migration.
   "types-PyYAML>=6.0.12,<7",
 ]
 mcp = ["mcp>=1.27,<2"]
