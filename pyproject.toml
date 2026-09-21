@@ -32,7 +32,7 @@ dev = [
 ]
 mcp = ["mcp>=1.27,<2"]
 research = [
-  "optuna>=4.9,<5",
+  "optuna>=4.9,<6",
 ]
 security = [
   "pip-audit>=2.10,<3",
