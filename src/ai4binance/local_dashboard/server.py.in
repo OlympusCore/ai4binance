@@ -17,6 +17,7 @@ from uuid import uuid4
 
 APP = Path(__file__).resolve().parent
 MAX_BYTES = 2_000_000
+MAX_AUTO_AUDIT_BYTES = 4_000_000
 PUBLIC_FILES = {
     "/": "index.html",
     "/index.html": "index.html",
@@ -48,10 +49,10 @@ GITHUB_RESEARCH_TOPIC_CAPABILITIES = (
 )
 
 
-def load_json(path: Path) -> dict:
+def load_json(path: Path, *, max_bytes: int = MAX_BYTES) -> dict:
     with path.open("rb") as stream:
-        raw = stream.read(MAX_BYTES + 1)
-    if len(raw) > MAX_BYTES:
+        raw = stream.read(max_bytes + 1)
+    if len(raw) > max_bytes:
         raise ValueError("SOURCE_TOO_LARGE")
     data = json.loads(raw.decode("utf-8-sig"))
     if not isinstance(data, dict):
@@ -660,6 +661,49 @@ def read_source(path: Path, max_age: int, *, safety=True, now=None):
         return meta, {}
 
 
+def read_auto_audit_source(path: Path, max_age: int, *, now=None):
+    """Read the existing auto-audit artifact using its latest cycle timestamp."""
+    now = now or datetime.now(UTC)
+    meta = {
+        "file": path.name,
+        "status": "UNAVAILABLE",
+        "observed_at": None,
+        "age_seconds": None,
+    }
+    try:
+        data = load_json(path, max_bytes=MAX_AUTO_AUDIT_BYTES)
+        cycles = data.get("cycles")
+        if (
+            not isinstance(cycles, list)
+            or not cycles
+            or not isinstance(cycles[-1], dict)
+        ):
+            raise ValueError("AUTO_AUDIT_CYCLES_INVALID")
+        timestamp = cycles[-1].get("observed_at")
+        observed_at = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+        if observed_at.tzinfo is None:
+            raise ValueError("AUTO_AUDIT_TIMESTAMP_INVALID")
+        age = (now - observed_at).total_seconds()
+        meta.update(observed_at=observed_at.isoformat(), age_seconds=round(max(0, age)))
+        if (
+            data.get("execution_allowed") is not False
+            or data.get("live_eligibility_status") != "LIVE_ORDER_BLOCKED"
+        ):
+            raise ValueError("AUTO_AUDIT_AUTHORITY_INVALID")
+        if age < -30:
+            raise ValueError("AUTO_AUDIT_TIMESTAMP_FUTURE")
+        if age > max_age:
+            meta["status"] = "STALE"
+            return meta, {}
+        meta["status"] = "CURRENT"
+        return meta, data
+    except FileNotFoundError:
+        return meta, {}
+    except (ValueError, OSError, TypeError, OverflowError):
+        meta["status"] = "INVALID"
+        return meta, {}
+
+
 def market_projection(data):
     return {
         **fields(
@@ -880,6 +924,103 @@ def virtual_simulation_projection(data):
     return result
 
 
+def auto_audit_observer_projection(data):
+    """Project the canonical auto-audit movement ledger without re-auditing."""
+    result = {
+        "status": "UNAVAILABLE",
+        "loop_id": None,
+        "workflow_pattern": None,
+        "stop_reason": None,
+        "movements": [],
+        "recommendations": [],
+    }
+    if not isinstance(data, dict):
+        return result
+    result.update(
+        fields(data, ("status", "loop_id", "workflow_pattern", "stop_reason"))
+    )
+    recommendations: list[dict] = []
+    seen_recommendations: set[tuple[str | None, str | None, str]] = set()
+    movements: list[dict] = []
+    cycles = data.get("cycles")
+    for cycle in cycles[:100] if isinstance(cycles, list) else []:
+        if not isinstance(cycle, dict):
+            continue
+        observed_at = scalar(cycle.get("observed_at"))
+        system_status = scalar(cycle.get("system_status"))
+        evidence_ref = scalar(cycle.get("system_report_json_path"))
+        movements.append(
+            {
+                **fields(
+                    cycle,
+                    (
+                        "cycle_index",
+                        "observed_at",
+                        "system_status",
+                        "blocker_count",
+                        "privacy_leak_status",
+                        "local_qwen_status",
+                    ),
+                ),
+                "new_blockers": reasons(cycle.get("new_blockers")),
+                "persistent_blockers": reasons(cycle.get("persistent_blockers")),
+                "resolved_blockers": reasons(cycle.get("resolved_blockers")),
+                "action_refs": reasons(cycle.get("action_refs")),
+                "evidence_ref": evidence_ref,
+            }
+        )
+
+        def add_recommendation(
+            action,
+            method,
+            method_result,
+            reference,
+            *,
+            cycle_observed_at=observed_at,
+        ):
+            if not isinstance(action, str) or not action:
+                return
+            key = (cycle_observed_at, action, method)
+            if key in seen_recommendations or len(recommendations) >= 100:
+                return
+            seen_recommendations.add(key)
+            recommendations.append(
+                {
+                    "recommendation": action,
+                    "method": method,
+                    "method_result": method_result,
+                    "observed_at": cycle_observed_at,
+                    "evidence_ref": reference,
+                }
+            )
+
+        for action in reasons(cycle.get("action_refs")):
+            add_recommendation(
+                action,
+                "AUTO_AUDIT_LOOP",
+                system_status,
+                evidence_ref,
+            )
+        assurance = cycle.get("continuous_assurance")
+        if not isinstance(assurance, dict):
+            continue
+        for route in assurance.get("route_decisions", [])[:100]:
+            if not isinstance(route, dict):
+                continue
+            route_method = "CONTINUOUS_ASSURANCE:" + str(
+                scalar(route.get("trigger_type")) or "UNKNOWN"
+            )
+            route_result = scalar(route.get("storm_status")) or scalar(
+                assurance.get("status")
+            )
+            route_reference = scalar(route.get("event_id")) or evidence_ref
+            for action in reasons(route.get("action_refs")):
+                add_recommendation(action, route_method, route_result, route_reference)
+    result["movements"] = movements
+    result["recommendations"] = recommendations
+    return result
+
+
 def dashboard_health_findings(result):
     """Build deterministic, bounded health findings from canonical projections."""
     findings = []
@@ -982,6 +1123,15 @@ def dashboard_health_findings(result):
             lesson_count=0,
             experiment_count=0,
         )
+    auto_audit_source = (result.get("sources") or {}).get("auto_audit") or {}
+    if auto_audit_source.get("status") != "CURRENT":
+        add(
+            "AUTO_AUDIT_OBSERVER_UNAVAILABLE",
+            "OBSERVABILITY",
+            "P2",
+            auto_audit_source.get("status") or "UNAVAILABLE",
+            "auto-audit artifact is unavailable, invalid, or stale",
+        )
     return findings[:20]
 
 
@@ -1021,10 +1171,17 @@ def snapshot(config):
         "market_depth": (root / "runtime/data/market/depth/status.json", 120),
         "futures_research": (state / "futures-multitf-latest.json", 900),
         "learning": (state / "learning_summary.json", 86400),
+        "auto_audit": (
+            root / "runtime/artifacts/auto_audit/auto-audit-latest.json",
+            86400,
+        ),
         "discovery": (state / "skill_discovery.json", 86400),
     }
     for name, (path, age) in definitions.items():
-        meta, data = read_source(path, age, safety=name != "learning", now=now)
+        if name == "auto_audit":
+            meta, data = read_auto_audit_source(path, age, now=now)
+        else:
+            meta, data = read_source(path, age, safety=name != "learning", now=now)
         result["sources"][name] = meta
         result[name] = {}
         if not data:
@@ -1122,6 +1279,8 @@ def snapshot(config):
                 "lesson_count": len(data.get("lessons", [])),
                 "experiment_count": len(data.get("experiments", [])),
             }
+        elif name == "auto_audit":
+            result[name] = auto_audit_observer_projection(data)
         else:
             result[name] = {
                 **fields(
@@ -1171,6 +1330,7 @@ def snapshot(config):
         "market_depth": "market-history",
         "futures_research": "futures-multitf",
         "learning": "auto-audit",
+        "auto_audit": "auto-audit",
         "discovery": "skill-discovery",
     }
     services_by_name = {

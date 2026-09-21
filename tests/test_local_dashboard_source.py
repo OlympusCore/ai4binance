@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import runpy
 import shutil
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,7 +38,7 @@ def test_canonical_dashboard_source_builds_deterministic_offline_assets(
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "DASHBOARD_PACKAGE_BUILT"
     assert _sha256(stage / "app.js") == (
-        "8af3dbe6ddbdd61443ba7ea06c7f422e1e629cd121d01b389f71f1c8cb815b30"
+        "a1396a57d098495cbe5ed00f881e35d25c2db3c83183fffba28bcb415c4eff59"
     )
     assert _sha256(stage / "app.css") == (
         "820ea8899490af3d761e507a88d0af4fd4ecbf587cbd7118c8faa665b5569cc5"
@@ -99,3 +102,98 @@ def test_virtual_market_separates_trade_records_from_potential_opportunities() -
     )
     assert "def _dashboard_trade_records" in wallet
     assert "def _trade_record_dashboard_row" in wallet
+
+
+def test_dashboard_projects_auto_audit_movements_with_method_provenance() -> None:
+    module = runpy.run_path(str(SOURCE / "server.py.in"))
+    project = module["auto_audit_observer_projection"]
+
+    projected = project(
+        {
+            "status": "RUNNING_WITH_BLOCKERS",
+            "loop_id": "auto-audit:42",
+            "workflow_pattern": "HUMAN_IN_THE_LOOP_EVALUATOR_OPTIMIZER",
+            "cycles": [
+                {
+                    "cycle_index": 1,
+                    "observed_at": "2026-09-21T12:00:00+00:00",
+                    "system_status": "DEGRADED",
+                    "blocker_count": 1,
+                    "new_blockers": ["DATA_STALE"],
+                    "persistent_blockers": [],
+                    "resolved_blockers": [],
+                    "action_refs": ["resolve:DATA_STALE"],
+                    "system_report_json_path": "runtime/reports/audit.json",
+                    "continuous_assurance": {
+                        "status": "RUNNING_WITH_BLOCKERS",
+                        "route_decisions": [
+                            {
+                                "trigger_type": "SYSTEM_BLOCKER",
+                                "storm_status": "ACCEPTED",
+                                "event_id": "event:42",
+                                "action_refs": ["run:lean-governance"],
+                            }
+                        ],
+                    },
+                }
+            ],
+        }
+    )
+
+    assert projected["movements"] == [
+        {
+            "cycle_index": 1,
+            "observed_at": "2026-09-21T12:00:00+00:00",
+            "system_status": "DEGRADED",
+            "blocker_count": 1,
+            "privacy_leak_status": None,
+            "local_qwen_status": None,
+            "new_blockers": ["DATA_STALE"],
+            "persistent_blockers": [],
+            "resolved_blockers": [],
+            "action_refs": ["resolve:DATA_STALE"],
+            "evidence_ref": "runtime/reports/audit.json",
+        }
+    ]
+    assert projected["recommendations"] == [
+        {
+            "recommendation": "resolve:DATA_STALE",
+            "method": "AUTO_AUDIT_LOOP",
+            "method_result": "DEGRADED",
+            "observed_at": "2026-09-21T12:00:00+00:00",
+            "evidence_ref": "runtime/reports/audit.json",
+        },
+        {
+            "recommendation": "run:lean-governance",
+            "method": "CONTINUOUS_ASSURANCE:SYSTEM_BLOCKER",
+            "method_result": "ACCEPTED",
+            "observed_at": "2026-09-21T12:00:00+00:00",
+            "evidence_ref": "event:42",
+        },
+    ]
+
+
+def test_dashboard_rejects_auto_audit_artifact_with_execution_authority(
+    tmp_path: Path,
+) -> None:
+    module = runpy.run_path(str(SOURCE / "server.py.in"))
+    artifact = tmp_path / "auto-audit-latest.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "execution_allowed": True,
+                "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+                "cycles": [{"observed_at": datetime.now(UTC).isoformat()}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    meta, data = module["read_auto_audit_source"](
+        artifact,
+        86_400,
+        now=datetime.now(UTC),
+    )
+
+    assert meta["status"] == "INVALID"
+    assert data == {}
