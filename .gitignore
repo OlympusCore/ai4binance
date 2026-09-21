@@ -158,6 +158,9 @@ dist/
 # Keep intentionally shared VS Code examples if required
 !.vscode/extensions.json
 
+# Ephemeral Codex probes
+/.codex/tmp_*.txt
+
 # ------------------------------------------------------------
 # OS generated files
 # ------------------------------------------------------------
