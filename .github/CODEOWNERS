@@ -1,0 +1,4 @@
+# The repository owner reviews every tracked path. GitHub branch protection
+# must require code-owner approval for this file to be an enforcement control.
+* @Huseyin-Cicek
+/.github/ @Huseyin-Cicek

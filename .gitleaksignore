@@ -1,0 +1,13 @@
+# Exact historic generic-api-key false positives. Each entry is a Gitleaks
+# fingerprint, so a future finding in the same file or rule is still reported.
+fb41fcf4a8eafbd30f406bb23b5b9ea373befe8c:.pytest-basetemp-final/test_user_stream_sessions_and_0/shared/raw_api_events.jsonl:generic-api-key:1
+99d2cd07cd33b599c89445d1b52e6943605e4310:config/governance/governed_document_lock_manifest.json:generic-api-key:302
+7eb4fd2e766a4a1d54e279d47aa1ef9925371a88:config/governance/governed_document_lock_manifest.json:generic-api-key:574
+de1c125880c20a0f8bef9f076fa7040441b5fafe:config/governance/governed_document_lock_manifest.json:generic-api-key:587
+7bb2f069c9e9f04c1d65a67b972fe8b1a5154e85:config/governance/governed_document_lock_manifest.json:generic-api-key:601
+de1c125880c20a0f8bef9f076fa7040441b5fafe:config/governance/governed_document_lock_manifest.json:generic-api-key:771
+7bb2f069c9e9f04c1d65a67b972fe8b1a5154e85:config/governance/governed_document_lock_manifest.json:generic-api-key:785
+7319e9b443e307c4de43b264ef4c7cfedd5c34c7:config/governance/governed_document_lock_manifest.json:generic-api-key:1446
+7319e9b443e307c4de43b264ef4c7cfedd5c34c7:config/governance/governed_document_lock_manifest.json:generic-api-key:1630
+7319e9b443e307c4de43b264ef4c7cfedd5c34c7:src/ai4binance/exchange/ws_api.py:generic-api-key:26
+1ee98abdcb3bf6ce050fcc47514ff641c1489fe1:src/ai4binance/exchange/ws_api.py:generic-api-key:26

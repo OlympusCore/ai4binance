@@ -1257,6 +1257,53 @@ def test_security_tooling_workflow_runs_report_only_scan() -> None:
     assert "runtime/artifacts/assurance/security_tooling/" in workflow
 
 
+def test_github_workflows_pin_external_actions_to_immutable_revisions() -> None:
+    checkout = "actions/checkout@11d5960a326750d5838078e36cf38b85af677262"
+    upload_artifact = "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
+    setup_uv = "astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9"
+
+    for relative in (
+        ".github/workflows/nightly_quality_triage.yml",
+        ".github/workflows/quality_profiles.yml",
+        ".github/workflows/security_tooling.yml",
+    ):
+        workflow = _read(relative)
+        assert checkout in workflow
+        assert upload_artifact in workflow
+        assert setup_uv in workflow
+
+    for workflow_path in (REPOSITORY_ROOT / ".github/workflows").glob("*.yml"):
+        workflow = workflow_path.read_text(encoding="utf-8")
+        actions = re.findall(r"^\s*uses:\s*([^\s#]+)", workflow, flags=re.MULTILINE)
+        assert actions
+        assert all(re.fullmatch(r"[^@\s]+@[0-9a-f]{40}", action) for action in actions)
+
+
+def test_github_security_governance_files_define_owners_updates_and_reporting() -> None:
+    dependabot = _read(".github/dependabot.yml")
+    codeowners = _read(".github/CODEOWNERS")
+    security = _read(".github/SECURITY.md")
+
+    assert "package-ecosystem: uv" in dependabot
+    assert "package-ecosystem: github-actions" in dependabot
+    assert "interval: weekly" in dependabot
+    assert "@Huseyin-Cicek" in codeowners
+    assert "private GitHub security advisory" in security
+    assert "Do not open a public issue" in security
+
+
+def test_gitleaks_ignore_list_contains_only_exact_historic_fingerprints() -> None:
+    entries = [
+        line
+        for line in _read(".gitleaksignore").splitlines()
+        if line and not line.startswith("#")
+    ]
+
+    assert len(entries) == 11
+    assert all(":generic-api-key:" in entry for entry in entries)
+    assert all(re.fullmatch(r"[0-9a-f]{40}:.+:[1-9][0-9]*", entry) for entry in entries)
+
+
 def test_security_tooling_paths_are_local_only_and_generated() -> None:
     gitignore = _read(".gitignore")
 
