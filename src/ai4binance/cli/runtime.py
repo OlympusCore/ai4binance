@@ -70,6 +70,7 @@ from ai4binance.ops.user_reports import (
 from ai4binance.outlook import MarketOutlookArtifactStore
 from ai4binance.portfolio import (
     CostBasisService,
+    FallbackSpotPriceReader,
     FuturesAccountSnapshotService,
     InvestmentManagementAssistant,
     MarketManagementContext,
@@ -355,13 +356,24 @@ def build_read_only_runtime(settings: Settings) -> ReadOnlyRuntimeCycle:
         LocalMarketSnapshotTransport,
     )
 
-    analytics_prices = LocalMarketPublicClient(
-        LocalMarketSnapshotTransport(
-            settings.dataset_directory / "spot" / "metadata",
-            maximum_age_seconds=max(
-                900, settings.market_history_live_interval_seconds * 3
-            ),
-        )
+    price_snapshot_directory = settings.dataset_directory / "spot" / "metadata"
+    price_snapshot_maximum_age = max(
+        900, settings.market_history_live_interval_seconds * 3
+    )
+    analytics_prices = FallbackSpotPriceReader(
+        primary=LocalMarketPublicClient(
+            LocalMarketSnapshotTransport(
+                price_snapshot_directory,
+                maximum_age_seconds=price_snapshot_maximum_age,
+                ticker_snapshot_filename="wallet-price-coverage.json",
+            )
+        ),
+        fallback=LocalMarketPublicClient(
+            LocalMarketSnapshotTransport(
+                price_snapshot_directory,
+                maximum_age_seconds=price_snapshot_maximum_age,
+            )
+        ),
     )
     return ReadOnlyRuntimeCycle(
         symbol=settings.symbol,

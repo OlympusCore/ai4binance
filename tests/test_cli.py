@@ -2583,6 +2583,15 @@ def test_runtime_builds_private_services_from_allowlisted_file(
 
     assert runtime.spot_wallet_service is not None
     assert runtime.futures_account_service is not None
+    assert runtime.analytics_service is not None
+    assert (
+        runtime.analytics_service.prices.primary._transport.ticker_snapshot_filename
+        == "wallet-price-coverage.json"
+    )
+    assert (
+        runtime.analytics_service.prices.fallback._transport.ticker_snapshot_filename
+        == "ticker-24hr.json"
+    )
     assert runtime.research_service.memory_bridge is not None
     assert runtime.research_service.learning_loop.lifecycle_worker is not None
     assert runtime.research_service.audit_store.tamper_evident is True

@@ -1767,6 +1767,19 @@ class ContinuousMarketHistory:
                     **_SAFE_STATE,
                 },
             )
+            if kind == "ticker/24hr":
+                _save(
+                    self.history.archive_root
+                    / market
+                    / "metadata"
+                    / "wallet-price-coverage.json",
+                    {
+                        "observed_at": now.isoformat(),
+                        "source": prefix + kind,
+                        "rows": raw,
+                        **_SAFE_STATE,
+                    },
+                )
 
     def _progress(
         self,

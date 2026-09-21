@@ -8,6 +8,7 @@ from typing import cast
 import pytest
 
 from ai4binance.portfolio.analytics import (
+    FallbackSpotPriceReader,
     PortfolioAnalytics,
     PortfolioAnalyticsService,
     ValuedSpotAsset,
@@ -111,6 +112,19 @@ def test_portfolio_analytics_marks_unpriced_and_missing_cost_basis() -> None:
     assert report.unrealized_pnl_usdt is None
     assert "PORTFOLIO_UNPRICED_ASSETS" in report.blockers
     assert "PORTFOLIO_COST_BASIS_UNAVAILABLE" in report.blockers
+
+
+def test_wallet_price_coverage_falls_back_to_the_top_volume_snapshot() -> None:
+    class WalletCoverage:
+        def ticker_price(self, symbol: str) -> Decimal:
+            if symbol == "HOTUSDT":
+                return Decimal("0.0012")
+            raise ValueError("wallet price is unavailable")
+
+    reader = FallbackSpotPriceReader(WalletCoverage(), Prices())
+
+    assert reader.ticker_price("HOTUSDT") == Decimal("0.0012")
+    assert reader.ticker_price("XRPUSDT") == Decimal("0.5")
 
 
 def test_portfolio_analytics_rejects_invalid_policy_and_cost() -> None:

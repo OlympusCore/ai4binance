@@ -1,6 +1,7 @@
 """Read-only Spot wallet and inventory boundary."""
 
 from ai4binance.portfolio.analytics import (
+    FallbackSpotPriceReader,
     PortfolioAnalytics,
     PortfolioAnalyticsService,
     SpotPriceReader,
@@ -125,6 +126,7 @@ __all__ = (
     "CurrentHoldingReviewEngine",
     "CurrentHoldingReviewPolicy",
     "CurrentHoldingReviewReport",
+    "FallbackSpotPriceReader",
     "FuturesAccountReader",
     "FuturesAccountSnapshot",
     "FuturesAccountSnapshotService",

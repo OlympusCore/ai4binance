@@ -25,6 +25,20 @@ class SpotPriceReader(Protocol):
 
 
 @dataclass(frozen=True, slots=True)
+class FallbackSpotPriceReader:
+    """Use wallet price coverage first, preserving the TOP50 snapshot fallback."""
+
+    primary: SpotPriceReader
+    fallback: SpotPriceReader
+
+    def ticker_price(self, symbol: str) -> Decimal:
+        try:
+            return self.primary.ticker_price(symbol)
+        except (OSError, RuntimeError, TypeError, ValueError):
+            return self.fallback.ticker_price(symbol)
+
+
+@dataclass(frozen=True, slots=True)
 class ValuedSpotAsset:
     asset: str
     quantity: Decimal

@@ -42,6 +42,28 @@ def test_local_public_snapshot_reads_and_rejects_stale_data(tmp_path: Path) -> N
     )
     with pytest.raises(ExchangePayloadError, match="unavailable"):
         stale.get_json("/api/v3/ticker/price", {"symbol": "HOTUSDT"})
+
+
+def test_local_public_snapshot_can_read_wallet_price_coverage(tmp_path: Path) -> None:
+    write_json_object_verified(
+        tmp_path / "wallet-price-coverage.json",
+        {
+            "observed_at": NOW.isoformat(),
+            "rows": [{"symbol": "HOTUSDT", "lastPrice": "0.0012"}],
+        },
+        blocker="FIXTURE_WRITE_FAILED",
+    )
+
+    transport = LocalMarketSnapshotTransport(
+        tmp_path,
+        ticker_snapshot_filename="wallet-price-coverage.json",
+        clock=lambda: NOW,
+    )
+
+    assert transport.get_json("/api/v3/ticker/price", {"symbol": "HOTUSDT"}) == {
+        "symbol": "HOTUSDT",
+        "price": "0.0012",
+    }
     with pytest.raises(ExchangePayloadError, match="owns"):
         transport.get_json("/api/v3/klines", {"symbol": "HOTUSDT"})
 

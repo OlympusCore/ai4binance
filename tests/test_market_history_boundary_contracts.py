@@ -253,6 +253,36 @@ def test_bulk_snapshot_saves_selected_symbols_and_safety(tmp_path: Path) -> None
     )
     assert stored["rows"] == [{"symbol": "BTCUSDT"}]
     assert stored["execution_allowed"] is False
+    futures_coverage = h._load(
+        instance.history.archive_root
+        / "usd_m_futures/metadata/wallet-price-coverage.json"
+    )
+    assert futures_coverage["rows"] == [
+        {"symbol": "BTCUSDT"},
+        {"symbol": "ETHUSDT"},
+    ]
+
+
+def test_spot_ticker_snapshot_retains_wallet_price_coverage(tmp_path: Path) -> None:
+    instance = collector(tmp_path, Transport())
+    transport = Mock()
+    transport.get_json.return_value = [
+        {"symbol": "BTCUSDT", "lastPrice": "60000"},
+        {"symbol": "HOTUSDT", "lastPrice": "0.0012"},
+    ]
+
+    instance._snapshots("spot", ("BTCUSDT",), transport, NOW)
+
+    selected = h._load(instance.history.archive_root / "spot/metadata/ticker-24hr.json")
+    coverage = h._load(
+        instance.history.archive_root / "spot/metadata/wallet-price-coverage.json"
+    )
+    assert selected["rows"] == [{"symbol": "BTCUSDT", "lastPrice": "60000"}]
+    assert coverage["rows"] == [
+        {"symbol": "BTCUSDT", "lastPrice": "60000"},
+        {"symbol": "HOTUSDT", "lastPrice": "0.0012"},
+    ]
+    assert coverage["execution_allowed"] is False
 
 
 @pytest.mark.parametrize(

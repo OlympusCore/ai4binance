@@ -39,7 +39,15 @@ class LocalMarketSnapshotTransport:
 
     directory: Path
     maximum_age_seconds: float = 900
+    ticker_snapshot_filename: str = "ticker-24hr.json"
     clock: Callable[[], datetime] = lambda: datetime.now(UTC)
+
+    def __post_init__(self) -> None:
+        if self.ticker_snapshot_filename not in {
+            "ticker-24hr.json",
+            "wallet-price-coverage.json",
+        }:
+            raise ValueError("ticker snapshot filename is unsupported")
 
     def get_json(
         self, path: str, params: Mapping[str, str | int] | None = None
@@ -48,8 +56,8 @@ class LocalMarketSnapshotTransport:
             return {"serverTime": int(self.clock().timestamp() * 1000)}
         filenames = {
             "/api/v3/exchangeInfo": "exchange-info.json",
-            "/api/v3/ticker/price": "ticker-24hr.json",
-            "/api/v3/ticker/24hr": "ticker-24hr.json",
+            "/api/v3/ticker/price": self.ticker_snapshot_filename,
+            "/api/v3/ticker/24hr": self.ticker_snapshot_filename,
             "/api/v3/ticker/bookTicker": "ticker-bookTicker.json",
             "/fapi/v1/exchangeInfo": "exchange-info.json",
             "/fapi/v1/ticker/24hr": "ticker-24hr.json",
