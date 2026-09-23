@@ -249,6 +249,40 @@ def test_local_advisory_health_requires_loopback_llama_qwen_and_prompter(
     assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
 
 
+def test_local_advisory_health_prefers_enabled_primary_local_reasoning_service(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    settings = _settings(monkeypatch, tmp_path)
+    state_dir = tmp_path / "runtime" / "state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "primary-local-reasoning-health.json").write_text(
+        json.dumps(
+            {
+                "service": "primary-local-reasoning",
+                "provider": "llama.cpp",
+                "status": "RUNNING",
+                "runtime_model": "qwen3:8b",
+                "endpoint": "http://127.0.0.1:8080",
+                "listener_pids": [os.getpid()],
+                "execution_allowed": False,
+                "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (state_dir / "qwen-prompter-health.json").write_text(
+        json.dumps({"status": "STARTING", "endpoint": ""}), encoding="utf-8"
+    )
+
+    payload = local_advisory_health_payload(settings)
+
+    assert payload["status"] == "READY"
+    assert payload["health_source_service"] == "primary-local-reasoning"
+    assert payload["prompter_pid"] == os.getpid()
+    assert payload["blockers"] == ()
+
+
 def test_system_report_persists_secret_safe_json_and_markdown(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
