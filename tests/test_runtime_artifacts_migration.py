@@ -81,7 +81,13 @@ def test_layout_contract_helpers_fail_closed_and_canonicalize_aliases(
     with pytest.raises(ValueError, match="unknown runtime retention"):
         manifest.retention_for("unknown")
     assert layout._capacity_budget_mapping(None) == {}
-    for value in ([], {"outside": 1}, {"runtime/a": True}, {"runtime/a": 0}):
+    capacity_values: tuple[object, ...] = (
+        [],
+        {"outside": 1},
+        {"runtime/a": True},
+        {"runtime/a": 0},
+    )
+    for value in capacity_values:
         with pytest.raises(
             ValueError,
             match=(
@@ -90,13 +96,17 @@ def test_layout_contract_helpers_fail_closed_and_canonicalize_aliases(
             ),
         ):
             layout._capacity_budget_mapping(value)
-    for value in (None, [], {"x": {}}):
+    retention_values: tuple[object, ...] = (None, [], {"x": {}})
+    for value in retention_values:
         if value is None:
             assert layout._retention_mapping(value) == {}
         else:
             with pytest.raises(
                 ValueError,
-                match=r"(retention must be an object|automatic_cleanup must be boolean)",
+                match=(
+                    r"(retention must be an object|"
+                    r"automatic_cleanup must be boolean)"
+                ),
             ):
                 layout._retention_mapping(value)
 
@@ -125,7 +135,14 @@ def test_runtime_retention_policy_rejects_invalid_values(
 
 
 def test_layout_mapping_helpers_cover_all_invalid_contract_shapes() -> None:
-    for value in (None, [], {}, {"": "runtime/a"}, {"a": ""}):
+    text_mapping_values: tuple[object, ...] = (
+        None,
+        [],
+        {},
+        {"": "runtime/a"},
+        {"a": ""},
+    )
+    for value in text_mapping_values:
         with pytest.raises(
             ValueError,
             match=r"roots must be (a non-empty object|contain non-empty strings)",
@@ -133,7 +150,12 @@ def test_layout_mapping_helpers_cover_all_invalid_contract_shapes() -> None:
             layout._text_mapping(value, "roots")
     with pytest.raises(ValueError, match="canonical_root must be a non-empty string"):
         layout._text({}, "canonical_root")
-    for value in ({"rule": []}, {"": {}}, {"rule": {"automatic_cleanup": "yes"}}):
+    invalid_retention_values: tuple[object, ...] = (
+        {"rule": []},
+        {"": {}},
+        {"rule": {"automatic_cleanup": "yes"}},
+    )
+    for value in invalid_retention_values:
         with pytest.raises(
             ValueError,
             match=(

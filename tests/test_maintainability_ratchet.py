@@ -73,9 +73,7 @@ def test_load_baseline_rejects_invalid_governed_shapes(
 ) -> None:
     path = tmp_path / "baseline.json"
     path.write_text(payload, encoding="utf-8")
-    with pytest.raises(
-        ValueError, match=r"(schema_version|limits|approved_paths)"
-    ):
+    with pytest.raises(ValueError, match=r"(schema_version|limits|approved_paths)"):
         load_baseline(path)
 
 
