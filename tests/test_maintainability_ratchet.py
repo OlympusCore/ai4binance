@@ -55,19 +55,27 @@ def test_repository_maintainability_baseline_is_current() -> None:
 
 @pytest.mark.parametrize(
     "payload",
-    (
+    [
         "{}",
         '{"schema_version": 1, "limits": {}, "approved_paths": []}',
-        '{"schema_version": 1, "limits": {"C901": 0, "PLR0912": 0, "PLR0915": -1}, "approved_paths": []}',
-        '{"schema_version": 1, "limits": {"C901": 0, "PLR0912": 0, "PLR0915": 0}, "approved_paths": ["outside.py"]}',
-    ),
+        (
+            '{"schema_version": 1, "limits": '
+            '{"C901": 0, "PLR0912": 0, "PLR0915": -1}, "approved_paths": []}'
+        ),
+        (
+            '{"schema_version": 1, "limits": '
+            '{"C901": 0, "PLR0912": 0, "PLR0915": 0}, "approved_paths": ["outside.py"]}'
+        ),
+    ],
 )
 def test_load_baseline_rejects_invalid_governed_shapes(
     tmp_path: Path, payload: str
 ) -> None:
     path = tmp_path / "baseline.json"
     path.write_text(payload, encoding="utf-8")
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError, match=r"(schema_version|limits|approved_paths)"
+    ):
         load_baseline(path)
 
 
@@ -77,16 +85,12 @@ def test_collect_findings_and_evaluate_fail_closed_for_bad_tool_data(
     completed = type(
         "Completed", (), {"returncode": 2, "stderr": "tool failed", "stdout": ""}
     )()
-    monkeypatch.setattr(
-        ratchet.subprocess, "run", lambda *_args, **_kwargs: completed
-    )
+    monkeypatch.setattr(ratchet.subprocess, "run", lambda *_args, **_kwargs: completed)
     with pytest.raises(RuntimeError, match="tool failed"):
         collect_ruff_findings(ROOT)
 
     malformed = type("Completed", (), {"returncode": 0, "stderr": "", "stdout": "{}"})()
-    monkeypatch.setattr(
-        ratchet.subprocess, "run", lambda *_args, **_kwargs: malformed
-    )
+    monkeypatch.setattr(ratchet.subprocess, "run", lambda *_args, **_kwargs: malformed)
     with pytest.raises(ValueError, match="JSON array"):
         collect_ruff_findings(ROOT)
 

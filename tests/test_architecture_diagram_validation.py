@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from unittest.mock import patch
 
+import pytest
 import yaml
 
+from ai4binance.ops import architecture_diagram_validation as diagram_validation
 from ai4binance.ops.architecture_diagram_validation import (
     validate_architecture_diagrams,
 )
-from ai4binance.ops import architecture_diagram_validation as diagram_validation
 
 ROOT = Path(__file__).parents[1]
 DIAGRAM_ROOT = ROOT / "docs" / "architecture" / "diagrams"

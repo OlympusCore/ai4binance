@@ -1,19 +1,20 @@
 """Regression tests for the canonical runtime-artifact layout migration."""
 
+import json
 from pathlib import Path
 from typing import cast
 
-import json
 import pytest
+
 from ai4binance.infrastructure.filesystem.runtime_artifacts import (
     RuntimeArtifactLayoutManifest,
     default_runtime_artifact_layout_manifest_path,
+    layout,
     load_runtime_artifact_layout_manifest,
 )
 from ai4binance.infrastructure.filesystem.runtime_artifacts.layout import (
     RuntimeArtifactLayoutManifest as CanonicalLayoutManifest,
 )
-from ai4binance.infrastructure.filesystem.runtime_artifacts import layout
 from ai4binance.ops.kaizen_quality import build_architecture_baseline
 from ai4binance.runtime_artifacts import (
     RuntimeArtifactLayoutManifest as LegacyPackageLayoutManifest,
@@ -64,7 +65,7 @@ def test_runtime_artifact_migration_is_recorded_as_canonical_and_facade() -> Non
 def test_layout_contract_helpers_fail_closed_and_canonicalize_aliases(
     tmp_path: Path,
 ) -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="under runtime"):
         layout.RuntimeRetentionPolicy("outside", "keep", 0, 0, False)
     manifest = CanonicalLayoutManifest(
         "runtime/artifacts",
@@ -81,13 +82,22 @@ def test_layout_contract_helpers_fail_closed_and_canonicalize_aliases(
         manifest.retention_for("unknown")
     assert layout._capacity_budget_mapping(None) == {}
     for value in ([], {"outside": 1}, {"runtime/a": True}, {"runtime/a": 0}):
-        with pytest.raises(ValueError):
+        with pytest.raises(
+            ValueError,
+            match=(
+                r"(capacity_budgets must be an object|runtime paths|"
+                r"must be an integer|must be positive)"
+            ),
+        ):
             layout._capacity_budget_mapping(value)
     for value in (None, [], {"x": {}}):
         if value is None:
             assert layout._retention_mapping(value) == {}
         else:
-            with pytest.raises(ValueError):
+            with pytest.raises(
+                ValueError,
+                match=r"(retention must be an object|automatic_cleanup must be boolean)",
+            ):
                 layout._retention_mapping(value)
 
     path = tmp_path / "manifest.json"
@@ -116,20 +126,35 @@ def test_runtime_retention_policy_rejects_invalid_values(
 
 def test_layout_mapping_helpers_cover_all_invalid_contract_shapes() -> None:
     for value in (None, [], {}, {"": "runtime/a"}, {"a": ""}):
-        with pytest.raises(ValueError):
+        with pytest.raises(
+            ValueError,
+            match=r"roots must be (a non-empty object|contain non-empty strings)",
+        ):
             layout._text_mapping(value, "roots")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="canonical_root must be a non-empty string"):
         layout._text({}, "canonical_root")
     for value in ({"rule": []}, {"": {}}, {"rule": {"automatic_cleanup": "yes"}}):
-        with pytest.raises(ValueError):
+        with pytest.raises(
+            ValueError,
+            match=(
+                r"(retention entries must be named objects|"
+                r"automatic_cleanup must be boolean)"
+            ),
+        ):
             layout._retention_mapping(value)
     for policy in (
         {"automatic_cleanup": True, "minimum_age_days": True, "keep_latest": 0},
         {"automatic_cleanup": True, "minimum_age_days": 0, "keep_latest": False},
     ):
-        with pytest.raises(ValueError):
+        with pytest.raises(
+            ValueError,
+            match=(
+                r"(minimum_age_days must be an integer|"
+                r"keep_latest must be an integer)"
+            ),
+        ):
             layout._retention_mapping({"rule": policy})
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="entry kind is invalid"):
         layout._retention_entry_kind("unknown")
 
 

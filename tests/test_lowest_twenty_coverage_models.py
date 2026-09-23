@@ -93,11 +93,7 @@ def test_runtime_environment_rejects_unsafe_temp_contracts(
         ai4binance.tomllib,
         "load",
         lambda _stream: {
-            "tool": {
-                "ai4binance": {
-                    "runtime": {"temporary_directory": directory}
-                }
-            }
+            "tool": {"ai4binance": {"runtime": {"temporary_directory": directory}}}
         },
     )
     with pytest.raises(ValueError, match="Temporary directory"):
@@ -223,7 +219,8 @@ def test_trend_events_observe_records_crosses_and_confirmed_slope(
         ),
     )
     observed = trend_events_module.TrendEventsAgent._observe(
-        "1h", (object(),) * 201  # type: ignore[arg-type]
+        "1h",
+        (object(),) * 201,  # type: ignore[arg-type]
     )
     _timeframe, direction, _band, events, slope = observed
     assert direction == 1
