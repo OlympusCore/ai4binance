@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_origin": "governed_document_lock_written_owner_approval",
+  "generated_at_utc": "2026-09-23T08:27:21Z",
+  "repository_root": "/home/runner/work/ai4binance/ai4binance",
+  "manifest_path": "config/governance/governed_document_lock_manifest.json",
+  "approval_id": "AI4B-GOV-DOCLOCK-TERMINOLOGY-CLARIFICATION-SLICE-20260825-001",
+  "approval_scope": "ONTOLOGY_TAXONOMY_REGISTRY_GOVERNED_CLARIFICATION_SLICE",
+  "approval_status": "APPROVED",
+  "approved_by": "Huseyin",
+  "approved_at_utc": "2026-08-25T00:00:00Z",
+  "written_owner_approval": true,
+  "approved_sha256": {
+    "docs/standards/standard_terminology_governance.md": "56e439cfd7b8e6c7c4bf94d19afdea06cf39f547d839d69d673571439a79d302"
+  },
+  "approved_documents": [
+    {
+      "path": "docs/standards/standard_terminology_governance.md",
+      "approved_sha256": "56e439cfd7b8e6c7c4bf94d19afdea06cf39f547d839d69d673571439a79d302",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "d8edb7c88c73b4ac5a956ca10053e00c6df6ec323788ceb3ec74538590e3d40c",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "3afc73fd1c11e960c33445d184754e0a3c1a998c222660e88e14d0d4a673e954",
+      "manifest_sha256": "3afc73fd1c11e960c33445d184754e0a3c1a998c222660e88e14d0d4a673e954",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    }
+  ],
+  "verification_status": "VERIFIED",
+  "current_alignment_status": "RUNNING_WITH_BLOCKERS",
+  "verification_summary": {
+    "approved_document_count": 1,
+    "all_hashes_match": false
+  },
+  "execution_allowed": false,
+  "promotion_status": "RESEARCH_ONLY",
+  "live_eligibility_status": "LIVE_ORDER_BLOCKED"
+}

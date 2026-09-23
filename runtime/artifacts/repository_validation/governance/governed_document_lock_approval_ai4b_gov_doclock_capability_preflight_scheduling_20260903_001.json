@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_origin": "governed_document_lock_written_owner_approval",
+  "generated_at_utc": "2026-09-23T08:27:21Z",
+  "repository_root": "/home/runner/work/ai4binance/ai4binance",
+  "manifest_path": "config/governance/governed_document_lock_manifest.json",
+  "approval_id": "AI4B-GOV-DOCLOCK-CAPABILITY-PREFLIGHT-SCHEDULING-20260903-001",
+  "approval_scope": "CAPABILITY_PREFLIGHT_AND_CONDITIONAL_SCHEDULING_ALIGNMENT",
+  "approval_status": "APPROVED",
+  "approved_by": "Huseyin",
+  "approved_at_utc": "2026-09-03T15:54:23Z",
+  "written_owner_approval": true,
+  "approved_sha256": {
+    "docs/architecture/framework_architecture_overview.md": "499c4f626b5f7fc797f6242360aea8aae2ce9ecf6b4dc56d321d154cd4167ad3",
+    "docs/registries/registry_agent_registry.md": "473462b63e50c2ba8802ab80be5e8ac8c4ca88c03cd1b694d4b5a103dbd7fe38"
+  },
+  "approved_documents": [
+    {
+      "path": "docs/architecture/framework_architecture_overview.md",
+      "approved_sha256": "499c4f626b5f7fc797f6242360aea8aae2ce9ecf6b4dc56d321d154cd4167ad3",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "4ba24d3dbcb586020cd2a7dd714be23e381c1715186e7303950aaf13819cbb7d",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "4ba24d3dbcb586020cd2a7dd714be23e381c1715186e7303950aaf13819cbb7d",
+      "manifest_sha256": "4ba24d3dbcb586020cd2a7dd714be23e381c1715186e7303950aaf13819cbb7d",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/registries/registry_agent_registry.md",
+      "approved_sha256": "473462b63e50c2ba8802ab80be5e8ac8c4ca88c03cd1b694d4b5a103dbd7fe38",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "9c35ddeee9a5589d5cad079da5b9a404544dd09ca52a647e3e822cef1e3e5671",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "9d873c1a9e8cc5293b3173501485e9cd99778cf1e0400a00461418ffb6cb183e",
+      "manifest_sha256": "9d873c1a9e8cc5293b3173501485e9cd99778cf1e0400a00461418ffb6cb183e",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    }
+  ],
+  "verification_status": "VERIFIED",
+  "current_alignment_status": "RUNNING_WITH_BLOCKERS",
+  "verification_summary": {
+    "approved_document_count": 2,
+    "all_hashes_match": false
+  },
+  "execution_allowed": false,
+  "promotion_status": "RESEARCH_ONLY",
+  "live_eligibility_status": "LIVE_ORDER_BLOCKED"
+}

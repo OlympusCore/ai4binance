@@ -1,0 +1,117 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_origin": "governed_document_lock_written_owner_approval",
+  "generated_at_utc": "2026-09-23T08:27:21Z",
+  "repository_root": "/home/runner/work/ai4binance/ai4binance",
+  "manifest_path": "config/governance/governed_document_lock_manifest.json",
+  "approval_id": "AI4B-GOV-DOCLOCK-AUTHORITY-PRIMITIVE-CANONICALIZATION-20260830-001",
+  "approval_scope": "AUTHORITY_PRIMITIVE_CANONICALIZATION_CURRENT_SHA256_ALIGNMENT",
+  "approval_status": "APPROVED",
+  "approved_by": "Huseyin",
+  "approved_at_utc": "2026-08-30T12:00:00Z",
+  "written_owner_approval": true,
+  "approved_sha256": {
+    "docs/compliance/registry_compliance_matrix.md": "87b09104a301b7fcd775f1831466c7935b98778cc7d592cc9637e9ba851abe88",
+    "docs/controls/control_repository_validation_rules.md": "d54924f55a1b1f4636f151b2c9a29bff1b85443d79df910189b10d56994b2219",
+    "docs/governance/framework_core_vnext_governance.md": "95e6268eb01ea813b39f7de81462e90114505a32dfb14e59dc68690eebaf59fc",
+    "docs/ontology/entity_rule_repository_artifact.md": "6b95be5b0116949d015572091122ec109543b887758fb072f3cd2393b9ff2b30",
+    "docs/schemas/reference_repository_artifact_schema.md": "ed60279de890ab08090fba9981dd7e9bcd7ad03e44a4b9bcec2903dcf758eea7",
+    "docs/standards/standard_governed_knowledge_metadata.md": "94a3c45c5df4e2c40ecc702c9388ff0b3678c4d267db862f30f5773dd7835e3f",
+    "docs/standards/standard_repository_file_governance.md": "f8d9af08c19b2d62190e6ece0aa4fc0ebd357fec21c84cedf0fe126b6e5d2f8b"
+  },
+  "approved_documents": [
+    {
+      "path": "docs/compliance/registry_compliance_matrix.md",
+      "approved_sha256": "87b09104a301b7fcd775f1831466c7935b98778cc7d592cc9637e9ba851abe88",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "925237186799fdd6b7fe4b98c271d4ed1be4c6cc02ad6a22394d50172a463477",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "925237186799fdd6b7fe4b98c271d4ed1be4c6cc02ad6a22394d50172a463477",
+      "manifest_sha256": "925237186799fdd6b7fe4b98c271d4ed1be4c6cc02ad6a22394d50172a463477",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/controls/control_repository_validation_rules.md",
+      "approved_sha256": "d54924f55a1b1f4636f151b2c9a29bff1b85443d79df910189b10d56994b2219",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "f2c8cde981e8bc336063cc4388eb80d972b276ac27bbd2ddd81636329b7693a5",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "18c395baab5ae283834a31d09d5990178287f85d2e3770a6e59dd999fd5e6a1b",
+      "manifest_sha256": "18c395baab5ae283834a31d09d5990178287f85d2e3770a6e59dd999fd5e6a1b",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/governance/framework_core_vnext_governance.md",
+      "approved_sha256": "95e6268eb01ea813b39f7de81462e90114505a32dfb14e59dc68690eebaf59fc",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "90229f42234146cfc4b010fc49e0dfbce7b115219caed40fe643ae2126aa4c3a",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "0678683a0be5096cd02c6ca5420f67be8ff57761bfed524cec0ea9581e955127",
+      "manifest_sha256": "0678683a0be5096cd02c6ca5420f67be8ff57761bfed524cec0ea9581e955127",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/ontology/entity_rule_repository_artifact.md",
+      "approved_sha256": "6b95be5b0116949d015572091122ec109543b887758fb072f3cd2393b9ff2b30",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "8532579cfe6d3d1f556f9805bcaafc3ac2f54ae67423a2fb53313d4493544c6b",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "6b95be5b0116949d015572091122ec109543b887758fb072f3cd2393b9ff2b30",
+      "manifest_sha256": "6b95be5b0116949d015572091122ec109543b887758fb072f3cd2393b9ff2b30",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": true
+    },
+    {
+      "path": "docs/schemas/reference_repository_artifact_schema.md",
+      "approved_sha256": "ed60279de890ab08090fba9981dd7e9bcd7ad03e44a4b9bcec2903dcf758eea7",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "f7e3ac071ea6a50852bda39334cb6cca72bf1860d8816c3a13a19ab058633fd6",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "af0873c9ab8d31d0757f114035f4e9300e309dd97ba13ac820b4cb206a691c46",
+      "manifest_sha256": "af0873c9ab8d31d0757f114035f4e9300e309dd97ba13ac820b4cb206a691c46",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/standards/standard_governed_knowledge_metadata.md",
+      "approved_sha256": "94a3c45c5df4e2c40ecc702c9388ff0b3678c4d267db862f30f5773dd7835e3f",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "94a3c45c5df4e2c40ecc702c9388ff0b3678c4d267db862f30f5773dd7835e3f",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "94a3c45c5df4e2c40ecc702c9388ff0b3678c4d267db862f30f5773dd7835e3f",
+      "manifest_sha256": "94a3c45c5df4e2c40ecc702c9388ff0b3678c4d267db862f30f5773dd7835e3f",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": true,
+      "hash_matches_manifest_entry": true
+    },
+    {
+      "path": "docs/standards/standard_repository_file_governance.md",
+      "approved_sha256": "f8d9af08c19b2d62190e6ece0aa4fc0ebd357fec21c84cedf0fe126b6e5d2f8b",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "840f44ad264b85be1c9f221eacff455b165a91729d1de3507e1160e7b4a2851c",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "f8d9af08c19b2d62190e6ece0aa4fc0ebd357fec21c84cedf0fe126b6e5d2f8b",
+      "manifest_sha256": "f8d9af08c19b2d62190e6ece0aa4fc0ebd357fec21c84cedf0fe126b6e5d2f8b",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": true
+    }
+  ],
+  "verification_status": "VERIFIED",
+  "current_alignment_status": "RUNNING_WITH_BLOCKERS",
+  "verification_summary": {
+    "approved_document_count": 7,
+    "all_hashes_match": false
+  },
+  "execution_allowed": false,
+  "promotion_status": "RESEARCH_ONLY",
+  "live_eligibility_status": "LIVE_ORDER_BLOCKED"
+}

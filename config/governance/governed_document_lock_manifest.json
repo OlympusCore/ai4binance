@@ -12,7 +12,7 @@
         "docs/providers/instruction_codex_provider.md": "8040ce897de09fff4a6fdd1636be239fa00e96a86c241d79318af2fae3b9a6bf"
       },
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_codex_fabric_routing_20260918_001.json",
-      "approval_evidence_sha256": "4aac9746cc28aca51dd3d6d33fe063e7396c49f2e151a9f1417252e6ba1d86ad"
+      "approval_evidence_sha256": "ac55f532c0b9e207be1c4ceb02e6206aa8db22da982be72810c0e27e01e5d6b1"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-TERMINOLOGY-NAMING-LANGUAGE-FABRIC-GOVERNANCE-20260916-001",
@@ -35,7 +35,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_terminology_naming_language_fabric_governance_20260916_001.json",
-      "approval_evidence_sha256": "da848a262b124fc4f9443f1c81ee5474de03683ee3f20a7aa747bb4c2e5cea0e"
+      "approval_evidence_sha256": "066fb5678987467ea8f04226fbaf13fb690c97223c2e63052c43b8129acf8968"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-TERMINOLOGY-NAMING-LANGUAGE-FABRIC-CONSTITUTION-20260916-001",
@@ -58,7 +58,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_terminology_naming_language_fabric_constitution_20260916_001.json",
-      "approval_evidence_sha256": "a928276aa1f7198ee4952950c2b3d1d55ab88bc2456f3a1de3e7147a2089eee7"
+      "approval_evidence_sha256": "8cb32a240ed88d1b067f47e82d09b2b5d482c562a6dc640b61e1be5167f4cf66"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-TECHNOLOGY-LANGUAGE-OWNERSHIP-20260915-001",
@@ -73,7 +73,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_technology_language_ownership_20260915_001.json",
-      "approval_evidence_sha256": "45a494149e25639251a5f29de3307f4412f3a55e7d9c6db10d6801896a3cdd54"
+      "approval_evidence_sha256": "d8eb9fef2c0af00f2c23736a5715df1d6571285111fa8e954bc2e259ba9255c6"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-ARCHITECTURE-CONFORMANCE-20260912-001",
@@ -86,7 +86,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_architecture_conformance_20260912_001.json",
-      "approval_evidence_sha256": "a5eba2adafc8357f339cf9807980f44c66b0d0ed78b549cde9bf9cccd9df1b6a"
+      "approval_evidence_sha256": "45fff869caa66a0b1cb37799febee1eed7b85cf1962f74155d9d1fe3ace37bb1"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-MARKET-DATA-CM-DEPTH-20260911-001",
@@ -99,7 +99,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_market_data_cm_depth_20260911_001.json",
-      "approval_evidence_sha256": "0d3e1a96eec5ecc8f240377710dfaf5a5a7abee2c2f472c1676a39bfc1301a11"
+      "approval_evidence_sha256": "ad30f272a84bf0ade75f6fdafe7acd98fad45725dcea16317c26fb8e74451940"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VM-DGE-TRACEABILITY-GOVERNANCE-20260909-001",
@@ -119,7 +119,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vm_dge_traceability_governance_20260909_001.json",
-      "approval_evidence_sha256": "cf7d716f6266346b4a89f138f30641dc900b1f16a9538668e7a949f723a8c37a"
+      "approval_evidence_sha256": "6d70f450e54e95a87f2fbfd470f7cdc63eb8305e9780626f25067592d845b81f"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VM-DGE-TRACEABILITY-CONSTITUTION-20260909-001",
@@ -139,7 +139,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vm_dge_traceability_constitution_20260909_001.json",
-      "approval_evidence_sha256": "498867b9ca52a57ef2baf52bee949902043967714b16876b6b5b624cb9e1ca3c"
+      "approval_evidence_sha256": "2e66b743808984ce3379a7e69fc5ab7cb8093724af6ea34943f10003c2aa50f8"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-GITHUB-RADAR-BLOCKER-RETENTION-GOVERNANCE-20260907-001",
@@ -158,7 +158,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_github_radar_blocker_retention_governance_20260907_001.json",
-      "approval_evidence_sha256": "06d04c50e8128560fd832a54e2efe1b3114b9c83b1094250728c8ddff3864683"
+      "approval_evidence_sha256": "44bf945d9a7633415a51c477e6c990688bc143ae1d00eca74b41de6c8fa1e221"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-GITHUB-RADAR-BLOCKER-RETENTION-CONSTITUTION-20260907-001",
@@ -177,7 +177,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_github_radar_blocker_retention_constitution_20260907_001.json",
-      "approval_evidence_sha256": "c44e89c3aafc8719f32672e9e606d0aac4b6ea8c9c7e5550614b193b12849306"
+      "approval_evidence_sha256": "4ebc008003ccc2b8e6de0a1de098c243e5d30dad852c4d5da35acdd9a3765c96"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-PYTHON-3147-MIGRATION-20260906-001",
@@ -195,7 +195,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_python_3147_migration_20260906_001.json",
-      "approval_evidence_sha256": "cb8bea4798ea7694e3bc0b5ca4dbc52cd3883fb079849495559894683db1cd7f"
+      "approval_evidence_sha256": "c3ca0ff3060d8b998c726c6000022cfad4a9e6bd82b2eda8131f30394a2f96a6"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-RQ013-BLOCKER-AUDIT-20260906-001",
@@ -220,7 +220,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_rq013_blocker_audit_20260906_001.json",
-      "approval_evidence_sha256": "8e8652c9cb22714feb9d6bd9b3137b78cc7d120c983cd721c1d01d7f03619f9a"
+      "approval_evidence_sha256": "96b07dd0ea54a59603629e5bf02d957c6c6810bb1338855680c3daffbe550a8f"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-RQ012-CLOSURE-20260906-001",
@@ -245,7 +245,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_rq012_closure_20260906_001.json",
-      "approval_evidence_sha256": "b4592a16b80af3dcdf4b776595ccc68b83a3046cd51102cd628564d925b4a1a1"
+      "approval_evidence_sha256": "50ba264dbafa124612f01252c9a3e5a32c813b703a838959ee00382eadbfdb59"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-RQ007-CLOSURE-20260905-001",
@@ -270,7 +270,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_rq007_closure_20260905_001.json",
-      "approval_evidence_sha256": "65f460ee9cdc20b6ce3ca18898115b0e7fa71eb4e6ca5ac3df4a05394a4e9b3d"
+      "approval_evidence_sha256": "f75cd2a029fb8d3593db7facc5a1216746e7e98c234f1ffad81db8eacb7e53e0"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-RQ006-CLOSURE-20260905-001",
@@ -295,7 +295,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_rq006_closure_20260905_001.json",
-      "approval_evidence_sha256": "4a12b4ed4a953ff87d4468fa3b6c8afee0e88a604925f9181886009ab9221ccb"
+      "approval_evidence_sha256": "83cfa429be92bff28eaa98efaff5355a9a3a1d776054766a9f17025d7cd59c67"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-RQ004-CLOSURE-20260905-001",
@@ -320,7 +320,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_rq004_closure_20260905_001.json",
-      "approval_evidence_sha256": "7a6c39329b4c1d182837d29b8923dc36374924218514ae808a4290be2e4a632c"
+      "approval_evidence_sha256": "69d9fbcfc194a313bdb0b6a4e605e9b5d1415ca338054dea0ec5980344db2c6a"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-QUALITY-APPROVAL-REPLAY-20260905-001",
@@ -345,7 +345,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_quality_approval_replay_20260905_001.json",
-      "approval_evidence_sha256": "78f592b6cb7986b73bcefba6ea2ce9752a779d2188d80d1cf11a12d91848f781"
+      "approval_evidence_sha256": "b85620c96eda682dde895909e3b5ce722b676d9d87ed237f85ffaf469690e4ad"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-RQ002-CLOSURE-20260905-001",
@@ -370,7 +370,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_rq002_closure_20260905_001.json",
-      "approval_evidence_sha256": "cecd3f178c88714ab5b583d894128e4664938a646e8f6f370c1f686f99750017"
+      "approval_evidence_sha256": "72ef23f8b51b16c715058d722710153f9c6850c9a7f9fce6beeb366ff4d7e531"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-RQ009-CLOSURE-20260905-001",
@@ -395,7 +395,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_rq009_closure_20260905_001.json",
-      "approval_evidence_sha256": "6f4c492633bdc1352f5b3104bae1255266669c0df2be513f6a5bb98d3cec1ff6"
+      "approval_evidence_sha256": "cfcf23d95f9b8e478fd976ca76c217d0f566db58f673eee78d81a473ebdbdc0c"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-RQ018-CLOSURE-20260905-001",
@@ -420,7 +420,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_rq018_closure_20260905_001.json",
-      "approval_evidence_sha256": "7c2c33ae5012249d80e0604d1267d94ec520baa2787010ecaeaacf72c9a73973"
+      "approval_evidence_sha256": "7793fe03cf2f6ed7453164fbab498d151ba1c2f83bf69cccbdaacf3aa98c3c97"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-RQ017-CLOSURE-20260905-001",
@@ -445,7 +445,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_rq017_closure_20260905_001.json",
-      "approval_evidence_sha256": "8f4c6764e2e728b5d9ed02dede7b3aed82c318088494e90061139697c128b085"
+      "approval_evidence_sha256": "e92c536a9320f2f2a8ef8949a4c06de7511a36d1d5440af047cd718268936e44"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-CONVERGENCE-20260905-001",
@@ -474,7 +474,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_convergence_20260905_001.json",
-      "approval_evidence_sha256": "f71ce68b54923a971de6e014f9d08999eb709dccc20e608913ff449f7ec0de22"
+      "approval_evidence_sha256": "907d3c1909fe72af421d1a8d008b30a30bafe47ea78b940317982ad75dc4b8de"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-QUALITY-GATE-CONSOLE-KAIZEN-20260904-001",
@@ -487,7 +487,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_quality_gate_console_kaizen_20260904_001.json",
-      "approval_evidence_sha256": "78ea10c653bc6fc5cfee553afa5319f963ef974350186c3702c69e0bae8de78f"
+      "approval_evidence_sha256": "3fede39970c4863616d62efd4334ceddbf9dcef262fc18586e48e7c847f6fdbc"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-WHALE-FUSION-ORCHESTRATION-20260904-001",
@@ -500,7 +500,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_whale_fusion_orchestration_20260904_001.json",
-      "approval_evidence_sha256": "a410947e966efa1493e7439e520d406d0fbff5ea3e317b4b0d2ae2385d2dec06"
+      "approval_evidence_sha256": "07aeb82ff8af268afa473b994448af2d0c7954cf178fd113d73dc06e111c665e"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-INSTRUCTION-CONTEXT-ROUTING-20260904-001",
@@ -515,7 +515,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_instruction_context_routing_20260904_001.json",
-      "approval_evidence_sha256": "5b41d0b5ef90cd989a6634a056d748e8e976bd704469698ac842d403ba617a8a"
+      "approval_evidence_sha256": "6c10d2cfb79d144b05a7e5823d5c38b91df03955b533da884d1d62e9f27ed0c4"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-ROOT-AGENT-THIN-ROUTER-20260904-001",
@@ -528,7 +528,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_root_agent_thin_router_20260904_001.json",
-      "approval_evidence_sha256": "bcaec3e32967a1fa573dabc480a55f68febef89572f43aa76c565e5a04e8a4f2"
+      "approval_evidence_sha256": "7dcbc64a52086e0e80796dda4c6b6705e8eaf0870978021039d3e6ef64b03862"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-CUSTOM-VALIDATION-AUTHORITY-20260904-001",
@@ -541,7 +541,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_custom_validation_authority_20260904_001.json",
-      "approval_evidence_sha256": "aa195228bc4df4a880efe1d9f0ecffa9538b0f864f1b00cd69184f44f830f15e"
+      "approval_evidence_sha256": "0146e65b89a276a5aca006c0d03ba9941d088e5d5efd10482e9014de2c43f651"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-PROVIDER-AUTHORITY-CLOSURE-20260904-001",
@@ -559,7 +559,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_provider_authority_closure_20260904_001.json",
-      "approval_evidence_sha256": "adca04d5c3e3f5b5a7dc7e75e080c6eb32a018d7129279b507314665ef8b6685"
+      "approval_evidence_sha256": "b121c3ec22c5b30edcb3d562ec0a8a052b506d24710777e4672c43b2183c15f3"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-LOCAL-ADVISORY-FIXTURE-EVIDENCE-WIRING-20260903-001",
@@ -573,7 +573,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_local_advisory_fixture_evidence_wiring_20260903_001.json",
-      "approval_evidence_sha256": "3871c7356498789295b867345844d5ea42a08b8bf5cc24c88ce3688c5fa6ffc1"
+      "approval_evidence_sha256": "4fe1e663d132a6ee0460713ba45ab4f2ae7ddddf8e48d9d75e76ca915e52421b"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-LOCAL-ADVISORY-FIXTURE-EVIDENCE-20260903-001",
@@ -587,7 +587,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_local_advisory_fixture_evidence_20260903_001.json",
-      "approval_evidence_sha256": "0df99fd04de7e9431d973cb77a6075ddacd3e4f6446c47721bc4dd8fb040d95d"
+      "approval_evidence_sha256": "f83e42ec718aa8f3d5a7c45b5b87a4c5345b429b28f83358cb07e583893ab8c4"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-LOCAL-ADVISORY-FIXTURE-ON-DEMAND-RUNNER-20260903-001",
@@ -601,7 +601,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_local_advisory_fixture_on_demand_runner_20260903_001.json",
-      "approval_evidence_sha256": "25448e3bec0894fcfa7bbb8fd31af712db8c5877300ad60f5dfbfa74c8ec5c21"
+      "approval_evidence_sha256": "d08033701e0d15bae729e2c53648243507b3c23029ee49b0cd86e6a041836eb4"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-LOCAL-ADVISORY-FIXTURE-RUNNER-ADMISSION-20260903-001",
@@ -615,7 +615,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_local_advisory_fixture_runner_admission_20260903_001.json",
-      "approval_evidence_sha256": "dbcf2b3ef135e18af15325df6517d39044d5ecdf4eef56c04913dce5c97701d9"
+      "approval_evidence_sha256": "81966c9d05faae51461d3b6f1a8172e7e2ca9842c70a45e5b2bfd87a4ab64e79"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-LOCAL-ADVISORY-FIXTURE-HARNESS-20260903-001",
@@ -629,7 +629,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_local_advisory_fixture_harness_20260903_001.json",
-      "approval_evidence_sha256": "dcef7340f79f4d312fbe73f1fbedd7b6e7687daecf6ee7f10a6fa205ea57a96d"
+      "approval_evidence_sha256": "ded8d633a380d4f43c58476263a90addb56a9365b22ac88e13cf57b4c0a1c26c"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-LOCAL-ADVISORY-FIXTURE-ADAPTER-20260903-001",
@@ -643,7 +643,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_local_advisory_fixture_adapter_20260903_001.json",
-      "approval_evidence_sha256": "7e1055a88e7b9b54678c2e52d0e5ac70495fac654e6426a16471d5295be93f9e"
+      "approval_evidence_sha256": "5c9075d7d4410be9ce0bf264d34c395881592d0de41a8f0825a44dcbf717237a"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-ADVISORY-FIXTURE-RUNNER-20260903-001",
@@ -657,7 +657,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_advisory_fixture_runner_20260903_001.json",
-      "approval_evidence_sha256": "52322f7d0b472525e44aaba0023296d73f7d0ecb22413901034764f40570c3a1"
+      "approval_evidence_sha256": "d128626c0b977286d79fb4440979a3ba24ed778cd8946002ec7f717a374ad246"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-GOVERNED-LESSON-LIFECYCLE-20260903-001",
@@ -672,7 +672,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_governed_lesson_lifecycle_20260903_001.json",
-      "approval_evidence_sha256": "8014687bd9901a239e3317bea71149c006a70a71462200099a4a2aa48986e18b"
+      "approval_evidence_sha256": "e454bd811a757dfa5623914d02ffaa64c8f3d250a8e2ab888f2f028194ccb841"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-UNIVERSE-LIQUIDITY-GATE-20260903-001",
@@ -686,7 +686,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_universe_liquidity_gate_20260903_001.json",
-      "approval_evidence_sha256": "3da36841b8d4cf16fbb55d03e27ee42706a3f158bbc2ce3b86b7ad94c18eacec"
+      "approval_evidence_sha256": "f0d23b6a60761cfc27df991db2315f846204015e230cc7ad298aaa5c26aa7aae"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VALIDATION-GATE-20260903-001",
@@ -700,7 +700,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_validation_gate_20260903_001.json",
-      "approval_evidence_sha256": "4337bf660e383f2a05c5cb4464d31a157b8fbd4679a8a8b62199528f43694819"
+      "approval_evidence_sha256": "adb2c6807857bcd8bf09b3ebe144494d14cc4c526be30df3f03493ceae8c8cb3"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-RISK-GATE-20260903-001",
@@ -714,7 +714,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_risk_gate_20260903_001.json",
-      "approval_evidence_sha256": "d24587602869d861ba1a2088a488529ceb6386737564fbd07305b4350a0af612"
+      "approval_evidence_sha256": "06dd43fa28890537e615db0c5545896441845017d9a1a091398a725945607c1a"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-DATA-QUALITY-GATE-20260903-001",
@@ -728,7 +728,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_data_quality_gate_20260903_001.json",
-      "approval_evidence_sha256": "ea1f426041920a7601de7ef22bf3d3463f60480787af7bf1ba02f32eedb3c448"
+      "approval_evidence_sha256": "82be00fb2cbc23d10909b88f42067db31a859eafeaeb87302399ae35dd58c499"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-EVIDENCE-FUSION-ENGINE-20260903-001",
@@ -742,7 +742,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_evidence_fusion_engine_20260903_001.json",
-      "approval_evidence_sha256": "32fcc4d3a4fb0047e3cb77f4a25d9ca1ea748f0bf74daec8492324b1352bd779"
+      "approval_evidence_sha256": "609e7997585962ce8396768d279c12523ce0529c47a661ddef3223bbc0c7679b"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-CAPABILITY-BUNDLE-EXECUTION-20260903-001",
@@ -756,7 +756,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_capability_bundle_execution_20260903_001.json",
-      "approval_evidence_sha256": "76fabe22b9779c244423fcbd05403d8453797cfd91c27f59d9962390baeaa24e"
+      "approval_evidence_sha256": "d8ce90b98488b6ac0ab4b461fd0e815707c82bf9041a05284c36ad93c0ddebbb"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-CAPABILITY-BUNDLE-PLANNING-20260903-001",
@@ -770,7 +770,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_capability_bundle_planning_20260903_001.json",
-      "approval_evidence_sha256": "87e8ffb39a0d72e3001f3534abae4b048b5200a5ed662b89d80f0b7b669fc2cb"
+      "approval_evidence_sha256": "9151465ddc08d0f73e43a6eee5eb83cccd45a3349d42595279d201a0cf841288"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-CAPABILITY-PREFLIGHT-SCHEDULING-20260903-001",
@@ -784,7 +784,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_capability_preflight_scheduling_20260903_001.json",
-      "approval_evidence_sha256": "6bf3810a51d5b2ce3c3d55abfd6919b2cf4f2925e14a4f77fb556439c4b89e98"
+      "approval_evidence_sha256": "838ee88008fa1b4f92524d98ff67629426eb42e5c60ea3f9ce991dba3e399124"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-CAPABILITY-RUNTIME-CONTRACT-20260903-001",
@@ -798,7 +798,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_capability_runtime_contract_20260903_001.json",
-      "approval_evidence_sha256": "470d4d899c6695a2124da3593f61198d1c9843c2658c10b9da558d9a03d6bd99"
+      "approval_evidence_sha256": "e4f18b2d7d79c58bdc2b52e2bd0bb2ceb94a205ffcebb607a57ab095e59c3670"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-AGENT-CAPABILITY-SCOPE-20260903-001",
@@ -813,7 +813,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_agent_capability_scope_20260903_001.json",
-      "approval_evidence_sha256": "800a0a3a9ca8cbbae3b34843e667f1803e4955f455bbbbe0da7ed0ab81972eba"
+      "approval_evidence_sha256": "9f4799f0e4fb3542e97076612e848cb839372953105d512ac6da117bf6e38e45"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-ROOT-AGENT-KAIZEN-20260903-001",
@@ -829,7 +829,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_root_agent_kaizen_20260903_001.json",
-      "approval_evidence_sha256": "7b0135d10a14831385b193c5616efff270dcb00425ee35f5f69a6d848d8ef7ef"
+      "approval_evidence_sha256": "b95ac692dfea2a0ce2ad8a66ef7425a43efd3c7705026e48249a526681713e35"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-QUALITY-GATE-PROFILES-20260901-001",
@@ -843,7 +843,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_quality_gate_profiles_20260901_001.json",
-      "approval_evidence_sha256": "4189167c339efad1cf8d60bee142155fc585117b83fadcccf456d43138b10f15"
+      "approval_evidence_sha256": "eec78dc262a4ed1eac366512d54912aab57a7fdf6e6e3c34631abb90149b3b24"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-UNIVERSAL-ENFORCEMENT-INVENTORY-CLOSURE-20260831-001",
@@ -857,14 +857,14 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_universal_enforcement_inventory_closure_20260831_001.json",
-      "approval_evidence_sha256": "4fd4f736739119440b22083972edf830b2583ddb6ffe0dced1057b889fb92141"
+      "approval_evidence_sha256": "725b7914bea0c7642b9fda480c24485ffc04e839036a57f461181e428d2e840d"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-DIFFPLAN-GOVERNED-LOCK-CLOSURE-20260831-001",
       "approval_scope": "DIFFPLAN_GOVERNED_LOCK_CLOSURE_CURRENT_SHA256_ALIGNMENT",
       "approval_status": "APPROVED",
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_diffplan_governed_lock_closure_20260831_001.json",
-      "approval_evidence_sha256": "02275fc2635da63e5c1a2b935b605a5ae49f84fd15ccf0e1b6c6408712b8eaaa",
+      "approval_evidence_sha256": "fdd4d1d2642cb478aa53aa0579f4d2c4a8e5a0bb07c643f03ccf99bd32a656fe",
       "approved_at_utc": "2026-08-31T08:50:00Z",
       "approved_by": "Huseyin",
       "approved_sha256": {
@@ -885,7 +885,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_multiops_runner_admission_20260831_001.json",
-      "approval_evidence_sha256": "1be75cdba38e82d1a265670242af4e507bdd9fc674d2e652b3b7ba4d98048c27"
+      "approval_evidence_sha256": "8e2e2d57899229c37db17af5ddb3cd93816cce3399e37ba361c8fe10525f9862"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-HELPER-PROCESS-CONTAINMENT-20260831-001",
@@ -899,7 +899,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_helper_process_containment_20260831_001.json",
-      "approval_evidence_sha256": "b0502415d12910651b47ada3ab962f16d958496708e5fb36e2e6073d3132f8ab"
+      "approval_evidence_sha256": "9629d47f0e33574697eade338a99e573d32f9c615d7ad7c277fe4c2e9d7c39c1"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-UNIVERSAL-ENFORCEMENT-GOVERNANCE-CLOSURE-20260831-001",
@@ -913,7 +913,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_universal_enforcement_governance_closure_20260831_001.json",
-      "approval_evidence_sha256": "855d86dd72500129d3150ce59aae5bd365be988b77e32f856886d8fe39fd1f38"
+      "approval_evidence_sha256": "ba2f2310f4d41276c9c0a886755014a30a4210291c5a291335cc9f5bede55b28"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-GOVERNED-OBJECT-ENFORCEMENT-20260831-001",
@@ -927,7 +927,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_governed_object_enforcement_20260831_001.json",
-      "approval_evidence_sha256": "6c8ee25acb5d69b673a885503be577d2cec169b228dbfbe7069c4105ed7eb488"
+      "approval_evidence_sha256": "9c65749a8ccd817ad3753d46c9b23713a87a52edf0a5dec5bc52e6e0b4d3c88e"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-APPROVAL-BINDING-AND-REPOSITORY-ARTIFACT-DRIFT-20260831-001",
@@ -943,7 +943,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_approval_binding_and_repository_artifact_drift_20260831_001.json",
-      "approval_evidence_sha256": "f9a2fc722c5e2fad87bee6f075cf11cc5f7ac7016f646f9f4d86d629730f6de6"
+      "approval_evidence_sha256": "9830d11d54067d1b528d52c6dbb32b2bcd6fa0dc6b90355cbc666d57c15f0ee6"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-AUDIT-LEARNING-TAMPER-EVIDENCE-20260830-001",
@@ -956,7 +956,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_audit_learning_tamper_evidence_20260830_001.json",
-      "approval_evidence_sha256": "06611fc7b8b07dc45ec454f1b849a950932f320f1947c3b688e2b591e533e63c"
+      "approval_evidence_sha256": "ba7106c243b564bc0795e5acb91b534bfc61147c24295b632eacd9e197e29f25"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-AUTHORITY-SCOPE-OWNER-RESOLVER-20260830-001",
@@ -971,7 +971,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_authority_scope_owner_resolver_20260830_001.json",
-      "approval_evidence_sha256": "b4ae5e790dd70398c3d6238f10b10deceb8b3d2da1a7bfa23bf89eeb334c116d"
+      "approval_evidence_sha256": "848c42417d039d2adbf1ae5f23045f0b1a216a8461244641820864d95ba70ae6"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-FULL-GATE-GREEN-20260830-002",
@@ -984,7 +984,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_full_gate_green_20260830_002.json",
-      "approval_evidence_sha256": "0b959f8e35c49e60687c6416a8e5bef955d6c983f973a2d74e716fb8909f0c11"
+      "approval_evidence_sha256": "ab9c98f2258706964e2cd3d8baec6dca9de6d3f6f6c445f98291f3a60adc5dc3"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-REPOSITORY-ARTIFACT-AUTHORITY-LAYER-RENAME-20260830-001",
@@ -999,7 +999,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_repository_artifact_authority_layer_rename_20260830_001.json",
-      "approval_evidence_sha256": "f7eda070f850cbe6af04c8824cc6b4d7f9ad786a1d411ad5ec26d80a92fcc002"
+      "approval_evidence_sha256": "9cb7e2b0434d7ca05cb7e49c92d02079424ed7d00f445f5f744b5055a0a942e2"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-AUTHORITY-METADATA-SEPARATION-20260830-001",
@@ -1027,7 +1027,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_authority_metadata_separation_20260830_001.json",
-      "approval_evidence_sha256": "4039c7738da225f2283952e52bc71f431d1022a22c17db0e9d6018de7cdb7761"
+      "approval_evidence_sha256": "2cd4a9644e04e58f6e4ed9d95ca0aba688fc2eefbac49b2820a5c0ec8bb166f6"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-AUTHORITY-PYRAMID-REALIGNMENT-20260830-001",
@@ -1042,7 +1042,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_authority_pyramid_realignment_20260830_001.json",
-      "approval_evidence_sha256": "3de50df96da6ba72583561a4e06017e72d43a9e247fd24505e71a7cddb8d6c23"
+      "approval_evidence_sha256": "07fa7f59ba480ab8f3ecc8236aaac2f28e86bea2b2a352e1683db31c48ab987c"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-AUTHORITY-PRIMITIVE-ELEVATION-20260829-002",
@@ -1059,7 +1059,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_authority_primitive_elevation_20260829_002.json",
-      "approval_evidence_sha256": "55c31dff7b08bcee0f0ef9c5621f466525cce2eb09fa026fa916169dbb34f572"
+      "approval_evidence_sha256": "c223aff54fe146000631082600352fc012cd9141221029efe281e8a089e8c2dd"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-DETERMINISTIC-GOVERNANCE-GATE-20260829-001",
@@ -1094,7 +1094,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_deterministic_governance_gate_20260829_001.json",
-      "approval_evidence_sha256": "7956a83ad5011400fceb5779751205af698ae373cb8c816e3211349e804756fe"
+      "approval_evidence_sha256": "a0b6b9bc4e0f7792817843533ee4166bd230cec4ff0d3095c69e67bf4417b382"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-CORE-MANUAL-AUTONOMOUS-LANGUAGE-REMEDIATION-20260825-001",
@@ -1107,7 +1107,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_core_manual_autonomous_language_remediation_20260825_001.json",
-      "approval_evidence_sha256": "0df569b2e887a8cb7a44b6d235b893ee67e0e2292a4e2319ba2e5a66d59b0855"
+      "approval_evidence_sha256": "06d83020b71f783cad26784f971f0331f4a9dec65141f1451f18ab06f29ec1f3"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-CORE-PROMOTION-LANGUAGE-REMEDIATION-20260825-001",
@@ -1120,7 +1120,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_core_promotion_language_remediation_20260825_001.json",
-      "approval_evidence_sha256": "879b0c3d5636e3380409cab74c634e2ea8de8d7377dacedf12708ed90ae9cca6"
+      "approval_evidence_sha256": "5adce2433add39a043040091ef827cf325de4782446661bf6bba736a98251c6a"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-CORE-CAPABILITY-LANGUAGE-REMEDIATION-20260825-001",
@@ -1133,7 +1133,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_core_capability_language_remediation_20260825_001.json",
-      "approval_evidence_sha256": "e404aa6eaac4db16b84a6255914d316a626c5345e3b3cb652acdbdb9d7ae707e"
+      "approval_evidence_sha256": "bdf4f20f57f8d58d6b1c7c58c816645f68c2ec8067bb9d5fb86cf8d273bf831b"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-TRUST-PLANE-LANGUAGE-CLARITY-20260825-001",
@@ -1146,7 +1146,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_trust_plane_language_clarity_20260825_001.json",
-      "approval_evidence_sha256": "d56f14ea0c8d128576b0b498806a1a681ff983ec10a409eeae6f43b7ab540fbe"
+      "approval_evidence_sha256": "812a114b9fbbca2d73f4c3f0344dce82a0031d5b6fcc0aa2c64c2c13c9febc60"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-CORE-LANGUAGE-POLICY-REMEDIATION-20260825-001",
@@ -1159,7 +1159,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_core_language_policy_remediation_20260825_001.json",
-      "approval_evidence_sha256": "3567beebbbcb7b0981260b83079e8becf720b9435c8632d45e823bdf34bd1cc0"
+      "approval_evidence_sha256": "5152432de7a8f407ac8392ee282ce0edffb7c2f8ca9f8680d2d13a38ea6ee0f8"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-CORE-DGE-ALIGNMENT-20260824-001",
@@ -1173,7 +1173,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_core_dge_alignment_20260824_001.json",
-      "approval_evidence_sha256": "99d4746d34c37c05f3113704dfbf5466f2d3f21d45360ab68be97650283aa741"
+      "approval_evidence_sha256": "4a6f5f911cfd1463e9919535cfa0df08becfeac5fddb9d33f03b4da3354e9523"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-CORE-REGISTRY-QUALIFIER-SLICE-20260825-001",
@@ -1186,7 +1186,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_core_registry_qualifier_slice_20260825_001.json",
-      "approval_evidence_sha256": "0bca87a758dfb36aed7c4c985ce84e37b9b838b616266daccc0378335ba3e2f9"
+      "approval_evidence_sha256": "543b5d24f0112f20b8d9b165a2fa032220a1247269795edc97ff41d79ea2072c"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-GITLEAKS-GIT-SECURITY-20260820-001",
@@ -1199,7 +1199,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_gitleaks_git_security_20260820_001.json",
-      "approval_evidence_sha256": "00ce14b371ef538c5e64074c7a5ca30047fdbdda90b318541b1f441ca3655e67"
+      "approval_evidence_sha256": "a645ee41180e2ed24fb881e484244ea8edc5de23c02cb558b1ee835b29a7e54c"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-BLOCKER-TAXONOMY-20260820-001",
@@ -1212,7 +1212,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_blocker_taxonomy_20260820_001.json",
-      "approval_evidence_sha256": "bde483d2ebd7fc3bcd1c9086cb99aad5f4130ac49c5434e8dfe5c26e8d858eb8"
+      "approval_evidence_sha256": "176287c469e28beca7921ed73790d62f323c0b17765801aac8880511b567179a"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-QUALITY-GATE-REVALIDATION-20260821-001",
@@ -1232,7 +1232,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_quality_gate_revalidation_20260821_001.json",
-      "approval_evidence_sha256": "8903d950bdda25fcf3b26827fab942f458b49c4e503fd4264bc5553491dcde26"
+      "approval_evidence_sha256": "2fc78a162ccfce36506cea75bc9235ee45ce9e4ce46a7340d7414d099e2533af"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-AGENTS-MARKDOWN-LOCK-RULE-20260822-001",
@@ -1245,7 +1245,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_agents_markdown_lock_rule_20260822_001.json",
-      "approval_evidence_sha256": "238101968ab717c89d8de791a2d589ab6b835cfa16c537f8aa2d12ad242ab203"
+      "approval_evidence_sha256": "fa02852b57035ca3047009ecff0d102676ff1766f7a85da37ccb2a7acc006e0a"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-POLICY-AS-CODE-LOCK-CONTRACT-20260822-001",
@@ -1259,7 +1259,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_policy_as_code_lock_contract_20260822_001.json",
-      "approval_evidence_sha256": "94de3b917808791c71fff2239d75f0480b51aff708c6379d69d7d4bf72859660"
+      "approval_evidence_sha256": "e3121b236fd6cc66215e1f638b3a9a0e5f1a73d3a8ac68828d408cbe53d46afa"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-REGISTRATION-INTEGRITY-20260822-001",
@@ -1273,7 +1273,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_registration_integrity_20260822_001.json",
-      "approval_evidence_sha256": "093d2f4044374d93cd8ebfc091fea7c44305ddee2c319d3161077f27c9e24027"
+      "approval_evidence_sha256": "b79e5261cb7ab711d7fb2e70f3b2414e176a2ead8a7a1d18d971fb5da7d1fecc"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-MANIFEST-GOVERNANCE-POLICY-20260822-001",
@@ -1288,7 +1288,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_manifest_governance_policy_20260822_001.json",
-      "approval_evidence_sha256": "b7b19302a2e2b9692113715c229fe2ae7b8d6b15063f8823ddd93b45d84f0e38"
+      "approval_evidence_sha256": "63e863a07fba34ced6f79f664a3bbebfab13f2ffc7d16ffba1c8dd1ae6c4d2e1"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-DOCUMENTATION-INDEX-SPLIT-SYNC-20260825-001",
@@ -1301,7 +1301,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_documentation_index_split_sync_20260825_001.json",
-      "approval_evidence_sha256": "a7e5b83d0a1d0340427d88e5fdbb9aac74abd0619eb06fd4a7e4a1d54dca3887"
+      "approval_evidence_sha256": "51cbcb18f78136f1d5d07c8ef212ce518543ef98b890fdf10eaadaae51e1ede2"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-TERMINOLOGY-CLARIFICATION-SLICE-20260825-001",
@@ -1314,7 +1314,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_terminology_clarification_slice_20260825_001.json",
-      "approval_evidence_sha256": "b91691a707299baaf52025c10a26790613782aefee1857060206b0680a5adbee"
+      "approval_evidence_sha256": "2de4a8671b857d9c1bf604ebb7bebeffbf8716c0842d36cb4d1b26c96494c0cf"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-MANIFEST-ANTI-HALLUCINATION-COVERAGE-20260822-001",
@@ -1327,7 +1327,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_manifest_anti_hallucination_coverage_20260822_001.json",
-      "approval_evidence_sha256": "a5524103aa0163391a70811ed5c295980317e9b0490e06a7f2c2aea2fca7f8f3"
+      "approval_evidence_sha256": "30b8e31791317efb4532f0f53de52bb7ceb48afb97f786e7cf6c484f4944457f"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-COVERAGE-IMPROVEMENT-POLICY-20260822-001",
@@ -1340,7 +1340,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_coverage_improvement_policy_20260822_001.json",
-      "approval_evidence_sha256": "161475e94de6dffc5631330bf5362b8b3d725f74bb850ed7c86534515b6858ef"
+      "approval_evidence_sha256": "6860b9b2e7bde44f587fdc034b4418a87a3882e3611accc149bdfc1d3cef1dbd"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-COVERAGE-AUDIT-RENAME-20260822-001",
@@ -1353,7 +1353,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_coverage_audit_rename_20260822_001.json",
-      "approval_evidence_sha256": "44a35109febf340a35005f0b1dfe9678cf068e5c8a30d4a32d2a66561047840a"
+      "approval_evidence_sha256": "13366cc1de94187ac7c54288ea4e7eee3f634764db8606d126dc98fa376054fa"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-COVERAGE-THRESHOLD-REVISION-20260823-001",
@@ -1366,7 +1366,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_coverage_threshold_revision_20260823_001.json",
-      "approval_evidence_sha256": "c922c6cce9a85115d59133e40cd0c26ba45f47f591bee4b5f25b7db62a584fcc"
+      "approval_evidence_sha256": "3424b743f3a528ae39844777bd306e08e2050463fad4099b7906b63b7ee96f05"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-COVERAGE-AUDIT-DECISION-READY-20260823-001",
@@ -1379,7 +1379,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_coverage_audit_decision_ready_20260823_001.json",
-      "approval_evidence_sha256": "2ac3cc9e35ee22d280c6c0e9ea9dc58d66853fcc9c4e574cc7052588d3957750"
+      "approval_evidence_sha256": "a9174d47fd71c8204e27a12534d9c1194585fa162adc9f9d54c3fd0fca925ab0"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-QUALITY-GATE-GOVERNED-DOCS-SHA-ALIGNMENT-20260825-001",
@@ -1394,7 +1394,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_quality_gate_governed_docs_sha_alignment_20260825_001.json",
-      "approval_evidence_sha256": "446aaebef948d3bdcd4352e06e264cb6e44f6c8fdc4a46c31052d0371eba26c9"
+      "approval_evidence_sha256": "c2f826cc4a31359c680e74a49fbeaa1012b49388ed0c019df6d6ecddedf3a5d9"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-QUALITY-GATE-SECURITY-RUNBOOK-SHA-ALIGNMENT-20260825-001",
@@ -1407,7 +1407,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_quality_gate_security_runbook_sha_alignment_20260825_001.json",
-      "approval_evidence_sha256": "03a28b82365d78eb476b6eb4c23aa46e6d4ce4e9b33cc5e65fb466cfff06cdf2"
+      "approval_evidence_sha256": "48804d2ccb8912f8fd867629550c140db23b9f9e2a14a4e85b7656cbff0901a1"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-GOVERNED-ENGLISH-REMEDIATION-20260825-001",
@@ -1422,7 +1422,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_governed_english_remediation_20260825_001.json",
-      "approval_evidence_sha256": "9f02cbeb22603ecce83b161be67d29901718a46d4ec628f7f5972f812f6fc241"
+      "approval_evidence_sha256": "51beb868b13934a4e7c925d82ff66a57c4a6742d04322cb4cc56527009ee6afd"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-GOVERNED-DOCS-SHA-ALIGNMENT-20260826-001",
@@ -1516,7 +1516,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_governed_docs_sha_alignment_20260826_001.json",
-      "approval_evidence_sha256": "4cd648d702e0312228230e5fefc7e2fbdbc37c851dae82b2622eee22a3b5feb8"
+      "approval_evidence_sha256": "be09058b28b8578d497b5042f53a878eec34cb8adc4d34e96a6c57325504de1b"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-GOVERNED-DOCS-SHA-RESYNC-20260827-001",
@@ -1543,7 +1543,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_governed_docs_sha_resync_20260827_001.json",
-      "approval_evidence_sha256": "aa3ba3ac844a7adbfc46f9b659cec135a39107cfa08f064026922348a042a99b"
+      "approval_evidence_sha256": "3dcee7585191b931391fd3108d694e021325959490e5db8879167b0d127a01f5"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-MARKDOWN-CLASSIFICATION-20260829-001",
@@ -1558,7 +1558,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_markdown_classification_20260829_001.json",
-      "approval_evidence_sha256": "61151a07c9ec1ee83bc6da068c15ac44ffa09b31956f1994654b4ae29a6b58ab"
+      "approval_evidence_sha256": "116d4e0e3290f4fe8592f1bd1dc1e0bebb89f51c393fd4e77eb4500f7b1deb39"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-OPERATIONAL-MARKDOWN-EXCEPTIONS-20260829-001",
@@ -1573,7 +1573,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_operational_markdown_exceptions_20260829_001.json",
-      "approval_evidence_sha256": "1ed898c93aa4c01f0d6f322ea08f5686a418e59c45b970c3f97e6fe10134bf96"
+      "approval_evidence_sha256": "6084fb1dd17477e2e7850232b70b7586e79134525ac852f3d1f257dc61c8e1a6"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-CANONICAL-DOCS-GAP-REMEDIATION-20260829-001",
@@ -1589,7 +1589,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_canonical_docs_gap_remediation_20260829_001.json",
-      "approval_evidence_sha256": "581c5eff97db3a504248f609b6358c7eeba8fa3539c09a973b405ee8d65a3a20"
+      "approval_evidence_sha256": "2c1b1da176d5ae1218e4665426fd8cb16345134682cfa420fb1f0db2d1e437a5"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-AUTHORITY-PRIMITIVE-CANONICALIZATION-20260830-001",
@@ -1608,7 +1608,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_authority_primitive_canonicalization_20260830_001.json",
-      "approval_evidence_sha256": "6ef36bfb47290f1fb56e5193abe27414e6c0bb7a929e9e360b4b156ef6960152"
+      "approval_evidence_sha256": "8eed54dcc09f548f07dd3012fd3fb5240f01d0a052f8a80ec9725501e9b33d10"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-FULL-GATE-GREEN-20260830-001",
@@ -1681,7 +1681,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_full_gate_green_20260830_001.json",
-      "approval_evidence_sha256": "6b9942bd12d9cffb79fc40f0000e9026874bee0d20b7c8212f98b2c744735c74"
+      "approval_evidence_sha256": "a452f94bab3af1f584582f454f457556ba7ee677e412297a4fc0588ab5154cdb"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-STRATEGY-REGISTRY-FAMILY-BINDING-20260831-001",
@@ -1694,7 +1694,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_strategy_registry_family_binding_20260831_001.json",
-      "approval_evidence_sha256": "c07ff48fb81ff9069cea95b3842c9ddf568e6aee298f5d2b416743055fb59763"
+      "approval_evidence_sha256": "8647277d800dfe25e9727d18162aa0a3a4607871db68691bda025e459df375e6"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-AUTHORITY-PRIMITIVE-CANONICALIZATION-20260830-002",
@@ -1710,7 +1710,7 @@
       "written_owner_approval": true,
       "approval_status": "APPROVED",
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_authority_primitive_canonicalization_20260830_002.json",
-      "approval_evidence_sha256": "cec0991ebb2c508e60cf6f9cf7a3a09dc7e11481435166c44d3c19b5829e720d"
+      "approval_evidence_sha256": "b0e037cb965b67eccba70baef0e644c7ec33ad0cc463cffedb9ee934708c1cfe"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-AUTHORITY-PRIMITIVE-CANONICALIZATION-20260830-003",
@@ -1726,7 +1726,7 @@
       "written_owner_approval": true,
       "approval_status": "APPROVED",
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_authority_primitive_canonicalization_20260830_003.json",
-      "approval_evidence_sha256": "4a73f36342112a81b66df8e8a02b34ac14475338707038904f3426f27d9d49c2"
+      "approval_evidence_sha256": "1d68c014d55c0d2bf0eb691d86af2f35fc53a07b229d5f21d4fd2cc444e6ffa5"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-COMPLIANCE-MATRIX-ALIGNMENT-20260903-001",
@@ -1739,7 +1739,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_compliance_matrix_alignment_20260903_001.json",
-      "approval_evidence_sha256": "afe4020ea467c3465eb6abcbd72b38739594d694d8cbf835bd8b0ab6217a53ec"
+      "approval_evidence_sha256": "0ffb13b2dfa778b13139189613bce0106008b02086a7986caffb969a570f2a84"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-MODEL-REGISTRY-ARCHITECTURE-20260904-001",
@@ -1752,7 +1752,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_model_registry_architecture_20260904_001.json",
-      "approval_evidence_sha256": "c0627ee64c9e9f391d1d03ceab6154f1c670bb175a602007811cbd9bf4e24733"
+      "approval_evidence_sha256": "62eceb09e78674be5a06b8db7138116eaa387e4ca8fc7c20755aa30f5fc169fd"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-MODEL-TAXONOMY-20260904-001",
@@ -1765,7 +1765,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_model_taxonomy_20260904_001.json",
-      "approval_evidence_sha256": "e8f397d8eab13e975d5485f7679eb2d1025c61438bb4bc84ed3ef2d9e3818faa"
+      "approval_evidence_sha256": "eb0c2aa3b6ef6ee9d9558eba575317f553eac3d4889d32bce3e2b5da6d519443"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-MODEL-INFERENCE-SCHEMA-20260904-001",
@@ -1778,7 +1778,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_model_inference_schema_20260904_001.json",
-      "approval_evidence_sha256": "155fabe669633d33dddc2c3e64b89a0e3b98c9a78eb14d22c94bc3df669f9e27"
+      "approval_evidence_sha256": "732af99c7590709fcffb55b62d0243c3fb60bbca4cc8c86fa637054e40f7ec80"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-MODEL-ROUTE-SCHEMA-20260904-001",
@@ -1791,7 +1791,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_model_route_schema_20260904_001.json",
-      "approval_evidence_sha256": "adbc21afa84a82b30c9d62bbac2f7f23b77fe50aac29ae9aaaad903609cde9a2"
+      "approval_evidence_sha256": "4d0680b8d201bd451e7b7e5dd50b1861b2a3549289afc9d9302c0e3fec36a68d"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-LOCAL-MODEL-GOVERNANCE-20260918-001",
@@ -1810,7 +1810,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_local_model_governance_20260918_001.json",
-      "approval_evidence_sha256": "674e8987c23c67915de297f950a87a31dc8b8f860376d7210e6669f991c34e9b"
+      "approval_evidence_sha256": "08390e77595795fbd43b49a69e2572f4fa75d10b6a97402b68502295dee9680b"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-LOCAL-MODEL-CONSTITUTION-20260918-001",
@@ -1829,7 +1829,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_local_model_constitution_20260918_001.json",
-      "approval_evidence_sha256": "c5fa31957b2212d41a5e1391efc47f6599b629b7b48355025a093b70d09fbe4f"
+      "approval_evidence_sha256": "a9e876bb198b7486118a59ecf358a8d09bbca531a3fce8b7fe1cffbf3d24c20c"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-LOGICAL-ARCHITECTURE-REGISTRY-20260904-001",
@@ -1842,7 +1842,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_logical_architecture_registry_20260904_001.json",
-      "approval_evidence_sha256": "298e773449c66f7b3e5cd866c516033a9e087a3f59f33214a8a6e15a41fa4c82"
+      "approval_evidence_sha256": "4d85734593793811b61fe9f9e97b0d124d3819aeed6301ef82706947bb6ad365"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-DECISION-CONTRACT-NORMALIZATION-20260904-001",
@@ -1855,7 +1855,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_decision_contract_normalization_20260904_001.json",
-      "approval_evidence_sha256": "5b4972b90294cfadf034a0efe6ded9f517f17eda8a53b611b89b6ca9f003ff98"
+      "approval_evidence_sha256": "ecad3937389548d530a250ad33da22d97e22bf5c95ac9650c295685ff55d7698"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-CANONICAL-DOMAIN-COUNT-20260904-001",
@@ -1868,7 +1868,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_canonical_domain_count_20260904_001.json",
-      "approval_evidence_sha256": "a7fd94c93c95793a8543c1d2e5cf46deae79910cb24c89c511a0225f03ec9998"
+      "approval_evidence_sha256": "83c72dca81699745dc37341c6f1b288f91aaef61b8ca9add67ede983fa86ea86"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-DECISION-CANDIDATE-TRADE-DECISION-CHAIN-20260904-001",
@@ -1882,7 +1882,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_decision_candidate_trade_decision_chain_20260904_001.json",
-      "approval_evidence_sha256": "261eeff4505fb8f4f4863fa6add5a9267c432d0e0f9f2ae0c3640f5b1b085ad7"
+      "approval_evidence_sha256": "5707b02e06c1a883c3389f1f5dc0e11da3c7f6b46678f0c64167b9764dc753d6"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-SEPARATE-DECISION-CHAIN-RULES-20260904-001",
@@ -1896,7 +1896,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_separate_decision_chain_rules_20260904_001.json",
-      "approval_evidence_sha256": "14d8407edec6092873cb159c88c634b86b9b0a3ff6a54f8def8b35d42e37c7b3"
+      "approval_evidence_sha256": "b827fc939ede9a8feaf663b5cde6760fb1e73935d30f36f1eed406eb4335ccca"
     }
   ],
   "lock_reason": "Protect active source-of-truth, policy-as-code, and machine-enforceable governed conditions until written owner approval exists.",
@@ -3510,7 +3510,7 @@
         "docs/providers/instruction_codex_provider.md": "8040ce897de09fff4a6fdd1636be239fa00e96a86c241d79318af2fae3b9a6bf"
       },
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_codex_fabric_routing_20260918_001.json",
-      "approval_evidence_sha256": "4aac9746cc28aca51dd3d6d33fe063e7396c49f2e151a9f1417252e6ba1d86ad"
+      "approval_evidence_sha256": "ac55f532c0b9e207be1c4ceb02e6206aa8db22da982be72810c0e27e01e5d6b1"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-ARCHITECTURE-CONFORMANCE-20260912-001",
@@ -3523,7 +3523,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_architecture_conformance_20260912_001.json",
-      "approval_evidence_sha256": "a5eba2adafc8357f339cf9807980f44c66b0d0ed78b549cde9bf9cccd9df1b6a"
+      "approval_evidence_sha256": "45fff869caa66a0b1cb37799febee1eed7b85cf1962f74155d9d1fe3ace37bb1"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-MARKET-DATA-CM-DEPTH-20260911-001",
@@ -3536,7 +3536,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_market_data_cm_depth_20260911_001.json",
-      "approval_evidence_sha256": "0d3e1a96eec5ecc8f240377710dfaf5a5a7abee2c2f472c1676a39bfc1301a11"
+      "approval_evidence_sha256": "ad30f272a84bf0ade75f6fdafe7acd98fad45725dcea16317c26fb8e74451940"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VM-DGE-TRACEABILITY-GOVERNANCE-20260909-001",
@@ -3556,7 +3556,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vm_dge_traceability_governance_20260909_001.json",
-      "approval_evidence_sha256": "cf7d716f6266346b4a89f138f30641dc900b1f16a9538668e7a949f723a8c37a"
+      "approval_evidence_sha256": "6d70f450e54e95a87f2fbfd470f7cdc63eb8305e9780626f25067592d845b81f"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VM-DGE-TRACEABILITY-CONSTITUTION-20260909-001",
@@ -3576,7 +3576,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vm_dge_traceability_constitution_20260909_001.json",
-      "approval_evidence_sha256": "498867b9ca52a57ef2baf52bee949902043967714b16876b6b5b624cb9e1ca3c"
+      "approval_evidence_sha256": "2e66b743808984ce3379a7e69fc5ab7cb8093724af6ea34943f10003c2aa50f8"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-GITHUB-RADAR-BLOCKER-RETENTION-GOVERNANCE-20260907-001",
@@ -3595,7 +3595,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_github_radar_blocker_retention_governance_20260907_001.json",
-      "approval_evidence_sha256": "06d04c50e8128560fd832a54e2efe1b3114b9c83b1094250728c8ddff3864683"
+      "approval_evidence_sha256": "44bf945d9a7633415a51c477e6c990688bc143ae1d00eca74b41de6c8fa1e221"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-GITHUB-RADAR-BLOCKER-RETENTION-CONSTITUTION-20260907-001",
@@ -3614,7 +3614,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_github_radar_blocker_retention_constitution_20260907_001.json",
-      "approval_evidence_sha256": "c44e89c3aafc8719f32672e9e606d0aac4b6ea8c9c7e5550614b193b12849306"
+      "approval_evidence_sha256": "4ebc008003ccc2b8e6de0a1de098c243e5d30dad852c4d5da35acdd9a3765c96"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-PYTHON-3147-MIGRATION-20260906-001",
@@ -3632,7 +3632,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_python_3147_migration_20260906_001.json",
-      "approval_evidence_sha256": "cb8bea4798ea7694e3bc0b5ca4dbc52cd3883fb079849495559894683db1cd7f"
+      "approval_evidence_sha256": "c3ca0ff3060d8b998c726c6000022cfad4a9e6bd82b2eda8131f30394a2f96a6"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-RQ013-BLOCKER-AUDIT-20260906-001",
@@ -3657,7 +3657,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_rq013_blocker_audit_20260906_001.json",
-      "approval_evidence_sha256": "8e8652c9cb22714feb9d6bd9b3137b78cc7d120c983cd721c1d01d7f03619f9a"
+      "approval_evidence_sha256": "96b07dd0ea54a59603629e5bf02d957c6c6810bb1338855680c3daffbe550a8f"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-RQ012-CLOSURE-20260906-001",
@@ -3682,7 +3682,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_rq012_closure_20260906_001.json",
-      "approval_evidence_sha256": "b4592a16b80af3dcdf4b776595ccc68b83a3046cd51102cd628564d925b4a1a1"
+      "approval_evidence_sha256": "50ba264dbafa124612f01252c9a3e5a32c813b703a838959ee00382eadbfdb59"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-RQ007-CLOSURE-20260905-001",
@@ -3707,7 +3707,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_rq007_closure_20260905_001.json",
-      "approval_evidence_sha256": "65f460ee9cdc20b6ce3ca18898115b0e7fa71eb4e6ca5ac3df4a05394a4e9b3d"
+      "approval_evidence_sha256": "f75cd2a029fb8d3593db7facc5a1216746e7e98c234f1ffad81db8eacb7e53e0"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-RQ006-CLOSURE-20260905-001",
@@ -3732,7 +3732,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_rq006_closure_20260905_001.json",
-      "approval_evidence_sha256": "4a12b4ed4a953ff87d4468fa3b6c8afee0e88a604925f9181886009ab9221ccb"
+      "approval_evidence_sha256": "83cfa429be92bff28eaa98efaff5355a9a3a1d776054766a9f17025d7cd59c67"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-RQ004-CLOSURE-20260905-001",
@@ -3757,7 +3757,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_rq004_closure_20260905_001.json",
-      "approval_evidence_sha256": "7a6c39329b4c1d182837d29b8923dc36374924218514ae808a4290be2e4a632c"
+      "approval_evidence_sha256": "69d9fbcfc194a313bdb0b6a4e605e9b5d1415ca338054dea0ec5980344db2c6a"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-QUALITY-APPROVAL-REPLAY-20260905-001",
@@ -3782,7 +3782,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_quality_approval_replay_20260905_001.json",
-      "approval_evidence_sha256": "78f592b6cb7986b73bcefba6ea2ce9752a779d2188d80d1cf11a12d91848f781"
+      "approval_evidence_sha256": "b85620c96eda682dde895909e3b5ce722b676d9d87ed237f85ffaf469690e4ad"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-RQ002-CLOSURE-20260905-001",
@@ -3807,7 +3807,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_rq002_closure_20260905_001.json",
-      "approval_evidence_sha256": "cecd3f178c88714ab5b583d894128e4664938a646e8f6f370c1f686f99750017"
+      "approval_evidence_sha256": "72ef23f8b51b16c715058d722710153f9c6850c9a7f9fce6beeb366ff4d7e531"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-RQ009-CLOSURE-20260905-001",
@@ -3832,7 +3832,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_rq009_closure_20260905_001.json",
-      "approval_evidence_sha256": "6f4c492633bdc1352f5b3104bae1255266669c0df2be513f6a5bb98d3cec1ff6"
+      "approval_evidence_sha256": "cfcf23d95f9b8e478fd976ca76c217d0f566db58f673eee78d81a473ebdbdc0c"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-RQ018-CLOSURE-20260905-001",
@@ -3857,7 +3857,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_rq018_closure_20260905_001.json",
-      "approval_evidence_sha256": "7c2c33ae5012249d80e0604d1267d94ec520baa2787010ecaeaacf72c9a73973"
+      "approval_evidence_sha256": "7793fe03cf2f6ed7453164fbab498d151ba1c2f83bf69cccbdaacf3aa98c3c97"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-RQ017-CLOSURE-20260905-001",
@@ -3882,7 +3882,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_rq017_closure_20260905_001.json",
-      "approval_evidence_sha256": "8f4c6764e2e728b5d9ed02dede7b3aed82c318088494e90061139697c128b085"
+      "approval_evidence_sha256": "e92c536a9320f2f2a8ef8949a4c06de7511a36d1d5440af047cd718268936e44"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VNEXT-CONVERGENCE-20260905-001",
@@ -3911,7 +3911,7 @@
       ],
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_vnext_convergence_20260905_001.json",
-      "approval_evidence_sha256": "f71ce68b54923a971de6e014f9d08999eb709dccc20e608913ff449f7ec0de22"
+      "approval_evidence_sha256": "907d3c1909fe72af421d1a8d008b30a30bafe47ea78b940317982ad75dc4b8de"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-QUALITY-GATE-CONSOLE-KAIZEN-20260904-001",
@@ -3924,7 +3924,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_quality_gate_console_kaizen_20260904_001.json",
-      "approval_evidence_sha256": "78ea10c653bc6fc5cfee553afa5319f963ef974350186c3702c69e0bae8de78f"
+      "approval_evidence_sha256": "3fede39970c4863616d62efd4334ceddbf9dcef262fc18586e48e7c847f6fdbc"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-WHALE-FUSION-ORCHESTRATION-20260904-001",
@@ -3937,7 +3937,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_whale_fusion_orchestration_20260904_001.json",
-      "approval_evidence_sha256": "a410947e966efa1493e7439e520d406d0fbff5ea3e317b4b0d2ae2385d2dec06"
+      "approval_evidence_sha256": "07aeb82ff8af268afa473b994448af2d0c7954cf178fd113d73dc06e111c665e"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-INSTRUCTION-CONTEXT-ROUTING-20260904-001",
@@ -3952,7 +3952,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_instruction_context_routing_20260904_001.json",
-      "approval_evidence_sha256": "5b41d0b5ef90cd989a6634a056d748e8e976bd704469698ac842d403ba617a8a"
+      "approval_evidence_sha256": "6c10d2cfb79d144b05a7e5823d5c38b91df03955b533da884d1d62e9f27ed0c4"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-ROOT-AGENT-THIN-ROUTER-20260904-001",
@@ -3965,7 +3965,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_root_agent_thin_router_20260904_001.json",
-      "approval_evidence_sha256": "bcaec3e32967a1fa573dabc480a55f68febef89572f43aa76c565e5a04e8a4f2"
+      "approval_evidence_sha256": "7dcbc64a52086e0e80796dda4c6b6705e8eaf0870978021039d3e6ef64b03862"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-CUSTOM-VALIDATION-AUTHORITY-20260904-001",
@@ -3978,7 +3978,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_custom_validation_authority_20260904_001.json",
-      "approval_evidence_sha256": "aa195228bc4df4a880efe1d9f0ecffa9538b0f864f1b00cd69184f44f830f15e"
+      "approval_evidence_sha256": "0146e65b89a276a5aca006c0d03ba9941d088e5d5efd10482e9014de2c43f651"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-PROVIDER-AUTHORITY-CLOSURE-20260904-001",
@@ -3996,7 +3996,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_provider_authority_closure_20260904_001.json",
-      "approval_evidence_sha256": "adca04d5c3e3f5b5a7dc7e75e080c6eb32a018d7129279b507314665ef8b6685"
+      "approval_evidence_sha256": "b121c3ec22c5b30edcb3d562ec0a8a052b506d24710777e4672c43b2183c15f3"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-LOCAL-ADVISORY-FIXTURE-EVIDENCE-WIRING-20260903-001",
@@ -4010,7 +4010,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_local_advisory_fixture_evidence_wiring_20260903_001.json",
-      "approval_evidence_sha256": "3871c7356498789295b867345844d5ea42a08b8bf5cc24c88ce3688c5fa6ffc1"
+      "approval_evidence_sha256": "4fe1e663d132a6ee0460713ba45ab4f2ae7ddddf8e48d9d75e76ca915e52421b"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-LOCAL-ADVISORY-FIXTURE-EVIDENCE-20260903-001",
@@ -4024,7 +4024,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_local_advisory_fixture_evidence_20260903_001.json",
-      "approval_evidence_sha256": "0df99fd04de7e9431d973cb77a6075ddacd3e4f6446c47721bc4dd8fb040d95d"
+      "approval_evidence_sha256": "f83e42ec718aa8f3d5a7c45b5b87a4c5345b429b28f83358cb07e583893ab8c4"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-LOCAL-ADVISORY-FIXTURE-ON-DEMAND-RUNNER-20260903-001",
@@ -4038,7 +4038,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_local_advisory_fixture_on_demand_runner_20260903_001.json",
-      "approval_evidence_sha256": "25448e3bec0894fcfa7bbb8fd31af712db8c5877300ad60f5dfbfa74c8ec5c21"
+      "approval_evidence_sha256": "d08033701e0d15bae729e2c53648243507b3c23029ee49b0cd86e6a041836eb4"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-LOCAL-ADVISORY-FIXTURE-RUNNER-ADMISSION-20260903-001",
@@ -4052,7 +4052,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_local_advisory_fixture_runner_admission_20260903_001.json",
-      "approval_evidence_sha256": "dbcf2b3ef135e18af15325df6517d39044d5ecdf4eef56c04913dce5c97701d9"
+      "approval_evidence_sha256": "81966c9d05faae51461d3b6f1a8172e7e2ca9842c70a45e5b2bfd87a4ab64e79"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-LOCAL-ADVISORY-FIXTURE-HARNESS-20260903-001",
@@ -4066,7 +4066,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_local_advisory_fixture_harness_20260903_001.json",
-      "approval_evidence_sha256": "dcef7340f79f4d312fbe73f1fbedd7b6e7687daecf6ee7f10a6fa205ea57a96d"
+      "approval_evidence_sha256": "ded8d633a380d4f43c58476263a90addb56a9365b22ac88e13cf57b4c0a1c26c"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-LOCAL-ADVISORY-FIXTURE-ADAPTER-20260903-001",
@@ -4080,7 +4080,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_local_advisory_fixture_adapter_20260903_001.json",
-      "approval_evidence_sha256": "7e1055a88e7b9b54678c2e52d0e5ac70495fac654e6426a16471d5295be93f9e"
+      "approval_evidence_sha256": "5c9075d7d4410be9ce0bf264d34c395881592d0de41a8f0825a44dcbf717237a"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-ADVISORY-FIXTURE-RUNNER-20260903-001",
@@ -4094,7 +4094,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_advisory_fixture_runner_20260903_001.json",
-      "approval_evidence_sha256": "52322f7d0b472525e44aaba0023296d73f7d0ecb22413901034764f40570c3a1"
+      "approval_evidence_sha256": "d128626c0b977286d79fb4440979a3ba24ed778cd8946002ec7f717a374ad246"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-GOVERNED-LESSON-LIFECYCLE-20260903-001",
@@ -4109,7 +4109,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_governed_lesson_lifecycle_20260903_001.json",
-      "approval_evidence_sha256": "8014687bd9901a239e3317bea71149c006a70a71462200099a4a2aa48986e18b"
+      "approval_evidence_sha256": "e454bd811a757dfa5623914d02ffaa64c8f3d250a8e2ab888f2f028194ccb841"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-UNIVERSE-LIQUIDITY-GATE-20260903-001",
@@ -4123,7 +4123,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_universe_liquidity_gate_20260903_001.json",
-      "approval_evidence_sha256": "3da36841b8d4cf16fbb55d03e27ee42706a3f158bbc2ce3b86b7ad94c18eacec"
+      "approval_evidence_sha256": "f0d23b6a60761cfc27df991db2315f846204015e230cc7ad298aaa5c26aa7aae"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-VALIDATION-GATE-20260903-001",
@@ -4137,7 +4137,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_validation_gate_20260903_001.json",
-      "approval_evidence_sha256": "4337bf660e383f2a05c5cb4464d31a157b8fbd4679a8a8b62199528f43694819"
+      "approval_evidence_sha256": "adb2c6807857bcd8bf09b3ebe144494d14cc4c526be30df3f03493ceae8c8cb3"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-RISK-GATE-20260903-001",
@@ -4151,7 +4151,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_risk_gate_20260903_001.json",
-      "approval_evidence_sha256": "d24587602869d861ba1a2088a488529ceb6386737564fbd07305b4350a0af612"
+      "approval_evidence_sha256": "06dd43fa28890537e615db0c5545896441845017d9a1a091398a725945607c1a"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-DATA-QUALITY-GATE-20260903-001",
@@ -4165,7 +4165,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_data_quality_gate_20260903_001.json",
-      "approval_evidence_sha256": "ea1f426041920a7601de7ef22bf3d3463f60480787af7bf1ba02f32eedb3c448"
+      "approval_evidence_sha256": "82be00fb2cbc23d10909b88f42067db31a859eafeaeb87302399ae35dd58c499"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-EVIDENCE-FUSION-ENGINE-20260903-001",
@@ -4179,7 +4179,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_evidence_fusion_engine_20260903_001.json",
-      "approval_evidence_sha256": "32fcc4d3a4fb0047e3cb77f4a25d9ca1ea748f0bf74daec8492324b1352bd779"
+      "approval_evidence_sha256": "609e7997585962ce8396768d279c12523ce0529c47a661ddef3223bbc0c7679b"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-CAPABILITY-BUNDLE-EXECUTION-20260903-001",
@@ -4193,7 +4193,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_capability_bundle_execution_20260903_001.json",
-      "approval_evidence_sha256": "76fabe22b9779c244423fcbd05403d8453797cfd91c27f59d9962390baeaa24e"
+      "approval_evidence_sha256": "d8ce90b98488b6ac0ab4b461fd0e815707c82bf9041a05284c36ad93c0ddebbb"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-CAPABILITY-BUNDLE-PLANNING-20260903-001",
@@ -4207,7 +4207,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_capability_bundle_planning_20260903_001.json",
-      "approval_evidence_sha256": "87e8ffb39a0d72e3001f3534abae4b048b5200a5ed662b89d80f0b7b669fc2cb"
+      "approval_evidence_sha256": "9151465ddc08d0f73e43a6eee5eb83cccd45a3349d42595279d201a0cf841288"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-CAPABILITY-PREFLIGHT-SCHEDULING-20260903-001",
@@ -4221,7 +4221,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_capability_preflight_scheduling_20260903_001.json",
-      "approval_evidence_sha256": "6bf3810a51d5b2ce3c3d55abfd6919b2cf4f2925e14a4f77fb556439c4b89e98"
+      "approval_evidence_sha256": "838ee88008fa1b4f92524d98ff67629426eb42e5c60ea3f9ce991dba3e399124"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-CAPABILITY-RUNTIME-CONTRACT-20260903-001",
@@ -4235,7 +4235,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_capability_runtime_contract_20260903_001.json",
-      "approval_evidence_sha256": "470d4d899c6695a2124da3593f61198d1c9843c2658c10b9da558d9a03d6bd99"
+      "approval_evidence_sha256": "e4f18b2d7d79c58bdc2b52e2bd0bb2ceb94a205ffcebb607a57ab095e59c3670"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-AGENT-CAPABILITY-SCOPE-20260903-001",
@@ -4250,7 +4250,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_agent_capability_scope_20260903_001.json",
-      "approval_evidence_sha256": "800a0a3a9ca8cbbae3b34843e667f1803e4955f455bbbbe0da7ed0ab81972eba"
+      "approval_evidence_sha256": "9f4799f0e4fb3542e97076612e848cb839372953105d512ac6da117bf6e38e45"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-UNIVERSAL-ENFORCEMENT-INVENTORY-CLOSURE-20260831-001",
@@ -4264,14 +4264,14 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_universal_enforcement_inventory_closure_20260831_001.json",
-      "approval_evidence_sha256": "4fd4f736739119440b22083972edf830b2583ddb6ffe0dced1057b889fb92141"
+      "approval_evidence_sha256": "725b7914bea0c7642b9fda480c24485ffc04e839036a57f461181e428d2e840d"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-DIFFPLAN-GOVERNED-LOCK-CLOSURE-20260831-001",
       "approval_scope": "DIFFPLAN_GOVERNED_LOCK_CLOSURE_CURRENT_SHA256_ALIGNMENT",
       "approval_status": "APPROVED",
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_diffplan_governed_lock_closure_20260831_001.json",
-      "approval_evidence_sha256": "02275fc2635da63e5c1a2b935b605a5ae49f84fd15ccf0e1b6c6408712b8eaaa",
+      "approval_evidence_sha256": "fdd4d1d2642cb478aa53aa0579f4d2c4a8e5a0bb07c643f03ccf99bd32a656fe",
       "approved_at_utc": "2026-08-31T08:50:00Z",
       "approved_by": "Huseyin",
       "approved_sha256": {
@@ -4292,7 +4292,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_multiops_runner_admission_20260831_001.json",
-      "approval_evidence_sha256": "1be75cdba38e82d1a265670242af4e507bdd9fc674d2e652b3b7ba4d98048c27"
+      "approval_evidence_sha256": "8e2e2d57899229c37db17af5ddb3cd93816cce3399e37ba361c8fe10525f9862"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-AUDIT-LEARNING-TAMPER-EVIDENCE-20260830-001",
@@ -4305,7 +4305,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_audit_learning_tamper_evidence_20260830_001.json",
-      "approval_evidence_sha256": "06611fc7b8b07dc45ec454f1b849a950932f320f1947c3b688e2b591e533e63c"
+      "approval_evidence_sha256": "ba7106c243b564bc0795e5acb91b534bfc61147c24295b632eacd9e197e29f25"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-FULL-GATE-GREEN-20260830-002",
@@ -4318,7 +4318,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_full_gate_green_20260830_002.json",
-      "approval_evidence_sha256": "0b959f8e35c49e60687c6416a8e5bef955d6c983f973a2d74e716fb8909f0c11"
+      "approval_evidence_sha256": "ab9c98f2258706964e2cd3d8baec6dca9de6d3f6f6c445f98291f3a60adc5dc3"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-AUTHORITY-PRIMITIVE-CANONICALIZATION-20260830-002",
@@ -4334,7 +4334,7 @@
       "written_owner_approval": true,
       "approval_status": "APPROVED",
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_authority_primitive_canonicalization_20260830_002.json",
-      "approval_evidence_sha256": "cec0991ebb2c508e60cf6f9cf7a3a09dc7e11481435166c44d3c19b5829e720d"
+      "approval_evidence_sha256": "b0e037cb965b67eccba70baef0e644c7ec33ad0cc463cffedb9ee934708c1cfe"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-AUTHORITY-PRIMITIVE-CANONICALIZATION-20260830-003",
@@ -4350,7 +4350,7 @@
       "written_owner_approval": true,
       "approval_status": "APPROVED",
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_authority_primitive_canonicalization_20260830_003.json",
-      "approval_evidence_sha256": "4a73f36342112a81b66df8e8a02b34ac14475338707038904f3426f27d9d49c2"
+      "approval_evidence_sha256": "1d68c014d55c0d2bf0eb691d86af2f35fc53a07b229d5f21d4fd2cc444e6ffa5"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-STRATEGY-REGISTRY-FAMILY-BINDING-20260831-001",
@@ -4363,7 +4363,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_strategy_registry_family_binding_20260831_001.json",
-      "approval_evidence_sha256": "c07ff48fb81ff9069cea95b3842c9ddf568e6aee298f5d2b416743055fb59763"
+      "approval_evidence_sha256": "8647277d800dfe25e9727d18162aa0a3a4607871db68691bda025e459df375e6"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-COMPLIANCE-MATRIX-ALIGNMENT-20260903-001",
@@ -4376,7 +4376,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_compliance_matrix_alignment_20260903_001.json",
-      "approval_evidence_sha256": "afe4020ea467c3465eb6abcbd72b38739594d694d8cbf835bd8b0ab6217a53ec"
+      "approval_evidence_sha256": "0ffb13b2dfa778b13139189613bce0106008b02086a7986caffb969a570f2a84"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-MODEL-REGISTRY-ARCHITECTURE-20260904-001",
@@ -4389,7 +4389,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_model_registry_architecture_20260904_001.json",
-      "approval_evidence_sha256": "c0627ee64c9e9f391d1d03ceab6154f1c670bb175a602007811cbd9bf4e24733"
+      "approval_evidence_sha256": "62eceb09e78674be5a06b8db7138116eaa387e4ca8fc7c20755aa30f5fc169fd"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-MODEL-TAXONOMY-20260904-001",
@@ -4402,7 +4402,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_model_taxonomy_20260904_001.json",
-      "approval_evidence_sha256": "e8f397d8eab13e975d5485f7679eb2d1025c61438bb4bc84ed3ef2d9e3818faa"
+      "approval_evidence_sha256": "eb0c2aa3b6ef6ee9d9558eba575317f553eac3d4889d32bce3e2b5da6d519443"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-MODEL-INFERENCE-SCHEMA-20260904-001",
@@ -4415,7 +4415,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_model_inference_schema_20260904_001.json",
-      "approval_evidence_sha256": "155fabe669633d33dddc2c3e64b89a0e3b98c9a78eb14d22c94bc3df669f9e27"
+      "approval_evidence_sha256": "732af99c7590709fcffb55b62d0243c3fb60bbca4cc8c86fa637054e40f7ec80"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-MODEL-ROUTE-SCHEMA-20260904-001",
@@ -4428,7 +4428,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_model_route_schema_20260904_001.json",
-      "approval_evidence_sha256": "adbc21afa84a82b30c9d62bbac2f7f23b77fe50aac29ae9aaaad903609cde9a2"
+      "approval_evidence_sha256": "4d0680b8d201bd451e7b7e5dd50b1861b2a3549289afc9d9302c0e3fec36a68d"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-LOGICAL-ARCHITECTURE-REGISTRY-20260904-001",
@@ -4441,7 +4441,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_logical_architecture_registry_20260904_001.json",
-      "approval_evidence_sha256": "298e773449c66f7b3e5cd866c516033a9e087a3f59f33214a8a6e15a41fa4c82"
+      "approval_evidence_sha256": "4d85734593793811b61fe9f9e97b0d124d3819aeed6301ef82706947bb6ad365"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-DECISION-CONTRACT-NORMALIZATION-20260904-001",
@@ -4454,7 +4454,7 @@
       },
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_decision_contract_normalization_20260904_001.json",
-      "approval_evidence_sha256": "5b4972b90294cfadf034a0efe6ded9f517f17eda8a53b611b89b6ca9f003ff98"
+      "approval_evidence_sha256": "ecad3937389548d530a250ad33da22d97e22bf5c95ac9650c295685ff55d7698"
     }
   ]
 }

@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_origin": "governed_document_lock_written_owner_approval",
+  "generated_at_utc": "2026-09-23T08:27:21Z",
+  "repository_root": "/home/runner/work/ai4binance/ai4binance",
+  "manifest_path": "config/governance/governed_document_lock_manifest.json",
+  "approval_id": "AI4B-GOV-DOCLOCK-GITHUB-RADAR-BLOCKER-RETENTION-CONSTITUTION-20260907-001",
+  "approval_scope": "GITHUB_RADAR_FAIL_CLOSED_BLOCKER_RETENTION_ALIGNMENT",
+  "approval_status": "APPROVED",
+  "approved_by": "Huseyin",
+  "approved_at_utc": "2026-09-06T21:36:57Z",
+  "written_owner_approval": true,
+  "approved_sha256": {
+    "docs/workflows/runbook_github_radar_engine.md": "2d2f1f5ee1a67d6e05617ec18fe9bdf4b3b6b7bb79abffa787c64b11978459a7"
+  },
+  "approved_documents": [
+    {
+      "path": "docs/workflows/runbook_github_radar_engine.md",
+      "approved_sha256": "2d2f1f5ee1a67d6e05617ec18fe9bdf4b3b6b7bb79abffa787c64b11978459a7",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "c3b5bb95e4c7fc9a9dba2ae73abc9e466b9ced021456a4b8208f37b761ee8094",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "2d2f1f5ee1a67d6e05617ec18fe9bdf4b3b6b7bb79abffa787c64b11978459a7",
+      "manifest_sha256": "2d2f1f5ee1a67d6e05617ec18fe9bdf4b3b6b7bb79abffa787c64b11978459a7",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": true
+    }
+  ],
+  "verification_status": "VERIFIED",
+  "current_alignment_status": "RUNNING_WITH_BLOCKERS",
+  "verification_summary": {
+    "approved_document_count": 1,
+    "all_hashes_match": false
+  },
+  "execution_allowed": false,
+  "promotion_status": "RESEARCH_ONLY",
+  "live_eligibility_status": "LIVE_ORDER_BLOCKED"
+}

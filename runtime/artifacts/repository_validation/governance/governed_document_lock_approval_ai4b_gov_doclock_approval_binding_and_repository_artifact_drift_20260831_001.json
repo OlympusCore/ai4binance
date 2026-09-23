@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_origin": "governed_document_lock_written_owner_approval",
+  "generated_at_utc": "2026-09-23T08:27:21Z",
+  "repository_root": "/home/runner/work/ai4binance/ai4binance",
+  "manifest_path": "config/governance/governed_document_lock_manifest.json",
+  "approval_id": "AI4B-GOV-DOCLOCK-APPROVAL-BINDING-AND-REPOSITORY-ARTIFACT-DRIFT-20260831-001",
+  "approval_scope": "APPROVAL_BINDING_AND_REPOSITORY_ARTIFACT_DRIFT_CURRENT_SHA256_ALIGNMENT",
+  "approval_status": "APPROVED",
+  "approved_by": "Huseyin",
+  "approved_at_utc": "2026-08-30T21:02:23Z",
+  "written_owner_approval": true,
+  "approved_sha256": {
+    "docs/compliance/registry_compliance_matrix.md": "15662606c7c5c67c19cc672eb5bba7247aa52e062715c5d134e1acb0f0b2f52d",
+    "docs/governance/framework_core_vnext_governance.md": "86f612251978bc631b181f862d35196badafbf64ffef70ae8bc8042068d883de",
+    "docs/governance/policy_manifest_governance.md": "802782fd3f53b4099ae3f7626a3479e3fec342d96d9c247e689f10df6ac6b44f",
+    "docs/schemas/reference_repository_artifact_schema.md": "af0873c9ab8d31d0757f114035f4e9300e309dd97ba13ac820b4cb206a691c46"
+  },
+  "approved_documents": [
+    {
+      "path": "docs/compliance/registry_compliance_matrix.md",
+      "approved_sha256": "15662606c7c5c67c19cc672eb5bba7247aa52e062715c5d134e1acb0f0b2f52d",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "925237186799fdd6b7fe4b98c271d4ed1be4c6cc02ad6a22394d50172a463477",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "925237186799fdd6b7fe4b98c271d4ed1be4c6cc02ad6a22394d50172a463477",
+      "manifest_sha256": "925237186799fdd6b7fe4b98c271d4ed1be4c6cc02ad6a22394d50172a463477",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/governance/framework_core_vnext_governance.md",
+      "approved_sha256": "86f612251978bc631b181f862d35196badafbf64ffef70ae8bc8042068d883de",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "90229f42234146cfc4b010fc49e0dfbce7b115219caed40fe643ae2126aa4c3a",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "0678683a0be5096cd02c6ca5420f67be8ff57761bfed524cec0ea9581e955127",
+      "manifest_sha256": "0678683a0be5096cd02c6ca5420f67be8ff57761bfed524cec0ea9581e955127",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/governance/policy_manifest_governance.md",
+      "approved_sha256": "802782fd3f53b4099ae3f7626a3479e3fec342d96d9c247e689f10df6ac6b44f",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "4c17bdc46ad1aa04e9ddbc2e0a13be76fce839c2dbbf618f10dcf23a103aca4b",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "802782fd3f53b4099ae3f7626a3479e3fec342d96d9c247e689f10df6ac6b44f",
+      "manifest_sha256": "802782fd3f53b4099ae3f7626a3479e3fec342d96d9c247e689f10df6ac6b44f",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": true
+    },
+    {
+      "path": "docs/schemas/reference_repository_artifact_schema.md",
+      "approved_sha256": "af0873c9ab8d31d0757f114035f4e9300e309dd97ba13ac820b4cb206a691c46",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "f7e3ac071ea6a50852bda39334cb6cca72bf1860d8816c3a13a19ab058633fd6",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "af0873c9ab8d31d0757f114035f4e9300e309dd97ba13ac820b4cb206a691c46",
+      "manifest_sha256": "af0873c9ab8d31d0757f114035f4e9300e309dd97ba13ac820b4cb206a691c46",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": true
+    }
+  ],
+  "verification_status": "VERIFIED",
+  "current_alignment_status": "RUNNING_WITH_BLOCKERS",
+  "verification_summary": {
+    "approved_document_count": 4,
+    "all_hashes_match": false
+  },
+  "execution_allowed": false,
+  "promotion_status": "RESEARCH_ONLY",
+  "live_eligibility_status": "LIVE_ORDER_BLOCKED"
+}

@@ -86,6 +86,10 @@ artifacts/
 reports/generated/
 outputs/
 generated/
+!/runtime/artifacts/
+!/runtime/artifacts/repository_validation/
+!/runtime/artifacts/repository_validation/governance/
+!/runtime/artifacts/repository_validation/governance/*.json
 
 # ------------------------------------------------------------
 # Models and model artifacts

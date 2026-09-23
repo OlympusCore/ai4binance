@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_origin": "governed_document_lock_written_owner_approval",
+  "generated_at_utc": "2026-09-23T08:27:21Z",
+  "repository_root": "/home/runner/work/ai4binance/ai4binance",
+  "manifest_path": "config/governance/governed_document_lock_manifest.json",
+  "approval_id": "AI4B-GOV-DOCLOCK-COVERAGE-AUDIT-RENAME-20260822-001",
+  "approval_scope": "COVERAGE_AUDIT_SCRIPT_RENAME_LINK_ALIGNMENT",
+  "approval_status": "APPROVED",
+  "approved_by": "Huseyin",
+  "approved_at_utc": "2026-08-22T23:43:14Z",
+  "written_owner_approval": true,
+  "approved_sha256": {
+    "docs/policies/quality/coverage_improvement_strategy_policy.md": "84379cedf28a2036692f95619cf97a93434e98bbabd7fd87f6597c01f9aecf96"
+  },
+  "approved_documents": [
+    {
+      "path": "docs/policies/quality/coverage_improvement_strategy_policy.md",
+      "approved_sha256": "84379cedf28a2036692f95619cf97a93434e98bbabd7fd87f6597c01f9aecf96",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "d858b0e0aaa5d681a43bb417dd2fb7ecaaf9aa010652ad5b18e0e22daf07f2fa",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "083a5e48ea3e1ab4e013c19f1414767e165302b880928c139b5316f8a9e37f1e",
+      "manifest_sha256": "083a5e48ea3e1ab4e013c19f1414767e165302b880928c139b5316f8a9e37f1e",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    }
+  ],
+  "verification_status": "VERIFIED",
+  "current_alignment_status": "RUNNING_WITH_BLOCKERS",
+  "verification_summary": {
+    "approved_document_count": 1,
+    "all_hashes_match": false
+  },
+  "execution_allowed": false,
+  "promotion_status": "RESEARCH_ONLY",
+  "live_eligibility_status": "LIVE_ORDER_BLOCKED"
+}

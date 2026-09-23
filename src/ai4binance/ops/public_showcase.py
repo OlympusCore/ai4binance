@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import shutil
-import subprocess
+import subprocess  # nosec B404
 import tempfile
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -183,7 +183,7 @@ def run_gitleaks_scan(stage_root: Path, executable: Path) -> None:
         )
     report_path = stage_root.parent / f"{stage_root.name}-gitleaks.json"
     try:
-        completed = subprocess.run(  # noqa: S603 - executable is repository-pinned.
+        completed = subprocess.run(  # noqa: S603  # nosec B603 - executable is repository-pinned.
             [
                 str(executable),
                 "dir",
@@ -271,7 +271,7 @@ def stage_public_showcase(
         "status": "READY_FOR_HUMAN_APPROVAL",
         "publication_name": manifest.name,
         "selected_artifacts": selected,
-        "secret_scan": "PASSED",
+        "secret_scan": "PASSED",  # nosec B105 - status string, not a password
         "remote_publication_allowed": False,
         "human_approval_required": True,
         "execution_allowed": False,

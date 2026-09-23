@@ -1,0 +1,65 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_origin": "governed_document_lock_written_owner_approval",
+  "generated_at_utc": "2026-09-23T08:27:21Z",
+  "repository_root": "/home/runner/work/ai4binance/ai4binance",
+  "manifest_path": "config/governance/governed_document_lock_manifest.json",
+  "approval_id": "AI4B-GOV-DOCLOCK-MARKDOWN-CLASSIFICATION-20260829-001",
+  "approval_scope": "MARKDOWN_CLASSIFICATION_AND_RUNTIME_AUTHORITY_BOUNDARY_P0",
+  "approval_status": "APPROVED",
+  "approved_by": "Huseyin",
+  "approved_at_utc": "2026-08-29T16:29:18.5239829+03:00",
+  "written_owner_approval": true,
+  "approved_sha256": {
+    "docs/controls/control_repository_validation_rules.md": "4e505e59bc486930b1fe5ef7c397fc92994709bc5284eae2406db458c39eb80f",
+    "docs/standards/standard_repository_file_governance.md": "9be6531617fc4e8ec4161d1b6d5e126d062e376ff20c0c27153188508eeae22a",
+    "docs/standards/standard_repository_structure_governance.md": "db4890197ef9a4b5826c6877c38458383df22b020d41336c80a54f686d440d13"
+  },
+  "approved_documents": [
+    {
+      "path": "docs/controls/control_repository_validation_rules.md",
+      "approved_sha256": "4e505e59bc486930b1fe5ef7c397fc92994709bc5284eae2406db458c39eb80f",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "f2c8cde981e8bc336063cc4388eb80d972b276ac27bbd2ddd81636329b7693a5",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "18c395baab5ae283834a31d09d5990178287f85d2e3770a6e59dd999fd5e6a1b",
+      "manifest_sha256": "18c395baab5ae283834a31d09d5990178287f85d2e3770a6e59dd999fd5e6a1b",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/standards/standard_repository_file_governance.md",
+      "approved_sha256": "9be6531617fc4e8ec4161d1b6d5e126d062e376ff20c0c27153188508eeae22a",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "840f44ad264b85be1c9f221eacff455b165a91729d1de3507e1160e7b4a2851c",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "f8d9af08c19b2d62190e6ece0aa4fc0ebd357fec21c84cedf0fe126b6e5d2f8b",
+      "manifest_sha256": "f8d9af08c19b2d62190e6ece0aa4fc0ebd357fec21c84cedf0fe126b6e5d2f8b",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/standards/standard_repository_structure_governance.md",
+      "approved_sha256": "db4890197ef9a4b5826c6877c38458383df22b020d41336c80a54f686d440d13",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "1dd5b20954916ef421a8dd8d66d1d7b72776c75802622ad4060142a526ae92f2",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "3ab10a0e7b8b5cc0001859b746c315c2ed7845989404c9f9e3f464e4085229a0",
+      "manifest_sha256": "3ab10a0e7b8b5cc0001859b746c315c2ed7845989404c9f9e3f464e4085229a0",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    }
+  ],
+  "verification_status": "VERIFIED",
+  "current_alignment_status": "RUNNING_WITH_BLOCKERS",
+  "verification_summary": {
+    "approved_document_count": 3,
+    "all_hashes_match": false
+  },
+  "execution_allowed": false,
+  "promotion_status": "RESEARCH_ONLY",
+  "live_eligibility_status": "LIVE_ORDER_BLOCKED"
+}

@@ -1,0 +1,65 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_origin": "governed_document_lock_written_owner_approval",
+  "generated_at_utc": "2026-09-23T08:27:21Z",
+  "repository_root": "/home/runner/work/ai4binance/ai4binance",
+  "manifest_path": "config/governance/governed_document_lock_manifest.json",
+  "approval_id": "AI4B-GOV-DOCLOCK-QUALITY-GATE-GOVERNED-DOCS-SHA-ALIGNMENT-20260825-001",
+  "approval_scope": "QUALITY_GATE_GOVERNED_DOCUMENT_CURRENT_SHA256_ALIGNMENT",
+  "approval_status": "APPROVED",
+  "approved_by": "Huseyin",
+  "approved_at_utc": "2026-08-25T18:20:00.1318967Z",
+  "written_owner_approval": true,
+  "approved_sha256": {
+    "docs/runbooks/runbook_repository_cleanup_stability_audit.md": "4cc0b10d225d3539ee6a286c787f951c20041ad1cd82d5d98e7b3c6b4cc05481",
+    "docs/standards/standard_repository_validator_governance.md": "c15098bab9a9b5ed9a368bb5c8ad815f68df8eb23fec581589eed1659028bde2",
+    "factory/plan.md": "9d6e19744bdb8f40d036a21285cdd88bbb42d3c16e9122a0f38eee39c0e376b1"
+  },
+  "approved_documents": [
+    {
+      "path": "docs/runbooks/runbook_repository_cleanup_stability_audit.md",
+      "approved_sha256": "4cc0b10d225d3539ee6a286c787f951c20041ad1cd82d5d98e7b3c6b4cc05481",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "6f3d0b16f3674b31d03b00115f1d97eff92979c33d5865c231282aaf67383a72",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "81c9de4d455f313453a7677e8e3f12771f02d61f92f8a02a238aaf506f3ffd26",
+      "manifest_sha256": "81c9de4d455f313453a7677e8e3f12771f02d61f92f8a02a238aaf506f3ffd26",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/standards/standard_repository_validator_governance.md",
+      "approved_sha256": "c15098bab9a9b5ed9a368bb5c8ad815f68df8eb23fec581589eed1659028bde2",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "35dc6c17129906ca6667963e9d643588feded1cb53ba9df64cf4c3ff6473eb95",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "1dab69c21c269d991a95cb773b536ac1f80e7550ea26133b5a32faac3892eb68",
+      "manifest_sha256": "1dab69c21c269d991a95cb773b536ac1f80e7550ea26133b5a32faac3892eb68",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "factory/plan.md",
+      "approved_sha256": "9d6e19744bdb8f40d036a21285cdd88bbb42d3c16e9122a0f38eee39c0e376b1",
+      "document_presence_status": "MISSING",
+      "current_sha256": "",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "661fcd1aa6414dc6fc62cc8442bb6be2b1b580f8d14fc1de29b5c1816f47111c",
+      "manifest_sha256": "661fcd1aa6414dc6fc62cc8442bb6be2b1b580f8d14fc1de29b5c1816f47111c",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    }
+  ],
+  "verification_status": "VERIFIED",
+  "current_alignment_status": "RUNNING_WITH_BLOCKERS",
+  "verification_summary": {
+    "approved_document_count": 3,
+    "all_hashes_match": false
+  },
+  "execution_allowed": false,
+  "promotion_status": "RESEARCH_ONLY",
+  "live_eligibility_status": "LIVE_ORDER_BLOCKED"
+}

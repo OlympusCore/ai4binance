@@ -1,0 +1,130 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_origin": "governed_document_lock_written_owner_approval",
+  "generated_at_utc": "2026-09-23T08:27:21Z",
+  "repository_root": "/home/runner/work/ai4binance/ai4binance",
+  "manifest_path": "config/governance/governed_document_lock_manifest.json",
+  "approval_id": "AI4B-GOV-DOCLOCK-QUALITY-GATE-REVALIDATION-20260821-001",
+  "approval_scope": "QUALITY_GATE_REVALIDATION_CURRENT_GOVERNED_DOCUMENT_SHA256",
+  "approval_status": "APPROVED",
+  "approved_by": "Huseyin",
+  "approved_at_utc": "2026-08-21T20:35:12Z",
+  "written_owner_approval": true,
+  "approved_sha256": {
+    "docs/architecture/framework_architecture_overview.md": "cf3bddbc44a9178fd058f163459c5896669c3495b2492c7ccbabbdca153389bb",
+    "docs/compliance/registry_compliance_matrix.md": "21bc83224ff478c9447fbd1a4fdcf113cf5dfaf83beba8bda294ec74119e9e4a",
+    "docs/contracts/interface_contract_cli_command.md": "39680d271371feb676d1d98306896a2fa44d1ec1b5fc31a45d2020a62f634678",
+    "docs/governance/framework_core_vnext_governance.md": "656a1348b9e96a54830f43c62f64c1ddc0e68b0dafc9b52b9136968f7160bc0e",
+    "docs/governance/framework_decision_governance_engine.md": "88f33ff18789e663843ee44867d6eae663c94be851595fc8dc06e07481a980d4",
+    "docs/governance/framework_orchestration_ai_multi_agent.md": "35fd4699bf1318ece9f9c05a6747ad09a4334f4da5018e83e56293151c784a70",
+    "docs/standards/standard_blocker_taxonomy_enforcement.md": "a1a38d93a713c25158f5aa73a066c6f075b88c6f4642dce2d9893612f1f2baa6",
+    "factory/plan.md": "342d9b27fc0e3edcdde1f4401b3f4febde5365779ebde26733844f2144e17961"
+  },
+  "approved_documents": [
+    {
+      "path": "docs/architecture/framework_architecture_overview.md",
+      "approved_sha256": "cf3bddbc44a9178fd058f163459c5896669c3495b2492c7ccbabbdca153389bb",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "4ba24d3dbcb586020cd2a7dd714be23e381c1715186e7303950aaf13819cbb7d",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "4ba24d3dbcb586020cd2a7dd714be23e381c1715186e7303950aaf13819cbb7d",
+      "manifest_sha256": "4ba24d3dbcb586020cd2a7dd714be23e381c1715186e7303950aaf13819cbb7d",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/compliance/registry_compliance_matrix.md",
+      "approved_sha256": "21bc83224ff478c9447fbd1a4fdcf113cf5dfaf83beba8bda294ec74119e9e4a",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "925237186799fdd6b7fe4b98c271d4ed1be4c6cc02ad6a22394d50172a463477",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "925237186799fdd6b7fe4b98c271d4ed1be4c6cc02ad6a22394d50172a463477",
+      "manifest_sha256": "925237186799fdd6b7fe4b98c271d4ed1be4c6cc02ad6a22394d50172a463477",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/contracts/interface_contract_cli_command.md",
+      "approved_sha256": "39680d271371feb676d1d98306896a2fa44d1ec1b5fc31a45d2020a62f634678",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "d879b9a107fa6ad42157466faa849ca6de468f0ba7071752b217bf6b28b391cd",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "b1555317f2d8a2797215a195abaf05df2fd68914c9d90ac63122c2f9fec9b8e9",
+      "manifest_sha256": "b1555317f2d8a2797215a195abaf05df2fd68914c9d90ac63122c2f9fec9b8e9",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/governance/framework_core_vnext_governance.md",
+      "approved_sha256": "656a1348b9e96a54830f43c62f64c1ddc0e68b0dafc9b52b9136968f7160bc0e",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "90229f42234146cfc4b010fc49e0dfbce7b115219caed40fe643ae2126aa4c3a",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "0678683a0be5096cd02c6ca5420f67be8ff57761bfed524cec0ea9581e955127",
+      "manifest_sha256": "0678683a0be5096cd02c6ca5420f67be8ff57761bfed524cec0ea9581e955127",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/governance/framework_decision_governance_engine.md",
+      "approved_sha256": "88f33ff18789e663843ee44867d6eae663c94be851595fc8dc06e07481a980d4",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "891fb74760559c46a66b76ec1c89dd1b72442c38777f61d99bae58e4e0798695",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "442248f2f67714f6c32f10fd2acd562364243be51c2104431fd8f6ccada5777b",
+      "manifest_sha256": "442248f2f67714f6c32f10fd2acd562364243be51c2104431fd8f6ccada5777b",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/governance/framework_orchestration_ai_multi_agent.md",
+      "approved_sha256": "35fd4699bf1318ece9f9c05a6747ad09a4334f4da5018e83e56293151c784a70",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "6f10050b0b053b97ed82fc01a57274fe4eb1decdfb12b442f42007c967849f25",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "15d9bf54fbfd173b7c865e1492fe2fee0cfa8bc70e45032193cb4d980a718973",
+      "manifest_sha256": "15d9bf54fbfd173b7c865e1492fe2fee0cfa8bc70e45032193cb4d980a718973",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/standards/standard_blocker_taxonomy_enforcement.md",
+      "approved_sha256": "a1a38d93a713c25158f5aa73a066c6f075b88c6f4642dce2d9893612f1f2baa6",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "877ee18840efc132e49a3ce6637cf9906f88ed9ec862ae1dcd56e63a4125fd54",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "6cc0193f73866aeeb91e8ac387cc9068b7514e9e84813043afa6ccf4f7ead89c",
+      "manifest_sha256": "6cc0193f73866aeeb91e8ac387cc9068b7514e9e84813043afa6ccf4f7ead89c",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "factory/plan.md",
+      "approved_sha256": "342d9b27fc0e3edcdde1f4401b3f4febde5365779ebde26733844f2144e17961",
+      "document_presence_status": "MISSING",
+      "current_sha256": "",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "661fcd1aa6414dc6fc62cc8442bb6be2b1b580f8d14fc1de29b5c1816f47111c",
+      "manifest_sha256": "661fcd1aa6414dc6fc62cc8442bb6be2b1b580f8d14fc1de29b5c1816f47111c",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    }
+  ],
+  "verification_status": "VERIFIED",
+  "current_alignment_status": "RUNNING_WITH_BLOCKERS",
+  "verification_summary": {
+    "approved_document_count": 8,
+    "all_hashes_match": false
+  },
+  "execution_allowed": false,
+  "promotion_status": "RESEARCH_ONLY",
+  "live_eligibility_status": "LIVE_ORDER_BLOCKED"
+}

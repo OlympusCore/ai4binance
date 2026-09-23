@@ -1,0 +1,91 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_origin": "governed_document_lock_written_owner_approval",
+  "generated_at_utc": "2026-09-23T08:27:21Z",
+  "repository_root": "/home/runner/work/ai4binance/ai4binance",
+  "manifest_path": "config/governance/governed_document_lock_manifest.json",
+  "approval_id": "AI4B-GOV-DOCLOCK-TERMINOLOGY-NAMING-LANGUAGE-FABRIC-CONSTITUTION-20260916-001",
+  "approval_scope": "TERMINOLOGY_NAMING_TECHNOLOGY_LANGUAGE_FABRIC_AUTHORITY_CLOSURE",
+  "approval_status": "APPROVED",
+  "approved_by": "Huseyin",
+  "approved_at_utc": "2026-09-16T13:46:48Z",
+  "written_owner_approval": true,
+  "approved_sha256": {
+    "docs/compliance/registry_compliance_matrix.md": "925237186799fdd6b7fe4b98c271d4ed1be4c6cc02ad6a22394d50172a463477",
+    "docs/registries/registry_documentation_index.md": "63b1e74b82e3a0a2f5c491a94f64839aed9e850874708887c0b913242af07fc7",
+    "docs/standards/standard_repository_naming_governance.md": "27e65580f54f082dff90741392da467f62571851b46b64e623f2de5ef17e4559",
+    "docs/standards/standard_technology_language_ownership.md": "6f32b0af7880f453a08a31ce5db4ac91e540912999f740a7376e7cfc890a3beb",
+    "docs/standards/standard_terminology_governance.md": "3afc73fd1c11e960c33445d184754e0a3c1a998c222660e88e14d0d4a673e954"
+  },
+  "approved_documents": [
+    {
+      "path": "docs/compliance/registry_compliance_matrix.md",
+      "approved_sha256": "925237186799fdd6b7fe4b98c271d4ed1be4c6cc02ad6a22394d50172a463477",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "925237186799fdd6b7fe4b98c271d4ed1be4c6cc02ad6a22394d50172a463477",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "925237186799fdd6b7fe4b98c271d4ed1be4c6cc02ad6a22394d50172a463477",
+      "manifest_sha256": "925237186799fdd6b7fe4b98c271d4ed1be4c6cc02ad6a22394d50172a463477",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": true,
+      "hash_matches_manifest_entry": true
+    },
+    {
+      "path": "docs/registries/registry_documentation_index.md",
+      "approved_sha256": "63b1e74b82e3a0a2f5c491a94f64839aed9e850874708887c0b913242af07fc7",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "d2a942e5d1bf4a2807929a6c3ea9640f5a42610864354bb27ef8640d66814697",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "63b1e74b82e3a0a2f5c491a94f64839aed9e850874708887c0b913242af07fc7",
+      "manifest_sha256": "63b1e74b82e3a0a2f5c491a94f64839aed9e850874708887c0b913242af07fc7",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": true
+    },
+    {
+      "path": "docs/standards/standard_repository_naming_governance.md",
+      "approved_sha256": "27e65580f54f082dff90741392da467f62571851b46b64e623f2de5ef17e4559",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "5de0bb68bb24b0b3ce9a32bd185dcf5c72ce55125db44faf665d273e2d3876ce",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "27e65580f54f082dff90741392da467f62571851b46b64e623f2de5ef17e4559",
+      "manifest_sha256": "27e65580f54f082dff90741392da467f62571851b46b64e623f2de5ef17e4559",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": true
+    },
+    {
+      "path": "docs/standards/standard_technology_language_ownership.md",
+      "approved_sha256": "6f32b0af7880f453a08a31ce5db4ac91e540912999f740a7376e7cfc890a3beb",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "6f32b0af7880f453a08a31ce5db4ac91e540912999f740a7376e7cfc890a3beb",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "6f32b0af7880f453a08a31ce5db4ac91e540912999f740a7376e7cfc890a3beb",
+      "manifest_sha256": "6f32b0af7880f453a08a31ce5db4ac91e540912999f740a7376e7cfc890a3beb",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": true,
+      "hash_matches_manifest_entry": true
+    },
+    {
+      "path": "docs/standards/standard_terminology_governance.md",
+      "approved_sha256": "3afc73fd1c11e960c33445d184754e0a3c1a998c222660e88e14d0d4a673e954",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "d8edb7c88c73b4ac5a956ca10053e00c6df6ec323788ceb3ec74538590e3d40c",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "3afc73fd1c11e960c33445d184754e0a3c1a998c222660e88e14d0d4a673e954",
+      "manifest_sha256": "3afc73fd1c11e960c33445d184754e0a3c1a998c222660e88e14d0d4a673e954",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": true
+    }
+  ],
+  "verification_status": "VERIFIED",
+  "current_alignment_status": "RUNNING_WITH_BLOCKERS",
+  "verification_summary": {
+    "approved_document_count": 5,
+    "all_hashes_match": false
+  },
+  "execution_allowed": false,
+  "promotion_status": "RESEARCH_ONLY",
+  "live_eligibility_status": "LIVE_ORDER_BLOCKED"
+}

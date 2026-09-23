@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_origin": "governed_document_lock_written_owner_approval",
+  "generated_at_utc": "2026-09-23T08:27:21Z",
+  "repository_root": "/home/runner/work/ai4binance/ai4binance",
+  "manifest_path": "config/governance/governed_document_lock_manifest.json",
+  "approval_id": "AI4B-GOV-DOCLOCK-CORE-DGE-ALIGNMENT-20260824-001",
+  "approval_scope": "CORE_AND_DGE_GOVERNED_DOCUMENT_CURRENT_SHA256_ALIGNMENT",
+  "approval_status": "APPROVED",
+  "approved_by": "Huseyin",
+  "approved_at_utc": "2026-08-24T21:10:00Z",
+  "written_owner_approval": true,
+  "approved_sha256": {
+    "docs/governance/framework_core_vnext_governance.md": "656a1348b9e96a54830f43c62f64c1ddc0e68b0dafc9b52b9136968f7160bc0e",
+    "docs/governance/framework_decision_governance_engine.md": "3aba3ef7e8347c464215bc49b1e377af0b55562a787db22bdcb99e447951cb39"
+  },
+  "approved_documents": [
+    {
+      "path": "docs/governance/framework_core_vnext_governance.md",
+      "approved_sha256": "656a1348b9e96a54830f43c62f64c1ddc0e68b0dafc9b52b9136968f7160bc0e",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "90229f42234146cfc4b010fc49e0dfbce7b115219caed40fe643ae2126aa4c3a",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "0678683a0be5096cd02c6ca5420f67be8ff57761bfed524cec0ea9581e955127",
+      "manifest_sha256": "0678683a0be5096cd02c6ca5420f67be8ff57761bfed524cec0ea9581e955127",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/governance/framework_decision_governance_engine.md",
+      "approved_sha256": "3aba3ef7e8347c464215bc49b1e377af0b55562a787db22bdcb99e447951cb39",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "891fb74760559c46a66b76ec1c89dd1b72442c38777f61d99bae58e4e0798695",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "442248f2f67714f6c32f10fd2acd562364243be51c2104431fd8f6ccada5777b",
+      "manifest_sha256": "442248f2f67714f6c32f10fd2acd562364243be51c2104431fd8f6ccada5777b",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    }
+  ],
+  "verification_status": "VERIFIED",
+  "current_alignment_status": "RUNNING_WITH_BLOCKERS",
+  "verification_summary": {
+    "approved_document_count": 2,
+    "all_hashes_match": false
+  },
+  "execution_allowed": false,
+  "promotion_status": "RESEARCH_ONLY",
+  "live_eligibility_status": "LIVE_ORDER_BLOCKED"
+}

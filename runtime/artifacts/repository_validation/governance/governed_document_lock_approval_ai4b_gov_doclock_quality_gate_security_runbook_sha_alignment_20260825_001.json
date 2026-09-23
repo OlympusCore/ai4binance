@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_origin": "governed_document_lock_written_owner_approval",
+  "generated_at_utc": "2026-09-23T08:27:21Z",
+  "repository_root": "/home/runner/work/ai4binance/ai4binance",
+  "manifest_path": "config/governance/governed_document_lock_manifest.json",
+  "approval_id": "AI4B-GOV-DOCLOCK-QUALITY-GATE-SECURITY-RUNBOOK-SHA-ALIGNMENT-20260825-001",
+  "approval_scope": "QUALITY_GATE_GOVERNED_DOCUMENT_CURRENT_SHA256_ALIGNMENT",
+  "approval_status": "APPROVED",
+  "approved_by": "Huseyin",
+  "approved_at_utc": "2026-08-25T18:57:57.6405767Z",
+  "written_owner_approval": true,
+  "approved_sha256": {
+    "docs/security/runbook_norton_360_allowlist_windows.md": "a63b8669c742da0449a692762ed41d2237df09699e26eb3a4dae82347881adcc"
+  },
+  "approved_documents": [
+    {
+      "path": "docs/security/runbook_norton_360_allowlist_windows.md",
+      "approved_sha256": "a63b8669c742da0449a692762ed41d2237df09699e26eb3a4dae82347881adcc",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "4439f63cb64c5b8452d5eca256de743a90f8465b5c894f0308e59ced2c7c1ec5",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "00707e9f9b191da34d93f6121a58149b855002ca1003ea89f6c4c274b136816e",
+      "manifest_sha256": "00707e9f9b191da34d93f6121a58149b855002ca1003ea89f6c4c274b136816e",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    }
+  ],
+  "verification_status": "VERIFIED",
+  "current_alignment_status": "RUNNING_WITH_BLOCKERS",
+  "verification_summary": {
+    "approved_document_count": 1,
+    "all_hashes_match": false
+  },
+  "execution_allowed": false,
+  "promotion_status": "RESEARCH_ONLY",
+  "live_eligibility_status": "LIVE_ORDER_BLOCKED"
+}

@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_origin": "governed_document_lock_written_owner_approval",
+  "generated_at_utc": "2026-09-23T08:27:21Z",
+  "repository_root": "/home/runner/work/ai4binance/ai4binance",
+  "manifest_path": "config/governance/governed_document_lock_manifest.json",
+  "approval_id": "AI4B-GOV-DOCLOCK-QUALITY-GATE-PROFILES-20260901-001",
+  "approval_scope": "QUALITY_GATE_PROFILE_WORKFLOW_RULE_ACTIVATION",
+  "approval_status": "APPROVED",
+  "approved_by": "Huseyin",
+  "approved_at_utc": "2026-09-01T14:45:00Z",
+  "written_owner_approval": true,
+  "approved_sha256": {
+    "docs/registries/registry_workflow_registry.md": "d8eb50d33ab7e6c0e664493284ba67b9e835862093fcf4499a4ec69f24a3ad08",
+    "docs/workflows/runbook_quality_gate_profiles.md": "e7a4e73cef3134447a313bf8fec3ca3d33cfa75946b31bb1db0631054c296424"
+  },
+  "approved_documents": [
+    {
+      "path": "docs/registries/registry_workflow_registry.md",
+      "approved_sha256": "d8eb50d33ab7e6c0e664493284ba67b9e835862093fcf4499a4ec69f24a3ad08",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "836d1d9a34d02e7f96a4173c0f62720546504da7cd8d0f20b37acc7c4e97f573",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "d8eb50d33ab7e6c0e664493284ba67b9e835862093fcf4499a4ec69f24a3ad08",
+      "manifest_sha256": "d8eb50d33ab7e6c0e664493284ba67b9e835862093fcf4499a4ec69f24a3ad08",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": true
+    },
+    {
+      "path": "docs/workflows/runbook_quality_gate_profiles.md",
+      "approved_sha256": "e7a4e73cef3134447a313bf8fec3ca3d33cfa75946b31bb1db0631054c296424",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "6a1e28b6ac5015e3bf20965e80afaed8dce9a91070543dad2eff101a70177e01",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "6a1e28b6ac5015e3bf20965e80afaed8dce9a91070543dad2eff101a70177e01",
+      "manifest_sha256": "6a1e28b6ac5015e3bf20965e80afaed8dce9a91070543dad2eff101a70177e01",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    }
+  ],
+  "verification_status": "VERIFIED",
+  "current_alignment_status": "RUNNING_WITH_BLOCKERS",
+  "verification_summary": {
+    "approved_document_count": 2,
+    "all_hashes_match": false
+  },
+  "execution_allowed": false,
+  "promotion_status": "RESEARCH_ONLY",
+  "live_eligibility_status": "LIVE_ORDER_BLOCKED"
+}

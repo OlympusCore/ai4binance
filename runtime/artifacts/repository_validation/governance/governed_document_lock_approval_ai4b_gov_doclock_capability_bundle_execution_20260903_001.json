@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_origin": "governed_document_lock_written_owner_approval",
+  "generated_at_utc": "2026-09-23T08:27:21Z",
+  "repository_root": "/home/runner/work/ai4binance/ai4binance",
+  "manifest_path": "config/governance/governed_document_lock_manifest.json",
+  "approval_id": "AI4B-GOV-DOCLOCK-CAPABILITY-BUNDLE-EXECUTION-20260903-001",
+  "approval_scope": "CAPABILITY_BUNDLE_EXECUTION_GROUPING_ALIGNMENT",
+  "approval_status": "APPROVED",
+  "approved_by": "Huseyin",
+  "approved_at_utc": "2026-09-03T16:19:22Z",
+  "written_owner_approval": true,
+  "approved_sha256": {
+    "docs/architecture/framework_architecture_overview.md": "47c3eca6c846ff1c34387b2dc8ab1b2f77ad85c9ae1eec72f6582a9a14d4902a",
+    "docs/registries/registry_agent_registry.md": "44fbd85d04024aa4f3b363699cf04c51e5372a225a9d5f6dcc5f7be13b00414e"
+  },
+  "approved_documents": [
+    {
+      "path": "docs/architecture/framework_architecture_overview.md",
+      "approved_sha256": "47c3eca6c846ff1c34387b2dc8ab1b2f77ad85c9ae1eec72f6582a9a14d4902a",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "4ba24d3dbcb586020cd2a7dd714be23e381c1715186e7303950aaf13819cbb7d",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "4ba24d3dbcb586020cd2a7dd714be23e381c1715186e7303950aaf13819cbb7d",
+      "manifest_sha256": "4ba24d3dbcb586020cd2a7dd714be23e381c1715186e7303950aaf13819cbb7d",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/registries/registry_agent_registry.md",
+      "approved_sha256": "44fbd85d04024aa4f3b363699cf04c51e5372a225a9d5f6dcc5f7be13b00414e",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "9c35ddeee9a5589d5cad079da5b9a404544dd09ca52a647e3e822cef1e3e5671",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "9d873c1a9e8cc5293b3173501485e9cd99778cf1e0400a00461418ffb6cb183e",
+      "manifest_sha256": "9d873c1a9e8cc5293b3173501485e9cd99778cf1e0400a00461418ffb6cb183e",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    }
+  ],
+  "verification_status": "VERIFIED",
+  "current_alignment_status": "RUNNING_WITH_BLOCKERS",
+  "verification_summary": {
+    "approved_document_count": 2,
+    "all_hashes_match": false
+  },
+  "execution_allowed": false,
+  "promotion_status": "RESEARCH_ONLY",
+  "live_eligibility_status": "LIVE_ORDER_BLOCKED"
+}

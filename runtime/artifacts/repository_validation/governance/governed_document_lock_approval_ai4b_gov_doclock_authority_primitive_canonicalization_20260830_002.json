@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_origin": "governed_document_lock_written_owner_approval",
+  "generated_at_utc": "2026-09-23T08:27:21Z",
+  "repository_root": "/home/runner/work/ai4binance/ai4binance",
+  "manifest_path": "config/governance/governed_document_lock_manifest.json",
+  "approval_id": "AI4B-GOV-DOCLOCK-AUTHORITY-PRIMITIVE-CANONICALIZATION-20260830-002",
+  "approval_scope": "AUTHORITY_PRIMITIVE_CANONICALIZATION_PROVIDER_AND_ROOT_ALIGNMENT",
+  "approval_status": "APPROVED",
+  "approved_by": "Huseyin",
+  "approved_at_utc": "2026-08-30T12:30:00Z",
+  "written_owner_approval": true,
+  "approved_sha256": {
+    "AGENTS.md": "f33ffde915c1a5adf4f35980e1246d054356f8c8e91d4111920154c567f61c21",
+    "docs/providers/instruction_claude_provider.md": "d5e759fb42462fcecab372309653df1d21920d0ff85da91bc1f546e5c987ce8f",
+    "docs/providers/instruction_codex_provider.md": "87eec0bd4147cce1799d8697b0af415adbae92007b9d502d7a80f5305d25e718",
+    "docs/providers/runbook_tradingview_mcp_codex_connection.md": "1fac18dc32773c329fd2016675c64ef08ff40c5f0030433b1e07a5d0ee437cd9"
+  },
+  "approved_documents": [
+    {
+      "path": "AGENTS.md",
+      "approved_sha256": "f33ffde915c1a5adf4f35980e1246d054356f8c8e91d4111920154c567f61c21",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "604aae26e1c51091797cde67bd97cf90345fabe9b50c52e9d7d74df689417156",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "604aae26e1c51091797cde67bd97cf90345fabe9b50c52e9d7d74df689417156",
+      "manifest_sha256": "604aae26e1c51091797cde67bd97cf90345fabe9b50c52e9d7d74df689417156",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/providers/instruction_claude_provider.md",
+      "approved_sha256": "d5e759fb42462fcecab372309653df1d21920d0ff85da91bc1f546e5c987ce8f",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "1a427cf0d6e6d0e280b820644b5408bb37ad9877d3aada49c2475e318217af63",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "1a427cf0d6e6d0e280b820644b5408bb37ad9877d3aada49c2475e318217af63",
+      "manifest_sha256": "1a427cf0d6e6d0e280b820644b5408bb37ad9877d3aada49c2475e318217af63",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/providers/instruction_codex_provider.md",
+      "approved_sha256": "87eec0bd4147cce1799d8697b0af415adbae92007b9d502d7a80f5305d25e718",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "8040ce897de09fff4a6fdd1636be239fa00e96a86c241d79318af2fae3b9a6bf",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "8040ce897de09fff4a6fdd1636be239fa00e96a86c241d79318af2fae3b9a6bf",
+      "manifest_sha256": "8040ce897de09fff4a6fdd1636be239fa00e96a86c241d79318af2fae3b9a6bf",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/providers/runbook_tradingview_mcp_codex_connection.md",
+      "approved_sha256": "1fac18dc32773c329fd2016675c64ef08ff40c5f0030433b1e07a5d0ee437cd9",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "0a003dbb51c811b3eec2b10fde87d5351f1cc65a772afecbe5991dbeb31028e9",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "1fac18dc32773c329fd2016675c64ef08ff40c5f0030433b1e07a5d0ee437cd9",
+      "manifest_sha256": "1fac18dc32773c329fd2016675c64ef08ff40c5f0030433b1e07a5d0ee437cd9",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": true
+    }
+  ],
+  "verification_status": "VERIFIED",
+  "current_alignment_status": "RUNNING_WITH_BLOCKERS",
+  "verification_summary": {
+    "approved_document_count": 4,
+    "all_hashes_match": false
+  },
+  "execution_allowed": false,
+  "promotion_status": "RESEARCH_ONLY",
+  "live_eligibility_status": "LIVE_ORDER_BLOCKED"
+}

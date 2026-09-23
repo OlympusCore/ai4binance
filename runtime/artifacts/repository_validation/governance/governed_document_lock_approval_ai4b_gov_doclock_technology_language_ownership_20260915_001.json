@@ -1,0 +1,65 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_origin": "governed_document_lock_written_owner_approval",
+  "generated_at_utc": "2026-09-23T08:27:21Z",
+  "repository_root": "/home/runner/work/ai4binance/ai4binance",
+  "manifest_path": "config/governance/governed_document_lock_manifest.json",
+  "approval_id": "AI4B-GOV-DOCLOCK-TECHNOLOGY-LANGUAGE-OWNERSHIP-20260915-001",
+  "approval_scope": "TECHNOLOGY_LANGUAGE_OWNERSHIP_CANONICAL_STANDARD_AND_ENFORCEMENT",
+  "approval_status": "APPROVED",
+  "approved_by": "Huseyin",
+  "approved_at_utc": "2026-09-15T15:05:44Z",
+  "written_owner_approval": true,
+  "approved_sha256": {
+    "docs/compliance/registry_compliance_matrix.md": "67c85fa8cc65ff3b6e8963f3b24a3f5e5dad7dc7f37306f304512a0d2c5663c9",
+    "docs/registries/registry_documentation_index.md": "bddcc6e19964dffeb5c487275ceb0e0cb45d20479d212226567e04c22f6afb76",
+    "docs/standards/standard_technology_language_ownership.md": "f055f84bc7ffd37c47aa4c719403ca2573082e6e30af59fedb4fb26e6f30822d"
+  },
+  "approved_documents": [
+    {
+      "path": "docs/compliance/registry_compliance_matrix.md",
+      "approved_sha256": "67c85fa8cc65ff3b6e8963f3b24a3f5e5dad7dc7f37306f304512a0d2c5663c9",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "925237186799fdd6b7fe4b98c271d4ed1be4c6cc02ad6a22394d50172a463477",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "925237186799fdd6b7fe4b98c271d4ed1be4c6cc02ad6a22394d50172a463477",
+      "manifest_sha256": "925237186799fdd6b7fe4b98c271d4ed1be4c6cc02ad6a22394d50172a463477",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/registries/registry_documentation_index.md",
+      "approved_sha256": "bddcc6e19964dffeb5c487275ceb0e0cb45d20479d212226567e04c22f6afb76",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "d2a942e5d1bf4a2807929a6c3ea9640f5a42610864354bb27ef8640d66814697",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "63b1e74b82e3a0a2f5c491a94f64839aed9e850874708887c0b913242af07fc7",
+      "manifest_sha256": "63b1e74b82e3a0a2f5c491a94f64839aed9e850874708887c0b913242af07fc7",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    },
+    {
+      "path": "docs/standards/standard_technology_language_ownership.md",
+      "approved_sha256": "f055f84bc7ffd37c47aa4c719403ca2573082e6e30af59fedb4fb26e6f30822d",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "6f32b0af7880f453a08a31ce5db4ac91e540912999f740a7376e7cfc890a3beb",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "6f32b0af7880f453a08a31ce5db4ac91e540912999f740a7376e7cfc890a3beb",
+      "manifest_sha256": "6f32b0af7880f453a08a31ce5db4ac91e540912999f740a7376e7cfc890a3beb",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    }
+  ],
+  "verification_status": "VERIFIED",
+  "current_alignment_status": "RUNNING_WITH_BLOCKERS",
+  "verification_summary": {
+    "approved_document_count": 3,
+    "all_hashes_match": false
+  },
+  "execution_allowed": false,
+  "promotion_status": "RESEARCH_ONLY",
+  "live_eligibility_status": "LIVE_ORDER_BLOCKED"
+}

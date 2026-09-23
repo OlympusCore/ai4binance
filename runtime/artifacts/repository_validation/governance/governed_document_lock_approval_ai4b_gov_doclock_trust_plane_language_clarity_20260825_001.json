@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_origin": "governed_document_lock_written_owner_approval",
+  "generated_at_utc": "2026-09-23T08:27:21Z",
+  "repository_root": "/home/runner/work/ai4binance/ai4binance",
+  "manifest_path": "config/governance/governed_document_lock_manifest.json",
+  "approval_id": "AI4B-GOV-DOCLOCK-TRUST-PLANE-LANGUAGE-CLARITY-20260825-001",
+  "approval_scope": "TRUST_PLANE_LANGUAGE_CLARITY_REMEDIATION_SLICE",
+  "approval_status": "APPROVED",
+  "approved_by": "Huseyin",
+  "approved_at_utc": "2026-08-25T00:45:00Z",
+  "written_owner_approval": true,
+  "approved_sha256": {
+    "docs/governance/framework_trust_assurance_governance_plane.md": "bda41daff51783cd30c5884d82aeb2f7a012e1765d4f06c9850d1e21413c670a"
+  },
+  "approved_documents": [
+    {
+      "path": "docs/governance/framework_trust_assurance_governance_plane.md",
+      "approved_sha256": "bda41daff51783cd30c5884d82aeb2f7a012e1765d4f06c9850d1e21413c670a",
+      "document_presence_status": "PRESENT",
+      "current_sha256": "3223c2c23c7d7c18dbe3bba0ed018cd0a03cbb6f2367a18b9c7508137ca46be3",
+      "manifest_entry_status": "REGISTERED",
+      "manifest_expected_hash": "8a472de78ebe7f74ef4daa89412f6d96ec0845c3ef8a2d4ba019b804a95fc183",
+      "manifest_sha256": "8a472de78ebe7f74ef4daa89412f6d96ec0845c3ef8a2d4ba019b804a95fc183",
+      "lock_state": "LOCKED",
+      "hash_matches_current_content": false,
+      "hash_matches_manifest_entry": false
+    }
+  ],
+  "verification_status": "VERIFIED",
+  "current_alignment_status": "RUNNING_WITH_BLOCKERS",
+  "verification_summary": {
+    "approved_document_count": 1,
+    "all_hashes_match": false
+  },
+  "execution_allowed": false,
+  "promotion_status": "RESEARCH_ONLY",
+  "live_eligibility_status": "LIVE_ORDER_BLOCKED"
+}
