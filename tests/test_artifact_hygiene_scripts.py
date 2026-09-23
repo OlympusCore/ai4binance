@@ -4359,9 +4359,9 @@ def test_qwen_prompter_startup_task_is_visible_and_advisory_only() -> None:
     llama_server_text = (Path("scripts") / "start_llama_server.ps1").read_text(
         encoding="utf-8"
     )
-    vision_server_text = (
-        Path("scripts") / "start_local_vision_server.ps1"
-    ).read_text(encoding="utf-8")
+    vision_server_text = (Path("scripts") / "start_local_vision_server.ps1").read_text(
+        encoding="utf-8"
+    )
     local_llm_text = (Path("scripts") / "start_local_llm.ps1").read_text(
         encoding="utf-8"
     )

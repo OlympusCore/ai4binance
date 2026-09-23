@@ -137,9 +137,7 @@ def test_terminology_scan_covers_deprecated_missing_and_projection_drift(
     loaded_policy = load_terminology_policy(ROOT)
     policy = replace(
         loaded_policy,
-        terms=(
-            replace(loaded_policy.terms[0], deprecated_aliases=("legacy",)),
-        ),
+        terms=(replace(loaded_policy.terms[0], deprecated_aliases=("legacy",)),),
     )
     target = tmp_path / policy.scan_roots[0] / "terms.txt"
     target.parent.mkdir(parents=True)

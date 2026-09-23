@@ -282,8 +282,8 @@ class FallbackWhisperModelFactory:
 def test_whisper_adapter_initializes_and_transcribes(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    import faster_whisper  # type: ignore[import-untyped]
-    import truststore
+    import faster_whisper  # type: ignore[import-not-found]
+    import truststore  # type: ignore[import-not-found]
 
     monkeypatch.setattr(truststore, "inject_into_ssl", lambda: None)
     calls: list[dict[str, object]] = []
@@ -339,8 +339,8 @@ def test_whisper_adapter_falls_back_to_cpu_when_cuda_is_unavailable(
 def test_sound_recorder_distinguishes_signal_and_silence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import numpy as np
-    import sounddevice  # type: ignore[import-untyped]
+    import numpy as np  # type: ignore[import-not-found]
+    import sounddevice  # type: ignore[import-not-found]
 
     monkeypatch.setattr(sounddevice, "wait", lambda: None)
     monkeypatch.setattr(

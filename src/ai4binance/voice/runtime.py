@@ -217,8 +217,8 @@ class SoundDeviceRecorder:
     silence_rms: float = 0.008
 
     def capture(self) -> object | None:
-        import numpy as np
-        import sounddevice as sd  # type: ignore[import-untyped]
+        import numpy as np  # type: ignore[import-not-found]
+        import sounddevice as sd  # type: ignore[import-not-found]
 
         try:
             audio = sd.rec(
@@ -246,8 +246,8 @@ class FasterWhisperTranscriber:
     _model: WhisperBackend = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        import truststore
-        from faster_whisper import WhisperModel  # type: ignore[import-untyped]
+        import truststore  # type: ignore[import-not-found]
+        from faster_whisper import WhisperModel  # type: ignore[import-not-found]
 
         truststore.inject_into_ssl()
         self.model_directory.mkdir(parents=True, exist_ok=True)

@@ -32,7 +32,7 @@ def test_internal_radar_persists_redacted_new_image_candidate(tmp_path: Path) ->
     assert "Last scan timestamp (UTC): `2026-09-18T00:00:00+00:00`" in markdown
     assert "[private-name.jpg](file://" in markdown
     assert "NOT_ASSESSED_WITHOUT_CONFIGURED_VISION_ANALYZER" in markdown
-    candidate = payload["candidates"][0]
+    candidate = payload["candidates"][0]  # type: ignore[index]
     assert isinstance(candidate, dict)
     assert "private-name" not in str(candidate)
     privacy = payload["privacy"]
@@ -41,7 +41,7 @@ def test_internal_radar_persists_redacted_new_image_candidate(tmp_path: Path) ->
     assert privacy["markdown_local_file_links_included"] is True
     assert payload["last_scan_timestamp_utc"] == "2026-09-18T00:00:00+00:00"
     assert "relative_path" not in candidate
-    assert payload["privacy"]["source_images_copied"] is False
+    assert payload["privacy"]["source_images_copied"] is False  # type: ignore[index]
     assert payload["execution_allowed"] is False
 
 
@@ -84,12 +84,12 @@ def test_internal_radar_vision_mode_persists_blocked_evidence_without_image_copy
         vision_runner=BlockingVisionRunner(),  # type: ignore[arg-type]
     )
 
-    candidate = result.to_payload()["candidates"][0]
+    candidate = result.to_payload()["candidates"][0]  # type: ignore[index]
     assert isinstance(candidate, dict)
     assert candidate["assessment_status"] == "BLOCKED"
     assert "private-name" not in str(candidate)
     assert "UNREGISTERED_MODEL:local-llamacpp-qwen25vl-3b" in result.blockers
-    assert result.to_payload()["privacy"]["source_images_copied"] is False
+    assert result.to_payload()["privacy"]["source_images_copied"] is False  # type: ignore[index]
 
 
 def test_internal_radar_vision_summary_only_counts_validated_observations(
@@ -138,7 +138,7 @@ def test_internal_radar_vision_summary_only_counts_validated_observations(
     assert summary["tradeoff_categories"] == {"HUMAN_REVIEW_REQUIRED": 1}
     progress = result.to_payload()["vision_progress"]
     assert progress == {"analysed": 1, "awaiting_analysis": 0}
-    candidate = result.to_payload()["candidates"][0]
+    candidate = result.to_payload()["candidates"][0]  # type: ignore[index]
     assert isinstance(candidate, dict)
     assert str(candidate["last_scan_timestamp_utc"]).endswith("+00:00")
     markdown = result.latest_path.with_suffix(".md").read_text(encoding="utf-8")

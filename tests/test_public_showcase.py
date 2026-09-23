@@ -151,7 +151,7 @@ def test_public_showcase_rejects_hash_drift_and_secret_scan_failure(
     assert not (tmp_path / "scan-output").exists()
 
 
-@pytest.mark.parametrize("value", ("", "/absolute", "back\\slash", "a/../b"))
+@pytest.mark.parametrize("value", ["", "/absolute", "back\\slash", "a/../b"])
 def test_showcase_helpers_reject_unsafe_contract_values(value: str) -> None:
     with pytest.raises(PublicShowcaseError):
         showcase._safe_relative_path(value, field="artifact")
@@ -244,7 +244,8 @@ def test_showcase_rejects_each_authority_expansion_shape(tmp_path: Path) -> None
 
     manifest_path = tmp_path / "version.yaml"
     manifest_path.write_text(
-        "version: 2\npublication: {}\nallowed_artifacts: []\ndenied_paths: []\nsecret_scan: {}\n",
+        "version: 2\npublication: {}\nallowed_artifacts: []\n"
+        "denied_paths: []\nsecret_scan: {}\n",
         encoding="utf-8",
     )
     with pytest.raises(PublicShowcaseError, match="version"):
