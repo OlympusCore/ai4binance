@@ -5,12 +5,15 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from uuid import uuid4
+
+_REPLACE_RETRY_DELAYS_SECONDS = (0.01, 0.02, 0.04, 0.08, 0.16, 0.25, 0.25)
 
 
 class VerificationStatus(StrEnum):
@@ -120,7 +123,7 @@ def write_json_object_verified(
             stream.flush()
             if durable:
                 os.fsync(stream.fileno())
-        os.replace(temporary, path)
+        _replace_with_retry(temporary, path)
         observed = read_json_object(path, blocker=blocker)
     finally:
         temporary.unlink(missing_ok=True)
@@ -139,6 +142,18 @@ def write_json_object_verified(
         expected_sha256=expected_hash,
         observed_sha256=observed_hash,
     )
+
+
+def _replace_with_retry(source: Path, destination: Path) -> None:
+    """Bound transient Windows sharing violations without masking hard failures."""
+
+    for delay in _REPLACE_RETRY_DELAYS_SECONDS:
+        try:
+            os.replace(source, destination)
+            return
+        except PermissionError:
+            time.sleep(delay)
+    os.replace(source, destination)
 
 
 def _json_dumps(payload: Mapping[str, object], *, indent: int | None) -> str:

@@ -142,9 +142,9 @@ def test_settings_reject_minimum_history_above_request_limit() -> None:
         Settings(candle_limit=100, minimum_closed_candles=200)
 
 
-def test_settings_accepts_three_month_history_with_daily_quality_floor() -> None:
-    settings = Settings(market_history_initial_days=90)
-    assert settings.market_history_initial_days == 90
+def test_settings_defaults_to_governed_spot_oos_history_horizon() -> None:
+    settings = Settings()
+    assert settings.market_history_initial_days == 400
     assert settings.max_data_workers == 4
     assert settings.market_history_max_workers == 8
     assert settings.market_history_opportunity_workers == 2

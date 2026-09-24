@@ -37,6 +37,105 @@ anti_masking:
   combined_pnl_gate_allowed: false
   combined_sharpe_gate_allowed: false
   combined_equity_gate_allowed: false
+spot_oos_validation_specification:
+  schema_version: "1.0"
+  specification_id: spot-oos-validation-v1
+  status: ACTIVE
+  owner: Validation Owner
+  approval_status: PENDING_INDEPENDENT_REVIEW
+  market_scope:
+    - SPOT
+  timeframes:
+    - 15m
+    - 1h
+    - 4h
+  strategy_version: "1"
+  requirements:
+    dataset:
+      blockers: {operator: eq, value: []}
+      point_in_time_status: {operator: eq, value: PASS}
+      quality_status: {operator: eq, value: PASS}
+      revision_status: {operator: eq, value: IMMUTABLE}
+      missing_intervals: {operator: eq, value: 0}
+      duplicate_count: {operator: eq, value: 0}
+      observation_days: {operator: gte, value: 365}
+      cost_data_coverage: {operator: gte, value: 0.99}
+    backtest:
+      blockers: {operator: eq, value: []}
+      realism_status: {operator: eq, value: PASS}
+      cost_model_sha256: {operator: eq, value: "$COST_MODEL_SHA256"}
+      execution_model_version: {operator: eq, value: SPOT_BACKTEST_V1}
+    walk_forward:
+      blockers: {operator: eq, value: []}
+      fold_count: {operator: gte, value: 5}
+      train_only_selection: {operator: eq, value: true}
+      purge: {operator: gte, value: 1}
+      embargo: {operator: gte, value: 1}
+    final_holdout:
+      blockers: {operator: eq, value: []}
+      trade_count: {operator: gte, value: 100}
+      expectancy: {operator: gt, value: 0}
+      net_return: {operator: gt, value: 0}
+      max_drawdown: {operator: lte, value: 0.15}
+    regime:
+      blockers: {operator: eq, value: []}
+      regime_count: {operator: gte, value: 3}
+      unknown_ratio: {operator: lte, value: 0.05}
+      attribution_status: {operator: eq, value: PASS}
+    robustness:
+      blockers: {operator: eq, value: []}
+      parameter_stability: {operator: eq, value: PASS}
+      fold_stability: {operator: eq, value: PASS}
+      regime_stability: {operator: eq, value: PASS}
+      cpcv_status: {operator: eq, value: PASS}
+      monte_carlo_status: {operator: eq, value: PASS}
+      selection_overfit_status: {operator: eq, value: PASS}
+      edge_concentration: {operator: lte, value: 0.5}
+      failure_modes_status: {operator: eq, value: PASS}
+    statistics:
+      blockers: {operator: eq, value: []}
+      effective_sample_size: {operator: gte, value: 20}
+      confidence_interval_lower: {operator: gt, value: 0}
+      profit_factor: {operator: gte, value: 1.25}
+      profitable_fold_ratio: {operator: gte, value: 0.6}
+      hypothesis_count: {operator: gte, value: 1}
+      multiple_testing_method:
+        operator: in
+        value: [BONFERRONI, HOLM, SPA, MCS]
+      confirmatory: {operator: eq, value: true}
+    cost_stress:
+      blockers: {operator: eq, value: []}
+      scenario_coverage:
+        operator: eq
+        value: [BASE, COST_1_5X, COST_2X]
+      edge_survival: {operator: eq, value: true}
+    replication:
+      blockers: {operator: eq, value: []}
+      declared_scope_coverage: {operator: eq, value: true}
+      stability_status: {operator: eq, value: PASS}
+    paper_forward:
+      blockers: {operator: eq, value: []}
+      historical_oos_completed_at: {operator: present, value: true}
+      observation_started_at: {operator: present, value: true}
+      observation_ended_at: {operator: present, value: true}
+      observation_days: {operator: gte, value: 365}
+      trade_count: {operator: gte, value: 100}
+      frequency_comparison: {operator: eq, value: PASS}
+      cost_comparison: {operator: eq, value: PASS}
+      expectancy_comparison: {operator: eq, value: PASS}
+      drawdown_comparison: {operator: eq, value: PASS}
+      regime_comparison: {operator: eq, value: PASS}
+      signal_decay_status: {operator: eq, value: PASS}
+      runtime_failures: {operator: eq, value: 0}
+    reproducibility:
+      blockers: {operator: eq, value: []}
+      repository_clean: {operator: eq, value: true}
+      replay_equal: {operator: eq, value: true}
+      implementation_sha256: {operator: eq, value: "$RUNTIME_SOURCE_SHA256"}
+  authority:
+    execution_allowed: false
+    promotion_status: RESEARCH_ONLY
+    live_eligibility_status: LIVE_ORDER_BLOCKED
 authority:
   execution_allowed: false
   promotion_status: RESEARCH_ONLY

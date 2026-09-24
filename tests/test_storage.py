@@ -9,6 +9,7 @@ from typing import cast
 
 import pytest
 
+import ai4binance.storage.destination_verification as destination_verification
 from ai4binance.infrastructure.persistence import safe_json
 from ai4binance.storage import (
     AuditEvent,
@@ -440,6 +441,61 @@ def test_write_json_object_verified_stops_on_failed_read_back(
             blocker="STATE_VERIFY_FAILED",
             subject_id="state-1",
         )
+
+
+def test_write_json_object_verified_retries_transient_replace_denial(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "state" / "latest.json"
+    original_replace = destination_verification.os.replace
+    attempts = 0
+    delays: list[float] = []
+
+    def flaky_replace(source: Path, destination: Path) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise PermissionError(5, "transient sharing violation")
+        original_replace(source, destination)
+
+    monkeypatch.setattr(destination_verification.os, "replace", flaky_replace)
+    monkeypatch.setattr(destination_verification.time, "sleep", delays.append)
+
+    result = write_json_object_verified(
+        path,
+        {"status": "ok"},
+        blocker="STATE_VERIFY_FAILED",
+    )
+
+    assert result.status is VerificationStatus.VERIFIED
+    assert attempts == 3
+    assert delays == [0.01, 0.02]
+
+
+def test_write_json_object_verified_preserves_persistent_replace_denial(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "state" / "latest.json"
+    attempts = 0
+
+    def denied_replace(_source: Path, _destination: Path) -> None:
+        nonlocal attempts
+        attempts += 1
+        raise PermissionError(5, "persistent sharing violation")
+
+    monkeypatch.setattr(destination_verification.os, "replace", denied_replace)
+    monkeypatch.setattr(destination_verification.time, "sleep", lambda _delay: None)
+
+    with pytest.raises(PermissionError, match="persistent sharing violation"):
+        write_json_object_verified(
+            path,
+            {"status": "ok"},
+            blocker="STATE_VERIFY_FAILED",
+        )
+
+    assert attempts == 8
 
 
 def test_jsonl_store_optional_durable_flush(

@@ -89,7 +89,7 @@ def test_status_is_complete_and_safe_by_default(
     assert payload["execution_allowed"] is False
     assert payload["trading_mode"] == "paper"
     assert payload["order_mode"] == "manual"
-    assert payload["timeframes"] == ["5m", "15m", "1h", "4h", "1d"]
+    assert payload["timeframes"] == ["15m", "1h", "4h"]
     assert payload["live_gate"]["status"] == "LIVE_ORDER_BLOCKED"
     assert payload["virtual_market_gate"]["execution_surface"] == "VIRTUAL_MARKET"
     assert payload["virtual_market_gate"]["automation_mode"] == (
@@ -1896,9 +1896,7 @@ def test_virtual_market_daemon_requests_canonical_refresh_for_stale_data(
         == 0
     )
 
-    refresh = json.loads(
-        (tmp_path / "market-history-refresh-request.json").read_text()
-    )
+    refresh = json.loads((tmp_path / "market-history-refresh-request.json").read_text())
     state = json.loads((tmp_path / "virtual-market.json").read_text())
     assert refresh["requester"] == "VIRTUAL_MARKET"
     assert refresh["status"] == "PENDING"

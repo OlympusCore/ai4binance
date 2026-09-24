@@ -700,8 +700,9 @@ def test_priority_depth_scope_covers_the_bounded_active_universe() -> None:
     }
 
 
-def test_priority_depth_scope_preserves_top_volume_order_without_watchlist_match(
-) -> None:
+def test_priority_depth_scope_preserves_top_volume_order_without_watchlist_match() -> (
+    None
+):
     class DepthUniverse:
         spot_symbols = ("ETHUSDT", "BTCUSDT")
         futures_symbols = ("BTCUSDT", "ETHUSDT")
@@ -820,9 +821,7 @@ def test_symbol_with_incomplete_stream_does_not_start_opportunity_analysis(
         instance,
         "_collect_stream",
         lambda *_args, **kwargs: {
-            "status": "BACKFILLING"
-            if kwargs.get("timeframe") == "15m"
-            else "CURRENT"
+            "status": "BACKFILLING" if kwargs.get("timeframe") == "15m" else "CURRENT"
         },
     )
 
@@ -1041,6 +1040,7 @@ def test_dashboard_refresh_request_is_completed_by_the_canonical_collector(
     instance.minimum_candles = 1
     instance.pages_per_stream = 6
     ready_at = NOW.replace(hour=23, minute=59)
+    instance.clock = lambda: ready_at
     request_path = (tmp_path / "market-history-refresh-request.json").resolve()
     instance.refresh_request_path = request_path
     request = enqueue_market_history_refresh_request(
@@ -1060,6 +1060,31 @@ def test_dashboard_refresh_request_is_completed_by_the_canonical_collector(
     assert status["execution_allowed"] is False
     assert status["promotion_status"] == "RESEARCH_ONLY"
     assert status["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_refresh_request_age_uses_current_clock_after_cycle_setup(
+    tmp_path: Path,
+) -> None:
+    instance = collector(tmp_path, Transport())
+    instance.minimum_candles = 1
+    instance.pages_per_stream = 6
+    request_path = (tmp_path / "market-history-refresh-request.json").resolve()
+    instance.refresh_request_path = request_path
+    requested_at = NOW + timedelta(minutes=2)
+    instance.clock = lambda: requested_at
+    enqueue_market_history_refresh_request(
+        request_path,
+        market="SPOT",
+        symbol="BTCUSDT",
+        eligible_symbols=("BTCUSDT",),
+        requested_at=requested_at,
+    )
+
+    instance.sync_cycle(observed_at=NOW)
+
+    status = market_history_refresh_status(request_path)
+    assert status["state"] == "DATA_READY", status
+    assert "MARKET_HISTORY_REFRESH_REQUEST_EXPIRED" not in status["blockers"]
 
 
 def test_refresh_request_completion_never_predates_its_request(
@@ -1085,9 +1110,7 @@ def test_refresh_request_completion_never_predates_its_request(
         blockers=(),
     )
 
-    completed = datetime.fromisoformat(
-        str(_load(request_path)["completed_at"])
-    )
+    completed = datetime.fromisoformat(str(_load(request_path)["completed_at"]))
     assert completed >= requested_at
 
 
@@ -2171,9 +2194,7 @@ def test_market_history_daemon_starts_depth_and_reports_completion(
     depth_events: list[object] = []
 
     class Depth:
-        def __init__(
-            self, _root: Path, transports: object, **_kwargs: object
-        ) -> None:
+        def __init__(self, _root: Path, transports: object, **_kwargs: object) -> None:
             depth_events.append(transports)
 
         def start(self, markets: object) -> None:

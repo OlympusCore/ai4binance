@@ -174,9 +174,7 @@ def build_continuous_market_history(
         max_workers=settings.market_history_max_workers,
         minimum_candles=settings.minimum_closed_candles,
         coin_m=(
-            synchronizer.universe_provider.coin_m_transport
-            if include_coin_m
-            else None
+            synchronizer.universe_provider.coin_m_transport if include_coin_m else None
         ),
         priority_symbols=tuple(
             dict.fromkeys(

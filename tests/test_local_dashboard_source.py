@@ -106,8 +106,7 @@ def test_virtual_market_separates_trade_records_from_potential_opportunities() -
     assert "def _trade_record_dashboard_row" in wallet
 
 
-def test_dashboard_exposes_virtual_runtime_preconditions_without_calling_them_active(
-) -> None:
+def test_dashboard_exposes_virtual_runtime_preconditions_as_inactive() -> None:
     server = (SOURCE / "server.py.in").read_text(encoding="utf-8")
     views = (SOURCE / "local_views.js").read_text(encoding="utf-8")
 

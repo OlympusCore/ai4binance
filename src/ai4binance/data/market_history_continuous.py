@@ -578,14 +578,15 @@ class ContinuousMarketHistory:
             try:
                 candidate = _read_refresh_request(self.refresh_request_path)
                 if candidate is not None and candidate.get("status") == "PENDING":
+                    request_now = self.clock().astimezone(UTC)
                     requested_at = datetime.fromisoformat(
                         str(candidate["requested_at"])
                     )
-                    age = now - requested_at.astimezone(UTC)
+                    age = request_now - requested_at.astimezone(UTC)
                     if age < timedelta(minutes=-1) or age > _REFRESH_REQUEST_MAX_AGE:
                         self._complete_refresh_request(
                             candidate,
-                            now,
+                            request_now,
                             status="DATA_BLOCKED",
                             blockers=("MARKET_HISTORY_REFRESH_REQUEST_EXPIRED",),
                         )
@@ -1281,7 +1282,10 @@ class ContinuousMarketHistory:
                         == active_identity
                     ]
                     request_blockers = self._refresh_request_data_blockers(
-                        active_identity[0], active_identity[1], now, request_results
+                        active_identity[0],
+                        active_identity[1],
+                        self.clock().astimezone(UTC),
+                        request_results,
                     )
                     self._complete_refresh_request(
                         active_request,

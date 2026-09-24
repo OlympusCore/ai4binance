@@ -7,6 +7,7 @@ import json
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import datetime
+from decimal import ROUND_DOWN, Decimal
 from functools import partial
 from hashlib import sha256
 from pathlib import Path
@@ -74,6 +75,38 @@ from ai4binance.validation.oos_maturity import (
 from ai4binance.validation.regimes import classify_validation_regime
 from ai4binance.validation.storage import WalkForwardAuditWriter
 
+SPOT_VALIDATION_NOTIONAL_TO_EQUITY_RATIO = Decimal("0.25")
+
+
+def runtime_spot_backtest_engine(
+    candles: tuple[Any, ...],
+    *,
+    base_engine: BacktestEngine,
+    notional_to_equity_ratio: Decimal,
+) -> BacktestEngine:
+    """Build a price-normalized Spot engine for one immutable validation set."""
+
+    if not candles:
+        raise ValueError("runtime Spot sizing requires validation candles")
+    if (
+        not notional_to_equity_ratio.is_finite()
+        or notional_to_equity_ratio <= 0
+        or notional_to_equity_ratio > 1
+    ):
+        raise ValueError("runtime Spot notional ratio must be within (0, 1]")
+    config = base_engine.config
+    maximum_entry_price = max(candle.open for candle in candles)
+    if maximum_entry_price <= 0:
+        raise ValueError("runtime Spot maximum entry price must be positive")
+    target_notional = config.initial_cash_usdt * notional_to_equity_ratio
+    quantity = (target_notional / maximum_entry_price).quantize(
+        config.step_size,
+        rounding=ROUND_DOWN,
+    )
+    if quantity <= 0 or quantity * maximum_entry_price < config.minimum_notional:
+        raise ValueError("runtime Spot price-normalized quantity is not tradable")
+    return BacktestEngine(replace(config, quantity=quantity))
+
 
 def _build_historical_decision_resolver(
     candles: tuple[Any, ...] | None = None,
@@ -130,6 +163,12 @@ class HistoricalValidationRuntime:
         default_factory=load_backtest_layout_manifest
     )
     report_directory: Path | None = None
+    position_notional_to_equity_ratio: Decimal | None = None
+
+    def __post_init__(self) -> None:
+        ratio = self.position_notional_to_equity_ratio
+        if ratio is not None and (not ratio.is_finite() or ratio <= 0 or ratio > 1):
+            raise ValueError("validation position notional ratio must be within (0, 1]")
 
     def start_validation_run(
         self,
@@ -335,8 +374,17 @@ class HistoricalValidationRuntime:
             regime_classifier=self._regime,
             risk_profile_registry=self.risk_profile_registry,
         )
+        backtest_engine = (
+            self.backtest_engine
+            if self.position_notional_to_equity_ratio is None
+            else runtime_spot_backtest_engine(
+                candles,
+                base_engine=self.backtest_engine,
+                notional_to_equity_ratio=self.position_notional_to_equity_ratio,
+            )
+        )
         stage_started = perf_counter_ns()
-        backtest = self.backtest_engine.run(
+        backtest = backtest_engine.run(
             symbol=symbol,
             timeframe=timeframe,
             candles=candles,
@@ -348,7 +396,7 @@ class HistoricalValidationRuntime:
             self.tuning_engine,
             validator=replace(
                 self.tuning_engine.validator,
-                backtest_engine=self.backtest_engine,
+                backtest_engine=backtest_engine,
             ),
         )
         tuning = tuning_engine.tune(
@@ -377,7 +425,7 @@ class HistoricalValidationRuntime:
             symbol=symbol,
             timeframe=timeframe,
             candles=candles,
-            backtest_config=self.backtest_engine.config,
+            backtest_config=backtest_engine.config,
             provider_factory=lambda: HistoricalPlaybookAdapter(
                 playbook=playbook,
                 parameters=tuning.selected_parameters,
@@ -478,6 +526,11 @@ class HistoricalValidationRuntime:
                     "minimum_validation_candles": MINIMUM_VALIDATION_CANDLES,
                     "candle_count": candle_count,
                     "backtest_config": to_primitive(self.backtest_engine.config),
+                    "position_notional_to_equity_ratio": (
+                        str(self.position_notional_to_equity_ratio)
+                        if self.position_notional_to_equity_ratio is not None
+                        else None
+                    ),
                     "stress_scenarios": to_primitive(
                         self.robustness_analyzer.scenarios
                     ),
@@ -489,6 +542,11 @@ class HistoricalValidationRuntime:
                 "validated_playbooks": VALIDATED_PLAYBOOKS,
                 "search_space": to_primitive(self._search_space()),
                 "backtest_config": to_primitive(self.backtest_engine.config),
+                "position_notional_to_equity_ratio": (
+                    str(self.position_notional_to_equity_ratio)
+                    if self.position_notional_to_equity_ratio is not None
+                    else None
+                ),
                 "stress_scenarios": to_primitive(self.robustness_analyzer.scenarios),
                 "tuning_config": to_primitive(self._tuning_config(candle_count)),
                 "strategy_risk_profiles": self._risk_profiles_payload(),
@@ -631,7 +689,9 @@ class HistoricalValidationRuntime:
     @staticmethod
     def _tuning_config(candle_count: int) -> TuningConfig:
         test_size = max(10, candle_count // 8)
-        train_size = candle_count - (test_size * 5)
+        purge_size = 1
+        embargo_size = 1
+        train_size = candle_count - (test_size * 5) - purge_size - (embargo_size * 4)
         return TuningConfig(
             WalkForwardConfig(
                 train_size=train_size,
@@ -640,6 +700,8 @@ class HistoricalValidationRuntime:
                 min_folds=5,
                 min_oos_trades=5,
                 min_regime_count=2,
+                purge_size=purge_size,
+                embargo_size=embargo_size,
             ),
             min_neighbor_count=2,
             min_neighbor_pass_ratio=0.5,
@@ -772,7 +834,7 @@ class HistoricalValidationRuntime:
             config_sha256=ResearchRunCard.hash_json(
                 {
                     "search_space": to_primitive(self._search_space()),
-                    "backtest_config": to_primitive(self.backtest_engine.config),
+                    "backtest_config": to_primitive(backtest.assumptions),
                     "stress_scenarios": to_primitive(
                         self.robustness_analyzer.scenarios
                     ),
