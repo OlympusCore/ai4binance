@@ -12,10 +12,14 @@ from pathlib import Path
 
 from websockets.exceptions import ConnectionClosed
 
-from ai4binance.cli.market_data import build_market_history_synchronizer
+from ai4binance.cli.market_data import (
+    _priority_depth_markets,
+    build_continuous_market_history,
+    build_market_history_synchronizer,
+)
 from ai4binance.config import Settings
 from ai4binance.data.market_data_gateway import MarketStreamGapError, build_gateway
-from ai4binance.data.market_history_continuous import ContinuousMarketHistory
+from ai4binance.data.market_depth import MarketDepthCollector
 from ai4binance.infrastructure.persistence.safe_json import write_json_object_verified
 from ai4binance.ops.runtime import SingleInstanceLease
 
@@ -73,21 +77,21 @@ def run_gateway(settings: Settings, *, max_cycles: int | None = None) -> int:
     if max_cycles is not None and max_cycles < 1:
         raise ValueError("max_cycles must be positive")
     synchronizer = build_market_history_synchronizer(settings)
-    collector = ContinuousMarketHistory(
-        history=synchronizer,
-        spot=synchronizer.universe_provider.spot_transport,
-        futures=synchronizer.universe_provider.futures_transport,
-        initial_days=settings.market_history_initial_days,
-        pages_per_stream=settings.market_history_pages_per_stream,
-        max_workers=settings.market_history_max_workers,
-        minimum_candles=settings.minimum_closed_candles,
-        coin_m=None,
-        priority_symbols=tuple(
-            dict.fromkeys(
-                (settings.symbol, *settings.fixed_symbols, *settings.priority_watchlist)
-            )
-        ),
+    collector = build_continuous_market_history(
+        settings,
+        synchronizer,
+        root=Path.cwd(),
+        include_coin_m=False,
     )
+    depth: MarketDepthCollector | None = None
+    if getattr(settings, "market_depth_enabled", False):
+        depth = MarketDepthCollector(
+            synchronizer.archive_root / "depth",
+            {
+                "spot": collector.spot,
+                "usd_m_futures": collector.futures,
+            },
+        )
     lock_path = _absolute(settings.market_history_state_path).with_suffix(".lock")
     heartbeat = _GatewayStateHeartbeat(_absolute(settings.market_history_state_path))
     completed = 0
@@ -95,6 +99,18 @@ def run_gateway(settings: Settings, *, max_cycles: int | None = None) -> int:
         with SingleInstanceLease(lock_path):
             while max_cycles is None or completed < max_cycles:
                 observed_at = datetime.now(UTC)
+                if depth is not None:
+                    depth_universe = synchronizer._eligible_universe(
+                        observed_at, force_refresh=True
+                    )
+                    if not depth_universe.blockers:
+                        depth.start(
+                            _priority_depth_markets(
+                                depth_universe,
+                                collector.priority_symbols,
+                                include_coin_m=False,
+                            )
+                        )
                 bootstrap = collector.sync_cycle(observed_at=observed_at)
                 blockers = _blockers(bootstrap)
                 if "MARKET_DATA_BACKFILL_PENDING" in blockers and not (
@@ -164,6 +180,9 @@ def run_gateway(settings: Settings, *, max_cycles: int | None = None) -> int:
             )
         )
         return 2
+    finally:
+        if depth is not None:
+            depth.close()
     return 0
 
 

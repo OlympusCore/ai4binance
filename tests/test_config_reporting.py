@@ -42,6 +42,12 @@ def test_settings_normalize_market_type() -> None:
         Settings(market_type="options")  # type: ignore[arg-type]
 
 
+def test_settings_route_futures_oos_to_the_cli_contract_artifact_root() -> None:
+    assert Settings().futures_oos_artifact_directory == Path(
+        "runtime/artifacts/validation/futures_oos"
+    )
+
+
 def test_settings_expose_local_llm_gpu_controls(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

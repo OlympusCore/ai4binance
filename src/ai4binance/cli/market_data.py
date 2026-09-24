@@ -94,11 +94,15 @@ def _dashboard_candidate_projection(
             elif isinstance(value, (int, float)) and not isinstance(value, bool):
                 row[name] = value
         blockers = candidate.get("blockers")
-        if isinstance(blockers, list) and all(
-            isinstance(blocker, str) and len(blocker) <= 180
-            for blocker in blockers[:40]
+        if (
+            isinstance(blockers, Sequence)
+            and not isinstance(blockers, str)
+            and all(
+                isinstance(blocker, str) and len(blocker) <= 180
+                for blocker in blockers[:40]
+            )
         ):
-            row["blockers"] = blockers[:40]
+            row["blockers"] = list(blockers[:40])
         else:
             row["blockers"] = ["CANDIDATE_BLOCKERS_UNAVAILABLE"]
         row.update(market=market, symbol=symbol, **_SAFE_STATE)
@@ -112,7 +116,7 @@ def _priority_depth_markets(
     *,
     include_coin_m: bool,
 ) -> dict[str, tuple[str, ...]]:
-    """Bound L2 bootstrap to watched symbols with one top-volume fallback."""
+    """Cover each active top-volume market universe with bounded public L2."""
 
     priority = tuple(dict.fromkeys(priority_symbols))
     spot_symbols = tuple(dict.fromkeys(getattr(universe, "spot_symbols", ())))
@@ -121,8 +125,7 @@ def _priority_depth_markets(
     def selected(symbols: tuple[str, ...]) -> tuple[str, ...]:
         eligible = frozenset(symbols)
         watched = tuple(symbol for symbol in priority if symbol in eligible)
-        target_count = min(8, max(1, len(watched)))
-        return tuple(dict.fromkeys((*watched, *symbols)))[:target_count]
+        return tuple(dict.fromkeys((*watched, *symbols)))[:50]
 
     markets = {
         "spot": selected(spot_symbols),
@@ -134,6 +137,43 @@ def _priority_depth_markets(
             symbol for symbol in priority if symbol in coin_m_symbols
         )
     return markets
+
+
+def build_continuous_market_history(
+    settings: Settings,
+    synchronizer: MarketHistorySynchronizer,
+    *,
+    root: Path,
+    include_coin_m: bool,
+) -> ContinuousMarketHistory:
+    """Build the one canonical continuous collector used by every runtime."""
+
+    return ContinuousMarketHistory(
+        history=synchronizer,
+        spot=synchronizer.universe_provider.spot_transport,
+        futures=synchronizer.universe_provider.futures_transport,
+        initial_days=settings.market_history_initial_days,
+        pages_per_stream=settings.market_history_pages_per_stream,
+        max_workers=settings.market_history_max_workers,
+        minimum_candles=settings.minimum_closed_candles,
+        coin_m=(
+            synchronizer.universe_provider.coin_m_transport
+            if include_coin_m
+            else None
+        ),
+        priority_symbols=tuple(
+            dict.fromkeys(
+                (settings.symbol, *settings.fixed_symbols, *settings.priority_watchlist)
+            )
+        ),
+        refresh_request_path=_absolute(settings.market_history_state_path).with_name(
+            "market-history-refresh-request.json"
+        ),
+        on_symbol_ready=_build_canonical_opportunity_pipeline(
+            settings, root, include_futures=True
+        ),
+        on_symbol_screen=_build_opportunity_screen(settings, root),
+    )
 
 
 def _build_canonical_opportunity_pipeline(
@@ -335,31 +375,11 @@ def run_market_history_command(
         print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
         return 0 if not payload.get("blockers") else 2
 
-    continuous = ContinuousMarketHistory(
-        history=synchronizer,
-        spot=synchronizer.universe_provider.spot_transport,
-        futures=synchronizer.universe_provider.futures_transport,
-        initial_days=settings.market_history_initial_days,
-        pages_per_stream=settings.market_history_pages_per_stream,
-        max_workers=settings.market_history_max_workers,
-        minimum_candles=settings.minimum_closed_candles,
-        coin_m=synchronizer.universe_provider.coin_m_transport,
-        priority_symbols=tuple(
-            dict.fromkeys(
-                (
-                    settings.symbol,
-                    *settings.fixed_symbols,
-                    *settings.priority_watchlist,
-                )
-            )
-        ),
-        refresh_request_path=_absolute(settings.market_history_state_path).with_name(
-            "market-history-refresh-request.json"
-        ),
-        on_symbol_ready=_build_canonical_opportunity_pipeline(
-            settings, Path.cwd(), include_futures=True
-        ),
-        on_symbol_screen=_build_opportunity_screen(settings, Path.cwd()),
+    continuous = build_continuous_market_history(
+        settings,
+        synchronizer,
+        root=Path.cwd(),
+        include_coin_m=True,
     )
     if command == "market-history-sync" and as_of is None:
         with SingleInstanceLease(synchronizer.state_path.with_suffix(".lock")):
@@ -571,4 +591,9 @@ if __name__ == "__main__":
     raise SystemExit(main())
 
 
-__all__ = ("build_market_history_synchronizer", "main", "run_market_history_command")
+__all__ = (
+    "build_continuous_market_history",
+    "build_market_history_synchronizer",
+    "main",
+    "run_market_history_command",
+)

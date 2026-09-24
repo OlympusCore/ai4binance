@@ -660,7 +660,7 @@ def test_metered_transport_updates_budget_and_funding_clock(
     [
         ("CURRENT", "CANDIDATES_AVAILABLE"),
         ("DELEGATED", "ANALYSIS_UNAVAILABLE"),
-        ("DATA_BLOCKED", "DATA_UNAVAILABLE"),
+        ("DATA_BLOCKED", "CANDIDATES_AVAILABLE_WITH_DATA_GAPS"),
         ("BLOCKED", "ANALYSIS_BLOCKED"),
     ],
 )

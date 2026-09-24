@@ -41,7 +41,7 @@ def test_service_manifest_is_shared_safe_and_complete() -> None:
     assert required["skill-discovery"].lock_file == "skill_discovery.lock"
     assert required["market-history"].task_name == "AI4BINANCE-Market-History"
     assert required["market-history"].command == (
-        "python -m ai4binance.cli.market_gateway"
+        "python -m ai4binance.cli.market_data daemon"
     )
     scheduled = {spec.service: spec for spec in specs if not spec.required}
     assert scheduled["ykb-report"].health_mode == "SCHEDULED"

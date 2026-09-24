@@ -1854,6 +1854,58 @@ def test_virtual_market_daemon_prioritizes_and_acknowledges_manual_refresh(
     assert acknowledgement["execution_allowed"] is False
 
 
+def test_virtual_market_daemon_requests_canonical_refresh_for_stale_data(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from ai4binance.data import market_history_sync
+
+    monkeypatch.setattr(
+        market_history_sync, "read_cached_market_universe", lambda *_args: None
+    )
+    settings = Settings(
+        symbol="BTCUSDT",
+        runtime_state_path=tmp_path / "runtime.json",
+    )
+
+    def research_cycle(
+        cycle_settings: Settings,
+        _acquisition: SnapshotAcquirer,
+        *,
+        cycle_report: dict[str, object] | None = None,
+    ) -> int:
+        assert cycle_report is not None
+        assert cycle_settings.timeframes == ("15m", "1h", "4h")
+        cycle_report.update(
+            snapshot_id="fixture:BTCUSDT",
+            research_blockers=("SNAPSHOT_DATA_QUALITY_INVALID", "STALE_CANDLES:5m"),
+            virtual_order_ready=False,
+        )
+        return 0
+
+    monkeypatch.setattr(
+        runtime_cli, "_run_virtual_market_research_cycle", research_cycle
+    )
+    observed_at = datetime(2026, 9, 24, 13, 30, tzinfo=UTC)
+    assert (
+        runtime_cli.run_virtual_market_daemon(
+            settings,
+            max_cycles=1,
+            public_acquisition=cast(SnapshotAcquirer, object()),
+            clock=lambda: observed_at,
+        )
+        == 0
+    )
+
+    refresh = json.loads(
+        (tmp_path / "market-history-refresh-request.json").read_text()
+    )
+    state = json.loads((tmp_path / "virtual-market.json").read_text())
+    assert refresh["requester"] == "VIRTUAL_MARKET"
+    assert refresh["status"] == "PENDING"
+    assert refresh["execution_allowed"] is False
+    assert state["market_history_refresh"]["state"] == "PENDING"
+
+
 def test_virtual_market_manual_refresh_rejects_authority_drift_and_stale_request(
     tmp_path: Path,
 ) -> None:

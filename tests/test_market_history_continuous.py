@@ -25,6 +25,7 @@ from ai4binance.config import Settings
 from ai4binance.core.errors import ExchangeHttpError, ExchangeTransportError
 from ai4binance.data.archive import ParquetOHLCVArchive
 from ai4binance.data.market_history_continuous import (
+    VIRTUAL_MARKET_COLLECTION_TIMEFRAMES,
     ContinuousMarketHistory,
     MeteredPublicTransport,
     PublicRequestBudget,
@@ -34,7 +35,6 @@ from ai4binance.data.market_history_continuous import (
     market_history_refresh_status,
 )
 from ai4binance.data.market_history_sync import (
-    MARKET_HISTORY_TIMEFRAMES,
     BinanceVisionArchiveCache,
     MarketHistorySynchronizer,
 )
@@ -175,8 +175,8 @@ def test_staged_universe_collects_all_virtual_market_timeframes_before_analysis(
     instance.on_symbol_screen = screen
     instance.on_symbol_ready = analyze
     result = instance.sync_cycle(observed_at=NOW)
-    assert len(calls) == 20
-    assert {tf for _, _, tf in calls} == set(MARKET_HISTORY_TIMEFRAMES)
+    assert len(calls) == 12
+    assert {tf for _, _, tf in calls} == set(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES)
     assert len(calls) == len(set(calls))
     assert sorted(analyzed) == [
         ("SPOT", "BTCUSDT"),
@@ -184,7 +184,7 @@ def test_staged_universe_collects_all_virtual_market_timeframes_before_analysis(
         ("USD_M_FUTURES", "BTCUSDT"),
         ("USD_M_FUTURES", "ETHUSDT"),
     ]
-    assert result["total_streams"] == result["completed_streams"] == 20
+    assert result["total_streams"] == result["completed_streams"] == 12
     assert result["completed_symbols"] == 4
     assert result["execution_allowed"] is False
 
@@ -210,7 +210,7 @@ def test_staged_screen_failure_or_no_trigger_never_downloads_enrichment(
     monkeypatch.setattr(instance, "_collect_stream", collect)
     instance.on_symbol_screen = screen
     instance.sync_cycle(observed_at=NOW)
-    assert calls == list(MARKET_HISTORY_TIMEFRAMES)
+    assert calls == list(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES)
 
 
 def test_existing_archive_fetches_only_holes_then_tail_without_replaying_rows(
@@ -297,7 +297,7 @@ def test_futures_enrichment_uses_canonical_monitor_under_shared_lease(
         *,
         timeframes: tuple[str, ...] | None = None,
     ) -> dict[str, object]:
-        assert timeframes == MARKET_HISTORY_TIMEFRAMES
+        assert timeframes == VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
         lock = (
             root
             / "runtime/artifacts/opportunity-radar/monitor/USD_M_FUTURES"
@@ -364,11 +364,11 @@ def test_staged_explicit_refresh_coalesces_candidate_enrichment(
         "live_eligibility_status": "LIVE_ORDER_BLOCKED",
     }
     result = instance.sync_cycle(observed_at=NOW)
-    assert calls == list(MARKET_HISTORY_TIMEFRAMES)
+    assert calls == list(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES)
     assert (
         result["completed_streams"]
         == result["total_streams"]
-        == len(MARKET_HISTORY_TIMEFRAMES)
+        == len(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES)
     )
 
 
@@ -426,16 +426,18 @@ def test_resume_fetches_native_timeframes_without_local_materialization(
     assert all(row["network_download"] is True for row in refresh_rows)
     assert {row["closed_history_source"] for row in refresh_rows} == {
         f"BINANCE_VISION_{timeframe.upper()}_DIRECT"
-        for timeframe in MARKET_HISTORY_TIMEFRAMES
+        for timeframe in VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
     }
-    progress = tmp_path / "market/spot/BTCUSDT/5m/collection-progress.json"
+    progress = tmp_path / "market/spot/BTCUSDT/15m/collection-progress.json"
     resumed = collector(tmp_path, transport)
     second = resumed.sync_cycle(observed_at=NOW)
     assert second["status"] == "READY"
     klines = [params for path, params in transport.calls if path.endswith("klines")]
-    assert {params["interval"] for params in klines} == set(MARKET_HISTORY_TIMEFRAMES)
+    assert {params["interval"] for params in klines} == set(
+        VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
+    )
     archive = ParquetOHLCVArchive(tmp_path / "market/spot")
-    for timeframe in MARKET_HISTORY_TIMEFRAMES:
+    for timeframe in VIRTUAL_MARKET_COLLECTION_TIMEFRAMES:
         assert archive.manifest("BTCUSDT", timeframe).gap_count == 0
     before = len(klines)
     resumed.sync_cycle(observed_at=NOW)
@@ -544,13 +546,15 @@ def test_sync_finishes_symbol_streams_and_publishes_durable_progress(
     report = instance.sync_cycle(observed_at=NOW)
 
     assert markets[:1] == ["spot"]
-    assert markets.count("spot") == 5
-    assert markets.count("usd_m_futures") == 9
+    assert markets.count("spot") == len(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES)
+    assert markets.count("usd_m_futures") == (
+        len(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES) + 4
+    )
     assert snapshot_markets == (["spot", "usd_m_futures"] if long_backfill else [])
     assert report["completed_symbols"] == 2
     assert report["total_symbols"] == 2
-    assert report["completed_streams"] == 14
-    assert report["total_streams"] == 14
+    assert report["completed_streams"] == 10
+    assert report["total_streams"] == 10
     assert report["completion_ratio"] == "1.000000"
     assert ready_symbols == [("SPOT", "ETHUSDT"), ("USD_M_FUTURES", "BTCUSDT")]
     assert report["opportunity_analysis_summary"] == {"CURRENT": 2}
@@ -571,7 +575,9 @@ def test_sync_finishes_symbol_streams_and_publishes_durable_progress(
     assert isinstance(collector_coverage, Mapping)
     spot_coverage = collector_coverage["SPOT"]
     assert isinstance(spot_coverage, list)
-    assert {row["timeframe"] for row in spot_coverage} == set(MARKET_HISTORY_TIMEFRAMES)
+    assert {row["timeframe"] for row in spot_coverage} == set(
+        VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
+    )
     assert all(row["current_count"] == 1 for row in spot_coverage)
     assert all(row["pending_count"] == 0 for row in spot_coverage)
     assert universe_provider.calls == (2 if long_backfill else 1)
@@ -616,11 +622,11 @@ def test_stream_plan_uses_each_native_price_candle_feed() -> None:
     futures_streams = ContinuousMarketHistory._collection_kinds("usd_m_futures")
 
     assert spot_streams == tuple(
-        ("klines", timeframe) for timeframe in MARKET_HISTORY_TIMEFRAMES
+        ("klines", timeframe) for timeframe in VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
     )
-    assert futures_streams[:5] == spot_streams
-    assert len(spot_streams) == 5
-    assert len(futures_streams) == 9
+    assert futures_streams[: len(spot_streams)] == spot_streams
+    assert len(spot_streams) == len(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES)
+    assert len(futures_streams) == len(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES) + 4
 
 
 def test_priority_symbols_precede_background_backfill(tmp_path: Path) -> None:
@@ -646,17 +652,17 @@ def test_priority_symbols_precede_background_backfill(tmp_path: Path) -> None:
         for market, symbol, _, kind, timeframe in streams[:6]
     ]
     assert leading_streams == [
-        ("spot", "HOTUSDT", "klines", "5m"),
         ("spot", "HOTUSDT", "klines", "15m"),
         ("spot", "HOTUSDT", "klines", "1h"),
         ("spot", "HOTUSDT", "klines", "4h"),
-        ("spot", "HOTUSDT", "klines", "1d"),
-        ("usd_m_futures", "BTCUSDT", "klines", "5m"),
+        ("usd_m_futures", "BTCUSDT", "klines", "15m"),
+        ("usd_m_futures", "BTCUSDT", "klines", "1h"),
+        ("usd_m_futures", "BTCUSDT", "klines", "4h"),
     ]
-    assert len(streams) == 19
+    assert len(streams) == 13
 
 
-def test_priority_depth_scope_does_not_subscribe_the_full_universe() -> None:
+def test_priority_depth_scope_covers_the_bounded_active_universe() -> None:
     class DepthUniverse:
         spot_symbols = ("HOTUSDT", "ETHUSDT")
         futures_symbols = ("BTCUSDT", "ETHUSDT")
@@ -667,13 +673,14 @@ def test_priority_depth_scope_does_not_subscribe_the_full_universe() -> None:
         ("HOTUSDT", "BTCUSDT", "MISSING"),
         include_coin_m=True,
     ) == {
-        "spot": ("HOTUSDT",),
-        "usd_m_futures": ("BTCUSDT",),
+        "spot": ("HOTUSDT", "ETHUSDT"),
+        "usd_m_futures": ("BTCUSDT", "ETHUSDT"),
         "coin_m_futures": (),
     }
 
 
-def test_priority_depth_scope_falls_back_to_top_volume_per_primary_market() -> None:
+def test_priority_depth_scope_preserves_top_volume_order_without_watchlist_match(
+) -> None:
     class DepthUniverse:
         spot_symbols = ("ETHUSDT", "BTCUSDT")
         futures_symbols = ("BTCUSDT", "ETHUSDT")
@@ -684,8 +691,8 @@ def test_priority_depth_scope_falls_back_to_top_volume_per_primary_market() -> N
         ("HOTUSDT",),
         include_coin_m=False,
     ) == {
-        "spot": ("ETHUSDT",),
-        "usd_m_futures": ("BTCUSDT",),
+        "spot": ("ETHUSDT", "BTCUSDT"),
+        "usd_m_futures": ("BTCUSDT", "ETHUSDT"),
     }
 
 
@@ -712,8 +719,8 @@ def test_opportunity_analysis_starts_after_native_timeframe_ingestion(
 
     instance.sync_cycle(observed_at=NOW)
 
-    assert calls == list(MARKET_HISTORY_TIMEFRAMES)
-    assert analyzed_after == [5]
+    assert calls == list(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES)
+    assert analyzed_after == [len(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES)]
 
 
 def test_native_streams_are_the_canonical_dashboard_input(
@@ -728,7 +735,7 @@ def test_native_streams_are_the_canonical_dashboard_input(
         *_args: object, timeframe: str | None, **_kwargs: object
     ) -> dict[str, object]:
         started.append(timeframe)
-        if timeframe == "1d":
+        if timeframe == "4h":
             native_streams_started.set()
         return {"status": "CURRENT"}
 
@@ -736,7 +743,7 @@ def test_native_streams_are_the_canonical_dashboard_input(
     instance.sync_cycle(observed_at=NOW)
 
     assert native_streams_started.is_set()
-    assert started == list(MARKET_HISTORY_TIMEFRAMES)
+    assert started == list(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES)
 
 
 def test_background_stream_plan_finishes_each_symbol_before_the_next(
@@ -754,9 +761,10 @@ def test_background_stream_plan_finishes_each_symbol_before_the_next(
     )
 
     assert [(market, symbol) for market, symbol, *_ in streams] == [
-        *(("spot", "AUSDT"),) * len(MARKET_HISTORY_TIMEFRAMES),
-        *(("spot", "BUSDT"),) * len(MARKET_HISTORY_TIMEFRAMES),
-        *(("usd_m_futures", "CUSDT"),) * (len(MARKET_HISTORY_TIMEFRAMES) + 4),
+        *(("spot", "AUSDT"),) * len(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES),
+        *(("spot", "BUSDT"),) * len(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES),
+        *(("usd_m_futures", "CUSDT"),)
+        * (len(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES) + 4),
     ]
 
 
@@ -777,7 +785,9 @@ def test_symbol_with_incomplete_stream_does_not_start_opportunity_analysis(
         instance,
         "_collect_stream",
         lambda *_args, **kwargs: {
-            "status": "BACKFILLING" if kwargs.get("timeframe") == "5m" else "CURRENT"
+            "status": "BACKFILLING"
+            if kwargs.get("timeframe") == "15m"
+            else "CURRENT"
         },
     )
 
@@ -833,7 +843,7 @@ def test_stream_failure_summary_uses_safe_codes(
 
     failures = report["stream_failure_summary"]
     assert isinstance(failures, dict)
-    assert sum(failures.values()) == len(MARKET_HISTORY_TIMEFRAMES)
+    assert sum(failures.values()) == len(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES)
     assert all("PROGRESS_AHEAD_OF_VERIFIED_DATASET" in key for key in failures)
     assert "secret" not in (tmp_path / "state.json").read_text(encoding="utf-8")
 
@@ -851,7 +861,7 @@ def test_canonical_opportunity_pipeline_reuses_archive_without_network(
                     "timeframe": timeframe,
                     "status": "CURRENT",
                 }
-                for timeframe in MARKET_HISTORY_TIMEFRAMES
+                for timeframe in VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
             ],
             "candidates": [
                 {
@@ -928,7 +938,7 @@ def test_canonical_opportunity_pipeline_reuses_archive_without_network(
             "now": NOW,
             "minimum_candles": 200,
             "candle_limit": 250,
-            "timeframes": MARKET_HISTORY_TIMEFRAMES,
+            "timeframes": VIRTUAL_MARKET_COLLECTION_TIMEFRAMES,
         }
     ]
     assert futures["status"] == "DELEGATED"
@@ -968,6 +978,27 @@ def test_dashboard_refresh_request_is_coalesced_and_other_symbol_is_busy(
     assert busy["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
 
 
+def test_virtual_market_refresh_request_preserves_single_writer_safety(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "market-history-refresh-request.json"
+
+    request = enqueue_market_history_refresh_request(
+        path,
+        market="SPOT",
+        symbol="BTCUSDT",
+        eligible_symbols=("BTCUSDT",),
+        requested_at=NOW,
+        requester="VIRTUAL_MARKET",
+    )
+    status = market_history_refresh_status(path)
+
+    assert request["state"] == "PENDING"
+    assert status["requester"] == "VIRTUAL_MARKET"
+    assert status["execution_allowed"] is False
+    assert status["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
 def test_dashboard_refresh_request_is_completed_by_the_canonical_collector(
     tmp_path: Path,
 ) -> None:
@@ -994,6 +1025,35 @@ def test_dashboard_refresh_request_is_completed_by_the_canonical_collector(
     assert status["execution_allowed"] is False
     assert status["promotion_status"] == "RESEARCH_ONLY"
     assert status["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_refresh_request_completion_never_predates_its_request(
+    tmp_path: Path,
+) -> None:
+    instance = collector(tmp_path, Transport())
+    request_path = (tmp_path / "market-history-refresh-request.json").resolve()
+    instance.refresh_request_path = request_path
+    requested_at = NOW + timedelta(minutes=10)
+    request = enqueue_market_history_refresh_request(
+        request_path,
+        market="SPOT",
+        symbol="BTCUSDT",
+        eligible_symbols=("BTCUSDT",),
+        requested_at=requested_at,
+    )
+    instance.clock = lambda: NOW
+
+    instance._complete_refresh_request(
+        request,
+        NOW,
+        status="DATA_READY",
+        blockers=(),
+    )
+
+    completed = datetime.fromisoformat(
+        str(_load(request_path)["completed_at"])
+    )
+    assert completed >= requested_at
 
 
 def test_dashboard_request_preempts_the_bounded_background_queue(
@@ -1136,7 +1196,7 @@ def test_invalid_pages_fail_closed(fault: str) -> None:
 def test_corrupt_progress_is_reported_without_reset(tmp_path: Path) -> None:
     transport = Transport()
     instance = collector(tmp_path, transport)
-    progress = tmp_path / "market/spot/BTCUSDT/5m/collection-progress.json"
+    progress = tmp_path / "market/spot/BTCUSDT/15m/collection-progress.json"
     _save(
         progress,
         {
@@ -1148,7 +1208,7 @@ def test_corrupt_progress_is_reported_without_reset(tmp_path: Path) -> None:
     assert isinstance(report["blockers"], list)
     assert "MARKET_DATA_SOURCE_OR_INTEGRITY_FAILURE" in report["blockers"]
     assert not any(
-        path.endswith("klines") and params["interval"] == "5m"
+        path.endswith("klines") and params["interval"] == "15m"
         for path, params in transport.calls
     )
 
@@ -1829,6 +1889,37 @@ def test_dashboard_candidate_projection_filters_and_sanitizes_fields() -> None:
     ]
 
 
+def test_dashboard_candidate_projection_preserves_tuple_blockers() -> None:
+    from ai4binance.cli.market_data import _dashboard_candidate_projection
+
+    candidates: list[object] = [
+        {
+            "market": "SPOT",
+            "symbol": "BTCUSDT",
+            "execution_allowed": False,
+            "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+            "direction": "BULLISH",
+            "side": "BUY",
+            "quantity": "1",
+            "entry": "101",
+            "stop_loss": "98",
+            "tp1": "105",
+            "tp2": "108",
+            "tp3": "111",
+            "target_risk_reward": "2",
+            "blockers": ("RESEARCH_ONLY",),
+        }
+    ]
+
+    projected = _dashboard_candidate_projection(
+        candidates, market="SPOT", symbol="BTCUSDT"
+    )
+
+    assert projected[0]["blockers"] == ["RESEARCH_ONLY"]
+    assert projected[0]["execution_allowed"] is False
+    assert projected[0]["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
 def test_canonical_opportunity_pipeline_validates_time_and_busy_lease(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1882,7 +1973,7 @@ def test_canonical_opportunity_pipeline_fails_closed_for_malformed_payloads(
     assert result["candidate_count"] == 0
     assert result["blockers"] == [
         f"OPPORTUNITY_DATA_UNAVAILABLE:{timeframe}"
-        for timeframe in MARKET_HISTORY_TIMEFRAMES
+        for timeframe in VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
     ]
 
 

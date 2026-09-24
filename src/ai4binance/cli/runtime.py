@@ -116,6 +116,7 @@ _RUNTIME_TRACE_REPORT_NAME = "trace-validation-latest.json"
 _VIRTUAL_MARKET_STATE_NAME = "virtual-market.json"
 _VIRTUAL_MARKET_LOCK_NAME = "virtual-market.lock"
 _VIRTUAL_MARKET_REFRESH_REQUEST_NAME = "virtual-market-refresh-request.json"
+_MARKET_HISTORY_REFRESH_REQUEST_NAME = "market-history-refresh-request.json"
 _DASHBOARD_SIMULATION_MAX_SYMBOLS = 1_000
 _DASHBOARD_SIMULATION_MAX_BLOCKERS = 12
 _NEWS_ASSET_ALIASES = {
@@ -654,6 +655,13 @@ def run_virtual_market_daemon(
                         else:
                             discovery_symbol = last_symbol
                     cycle_settings = settings.model_copy(update={"symbol": last_symbol})
+                    from ai4binance.data.market_history_continuous import (
+                        VIRTUAL_MARKET_COLLECTION_TIMEFRAMES,
+                    )
+
+                    cycle_settings = cycle_settings.model_copy(
+                        update={"timeframes": VIRTUAL_MARKET_COLLECTION_TIMEFRAMES}
+                    )
                     cycle_report.update(
                         {
                             "symbol": last_symbol,
@@ -669,6 +677,13 @@ def run_virtual_market_daemon(
                     )
                     exit_code = _run_virtual_market_research_cycle(
                         cycle_settings, acquisition, cycle_report=cycle_report
+                    )
+                    _request_market_history_refresh_if_stale(
+                        state_path.with_name(_MARKET_HISTORY_REFRESH_REQUEST_NAME),
+                        symbol=last_symbol,
+                        eligible_symbols=eligible_symbols,
+                        observed_at=clock(),
+                        cycle_report=cycle_report,
                     )
             except (ExchangeError, OSError, RuntimeError, TypeError, ValueError):
                 exit_code = 2
@@ -870,6 +885,46 @@ def _run_virtual_market_research_cycle(
         cycle_report=cycle_report,
         virtual_wallet_journal=_virtual_wallet_journal(settings),
     )
+
+
+def _request_market_history_refresh_if_stale(
+    path: Path,
+    *,
+    symbol: str,
+    eligible_symbols: tuple[str, ...],
+    observed_at: datetime,
+    cycle_report: dict[str, object],
+) -> None:
+    """Request one bounded canonical refresh after a stale virtual snapshot."""
+
+    raw_blockers = cycle_report.get("research_blockers", ())
+    blockers = (
+        tuple(item for item in raw_blockers if isinstance(item, str))
+        if isinstance(raw_blockers, (list, tuple))
+        else ()
+    )
+    if not any(item.startswith("STALE_CANDLES:") for item in blockers):
+        return
+    from ai4binance.data.market_history_continuous import (
+        enqueue_market_history_refresh_request,
+    )
+
+    try:
+        refresh = enqueue_market_history_refresh_request(
+            path,
+            market="SPOT",
+            symbol=symbol,
+            eligible_symbols=eligible_symbols,
+            requested_at=observed_at,
+            requester="VIRTUAL_MARKET",
+        )
+    except (OSError, ValueError):
+        cycle_report["market_history_refresh"] = {
+            "state": "DATA_BLOCKED",
+            "blockers": ["VIRTUAL_MARKET_REFRESH_REQUEST_FAILED"],
+        }
+        return
+    cycle_report["market_history_refresh"] = refresh
 
 
 def _virtual_wallet_journal(settings: Settings) -> VirtualWalletJournal:

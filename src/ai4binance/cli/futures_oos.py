@@ -139,7 +139,7 @@ def main(
 
     parsed = build_parser().parse_args(arguments)
     repository_root = parsed.repository_root.resolve()
-    replay_root = repository_root / "runtime" / "datasets" / "futures"
+    replay_root = repository_root / "runtime" / "data" / "datasets" / "futures"
     evidence_root = (
         repository_root / "runtime" / "artifacts" / "validation" / "futures_oos"
     )

@@ -72,7 +72,7 @@ class Settings(BaseSettings):
         "config/research/runtime_validation_deployment.json"
     )
     futures_oos_artifact_directory: Path = Path(
-        "runtime/artifacts/research/backtest/oos"
+        "runtime/artifacts/validation/futures_oos"
     )
     backtest_report_directory: Path = Path("runtime/reports/backtest")
     backtest_layout_manifest_path: Path = Path(
