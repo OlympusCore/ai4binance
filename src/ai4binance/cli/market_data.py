@@ -45,6 +45,7 @@ _SAFE_STATE: dict[str, object] = {
     "promotion_status": "RESEARCH_ONLY",
     "live_eligibility_status": "LIVE_ORDER_BLOCKED",
 }
+_DEPTH_SYMBOLS_PER_CONNECTION = 10
 _DASHBOARD_CANDIDATE_FIELDS = (
     "opportunity_id",
     "observed_at",
@@ -137,6 +138,22 @@ def _priority_depth_markets(
             symbol for symbol in priority if symbol in coin_m_symbols
         )
     return markets
+
+
+def build_market_depth_collector(
+    synchronizer: MarketHistorySynchronizer,
+    continuous: ContinuousMarketHistory,
+) -> MarketDepthCollector:
+    """Build bounded shards so one reconnect cannot invalidate a full universe."""
+
+    transports = {"spot": continuous.spot, "usd_m_futures": continuous.futures}
+    if continuous.coin_m is not None:
+        transports["coin_m_futures"] = continuous.coin_m
+    return MarketDepthCollector(
+        synchronizer.archive_root / "depth",
+        transports,
+        symbols_per_connection=_DEPTH_SYMBOLS_PER_CONNECTION,
+    )
 
 
 def build_continuous_market_history(
@@ -409,10 +426,7 @@ def run_market_history_command(
         return 0 if not report.blockers else 2
 
     if command == "market-history-daemon":
-        transports = {"spot": continuous.spot, "usd_m_futures": continuous.futures}
-        if continuous.coin_m is not None:
-            transports["coin_m_futures"] = continuous.coin_m
-        depth = MarketDepthCollector(synchronizer.archive_root / "depth", transports)
+        depth = build_market_depth_collector(synchronizer, continuous)
 
         def cycle(now: datetime) -> object:
             if settings.market_depth_enabled:
@@ -593,6 +607,7 @@ if __name__ == "__main__":
 
 __all__ = (
     "build_continuous_market_history",
+    "build_market_depth_collector",
     "build_market_history_synchronizer",
     "main",
     "run_market_history_command",

@@ -47,8 +47,37 @@ function Rotate-LogFile {
         if (Test-Path -LiteralPath $source -PathType Leaf) {
             if ((Get-Item -LiteralPath $source).Length -gt $MaximumBytes) {
                 $trimmed = "$source.trimmed"
-                Get-Content -LiteralPath $source -Tail 20000 |
-                Set-Content -LiteralPath $trimmed -Encoding UTF8
+                $stream = [System.IO.File]::Open(
+                    $source,
+                    [System.IO.FileMode]::Open,
+                    [System.IO.FileAccess]::Read,
+                    [System.IO.FileShare]::ReadWrite
+                )
+                try {
+                    $byteCount = [int][Math]::Min($MaximumBytes, $stream.Length)
+                    [void]$stream.Seek(-$byteCount, [System.IO.SeekOrigin]::End)
+                    $buffer = [byte[]]::new($byteCount)
+                    $readCount = $stream.Read($buffer, 0, $byteCount)
+                }
+                finally {
+                    $stream.Dispose()
+                }
+                $start = 0
+                if ($readCount -lt (Get-Item -LiteralPath $source).Length) {
+                    while ($start -lt $readCount -and $buffer[$start] -ne 10) {
+                        $start++
+                    }
+                    if ($start -lt $readCount) {
+                        $start++
+                    }
+                }
+                $kept = if ($start -lt $readCount) {
+                    [byte[]]$buffer[$start..($readCount - 1)]
+                }
+                else {
+                    [byte[]]::new(0)
+                }
+                [System.IO.File]::WriteAllBytes($trimmed, $kept)
                 Move-Item -LiteralPath $trimmed -Destination $source -Force
             }
             Move-Item -LiteralPath $source -Destination $target -Force
@@ -115,8 +144,19 @@ function Invoke-ServicePython {
     } -ArgumentList $HealthPath, $Service, $PID
     Push-Location -LiteralPath $root
     try {
-        & $python -B @Arguments 1>> $StdoutPath 2>> $StderrPath
-        return [int]$LASTEXITCODE
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            # Windows PowerShell 5 surfaces native stderr as ErrorRecord objects.
+            # Service diagnostics must be logged without terminating a healthy
+            # resident Python process; its real exit code remains authoritative.
+            $ErrorActionPreference = "Continue"
+            & $python -B @Arguments 1>> $StdoutPath 2>> $StderrPath
+            $nativeExitCode = [int]$LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+        return $nativeExitCode
     }
     finally {
         Pop-Location

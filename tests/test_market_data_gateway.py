@@ -208,7 +208,7 @@ def test_gateway_reuses_the_canonical_continuous_collector_builder() -> None:
     source = Path(gateway_cli.__file__).read_text(encoding="utf-8")
 
     assert "build_continuous_market_history(" in source
-    assert "MarketDepthCollector(" in source
+    assert "build_market_depth_collector(" in source
     assert '"market-history-refresh-request.json"' not in source
 
 

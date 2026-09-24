@@ -401,6 +401,24 @@ def test_write_json_object_verified_reads_destination_back(tmp_path: Path) -> No
     assert json.loads(path.read_text(encoding="utf-8"))["status"] == "ok"
 
 
+def test_write_json_object_verified_compares_canonical_json_shapes(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "state" / "latest.json"
+
+    result = write_json_object_verified(
+        path,
+        {"blockers": ("FIRST", "SECOND")},
+        blocker="STATE_VERIFY_FAILED",
+    )
+
+    assert result.expected_sha256 == result.observed_sha256
+    assert json.loads(path.read_text(encoding="utf-8"))["blockers"] == [
+        "FIRST",
+        "SECOND",
+    ]
+
+
 def test_write_json_object_verified_stops_on_failed_read_back(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

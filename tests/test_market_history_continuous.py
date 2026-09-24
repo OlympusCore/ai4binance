@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from threading import Event, Thread
+from types import SimpleNamespace
 from typing import cast
 
 import pytest
@@ -17,6 +18,7 @@ import pytest
 from ai4binance.cli.market_data import (
     _build_canonical_opportunity_pipeline,
     _priority_depth_markets,
+    build_market_depth_collector,
 )
 from ai4binance.cli.market_data import (
     main as market_data_main,
@@ -37,6 +39,9 @@ from ai4binance.data.market_history_continuous import (
 from ai4binance.data.market_history_sync import (
     BinanceVisionArchiveCache,
     MarketHistorySynchronizer,
+)
+from ai4binance.infrastructure.persistence.safe_json import (
+    DestinationVerificationError,
 )
 from ai4binance.integrations.binance import BinanceEligibleMarketSnapshot
 from ai4binance.schemas import OHLCVCandle
@@ -385,6 +390,7 @@ def test_recoverable_cycle_failure_is_persisted_for_retry(tmp_path: Path) -> Non
     state = _load(instance.history.state_path)
     assert state["status"] == "DEGRADED"
     assert state["last_error_type"] == "OSError"
+    assert state["last_error_code"] == "MARKET_HISTORY_RECOVERABLE_ERROR"
     assert state["recovery_action"] == "RETRY_NEXT_CYCLE"
     assert state["completed_streams"] == 5
     assert state["total_streams"] == 10
@@ -394,6 +400,20 @@ def test_recoverable_cycle_failure_is_persisted_for_retry(tmp_path: Path) -> Non
     )
     assert state["execution_allowed"] is False
     assert state["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_recoverable_failure_exposes_only_verified_blocker_code(
+    tmp_path: Path,
+) -> None:
+    instance = collector(tmp_path, Transport())
+
+    instance.record_recoverable_cycle_failure(
+        NOW,
+        DestinationVerificationError("MARKET_HISTORY_WRITE_FAILED"),
+    )
+
+    state = _load(instance.history.state_path)
+    assert state["last_error_code"] == "MARKET_HISTORY_WRITE_FAILED"
 
 
 def test_recoverable_cycle_failure_tolerates_malformed_previous_blockers(
@@ -550,7 +570,8 @@ def test_sync_finishes_symbol_streams_and_publishes_durable_progress(
     assert markets.count("usd_m_futures") == (
         len(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES) + 4
     )
-    assert snapshot_markets == (["spot", "usd_m_futures"] if long_backfill else [])
+    expected_snapshot_passes = 2 if long_backfill else 1
+    assert snapshot_markets == ["spot", "usd_m_futures"] * expected_snapshot_passes
     assert report["completed_symbols"] == 2
     assert report["total_symbols"] == 2
     assert report["completed_streams"] == 10
@@ -694,6 +715,20 @@ def test_priority_depth_scope_preserves_top_volume_order_without_watchlist_match
         "spot": ("ETHUSDT", "BTCUSDT"),
         "usd_m_futures": ("BTCUSDT", "ETHUSDT"),
     }
+
+
+def test_depth_collector_shards_limit_reconnect_blast_radius(tmp_path: Path) -> None:
+    transport = Transport()
+    depth = build_market_depth_collector(
+        cast(MarketHistorySynchronizer, SimpleNamespace(archive_root=tmp_path)),
+        cast(
+            ContinuousMarketHistory,
+            SimpleNamespace(spot=transport, futures=transport, coin_m=None),
+        ),
+    )
+
+    assert depth.group_size == 10
+    assert depth.root == tmp_path / "depth"
 
 
 def test_opportunity_analysis_starts_after_native_timeframe_ingestion(
@@ -2136,7 +2171,9 @@ def test_market_history_daemon_starts_depth_and_reports_completion(
     depth_events: list[object] = []
 
     class Depth:
-        def __init__(self, _root: Path, transports: object) -> None:
+        def __init__(
+            self, _root: Path, transports: object, **_kwargs: object
+        ) -> None:
             depth_events.append(transports)
 
         def start(self, markets: object) -> None:
@@ -2221,7 +2258,7 @@ def test_market_history_daemon_maps_runtime_failures_to_safe_blockers(
             pass
 
     class Depth:
-        def __init__(self, *_args: object) -> None:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
             pass
 
         def close(self) -> None:

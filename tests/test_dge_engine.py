@@ -230,6 +230,27 @@ def test_dge_virtual_market_surface_allows_autonomous_simulation_only() -> None:
     assert decision.execution_surface is ExecutionSurface.VIRTUAL_MARKET
 
 
+def test_dge_blocked_virtual_market_returns_decision_without_profile_conflict() -> None:
+    decision = DecisionGovernanceEngine().evaluate(
+        candidate(),
+        context(
+            execution_surface=ExecutionSurface.VIRTUAL_MARKET,
+            oos_approved=False,
+            validation_approved=False,
+            human_approval_recorded=False,
+        ),
+    )
+
+    assert decision.governance_status is DgeDecisionStatus.WATCH_ONLY
+    assert decision.governed_action is DgeMarketAction.NO_TRADE
+    assert "VAL.OOS_NOT_VALIDATED" in decision.hard_blockers
+    assert decision.simulated_execution_allowed is False
+    assert decision.paper_execution_allowed is False
+    assert decision.auto_execution_allowed is False
+    assert decision.autonomous_learning_allowed is False
+    assert decision.requires_manual_confirmation is True
+
+
 def test_dge_data_quality_failure_is_first_class_and_non_executable() -> None:
     decision = DecisionGovernanceEngine().evaluate(
         candidate(),

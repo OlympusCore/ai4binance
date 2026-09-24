@@ -119,6 +119,7 @@ _VIRTUAL_MARKET_REFRESH_REQUEST_NAME = "virtual-market-refresh-request.json"
 _MARKET_HISTORY_REFRESH_REQUEST_NAME = "market-history-refresh-request.json"
 _DASHBOARD_SIMULATION_MAX_SYMBOLS = 1_000
 _DASHBOARD_SIMULATION_MAX_BLOCKERS = 12
+_VIRTUAL_MARKET_UNIVERSE_LIMIT = 50
 _NEWS_ASSET_ALIASES = {
     "BTC": ("bitcoin",),
     "ETH": ("ethereum", "ether"),
@@ -591,7 +592,14 @@ def run_virtual_market_daemon(
                             if name not in configured
                         )
                         if universe is not None
-                        else configured
+                        else (
+                            _virtual_market_ranked_symbols(
+                                settings,
+                                configured,
+                                clock(),
+                            )
+                            or configured
+                        )
                     )
                     from ai4binance.exchange.client import BinancePublicClient
 
@@ -670,9 +678,13 @@ def run_virtual_market_daemon(
                             "priority_symbol": priority_symbol,
                             "discovery_symbol": discovery_symbol,
                             "priority_symbol_count": len(priority_symbols),
-                            "universe_source": "CANONICAL_CACHE"
-                            if universe is not None
-                            else "CONFIGURED_FALLBACK",
+                            "universe_source": (
+                                "CANONICAL_CACHE"
+                                if universe is not None
+                                else "LOCAL_SNAPSHOT"
+                                if symbols != configured
+                                else "CONFIGURED_FALLBACK"
+                            ),
                         }
                     )
                     exit_code = _run_virtual_market_research_cycle(
@@ -839,6 +851,25 @@ def _virtual_market_priority_symbols(
     observed_at: datetime,
 ) -> tuple[str, ...]:
     """Schedule canonical liquidity priorities using shared public files only."""
+
+    return tuple(
+        symbol
+        for symbol in _virtual_market_ranked_symbols(
+            settings,
+            configured,
+            observed_at,
+        )
+        if symbol in eligible
+    )[: settings.virtual_market_priority_symbol_count]
+
+
+def _virtual_market_ranked_symbols(
+    settings: Settings,
+    configured: tuple[str, ...],
+    observed_at: datetime,
+) -> tuple[str, ...]:
+    """Read the bounded Spot universe from the current canonical snapshots."""
+
     from ai4binance.data.acquisition import LocalMarketSnapshotTransport
     from ai4binance.integrations.binance.market_universe_provider import (
         BinanceMarketUniverseProvider,
@@ -853,14 +884,14 @@ def _virtual_market_priority_symbols(
         ranked = BinanceMarketUniverseProvider(
             local,
             local,
-            max_symbols_per_market=settings.virtual_market_priority_symbol_count,
+            max_symbols_per_market=_VIRTUAL_MARKET_UNIVERSE_LIMIT,
         ).spot_symbols(configured)
     except (ExchangeError, OSError, TypeError, ValueError):
         return ()
     return tuple(
         item.symbol
         for item in ranked
-        if item.symbol in eligible and item.data_quality_ok and item.status == "TRADING"
+        if item.data_quality_ok and item.status == "TRADING"
     )
 
 

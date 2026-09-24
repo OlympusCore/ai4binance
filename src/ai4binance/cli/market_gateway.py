@@ -15,11 +15,11 @@ from websockets.exceptions import ConnectionClosed
 from ai4binance.cli.market_data import (
     _priority_depth_markets,
     build_continuous_market_history,
+    build_market_depth_collector,
     build_market_history_synchronizer,
 )
 from ai4binance.config import Settings
 from ai4binance.data.market_data_gateway import MarketStreamGapError, build_gateway
-from ai4binance.data.market_depth import MarketDepthCollector
 from ai4binance.infrastructure.persistence.safe_json import write_json_object_verified
 from ai4binance.ops.runtime import SingleInstanceLease
 
@@ -83,15 +83,9 @@ def run_gateway(settings: Settings, *, max_cycles: int | None = None) -> int:
         root=Path.cwd(),
         include_coin_m=False,
     )
-    depth: MarketDepthCollector | None = None
+    depth = None
     if getattr(settings, "market_depth_enabled", False):
-        depth = MarketDepthCollector(
-            synchronizer.archive_root / "depth",
-            {
-                "spot": collector.spot,
-                "usd_m_futures": collector.futures,
-            },
-        )
+        depth = build_market_depth_collector(synchronizer, collector)
     lock_path = _absolute(settings.market_history_state_path).with_suffix(".lock")
     heartbeat = _GatewayStateHeartbeat(_absolute(settings.market_history_state_path))
     completed = 0

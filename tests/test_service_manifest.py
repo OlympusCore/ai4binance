@@ -157,6 +157,10 @@ def test_startup_install_script_preserves_cli_module_runtime_commands() -> None:
     assert '$env:PYTHONDONTWRITEBYTECODE = "1"' in install_text
     assert "& $python -B @Arguments" in install_text
     assert "& $python @Arguments" not in install_text
+    assert '$previousErrorActionPreference = $ErrorActionPreference' in install_text
+    assert '$ErrorActionPreference = "Continue"' in install_text
+    assert '$ErrorActionPreference = $previousErrorActionPreference' in install_text
+    assert "$nativeExitCode = [int]$LASTEXITCODE" in install_text
     assert '-Arguments @("-m", "ai4binance.cli", "archive-public")' in install_text
     assert '-Arguments @("-m", "ai4binance.cli", "validate-research")' in install_text
     assert "-WindowStyle Hidden" in install_text

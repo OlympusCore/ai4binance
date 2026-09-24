@@ -112,6 +112,9 @@ def write_json_object_verified(
     temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
     try:
         encoded = _json_dumps(expected, indent=indent) + "\n"
+        normalized_expected = json.loads(encoded)
+        if not isinstance(normalized_expected, dict):
+            raise TypeError("verified JSON state must encode an object")
         with temporary.open("w", encoding="utf-8", newline="\n") as stream:
             stream.write(encoded)
             stream.flush()
@@ -121,13 +124,13 @@ def write_json_object_verified(
         observed = read_json_object(path, blocker=blocker)
     finally:
         temporary.unlink(missing_ok=True)
-    if dict(observed) != expected:
+    if dict(observed) != normalized_expected:
         raise fail_verification(
             blocker,
             destination=path,
             subject_id=subject_id or str(path),
         )
-    expected_hash = _canonical_json_sha256(expected)
+    expected_hash = _canonical_json_sha256(normalized_expected)
     observed_hash = _canonical_json_sha256(dict(observed))
     return verified(
         path,

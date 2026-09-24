@@ -511,7 +511,10 @@ def test_refresh_dataset_blockers_distinguish_gaps_staleness_and_derivatives(
         blockers = instance._refresh_request_data_blockers(
             "usd_m_futures", "BTCUSDT", NOW, [{"kind": "funding", "status": "BLOCKED"}]
         )
-        assert f"MARKET_HISTORY_REFRESH_{code}:5m" in blockers
+        assert all(
+            f"MARKET_HISTORY_REFRESH_{code}:{timeframe}" in blockers
+            for timeframe in h.VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
+        )
         assert "FUTURES_DERIVATIVES_CONTEXT_UNAVAILABLE" in blockers
     instance._complete_refresh_request({}, NOW, status="DATA_READY", blockers=())
     with pytest.raises(ValueError, match="market is invalid"):
@@ -706,6 +709,7 @@ def test_cycle_failure_persists_safe_retry_state(tmp_path: Path) -> None:
     state = h._load(instance.history.state_path)
     assert state["status"] == "DEGRADED"
     assert state["last_error_type"] == "OSError"
+    assert state["last_error_code"] == "MARKET_HISTORY_RECOVERABLE_ERROR"
     assert "private path" not in json.dumps(state)
 
 

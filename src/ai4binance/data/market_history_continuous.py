@@ -36,7 +36,10 @@ from ai4binance.exchange.rate_limit import (
     WeightedRateLimitGovernor,
     public_request_weight,
 )
-from ai4binance.infrastructure.persistence.safe_json import write_json_object_verified
+from ai4binance.infrastructure.persistence.safe_json import (
+    DestinationVerificationError,
+    write_json_object_verified,
+)
 from ai4binance.schemas import OHLCVCandle
 
 _DEFAULT_KLINE_INTERVAL = timedelta(minutes=5)
@@ -249,6 +252,16 @@ def _save(path: Path, payload: Mapping[str, object]) -> None:
     write_json_object_verified(
         path, payload, blocker="MARKET_HISTORY_WRITE_FAILED", durable=True
     )
+
+
+def _recoverable_error_code(error: Exception) -> str:
+    """Expose only repository-owned verification codes, never exception detail."""
+
+    if isinstance(error, DestinationVerificationError):
+        code = str(error).strip()
+        if re.fullmatch(r"[A-Z][A-Z0-9_]{2,127}", code):
+            return code
+    return "MARKET_HISTORY_RECOVERABLE_ERROR"
 
 
 def _load(path: Path) -> dict[str, object]:
@@ -513,10 +526,10 @@ class ContinuousMarketHistory:
                 self.coin_m,
             ),
         )
-        # Historical candle collection must not wait behind bulk snapshot
-        # endpoints. Snapshots are supplementary metadata and are refreshed
-        # after the first bounded collection interval.
-        snapshot_refresh_due = time.monotonic() + 300
+        # VirtualMarket depends on these bounded bulk snapshots. Refresh once
+        # at cycle start so a service restart cannot leave an already-old
+        # ticker cache to expire during a long candle collection cycle.
+        snapshot_refresh_due = time.monotonic()
 
         def refresh_snapshots(snapshot_time: datetime) -> None:
             nonlocal snapshot_refresh_due
@@ -533,6 +546,10 @@ class ContinuousMarketHistory:
                     refreshed_universe is None or refreshed_universe.blockers
                 ) and "MARKET_UNIVERSE_METADATA_UNAVAILABLE" not in blockers:
                     blockers.append("MARKET_UNIVERSE_METADATA_UNAVAILABLE")
+                elif refreshed_universe is not None and not refreshed_universe.blockers:
+                    while "MARKET_UNIVERSE_METADATA_UNAVAILABLE" in blockers:
+                        blockers.remove("MARKET_UNIVERSE_METADATA_UNAVAILABLE")
+            snapshot_failed = False
             for snapshot_market, snapshot_symbols, snapshot_transport in market_work:
                 if snapshot_transport is None or not snapshot_symbols:
                     continue
@@ -544,9 +561,15 @@ class ContinuousMarketHistory:
                         snapshot_time,
                     )
                 except (OSError, ValueError, ExchangeError):
+                    snapshot_failed = True
                     if "MARKET_SNAPSHOT_UNAVAILABLE" not in blockers:
                         blockers.append("MARKET_SNAPSHOT_UNAVAILABLE")
+            if not snapshot_failed:
+                while "MARKET_SNAPSHOT_UNAVAILABLE" in blockers:
+                    blockers.remove("MARKET_SNAPSHOT_UNAVAILABLE")
             snapshot_refresh_due = time.monotonic() + 300
+
+        refresh_snapshots(now)
 
         work_items = self._interleaved_market_work(market_work)
         requested_identity: tuple[str, str] | None = None
@@ -1620,6 +1643,7 @@ class ContinuousMarketHistory:
             "status": "DEGRADED",
             "observed_at": observed_at.astimezone(UTC).isoformat(),
             "last_error_type": type(error).__name__,
+            "last_error_code": _recoverable_error_code(error),
             "recovery_action": "RETRY_NEXT_CYCLE",
             "blockers": sorted(blockers),
             **_SAFE_STATE,
