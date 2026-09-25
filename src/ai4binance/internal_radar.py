@@ -297,7 +297,7 @@ def _analyze_pending_candidates(
         )
         analysis_count += 1
         candidate["vision_evidence"] = evidence.to_payload()
-        candidate["last_scan_timestamp_utc"] = datetime.now(UTC).isoformat()
+        candidate["last_scan_timestamp_utc"] = observed_at.isoformat()
         candidate["assessment_status"] = evidence.status
         candidate["system_benefit"] = evidence.system_contribution or "NOT_ASSESSED"
         candidate["system_tradeoff"] = (

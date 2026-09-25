@@ -42,10 +42,9 @@ def _acquire_file_lock(stream: BinaryIO) -> None:
                 msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
                 return
             except OSError as error:
-                if (
-                    error.errno not in _WINDOWS_RETRYABLE_LOCK_ERRORS
-                    or time.monotonic() >= deadline
-                ):
+                if error.errno not in _WINDOWS_RETRYABLE_LOCK_ERRORS:
+                    raise
+                if time.monotonic() >= deadline:
                     raise TimeoutError(
                         "exclusive file lock acquisition timed out"
                     ) from error

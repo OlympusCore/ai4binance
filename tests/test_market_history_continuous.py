@@ -41,6 +41,7 @@ from ai4binance.data.market_history_continuous import (
 from ai4binance.data.market_history_sync import (
     MARKET_HISTORY_TIMEFRAMES,
     BinanceVisionArchiveCache,
+    MarketHistorySourceUnavailableError,
     MarketHistorySynchronizer,
 )
 from ai4binance.infrastructure.persistence.safe_json import (
@@ -146,13 +147,23 @@ def test_staged_universe_downloads_baseline_then_enriches_candidates_before_anal
 ) -> None:
     instance = collector(tmp_path, Transport())
     instance.max_workers = workers
+    completed_at = NOW + timedelta(hours=2)
+    instance.clock = lambda: completed_at
+    universe_refreshes: list[bool] = []
+
+    def eligible_universe(
+        *_args: object, **kwargs: object
+    ) -> BinanceEligibleMarketSnapshot:
+        universe_refreshes.append(bool(kwargs.get("force_refresh")))
+        return BinanceEligibleMarketSnapshot(
+            spot_symbols=("BTCUSDT", "ETHUSDT"),
+            futures_symbols=("BTCUSDT", "ETHUSDT"),
+        )
+
     monkeypatch.setattr(
         MarketHistorySynchronizer,
         "_eligible_universe",
-        lambda *_a, **_k: BinanceEligibleMarketSnapshot(
-            spot_symbols=("BTCUSDT", "ETHUSDT"),
-            futures_symbols=("BTCUSDT", "ETHUSDT"),
-        ),
+        eligible_universe,
     )
     calls: list[tuple[str, str, str | None]] = []
     analyzed: list[tuple[str, str]] = []
@@ -183,6 +194,8 @@ def test_staged_universe_downloads_baseline_then_enriches_candidates_before_anal
     instance.on_symbol_screen = screen
     instance.on_symbol_ready = analyze
     result = instance.sync_cycle(observed_at=NOW)
+    assert universe_refreshes == [True]
+    assert result["observed_at"] == completed_at.isoformat()
     assert len(calls) == 14
     assert {tf for _, _, tf in calls} == set(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES)
     assert sum(tf == "5m" for _, _, tf in calls) == 2
@@ -1249,6 +1262,325 @@ def test_candle_progress_extends_an_older_short_bootstrap_without_data_loss(
     state = _load(progress)
     assert state["requested_start"] == "2026-08-31T00:00:00+00:00"
     assert state["coverage_extended_at"] == NOW.isoformat()
+
+
+def test_extended_existing_history_uses_vision_for_only_the_missing_window(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    transport = Transport()
+    short_window = collector(tmp_path, transport, pages=1)
+    archive = ParquetOHLCVArchive(tmp_path / "market/spot")
+    stored_at = NOW - timedelta(minutes=5)
+    archive.update(
+        "BTCUSDT",
+        "5m",
+        (
+            OHLCVCandle(
+                timestamp=stored_at,
+                open=Decimal("1"),
+                high=Decimal("1"),
+                low=Decimal("1"),
+                close=Decimal("1"),
+                volume=Decimal("1"),
+            ),
+        ),
+        source="BINANCE_PUBLIC_REST_5M",
+        generated_at=NOW,
+    )
+    progress = tmp_path / "market/spot/BTCUSDT/5m/collection-progress.json"
+    _save(
+        progress,
+        {
+            "requested_start": stored_at.isoformat(),
+            "next_at": NOW.isoformat(),
+            "first_available_at": stored_at.isoformat(),
+        },
+    )
+    extended = ContinuousMarketHistory(
+        short_window.history,
+        transport,
+        transport,
+        initial_days=400,
+        pages_per_stream=1,
+    )
+    observed: list[tuple[datetime, datetime]] = []
+
+    def recover(**kwargs: object) -> tuple[datetime, None]:
+        cursor = cast(datetime, kwargs["cursor"])
+        closed_history_end = cast(datetime, kwargs["closed_history_end"])
+        observed.append((cursor, closed_history_end))
+        return closed_history_end, None
+
+    monkeypatch.setattr(extended, "_vision_history", recover)
+
+    result = extended._candles("spot", "BTCUSDT", "klines", transport, NOW)
+
+    assert result["status"] == "CURRENT"
+    assert observed == [
+        (NOW.replace(hour=0, minute=0) - timedelta(days=400), stored_at)
+    ]
+    assert transport.calls == []
+
+
+def test_vision_history_skips_missing_archives_before_known_listing(
+    tmp_path: Path,
+) -> None:
+    class UnavailableCache:
+        def verified(self, key: str, *, kind: str) -> tuple[object, bytes]:
+            del kind
+            raise MarketHistorySourceUnavailableError(key)
+
+    history = SimpleNamespace(source_cache=UnavailableCache())
+    instance = ContinuousMarketHistory(
+        history,  # type: ignore[arg-type]
+        Transport(),
+        Transport(),
+    )
+    start = datetime(2026, 4, 1, tzinfo=UTC)
+    end = datetime(2026, 5, 1, tzinfo=UTC)
+    progress = tmp_path / "collection-progress.json"
+    state: dict[str, object] = {
+        "requested_start": start.isoformat(),
+        "next_at": start.isoformat(),
+        "first_available_at": datetime(2026, 6, 1, tzinfo=UTC).isoformat(),
+    }
+
+    cursor, unavailable = instance._vision_history(
+        market="spot",
+        symbol="NEWUSDT",
+        kind="klines",
+        timeframe="5m",
+        archive=SimpleNamespace(),  # type: ignore[arg-type]
+        dataset_symbol="NEWUSDT",
+        state=state,
+        progress_path=progress,
+        cursor=start,
+        closed_history_end=end,
+        interval=timedelta(minutes=5),
+        now=end,
+    )
+
+    assert unavailable is None
+    assert cursor == end
+    assert _load(progress)["next_at"] == end.isoformat()
+
+
+def test_vision_history_retains_missing_archive_after_known_listing(
+    tmp_path: Path,
+) -> None:
+    class UnavailableCache:
+        def verified(self, key: str, *, kind: str) -> tuple[object, bytes]:
+            del kind
+            raise MarketHistorySourceUnavailableError(key)
+
+    history = SimpleNamespace(source_cache=UnavailableCache())
+    instance = ContinuousMarketHistory(
+        history,  # type: ignore[arg-type]
+        Transport(),
+        Transport(),
+    )
+    start = datetime(2026, 7, 1, tzinfo=UTC)
+    end = datetime(2026, 8, 1, tzinfo=UTC)
+    progress = tmp_path / "collection-progress.json"
+    state: dict[str, object] = {
+        "requested_start": datetime(2026, 6, 1, tzinfo=UTC).isoformat(),
+        "next_at": start.isoformat(),
+        "first_available_at": datetime(2026, 6, 1, tzinfo=UTC).isoformat(),
+    }
+
+    cursor, unavailable = instance._vision_history(
+        market="spot",
+        symbol="BTCUSDT",
+        kind="klines",
+        timeframe="5m",
+        archive=SimpleNamespace(),  # type: ignore[arg-type]
+        dataset_symbol="BTCUSDT",
+        state=state,
+        progress_path=progress,
+        cursor=start,
+        closed_history_end=end,
+        interval=timedelta(minutes=5),
+        now=end,
+    )
+
+    assert cursor == start
+    assert unavailable == {
+        "status": "UNAVAILABLE",
+        "next_at": start.isoformat(),
+        "reason": "BINANCE_VISION_ARCHIVE_UNAVAILABLE",
+    }
+
+
+def test_vision_history_accepts_known_midmonth_listing_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class SourceCache:
+        def verified(self, key: str, *, kind: str) -> tuple[object, bytes]:
+            del key, kind
+            return (
+                SimpleNamespace(
+                    sha256="fixture",
+                    network_request_count=0,
+                    downloaded_bytes=0,
+                ),
+                b"fixture",
+            )
+
+    class Archive:
+        def update(
+            self,
+            _symbol: str,
+            _timeframe: str,
+            candles: tuple[OHLCVCandle, ...],
+            **_kwargs: object,
+        ) -> object:
+            return SimpleNamespace(last_timestamp=candles[-1].timestamp.isoformat())
+
+    history = SimpleNamespace(source_cache=SourceCache())
+    instance = ContinuousMarketHistory(
+        history,  # type: ignore[arg-type]
+        Transport(),
+        Transport(),
+    )
+    start = datetime(2026, 6, 1, tzinfo=UTC)
+    first_available = datetime(2026, 6, 16, tzinfo=UTC)
+    end = datetime(2026, 7, 1, tzinfo=UTC)
+    progress = tmp_path / "collection-progress.json"
+    state: dict[str, object] = {
+        "requested_start": start.isoformat(),
+        "next_at": start.isoformat(),
+        "first_available_at": first_available.isoformat(),
+    }
+
+    monkeypatch.setattr(
+        instance,
+        "_parse_vision_candles",
+        lambda *_args, interval, **_kwargs: (
+            OHLCVCandle(
+                timestamp=first_available,
+                open=Decimal("1"),
+                high=Decimal("1"),
+                low=Decimal("1"),
+                close=Decimal("1"),
+                volume=Decimal("1"),
+            ),
+            OHLCVCandle(
+                timestamp=end - interval,
+                open=Decimal("1"),
+                high=Decimal("1"),
+                low=Decimal("1"),
+                close=Decimal("1"),
+                volume=Decimal("1"),
+            ),
+        ),
+    )
+
+    cursor, unavailable = instance._vision_history(
+        market="usd_m_futures",
+        symbol="NEWUSDT",
+        kind="klines",
+        timeframe="15m",
+        archive=Archive(),  # type: ignore[arg-type]
+        dataset_symbol="NEWUSDT",
+        state=state,
+        progress_path=progress,
+        cursor=start,
+        closed_history_end=end,
+        interval=timedelta(minutes=15),
+        now=end,
+    )
+
+    assert unavailable is None
+    assert cursor == end
+    assert _load(progress)["next_at"] == end.isoformat()
+
+
+def test_vision_history_batches_archives_without_jumping_to_dataset_tail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class SourceCache:
+        def verified(self, key: str, *, kind: str) -> tuple[object, bytes]:
+            del kind
+            return (
+                SimpleNamespace(
+                    sha256=hashlib.sha256(key.encode()).hexdigest(),
+                    network_request_count=0,
+                    downloaded_bytes=0,
+                ),
+                b"fixture",
+            )
+
+    update_sizes: list[int] = []
+
+    class Archive:
+        def update(
+            self,
+            _symbol: str,
+            _timeframe: str,
+            candles: tuple[OHLCVCandle, ...],
+            **_kwargs: object,
+        ) -> object:
+            update_sizes.append(len(candles))
+            return SimpleNamespace(
+                last_timestamp=datetime(2026, 12, 31, tzinfo=UTC).isoformat()
+            )
+
+    history = SimpleNamespace(source_cache=SourceCache())
+    instance = ContinuousMarketHistory(
+        history,  # type: ignore[arg-type]
+        Transport(),
+        Transport(),
+    )
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+    end = datetime(2026, 5, 1, tzinfo=UTC)
+    progress = tmp_path / "collection-progress.json"
+    state: dict[str, object] = {
+        "requested_start": start.isoformat(),
+        "next_at": start.isoformat(),
+    }
+
+    monkeypatch.setattr(
+        instance,
+        "_parse_vision_candles",
+        lambda _key, _payload, archive_start, archive_end, *, interval: (
+            OHLCVCandle(
+                timestamp=archive_start,
+                open=Decimal("1"),
+                high=Decimal("1"),
+                low=Decimal("1"),
+                close=Decimal("1"),
+                volume=Decimal("1"),
+            ),
+            OHLCVCandle(
+                timestamp=archive_end - interval,
+                open=Decimal("1"),
+                high=Decimal("1"),
+                low=Decimal("1"),
+                close=Decimal("1"),
+                volume=Decimal("1"),
+            ),
+        ),
+    )
+
+    cursor, unavailable = instance._vision_history(
+        market="spot",
+        symbol="BTCUSDT",
+        kind="klines",
+        timeframe="15m",
+        archive=Archive(),  # type: ignore[arg-type]
+        dataset_symbol="BTCUSDT",
+        state=state,
+        progress_path=progress,
+        cursor=start,
+        closed_history_end=end,
+        interval=timedelta(minutes=15),
+        now=end,
+    )
+
+    assert unavailable is None
+    assert cursor == end
+    assert update_sizes == [8]
+    assert _load(progress)["next_at"] == end.isoformat()
 
 
 @pytest.mark.parametrize(

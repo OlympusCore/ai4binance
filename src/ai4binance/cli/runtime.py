@@ -687,14 +687,18 @@ def run_virtual_market_daemon(
                             ),
                         }
                     )
+                    cycle_observed_at = clock()
                     exit_code = _run_virtual_market_research_cycle(
-                        cycle_settings, acquisition, cycle_report=cycle_report
+                        cycle_settings,
+                        acquisition,
+                        observed_at=cycle_observed_at,
+                        cycle_report=cycle_report,
                     )
                     _request_market_history_refresh_if_stale(
                         state_path.with_name(_MARKET_HISTORY_REFRESH_REQUEST_NAME),
                         symbol=last_symbol,
                         eligible_symbols=eligible_symbols,
-                        observed_at=clock(),
+                        observed_at=cycle_observed_at,
                         cycle_report=cycle_report,
                     )
             except (ExchangeError, OSError, RuntimeError, TypeError, ValueError):
@@ -904,6 +908,7 @@ def _run_virtual_market_research_cycle(
     settings: Settings,
     public_acquisition: SnapshotAcquirer,
     *,
+    observed_at: datetime,
     cycle_report: dict[str, object] | None = None,
 ) -> int:
     from ai4binance.cli.research import run_public_research_command
@@ -921,7 +926,7 @@ def _run_virtual_market_research_cycle(
         cycle_report["daily_loss_tuning"] = _run_virtual_loss_tuning(
             settings,
             journal,
-            datetime.now(UTC),
+            observed_at,
         )
     return exit_code
 

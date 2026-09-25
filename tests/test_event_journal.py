@@ -494,3 +494,34 @@ def test_windows_file_lock_times_out_on_persistent_contention(
 
     with pytest.raises(TimeoutError, match="file lock acquisition timed out"):
         file_lock._acquire_file_lock(stream)
+
+
+def test_windows_file_lock_preserves_non_retryable_os_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import errno
+    import sys
+    from types import SimpleNamespace
+
+    import ai4binance.events.file_lock as file_lock
+
+    expected = OSError(errno.EBADF, "fixture invalid handle")
+
+    def locking(_descriptor: int, _operation: int, _size: int) -> None:
+        raise expected
+
+    monkeypatch.setattr(os, "name", "nt")
+    monkeypatch.setitem(
+        sys.modules,
+        "msvcrt",
+        SimpleNamespace(locking=locking, LK_NBLCK=1),
+    )
+    stream = cast(
+        Any,
+        SimpleNamespace(seek=lambda *_args: None, fileno=lambda: 7),
+    )
+
+    with pytest.raises(OSError, match="fixture invalid handle") as raised:
+        file_lock._acquire_file_lock(stream)
+
+    assert raised.value is expected

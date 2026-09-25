@@ -137,11 +137,13 @@ def test_internal_radar_vision_summary_only_counts_validated_observations(
                 route_decision=None,
             )
 
+    observed_at = datetime(2026, 9, 25, 12, 30, tzinfo=UTC)
     result = run_internal_radar_once(
         repository_root=tmp_path,
         source_root=source,
         vision_enabled=True,
         vision_runner=ObservedVisionRunner(),  # type: ignore[arg-type]
+        observed_at=observed_at,
     )
 
     payload = result.to_payload()
@@ -153,7 +155,7 @@ def test_internal_radar_vision_summary_only_counts_validated_observations(
     assert progress == {"analysed": 1, "awaiting_analysis": 0}
     candidate = _payload_candidates(payload)[0]
     assert isinstance(candidate, dict)
-    assert str(candidate["last_scan_timestamp_utc"]).endswith("+00:00")
+    assert candidate["last_scan_timestamp_utc"] == observed_at.isoformat()
     markdown = result.latest_path.with_suffix(".md").read_text(encoding="utf-8")
     assert "Last scan timestamp (UTC)" in markdown
 

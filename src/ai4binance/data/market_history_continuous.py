@@ -66,6 +66,7 @@ _DASHBOARD_REFRESH_TIMEFRAMES = VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
 # remains bounded to bootstrap and gap recovery.
 _PROGRESS_HEARTBEAT_SECONDS = 5
 _SUPPLEMENTAL_STREAM_WORKERS = 1
+_VISION_ARCHIVE_BATCH_SIZE = 16
 _COMPATIBLE_DERIVED_SOURCE_PREFIXES = (
     "COMPATIBLE_DIRECT_PLUS_DERIVED_FROM_CANONICAL_1M:",
     "DERIVED_FROM_CANONICAL_1M:",
@@ -476,9 +477,7 @@ class ContinuousMarketHistory:
     vision_history_enabled: bool = True
     on_symbol_ready: SymbolReadyHandler | None = field(default=None, repr=False)
     on_symbol_screen: SymbolReadyHandler | None = field(default=None, repr=False)
-    clock: Callable[[], datetime] = field(
-        default=lambda: datetime.now(UTC), repr=False
-    )
+    clock: Callable[[], datetime] = field(default=lambda: datetime.now(UTC), repr=False)
 
     def __post_init__(self) -> None:
         if not 1 <= self.initial_days <= 3650 or not 1 <= self.pages_per_stream <= 32:
@@ -533,7 +532,11 @@ class ContinuousMarketHistory:
         # VirtualMarket depends on these bounded bulk snapshots. Refresh once
         # at cycle start so a service restart cannot leave an already-old
         # ticker cache to expire during a long candle collection cycle.
-        snapshot_refresh_due = time.monotonic()
+        # ``universe`` was force-refreshed immediately above. Start with only
+        # the required market snapshots; metadata becomes due on the regular
+        # cadence after this pass instead of repeating the expensive top-volume
+        # universe request during the same cycle startup.
+        snapshot_refresh_due = 0.0
 
         def refresh_snapshots(snapshot_time: datetime) -> None:
             nonlocal snapshot_refresh_due
@@ -1382,9 +1385,12 @@ class ContinuousMarketHistory:
             for item in results
         ):
             blockers.append("OPPORTUNITY_SCREENING_DATA_BLOCKED")
+        completed_at = self.clock()
+        if completed_at.utcoffset() is None:
+            raise ValueError("market history completion clock must be timezone-aware")
         payload: dict[str, object] = {
             "schema_version": "2.0",
-            "observed_at": now.isoformat(),
+            "observed_at": completed_at.astimezone(UTC).isoformat(),
             "status": "DEGRADED" if blockers else "READY",
             "timeframes": list(reported_timeframes),
             "timeframe_refresh_schedule": [
@@ -2040,6 +2046,32 @@ class ContinuousMarketHistory:
     ) -> tuple[datetime, dict[str, object] | None]:
         """Materialize all published closed history without public REST calls."""
 
+        pending_candles: list[OHLCVCandle] = []
+        pending_source_hashes: list[str] = []
+
+        def flush_pending() -> None:
+            if not pending_candles:
+                return
+            source_digest = (
+                pending_source_hashes[0]
+                if len(pending_source_hashes) == 1
+                else sha256("".join(pending_source_hashes).encode()).hexdigest()
+            )
+            archive.update(
+                dataset_symbol,
+                timeframe,
+                tuple(pending_candles),
+                source=(
+                    f"BINANCE_VISION_DIRECT_{timeframe.upper()}_SHA256:{source_digest}"
+                ),
+                generated_at=now,
+                replace_conflicts_from_sources=replace_conflicts_from_sources,
+            )
+            state["next_at"] = cursor.isoformat()
+            _save(progress_path, state)
+            pending_candles.clear()
+            pending_source_hashes.clear()
+
         while cursor < closed_history_end:
             month_start = cursor.replace(
                 day=1, hour=0, minute=0, second=0, microsecond=0
@@ -2075,12 +2107,33 @@ class ContinuousMarketHistory:
             except MarketHistorySourceUnavailableError:
                 # An archive may legitimately predate a new symbol's listing.
                 # Search forward through closed history without replacing that
-                # missing period with high-volume REST backfill requests.
-                if not state.get("first_available_at"):
+                # missing period with high-volume REST backfill requests. This
+                # also applies when a retained dataset already proved a later
+                # first-available boundary and the requested history horizon
+                # is subsequently extended backwards.
+                raw_first_available = state.get("first_available_at")
+                known_first_available = (
+                    datetime.fromisoformat(str(raw_first_available))
+                    if raw_first_available
+                    else None
+                )
+                if (
+                    known_first_available is not None
+                    and known_first_available.utcoffset() is None
+                ):
+                    raise ValueError(
+                        "collection first available boundary is invalid"
+                    ) from None
+                if (
+                    known_first_available is None
+                    or archive_end <= known_first_available
+                ):
+                    flush_pending()
                     cursor = archive_end
                     state["next_at"] = cursor.isoformat()
                     _save(progress_path, state)
                     continue
+                flush_pending()
                 return cursor, {
                     "status": "UNAVAILABLE",
                     "next_at": cursor.isoformat(),
@@ -2094,32 +2147,34 @@ class ContinuousMarketHistory:
                     break
                 raise
             if candles[0].timestamp > cursor and state.get("first_available_at"):
-                return cursor, {
-                    "status": "UNAVAILABLE",
-                    "next_at": cursor.isoformat(),
-                    "reason": "KLINE_GAP",
-                }
+                known_first_available = datetime.fromisoformat(
+                    str(state["first_available_at"])
+                )
+                if known_first_available.utcoffset() is None:
+                    raise ValueError("collection first available boundary is invalid")
+                if candles[0].timestamp == known_first_available:
+                    cursor = known_first_available
+                else:
+                    flush_pending()
+                    return cursor, {
+                        "status": "UNAVAILABLE",
+                        "next_at": cursor.isoformat(),
+                        "reason": "KLINE_GAP",
+                    }
             state.setdefault("first_available_at", candles[0].timestamp.isoformat())
-            updated = archive.update(
-                dataset_symbol,
-                timeframe,
-                candles,
-                source=(
-                    f"BINANCE_VISION_DIRECT_{timeframe.upper()}_SHA256:{source.sha256}"
-                ),
-                generated_at=now,
-                replace_conflicts_from_sources=replace_conflicts_from_sources,
-            )
-            last = datetime.fromisoformat(updated.last_timestamp)
-            cursor = max(candles[-1].timestamp + interval, last + interval)
+            pending_candles.extend(candles)
+            pending_source_hashes.append(str(source.sha256))
+            cursor = candles[-1].timestamp + interval
             if cursor < archive_end:
+                flush_pending()
                 return cursor, {
                     "status": "UNAVAILABLE",
                     "next_at": cursor.isoformat(),
                     "reason": "KLINE_GAP",
                 }
-            state["next_at"] = cursor.isoformat()
-            _save(progress_path, state)
+            if len(pending_source_hashes) >= _VISION_ARCHIVE_BATCH_SIZE:
+                flush_pending()
+        flush_pending()
         return cursor, None
 
     def _candles(
@@ -2238,10 +2293,17 @@ class ContinuousMarketHistory:
             return start, end
 
         cursor, request_end = missing_window(cursor)
-        # Existing datasets need only their exact holes or tail. A monthly ZIP
-        # would replay verified rows; retain bulk archives for initial bootstrap.
-        if self.vision_history_enabled and not verified_ranges:
-            closed_history_end = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        # Use checksum-verified native Vision archives for the exact missing
+        # window, including a history extension or an internal gap in an
+        # existing dataset. Bounding the archive walk at ``request_end`` avoids
+        # replaying already verified rows while eliminating hundreds of small
+        # REST pages for 5m candidate enrichment.
+        vision_end = min(
+            now.replace(hour=0, minute=0, second=0, microsecond=0),
+            request_end,
+            end,
+        )
+        if self.vision_history_enabled and cursor < vision_end:
             cursor, unavailable = self._vision_history(
                 market=market,
                 symbol=symbol,
@@ -2252,7 +2314,7 @@ class ContinuousMarketHistory:
                 state=state,
                 progress_path=progress_path,
                 cursor=cursor,
-                closed_history_end=min(closed_history_end, end),
+                closed_history_end=vision_end,
                 interval=interval,
                 now=now,
                 replace_conflicts_from_sources=replace_conflicts_from_sources,

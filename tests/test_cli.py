@@ -1639,11 +1639,13 @@ def test_virtual_market_research_cycle_persists_both_wallets_and_report(
         ),
     )
     cycle_report: dict[str, object] = {}
+    observed_at = datetime(2026, 9, 25, 12, 0, tzinfo=UTC)
 
     assert (
         runtime_cli._run_virtual_market_research_cycle(
             settings,
             StubAcquisition(),
+            observed_at=observed_at,
             cycle_report=cycle_report,
         )
         == 0
@@ -1845,6 +1847,7 @@ def test_virtual_market_scan_cursor_persists_and_reports_business_blockers(
         settings: Settings,
         _acquisition: SnapshotAcquirer,
         *,
+        observed_at: datetime,
         cycle_report: dict[str, object] | None = None,
     ) -> int:
         assert cycle_report is not None
@@ -1916,6 +1919,7 @@ def test_virtual_market_daemon_prioritizes_and_acknowledges_manual_refresh(
         settings: Settings,
         _acquisition: SnapshotAcquirer,
         *,
+        observed_at: datetime,
         cycle_report: dict[str, object] | None = None,
     ) -> int:
         assert cycle_report is not None
@@ -1972,10 +1976,12 @@ def test_virtual_market_daemon_requests_canonical_refresh_for_stale_data(
         cycle_settings: Settings,
         _acquisition: SnapshotAcquirer,
         *,
+        observed_at: datetime,
         cycle_report: dict[str, object] | None = None,
     ) -> int:
         assert cycle_report is not None
         assert cycle_settings.timeframes == VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
+        assert observed_at == expected_observed_at
         cycle_report.update(
             snapshot_id="fixture:BTCUSDT",
             research_blockers=("SNAPSHOT_DATA_QUALITY_INVALID", "STALE_CANDLES:5m"),
@@ -1986,13 +1992,13 @@ def test_virtual_market_daemon_requests_canonical_refresh_for_stale_data(
     monkeypatch.setattr(
         runtime_cli, "_run_virtual_market_research_cycle", research_cycle
     )
-    observed_at = datetime(2026, 9, 24, 13, 30, tzinfo=UTC)
+    expected_observed_at = datetime(2026, 9, 24, 13, 30, tzinfo=UTC)
     assert (
         runtime_cli.run_virtual_market_daemon(
             settings,
             max_cycles=1,
             public_acquisition=cast(SnapshotAcquirer, object()),
-            clock=lambda: observed_at,
+            clock=lambda: expected_observed_at,
         )
         == 0
     )
@@ -2072,6 +2078,7 @@ def test_virtual_market_priority_revisits_preserve_discovery_and_restart_cursor(
         settings: Settings,
         source: SnapshotAcquirer,
         *,
+        observed_at: datetime,
         cycle_report: dict[str, object] | None = None,
     ) -> int:
         seen.append(settings.symbol)
