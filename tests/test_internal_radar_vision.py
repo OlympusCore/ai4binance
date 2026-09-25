@@ -4,12 +4,42 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import cast
 from urllib.request import Request
 
 import pytest
 
-from ai4binance.governance.model_registry import ModelGateway
+from ai4binance.governance.model_registry import (
+    ModelGateway,
+    ModelGatewayDecision,
+    build_model_route_decision,
+)
 from ai4binance.internal_radar_vision import LlamaCppVisionRunner, _prompt
+
+
+class _AllowedGateway:
+    def admit_advisory(
+        self,
+        model_id: str,
+        provider: str,
+        runtime_model: str,
+        task: str = "ADVISORY_RESEARCH_SYNTHESIS",
+    ) -> ModelGatewayDecision:
+        del runtime_model
+        return ModelGatewayDecision(
+            model_id=model_id,
+            provider=provider,
+            allowed=True,
+            blockers=(),
+            route_decision=build_model_route_decision(
+                canonical_model_id=model_id,
+                provider=provider,
+                task_type=task,
+                model_family="LLM",
+                allowed=True,
+                blockers=(),
+            ),
+        )
 
 
 def test_vision_runner_stays_advisory_when_local_provider_is_unavailable(
@@ -57,27 +87,6 @@ def test_vision_runner_persists_only_validated_categorical_evidence(
         ]
     }
 
-    class AllowedGateway:
-        def admit_advisory(self, *_args: object) -> object:
-            from ai4binance.governance.model_registry import build_model_route_decision
-
-            return type(
-                "Decision",
-                (),
-                {
-                    "allowed": True,
-                    "blockers": (),
-                    "route_decision": build_model_route_decision(
-                        canonical_model_id="local-llamacpp-qwen25vl-3b",
-                        provider="llama.cpp",
-                        task_type="LOCAL_IMAGE_ADVISORY_ANALYSIS",
-                        model_family="LLM",
-                        allowed=True,
-                        blockers=(),
-                    ),
-                },
-            )()
-
     class Response:
         def read(self, _limit: int) -> bytes:
             return json.dumps(response).encode("utf-8")
@@ -96,7 +105,7 @@ def test_vision_runner_persists_only_validated_categorical_evidence(
         return Response()
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
-    evidence = LlamaCppVisionRunner(model_gateway=AllowedGateway()).analyze(
+    evidence = LlamaCppVisionRunner(model_gateway=_AllowedGateway()).analyze(
         candidate_id="internal-image:0123456789abcdef",
         source_content_sha256="b" * 64,
         image_path=image,
@@ -108,7 +117,8 @@ def test_vision_runner_persists_only_validated_categorical_evidence(
     assert payload["image_category"] == "DASHBOARD"
     assert payload["extracted_text_present"] is True
     assert "private-image" not in json.dumps(payload)
-    assert payload["privacy"]["raw_ocr_text_persisted"] is False
+    privacy = cast(dict[str, object], payload["privacy"])
+    assert privacy["raw_ocr_text_persisted"] is False
     assert payload["execution_allowed"] is False
 
 
@@ -117,10 +127,6 @@ def test_vision_runner_rejects_unstructured_model_output(
 ) -> None:
     image = tmp_path / "fixture.png"
     image.write_bytes(b"image-fixture")
-
-    class AllowedGateway:
-        def admit_advisory(self, *_args: object) -> object:
-            return type("Decision", (), {"allowed": True, "route_decision": None})()
 
     class Response:
         def read(self, _limit: int) -> bytes:
@@ -133,7 +139,7 @@ def test_vision_runner_rejects_unstructured_model_output(
             return None
 
     monkeypatch.setattr("urllib.request.urlopen", lambda *_args, **_kwargs: Response())
-    evidence = LlamaCppVisionRunner(model_gateway=AllowedGateway()).analyze(
+    evidence = LlamaCppVisionRunner(model_gateway=_AllowedGateway()).analyze(
         candidate_id="internal-image:0123456789abcdef",
         source_content_sha256="c" * 64,
         image_path=image,
@@ -158,14 +164,6 @@ def test_vision_runner_accepts_one_json_code_fence(
         "confidence": 0.5,
     }
 
-    class AllowedGateway:
-        def admit_advisory(self, *_args: object) -> object:
-            return type(
-                "Decision",
-                (),
-                {"allowed": True, "blockers": (), "route_decision": None},
-            )()
-
     class Response:
         def read(self, _limit: int) -> bytes:
             content = "```json\n" + json.dumps(observation) + "\n```"
@@ -178,7 +176,7 @@ def test_vision_runner_accepts_one_json_code_fence(
             return None
 
     monkeypatch.setattr("urllib.request.urlopen", lambda *_args, **_kwargs: Response())
-    evidence = LlamaCppVisionRunner(model_gateway=AllowedGateway()).analyze(
+    evidence = LlamaCppVisionRunner(model_gateway=_AllowedGateway()).analyze(
         candidate_id="internal-image:0123456789abcdef",
         source_content_sha256="d" * 64,
         image_path=image,

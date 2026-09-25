@@ -16,7 +16,7 @@ import urllib.request
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Final, TypedDict
+from typing import Final, Protocol, TypedDict
 
 from ai4binance.governance.local_model_roles import (
     load_local_model_role,
@@ -24,6 +24,7 @@ from ai4binance.governance.local_model_roles import (
 )
 from ai4binance.governance.model_registry import (
     ModelGateway,
+    ModelGatewayDecision,
     ModelInferenceEnvelope,
     ModelRouteDecision,
     build_advisory_inference_envelope,
@@ -88,6 +89,18 @@ class _Observation(TypedDict):
     extracted_text_present: bool
     uncertainty_categories: tuple[str, ...]
     confidence: float
+
+
+class AdvisoryModelGateway(Protocol):
+    """Minimal admission boundary required by the local vision adapter."""
+
+    def admit_advisory(
+        self,
+        model_id: str,
+        provider: str,
+        runtime_model: str,
+        task: str = "ADVISORY_RESEARCH_SYNTHESIS",
+    ) -> ModelGatewayDecision: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,7 +178,7 @@ class LlamaCppVisionRunner:
 
     base_url: str = "http://127.0.0.1:8081"
     timeout_seconds: float = 60.0
-    model_gateway: ModelGateway | None = None
+    model_gateway: AdvisoryModelGateway | None = None
     repository_root: Path | None = None
 
     def analyze(

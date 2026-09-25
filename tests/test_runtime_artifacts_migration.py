@@ -81,7 +81,7 @@ def test_layout_contract_helpers_fail_closed_and_canonicalize_aliases(
     with pytest.raises(ValueError, match="unknown runtime retention"):
         manifest.retention_for("unknown")
     assert layout._capacity_budget_mapping(None) == {}
-    invalid_budgets = [
+    invalid_budgets: list[tuple[object, str]] = [
         ([], "must be an object"),
         ({"outside": 1}, "must use runtime paths"),
         ({"runtime/a": True}, "must be an integer"),
@@ -90,7 +90,7 @@ def test_layout_contract_helpers_fail_closed_and_canonicalize_aliases(
     for value, match in invalid_budgets:
         with pytest.raises(ValueError, match=match):
             layout._capacity_budget_mapping(value)
-    invalid_retention = [
+    invalid_retention: list[tuple[object, str]] = [
         ([], "retention must be an object"),
         ({"x": {}}, "automatic_cleanup must be boolean"),
     ]
@@ -124,7 +124,7 @@ def test_runtime_retention_policy_rejects_invalid_values(
 
 
 def test_layout_mapping_helpers_cover_all_invalid_contract_shapes() -> None:
-    invalid_text_mappings = [
+    invalid_text_mappings: list[tuple[object, str]] = [
         (None, "must be a non-empty object"),
         ([], "must be a non-empty object"),
         ({}, "must be a non-empty object"),
@@ -136,7 +136,7 @@ def test_layout_mapping_helpers_cover_all_invalid_contract_shapes() -> None:
             layout._text_mapping(value, "roots")
     with pytest.raises(ValueError, match="canonical_root must be a non-empty string"):
         layout._text({}, "canonical_root")
-    invalid_retention_mappings = [
+    invalid_retention_mappings: list[tuple[object, str]] = [
         ({"rule": []}, "entries must be named objects"),
         ({"": {}}, "entries must be named objects"),
         ({"rule": {"automatic_cleanup": "yes"}}, "must be boolean"),
@@ -144,7 +144,7 @@ def test_layout_mapping_helpers_cover_all_invalid_contract_shapes() -> None:
     for value, match in invalid_retention_mappings:
         with pytest.raises(ValueError, match=match):
             layout._retention_mapping(value)
-    invalid_retention_policies = [
+    invalid_retention_policies: list[tuple[dict[str, object], str]] = [
         (
             {"automatic_cleanup": True, "minimum_age_days": True, "keep_latest": 0},
             "minimum_age_days must be an integer",

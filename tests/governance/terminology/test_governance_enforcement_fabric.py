@@ -337,7 +337,8 @@ def test_authority_graph_closes_all_fabric_family_paths() -> None:
 
 
 def test_fabric_contract_helpers_reject_untrusted_shapes(tmp_path: Path) -> None:
-    for value in (None, [], "text"):
+    invalid_mappings: tuple[object, ...] = (None, [], "text")
+    for value in invalid_mappings:
         with pytest.raises(ValueError, match="mapping"):
             fabric_module._mapping(value, "value")
     for value in (None, "", "   "):
@@ -355,7 +356,7 @@ def test_fabric_contract_helpers_reject_untrusted_shapes(tmp_path: Path) -> None
     plain = tmp_path / "plain.md"
     plain.write_text("no metadata", encoding="utf-8")
     assert fabric_module._frontmatter(plain) == {}
-    with pytest.raises(ValueError, match="retention"):
+    with pytest.raises(ValueError, match="standard_impact_tests"):
         fabric_module._quality_standard_mappings({})
 
 
@@ -462,7 +463,7 @@ def test_family_integrity_reports_missing_standard_projection_and_schema(
 
 
 def test_quality_mapping_parser_rejects_malformed_and_duplicate_entries() -> None:
-    for payload in (
+    invalid_payloads: tuple[dict[str, object], ...] = (
         {"standard_impact_tests": {}},
         {"standard_impact_tests": {"mappings": [{"name": "x", "tests": "bad"}]}},
         {
@@ -473,7 +474,8 @@ def test_quality_mapping_parser_rejects_malformed_and_duplicate_entries() -> Non
                 ]
             }
         },
-    ):
+    )
+    for payload in invalid_payloads:
         with pytest.raises(
             ValueError,
             match=r"mappings must be a list|mapping tests must be a list|duplicate",

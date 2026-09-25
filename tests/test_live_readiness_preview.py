@@ -18,6 +18,7 @@ from ai4binance.application.live_readiness import (
 from ai4binance.cli import live as cli_live
 from ai4binance.config import Settings
 from ai4binance.domain import LiveGateInput, ValidationStatus
+from ai4binance.exchange import BinancePrivateAccountReader
 from ai4binance.exchange.models import BookTicker, MarketKline, SymbolInfo
 from ai4binance.execution import (
     ExecutionAuthorizationEnvelope,
@@ -1364,12 +1365,11 @@ def test_private_reader_uses_read_only_credentials_and_transport(
 ) -> None:
     credentials = object()
     monkeypatch.setattr(
-        cli_live.PrivateCredentials,
-        "from_environment_or_file",
+        "ai4binance.cli.live.PrivateCredentials.from_environment_or_file",
         lambda _path: credentials,
     )
     reader = cli_live._private_reader(Settings())
-    assert isinstance(reader, cli_live.BinancePrivateAccountReader)
+    assert isinstance(reader, BinancePrivateAccountReader)
 
 
 def test_live_place_blocks_invalid_or_mismatched_authorization_evidence(

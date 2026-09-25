@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
@@ -33,7 +34,7 @@ from ai4binance.data.market_data_gateway import (
     build_gateway,
 )
 from ai4binance.exchange import rate_limit as rate_limit_module
-from ai4binance.exchange.public_stream import SpotKlineUpdate
+from ai4binance.exchange.public_stream import BinanceSpotKlineParser, SpotKlineUpdate
 from ai4binance.exchange.rate_limit import (
     WeightedRateLimitGovernor,
     public_request_weight,
@@ -236,7 +237,7 @@ def test_gateway_helpers_cover_invalid_and_bounded_inputs(
     path = tmp_path / "state.json"
     path.write_text('{"blockers": "invalid"}', encoding="utf-8")
     heartbeat = _GatewayStateHeartbeat(path, interval_seconds=0)
-    monkeypatch.setattr(gateway_cli.time, "monotonic", lambda: 1.0)
+    monkeypatch.setattr("ai4binance.cli.market_gateway.time.monotonic", lambda: 1.0)
     heartbeat(START)
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["blockers"] == ["MARKET_GATEWAY_STATE_BLOCKERS_INVALID"]
@@ -254,7 +255,9 @@ def test_gateway_heartbeat_handles_read_failures_and_throttles_writes(
     path.write_text("not-json", encoding="utf-8")
     heartbeat = _GatewayStateHeartbeat(path, interval_seconds=10)
     monotonic = iter((10.0, 11.0))
-    monkeypatch.setattr(gateway_cli.time, "monotonic", lambda: next(monotonic))
+    monkeypatch.setattr(
+        "ai4binance.cli.market_gateway.time.monotonic", lambda: next(monotonic)
+    )
     heartbeat(START)
     first = path.read_text(encoding="utf-8")
     heartbeat(START)
@@ -607,8 +610,7 @@ def test_gateway_retries_backfill_then_blocks_an_invalid_universe(
         lambda _settings: synchronizer,
     )
     monkeypatch.setattr(
-        gateway_cli.time,
-        "sleep",
+        "ai4binance.cli.market_gateway.time.sleep",
         lambda _seconds: None,
     )
     settings = type(
@@ -781,9 +783,9 @@ def test_processor_handles_cache_and_invalid_combined_stream_payloads() -> None:
     cache = _Cache()
     processor = CanonicalMarketStreamProcessor(
         "SPOT",
-        _Writer(),
-        cache,
-        monotonic=lambda: 1.0,  # type: ignore[arg-type]
+        cast(DirectTimeframeWriter, _Writer()),
+        cast(SharedMarketCache, cache),
+        monotonic=lambda: 1.0,
     )
     assert processor.process('{"e":"24hrTicker"}') == "CACHE_UPDATED"
     assert cache.flushed == 1
@@ -816,10 +818,10 @@ def test_dual_gateway_flushes_both_caches_after_connections_finish() -> None:
     spot_processor = _Processor()
     futures_processor = _Processor()
     gateway = BinanceMarketDataGateway(
-        _Connection(),
-        _Connection(),
-        spot_processor,  # type: ignore[arg-type]
-        futures_processor,  # type: ignore[arg-type]
+        cast(CombinedStreamConnectionManager, _Connection()),
+        cast(CombinedStreamConnectionManager, _Connection()),
+        cast(CanonicalMarketStreamProcessor, spot_processor),
+        cast(CanonicalMarketStreamProcessor, futures_processor),
     )
     assert asyncio.run(gateway.run_once()) == ("PLANNED_ROLLOVER", "PLANNED_ROLLOVER")
     assert spot_processor.cache.flushes == futures_processor.cache.flushes == 1
@@ -876,16 +878,21 @@ def test_gateway_rejects_invalid_inputs_and_processes_closed_kline(
     writes: list[tuple[str, str]] = []
     processor = CanonicalMarketStreamProcessor(
         "SPOT",
-        SimpleNamespace(
-            append=lambda symbol, timeframe, *_: writes.append((symbol, timeframe))
+        cast(
+            DirectTimeframeWriter,
+            SimpleNamespace(
+                append=lambda symbol, timeframe, *_: writes.append((symbol, timeframe))
+            ),
         ),
         cache,
-        parser=SimpleNamespace(parse=lambda _: update),
+        parser=cast(BinanceSpotKlineParser, SimpleNamespace(parse=lambda _: update)),
         activity_observer=lambda _: None,
     )
     assert processor.process('{"e":"kline"}') == "CLOSED_5M_APPLIED"
     assert writes == [("BTCUSDT", "5m")]
-    processor.parser = SimpleNamespace(parse=lambda _: object())  # type: ignore[assignment]
+    processor.parser = cast(
+        BinanceSpotKlineParser, SimpleNamespace(parse=lambda _: object())
+    )
     assert processor.process('{"e":"kline"}') == "RECONNECT_REQUIRED"
 
 

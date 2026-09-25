@@ -582,7 +582,7 @@ def _quality_axis(name: str, value: object) -> GovernanceQualityAxis:
 
 def _quality_standard_mappings(value: object) -> dict[str, tuple[str, ...]]:
     payload = _mapping(value, "quality policy")
-    standard = _mapping(payload["standard_impact_tests"], "standard_impact_tests")
+    standard = _mapping(payload.get("standard_impact_tests"), "standard_impact_tests")
     mappings = standard.get("mappings")
     if not isinstance(mappings, list):
         raise ValueError("standard_impact_tests.mappings must be a list")
