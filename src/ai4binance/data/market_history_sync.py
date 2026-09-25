@@ -308,7 +308,11 @@ class BinanceVisionArchiveCache:
     @staticmethod
     def _verify_checksum(key: str, payload: bytes, published: bytes) -> str:
         try:
-            expected = published.decode("ascii").strip().split()[0].lower()
+            # Binance appends the archive filename to the checksum. Symbols may
+            # contain non-ASCII characters, while the SHA-256 token itself is
+            # always ASCII. Decode only that token so filename encoding cannot
+            # turn a valid digest into a false integrity failure.
+            expected = published.strip().split(maxsplit=1)[0].decode("ascii").lower()
         except (UnicodeError, IndexError):
             expected = ""
         actual = sha256(payload).hexdigest()

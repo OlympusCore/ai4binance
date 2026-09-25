@@ -67,6 +67,7 @@ _DASHBOARD_REFRESH_TIMEFRAMES = VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
 _PROGRESS_HEARTBEAT_SECONDS = 5
 _SUPPLEMENTAL_STREAM_WORKERS = 1
 _VISION_ARCHIVE_BATCH_SIZE = 16
+_TRANSIENT_COOLDOWN_WAIT_SECONDS = 30.0
 _COMPATIBLE_DERIVED_SOURCE_PREFIXES = (
     "COMPATIBLE_DIRECT_PLUS_DERIVED_FROM_CANONICAL_1M:",
     "DERIVED_FROM_CANONICAL_1M:",
@@ -405,7 +406,16 @@ class MeteredPublicTransport:
             )
             self.budget.acquire(path, params, priority=priority)
         with self._pace_lock:
-            if time.monotonic() < self.cooldown_until:
+            cooldown_remaining = self.cooldown_until - time.monotonic()
+            if 0 < cooldown_remaining <= _TRANSIENT_COOLDOWN_WAIT_SECONDS:
+                # One transient transport failure places the shared endpoint on
+                # a short cooldown. Wait once under the pacing lock so queued
+                # streams resume together instead of being misclassified as a
+                # burst of independent source failures. Long rate-limit and ban
+                # cooldowns continue to fail closed immediately.
+                self.sleeper(cooldown_remaining)
+                cooldown_remaining = self.cooldown_until - time.monotonic()
+            if cooldown_remaining > 0:
                 raise ExchangeHttpError("public collection rate-limit cooldown")
             due = self._last_request + self.minimum_interval_seconds
             if path.endswith("fundingRate"):
@@ -2225,6 +2235,21 @@ class ContinuousMarketHistory:
         verified_ranges: list[tuple[datetime, datetime]] = []
         if parquet.exists():
             manifest = archive.manifest(dataset_symbol, timeframe)
+            manifest_first = datetime.fromisoformat(manifest.first_timestamp)
+            raw_first_available = state.get("first_available_at")
+            known_first_available = (
+                datetime.fromisoformat(str(raw_first_available))
+                if raw_first_available
+                else None
+            )
+            if (
+                known_first_available is not None
+                and known_first_available.utcoffset() is None
+            ):
+                raise ValueError("collection first available boundary is invalid")
+            if known_first_available is None or manifest_first < known_first_available:
+                state["first_available_at"] = manifest.first_timestamp
+                _save(progress_path, state)
             if manifest.gaps:
                 # Collapse identical legacy rows through the canonical merge;
                 # conflicting values remain an integrity failure.

@@ -86,6 +86,26 @@ def test_archive_cache_downloads_once_then_verifies_local_source(
         cache.verified(key, kind="ohlcv")
 
 
+def test_archive_cache_verifies_checksum_with_unicode_filename(
+    tmp_path: Path,
+) -> None:
+    key = "data/futures/um/monthly/klines/龙虾USDT/15m/龙虾USDT-15m-2026-03.zip"
+    payload = _kline_zip(5)
+    digest = hashlib.sha256(payload).hexdigest()
+    published = f"{digest}  龙虾USDT-15m-2026-03.zip\n".encode()
+
+    def fetch(url: str) -> bytes:
+        return published if url.endswith(".CHECKSUM") else payload
+
+    source, recovered = BinanceVisionArchiveCache(tmp_path, fetch).verified(
+        key, kind="ohlcv"
+    )
+
+    assert recovered == payload
+    assert source.sha256 == digest
+    assert source.network_request_count == 2
+
+
 def test_archive_cache_rejects_unsafe_and_unpublished_sources(tmp_path: Path) -> None:
     def missing(url: str) -> bytes:
         raise HTTPError(url, 404, "missing", Message(), None)

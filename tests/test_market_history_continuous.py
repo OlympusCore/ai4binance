@@ -1357,7 +1357,7 @@ def test_unavailable_history_does_not_leave_verified_active_tail_stale(
         {
             "requested_start": requested_start.isoformat(),
             "next_at": requested_start.isoformat(),
-            "first_available_at": stored_at.isoformat(),
+            "first_available_at": NOW.isoformat(),
         },
     )
     extended = ContinuousMarketHistory(
@@ -1390,6 +1390,7 @@ def test_unavailable_history_does_not_leave_verified_active_tail_stale(
         == (NOW.replace(minute=0) - timedelta(minutes=5)).isoformat()
     )
     assert _load(progress)["next_at"] == requested_start.isoformat()
+    assert _load(progress)["first_available_at"] == stored_at.isoformat()
 
 
 def test_vision_history_skips_missing_archives_before_known_listing(
@@ -2312,6 +2313,41 @@ def test_network_outage_does_not_retry_every_symbol(
     with pytest.raises(OSError, match="cooling down"):
         cache.fetch(url)
     assert len(calls) == 1
+
+
+def test_transient_transport_cooldown_waits_once_then_resumes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class Recovering:
+        calls = 0
+
+        def get_json(
+            self, path: str, params: Mapping[str, str | int] | None = None
+        ) -> object:
+            del path, params
+            self.calls += 1
+            if self.calls == 1:
+                raise ExchangeTransportError("temporary network failure")
+            return {"status": "recovered"}
+
+    clock = [100.0]
+
+    def sleep(delay: float) -> None:
+        clock[0] += delay
+
+    monkeypatch.setattr(
+        "ai4binance.data.market_history_continuous.time.monotonic",
+        lambda: clock[0],
+    )
+    recovering = Recovering()
+    transport = MeteredPublicTransport(recovering, tmp_path, sleeper=sleep)
+
+    with pytest.raises(ExchangeTransportError, match="temporary"):
+        transport.get_json("/api/v3/klines")
+
+    assert transport.get_json("/api/v3/klines") == {"status": "recovered"}
+    assert recovering.calls == 2
+    assert clock[0] >= 130.0
 
 
 def test_dashboard_candidate_projection_filters_and_sanitizes_fields() -> None:
