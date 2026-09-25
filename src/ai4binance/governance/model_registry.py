@@ -450,27 +450,7 @@ def _local_model_manifest_blockers(
     """Validate a local GGUF manifest without persisting machine paths."""
 
     try:
-        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-        manifest = _mapping(payload, "local model manifest")
-        _require_keys(
-            manifest,
-            {
-                "schema_version",
-                "model_id",
-                "provider",
-                "model_version",
-                "runtime_boundary",
-                "artifacts",
-            },
-            "local model manifest",
-        )
-        if manifest["schema_version"] != "1.0.0":
-            raise ValueError("local model manifest schema version is unsupported")
-        if manifest["model_id"] != model_id:
-            raise ValueError("local model manifest model identity mismatch")
-        artifacts = manifest["artifacts"]
-        if not isinstance(artifacts, list) or not artifacts:
-            raise ValueError("local model manifest artifacts are required")
+        artifacts = _load_local_model_artifacts(manifest_path, model_id)
     except (OSError, ValueError, json.JSONDecodeError):
         return (f"LOCAL_MODEL_MANIFEST_INVALID:{model_id}",)
 
@@ -497,6 +477,36 @@ def _local_model_manifest_blockers(
                 f"LOCAL_MODEL_ARTIFACT_HASH_MISMATCH:{model_id}:{item['role']}"
             )
     return tuple(blockers)
+
+
+def _load_local_model_artifacts(
+    manifest_path: Path,
+    model_id: str,
+) -> list[object]:
+    """Load the exact local manifest envelope before artifact validation."""
+
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest = _mapping(payload, "local model manifest")
+    _require_keys(
+        manifest,
+        {
+            "schema_version",
+            "model_id",
+            "provider",
+            "model_version",
+            "runtime_boundary",
+            "artifacts",
+        },
+        "local model manifest",
+    )
+    if manifest["schema_version"] != "1.0.0":
+        raise ValueError("local model manifest schema version is unsupported")
+    if manifest["model_id"] != model_id:
+        raise ValueError("local model manifest model identity mismatch")
+    artifacts = manifest["artifacts"]
+    if not isinstance(artifacts, list) or not artifacts:
+        raise ValueError("local model manifest artifacts are required")
+    return artifacts
 
 
 def _local_model_artifact(
