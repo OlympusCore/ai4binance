@@ -7,11 +7,12 @@ import runpy
 import shutil
 import sys
 import tempfile
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -1658,8 +1659,105 @@ def test_virtual_market_research_cycle_persists_both_wallets_and_report(
     assert cycle_report["virtual_runtime_evaluated"] is False
     assert cycle_report["virtual_simulation_outcome"] == "PRECONDITIONS_BLOCKED"
     assert cycle_report["virtual_order_ready"] is False
+    tuning = cast(Mapping[str, object], cycle_report["daily_loss_tuning"])
+    assert tuning["status"] == "NOT_TRIGGERED"
+    assert tuning["loss_threshold"] == 3
+    assert tuning["parameter_application"] == "NOT_APPLIED"
     report_path = tmp_path / "runtime" / "reports" / "virtual_wallets" / "latest.md"
     assert report_path.exists()
+
+
+def test_virtual_loss_tuning_runs_canonical_optimizer_without_applying_parameters(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai4binance import validation_pipeline_runtime as validation_module
+    from ai4binance.cli import runtime as runtime_cli
+    from ai4binance.data import archive as archive_module
+    from ai4binance.validation import ParameterSet
+
+    observed_at = datetime(2026, 9, 25, 0, 0, tzinfo=UTC)
+
+    trigger = {
+        "schema_version": "VirtualLossTuningTrigger/v1",
+        "status": "TRIGGERED",
+        "trigger_id": "virtual-loss-tuning:" + "a" * 24,
+        "subjects": [
+            {
+                "market": "SPOT",
+                "symbol": "BTCUSDT",
+                "timeframe": "1h",
+                "strategy_id": "trend_continuation",
+            }
+        ],
+        "execution_allowed": False,
+        "promotion_status": "RESEARCH_ONLY",
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+    }
+    journal = SimpleNamespace(daily_loss_tuning_trigger=lambda _observed: trigger)
+    candles = (SimpleNamespace(timestamp=observed_at),) * 60
+    monkeypatch.setattr(
+        archive_module.ParquetOHLCVArchive,
+        "read",
+        lambda *_args: candles,
+    )
+
+    class Runtime:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        @staticmethod
+        def dataset_sha256(_candles: object) -> str:
+            return "b" * 64
+
+        @staticmethod
+        def validate_one(*_args: object, **_kwargs: object) -> object:
+            return SimpleNamespace(
+                backtest=SimpleNamespace(
+                    metrics={"net_return": -0.01, "trade_count": 3}
+                ),
+                tuning=SimpleNamespace(
+                    report_id="tuning:test",
+                    search_space=SimpleNamespace(candidate_count=9),
+                    selected_parameters=ParameterSet(
+                        "selected",
+                        (
+                            ("atr_stop_multiplier", 1.25),
+                            ("take_profit_multiplier", 3.5),
+                        ),
+                    ),
+                    blockers=("OOS_RETURN_INSUFFICIENT",),
+                ),
+                blockers=("OOS_RETURN_INSUFFICIENT",),
+            )
+
+    monkeypatch.setattr(validation_module, "HistoricalValidationRuntime", Runtime)
+    settings = Settings(
+        dataset_directory=tmp_path / "data",
+        validation_artifact_directory=tmp_path / "validation",
+        backtest_report_directory=tmp_path / "reports",
+    )
+
+    result = runtime_cli._run_virtual_loss_tuning(
+        settings,
+        cast(Any, journal),
+        observed_at,
+    )
+    repeated = runtime_cli._run_virtual_loss_tuning(
+        settings,
+        cast(Any, journal),
+        observed_at + timedelta(minutes=1),
+    )
+
+    assert result["status"] == "RESEARCH_TUNING_COMPLETED"
+    assert result["parameter_application"] == "NOT_APPLIED"
+    assert result["execution_allowed"] is False
+    assert result["promotion_status"] == "RESEARCH_ONLY"
+    assert result["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+    tuning_result = cast(list[Mapping[str, object]], result["results"])[0]
+    assert tuning_result["candidate_count"] == 9
+    assert tuning_result["parameter_application"] == "NOT_APPLIED"
+    assert repeated["status"] == "ALREADY_REVIEWED"
 
 
 def test_virtual_market_daemon_fails_closed_and_records_cycle_failure(

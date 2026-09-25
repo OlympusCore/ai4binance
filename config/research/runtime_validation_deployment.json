@@ -2,22 +2,22 @@
   "execution_allowed": false,
   "live_eligibility_status": "LIVE_ORDER_BLOCKED",
   "promotion_status": "RESEARCH_ONLY",
-  "runtime_source_sha256": "d590e02cd164b307bede6cb1032e86f506f463058978fd17fe07faf2bb40274d",
+  "runtime_source_sha256": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
   "schema_version": "1.0",
   "subjects": [
     {
       "bundle": {
-        "path": "oos_runtime/10b48b390c923252a992e2166311e8e8e3d5b922b5fe46968901bfdadda74da9/bundle.json",
-        "sha256": "5bd4d51f70f8e51109e7abde7a9df433d9919b5027caeb81fb67fbeca21794bb"
+        "path": "oos_runtime/542ca70809c81c41839c003d50c8e83f14227eba302031e8d72a9c2320193902/bundle.json",
+        "sha256": "0ea2b993bdb38844ec882a70d0704bdda0e3ea4ca68590834af3388c03a2188d"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "63f712ab32697b7a9c67ee81847bcdc9f7171002e2f7e4e6a213ae2e12edd979",
         "promotion": {
-          "code_revision": "d590e02cd164b307bede6cb1032e86f506f463058978fd17fe07faf2bb40274d",
-          "dataset_sha256": "d5b4a4c5fff2a1956b3189c8a6b996352b00edf9537a2f3237daef3c35f7a358",
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "670c3909a381f375b0a99fcef256378c5b3892b2eefbde3167300dc91ed561b5",
           "market_type": "SPOT",
-          "parameter_set_sha256": "4c0bcbd3c7635cfe3653b227c121ccd44232cee32b1e2f5907a01d54ba5aa55d",
+          "parameter_set_sha256": "4bd1c4a9aa115e27998e0721c7700ae6a1d8a8cf09af95d34b3ce624edda1ac9",
           "strategy_id": "trend_continuation",
           "strategy_sha256": "63f712ab32697b7a9c67ee81847bcdc9f7171002e2f7e4e6a213ae2e12edd979",
           "strategy_version": "1",
@@ -25,22 +25,22 @@
           "timeframe": "15m"
         },
         "setup_type": "trend_continuation",
-        "validation_config_sha256": "586658dd94dbe6bbd09274e3a07f90bdd4ea68df9a4f0617e3db7e961b65eec8"
+        "validation_config_sha256": "41f2ae9107a79985e46f8522323133261f99fb4ec9d9d4265b0f57c3d3956cd4"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/a5277e4b36a32615a4099cec13b3686d197e242b2d680a009933bc93760d71c8/bundle.json",
-        "sha256": "a7887ffc5eb1f286ac243d824b4c736ce68a1626147ab7b458fbbb6c9d15a1be"
+        "path": "oos_runtime/0c17e1a8754613e9607e63e434e93349b83f0dd6da00a044165ad532eae358e0/bundle.json",
+        "sha256": "c082ac3615f22fdb10f8662a45cc357d642e87fbb39c94730034184d2fa774bc"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "acfb727377466011e73a0b3782f76bc445b3dc7d7fbddda33c8b0811370dc852",
         "promotion": {
-          "code_revision": "d590e02cd164b307bede6cb1032e86f506f463058978fd17fe07faf2bb40274d",
-          "dataset_sha256": "d5b4a4c5fff2a1956b3189c8a6b996352b00edf9537a2f3237daef3c35f7a358",
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "670c3909a381f375b0a99fcef256378c5b3892b2eefbde3167300dc91ed561b5",
           "market_type": "SPOT",
-          "parameter_set_sha256": "4c0bcbd3c7635cfe3653b227c121ccd44232cee32b1e2f5907a01d54ba5aa55d",
+          "parameter_set_sha256": "4bd1c4a9aa115e27998e0721c7700ae6a1d8a8cf09af95d34b3ce624edda1ac9",
           "strategy_id": "pullback_continuation",
           "strategy_sha256": "acfb727377466011e73a0b3782f76bc445b3dc7d7fbddda33c8b0811370dc852",
           "strategy_version": "1",
@@ -48,22 +48,22 @@
           "timeframe": "15m"
         },
         "setup_type": "pullback_continuation",
-        "validation_config_sha256": "ec2e086eae3298af24435acd3a641330e83137192844d4f80cb9103855bf9957"
+        "validation_config_sha256": "3fc299291cbb97b9cc53bd413af44289eb93da55ec2733ad415c82f871865a2f"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/b80ac0adaf4f801afc3b97dee3c5801fd20d5cb01e08c02623432e239f757a4a/bundle.json",
-        "sha256": "8c68e20860b9126dd892aa3ca0a2a1e03685b39e2792d0517f428c017d6f9d42"
+        "path": "oos_runtime/1cd1f756c2dfe2e6e5b72ad580f250a1f5c6f10038e9a51acc41a74a966c204e/bundle.json",
+        "sha256": "03f1c4e0d8e776bb758f255c3945694a2ce33b722d43f21de485b007f3edebc0"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "2a7e0ad5ccc7292a0b06b76b233fa93552d34bfe993a0db4976e3404b1ff7486",
         "promotion": {
-          "code_revision": "d590e02cd164b307bede6cb1032e86f506f463058978fd17fe07faf2bb40274d",
-          "dataset_sha256": "d5b4a4c5fff2a1956b3189c8a6b996352b00edf9537a2f3237daef3c35f7a358",
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "670c3909a381f375b0a99fcef256378c5b3892b2eefbde3167300dc91ed561b5",
           "market_type": "SPOT",
-          "parameter_set_sha256": "4c0bcbd3c7635cfe3653b227c121ccd44232cee32b1e2f5907a01d54ba5aa55d",
+          "parameter_set_sha256": "4bd1c4a9aa115e27998e0721c7700ae6a1d8a8cf09af95d34b3ce624edda1ac9",
           "strategy_id": "breakout_retest",
           "strategy_sha256": "2a7e0ad5ccc7292a0b06b76b233fa93552d34bfe993a0db4976e3404b1ff7486",
           "strategy_version": "1",
@@ -71,22 +71,22 @@
           "timeframe": "15m"
         },
         "setup_type": "breakout_retest",
-        "validation_config_sha256": "321df28133ee9340bcf10c2a9c30363b34aaf449eb81815e8755ec99179da15c"
+        "validation_config_sha256": "3580cd32f763b70502b44c2d474bc935e0bfe1c85b4401341de1f063ce6d5562"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/2fb323a6e8ebc165563e8383eea7cc59abe02de5bfbf75244bf91a834ecc3efc/bundle.json",
-        "sha256": "cafc83cab079e77701a47afff27366cfd4c901d150c7898c2eb41bb0d8d6f3a0"
+        "path": "oos_runtime/8262f89da3dece8463ff55097d2933306fa4aca927d58c0383b2288156f2f5ad/bundle.json",
+        "sha256": "8126174a6f065fb927444983023d7ec9dcb76928147de1e18465555fe8d0bb39"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "7cfbd10b251a8e6acfa0656247e9f99f56c4b6e24849c8a36d66fce734f746a3",
         "promotion": {
-          "code_revision": "d590e02cd164b307bede6cb1032e86f506f463058978fd17fe07faf2bb40274d",
-          "dataset_sha256": "d5b4a4c5fff2a1956b3189c8a6b996352b00edf9537a2f3237daef3c35f7a358",
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "670c3909a381f375b0a99fcef256378c5b3892b2eefbde3167300dc91ed561b5",
           "market_type": "SPOT",
-          "parameter_set_sha256": "4c0bcbd3c7635cfe3653b227c121ccd44232cee32b1e2f5907a01d54ba5aa55d",
+          "parameter_set_sha256": "4bd1c4a9aa115e27998e0721c7700ae6a1d8a8cf09af95d34b3ce624edda1ac9",
           "strategy_id": "support_reclaim",
           "strategy_sha256": "7cfbd10b251a8e6acfa0656247e9f99f56c4b6e24849c8a36d66fce734f746a3",
           "strategy_version": "1",
@@ -94,22 +94,22 @@
           "timeframe": "15m"
         },
         "setup_type": "support_reclaim",
-        "validation_config_sha256": "e41261d31a16f7110974270168d7583e976af26c4f0e45c0ac9787ac37415fd9"
+        "validation_config_sha256": "5bfc944927f384c71d5a567195d4f9f3fab658cf15ef634a4009b6ca0d8276b7"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/0a389c8d2eb25b40d6422f4bd53968198d73a273c5d15b72a451c7fa17211e8d/bundle.json",
-        "sha256": "d56cc3419bf242c3e6f32222fec664e2df2a32c8443d78a668dab77aaffc8544"
+        "path": "oos_runtime/a2cd1cdce2adf647174ca45f03075535c7fcb9b0c05313b27f9f3ae7ed9a4d42/bundle.json",
+        "sha256": "1f87af0f67f5250fc737428dd9cfa34e6fde3571a1df5af0f85665fc273bf1b5"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "4f33ee776ac3b463420d6a0f2c08352a0673d16633d2a32765d861fcb8e144ea",
         "promotion": {
-          "code_revision": "d590e02cd164b307bede6cb1032e86f506f463058978fd17fe07faf2bb40274d",
-          "dataset_sha256": "d5b4a4c5fff2a1956b3189c8a6b996352b00edf9537a2f3237daef3c35f7a358",
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "670c3909a381f375b0a99fcef256378c5b3892b2eefbde3167300dc91ed561b5",
           "market_type": "SPOT",
-          "parameter_set_sha256": "4c0bcbd3c7635cfe3653b227c121ccd44232cee32b1e2f5907a01d54ba5aa55d",
+          "parameter_set_sha256": "4bd1c4a9aa115e27998e0721c7700ae6a1d8a8cf09af95d34b3ce624edda1ac9",
           "strategy_id": "failed_breakout_reversal",
           "strategy_sha256": "4f33ee776ac3b463420d6a0f2c08352a0673d16633d2a32765d861fcb8e144ea",
           "strategy_version": "1",
@@ -117,22 +117,22 @@
           "timeframe": "15m"
         },
         "setup_type": "failed_breakout_reversal",
-        "validation_config_sha256": "3ef53ffe56eff9c1d73335f0ccf86881aca2085cebab2d3dbe9bedb7dfbfa73e"
+        "validation_config_sha256": "af093bbf27c520339541d1f4dc6cbd416cb7d370216e64e70164e02ce9a64582"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/9197288fff32e4f72c9ac914c275ddb94333f975579a2d368cf863477b3ba9ee/bundle.json",
-        "sha256": "ba3ae8569a2540107933896940aa5cc4336c7ec173f65b0379b8255b09f99967"
+        "path": "oos_runtime/fcfc4e58d7a510d8a7598d4006dd736d3538480696988e509653d589b254feba/bundle.json",
+        "sha256": "ac989b936304b50caad60375adff155c1cc6567568a20cf92c3d236f9fa217fb"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "63f712ab32697b7a9c67ee81847bcdc9f7171002e2f7e4e6a213ae2e12edd979",
         "promotion": {
-          "code_revision": "d590e02cd164b307bede6cb1032e86f506f463058978fd17fe07faf2bb40274d",
-          "dataset_sha256": "726c5f1a6295f1323671cd642bdbf6c4976623cd71fce1d2345446a04b70a445",
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "a331860e84a646b5fca88d9e3cd0b0741e48eb9a1012cb127d4dbee636a59dfa",
           "market_type": "SPOT",
-          "parameter_set_sha256": "feca57cc3c10c80e9086f18e57fd8f498715f7cd865a465b690612a523c4eff3",
+          "parameter_set_sha256": "054e2cde500c74e3de0cf53a0ea4cc187d205f1cbcdad5598459081a5c6e6be4",
           "strategy_id": "trend_continuation",
           "strategy_sha256": "63f712ab32697b7a9c67ee81847bcdc9f7171002e2f7e4e6a213ae2e12edd979",
           "strategy_version": "1",
@@ -140,22 +140,22 @@
           "timeframe": "1h"
         },
         "setup_type": "trend_continuation",
-        "validation_config_sha256": "e4d677f159d8db0984212f4dbb2fd986456a94b6a522a0f3a8bd705dcfe7c63e"
+        "validation_config_sha256": "ffb237f4724bd11617cf1bfbf21c900542a5e42f7c2a4cea9a15c036ae01be0a"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/21654491ef611e991dc41073fe72e039342c2b75c6c055be0c520bb194accb6a/bundle.json",
-        "sha256": "74db017db2349b79b493907c78a46c85c8af7adeae3fed40b266dfa5bd3a91b8"
+        "path": "oos_runtime/c8ca129ca37d86dbba6f7e084565b52b9376c57f56a21ee327d73860b9f0d8e4/bundle.json",
+        "sha256": "b6180f55d27849bce4647b353e6468771eedd73e596b406399051dc594d2a9e4"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "d676e5ee3551bed7965e95cb421ae999225b9b6c0e2662468065506836fe5fc7",
         "promotion": {
-          "code_revision": "d590e02cd164b307bede6cb1032e86f506f463058978fd17fe07faf2bb40274d",
-          "dataset_sha256": "726c5f1a6295f1323671cd642bdbf6c4976623cd71fce1d2345446a04b70a445",
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "a331860e84a646b5fca88d9e3cd0b0741e48eb9a1012cb127d4dbee636a59dfa",
           "market_type": "SPOT",
-          "parameter_set_sha256": "feca57cc3c10c80e9086f18e57fd8f498715f7cd865a465b690612a523c4eff3",
+          "parameter_set_sha256": "054e2cde500c74e3de0cf53a0ea4cc187d205f1cbcdad5598459081a5c6e6be4",
           "strategy_id": "pullback_continuation",
           "strategy_sha256": "d676e5ee3551bed7965e95cb421ae999225b9b6c0e2662468065506836fe5fc7",
           "strategy_version": "1",
@@ -163,22 +163,22 @@
           "timeframe": "1h"
         },
         "setup_type": "pullback_continuation",
-        "validation_config_sha256": "4c02b6ed6017bfdfaed1f43acdddc3897919473e17cf321e3a2924f3be3c7286"
+        "validation_config_sha256": "136713eaba26dde6d5dd4394f075b7961334b6bb5b58d3a4b64b32002083ed21"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/5f8cbd0546b1c46e7393b5ca59f28fbbff53791d8c56090e58a602a9ebbb2f30/bundle.json",
-        "sha256": "f313728c514103a574fc1a17596c5f5210226d98f25056711bf8970fcf4ab2f8"
+        "path": "oos_runtime/d46c8a4d6034d44bcf58ed60c82fd61afcb835273bb524bff27ce46073503baf/bundle.json",
+        "sha256": "fcd53ac8b8ac14b71a49b8b91d7ccb9c51db0ee98684ff1904d059da68c0f86b"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "2a7e0ad5ccc7292a0b06b76b233fa93552d34bfe993a0db4976e3404b1ff7486",
         "promotion": {
-          "code_revision": "d590e02cd164b307bede6cb1032e86f506f463058978fd17fe07faf2bb40274d",
-          "dataset_sha256": "726c5f1a6295f1323671cd642bdbf6c4976623cd71fce1d2345446a04b70a445",
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "a331860e84a646b5fca88d9e3cd0b0741e48eb9a1012cb127d4dbee636a59dfa",
           "market_type": "SPOT",
-          "parameter_set_sha256": "feca57cc3c10c80e9086f18e57fd8f498715f7cd865a465b690612a523c4eff3",
+          "parameter_set_sha256": "054e2cde500c74e3de0cf53a0ea4cc187d205f1cbcdad5598459081a5c6e6be4",
           "strategy_id": "breakout_retest",
           "strategy_sha256": "2a7e0ad5ccc7292a0b06b76b233fa93552d34bfe993a0db4976e3404b1ff7486",
           "strategy_version": "1",
@@ -186,22 +186,22 @@
           "timeframe": "1h"
         },
         "setup_type": "breakout_retest",
-        "validation_config_sha256": "dfd84b6bd7b06f281258e1ffde2e9e3a9f700cb9ffe3506211d8a2edd3b2ac0a"
+        "validation_config_sha256": "4299b3871fba400b20b27f75d4d8754093ba57d7ac249cf0b579eb0f863a4eb4"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/dd4feba517eacaa7625c9765051291ed5dcfdb36d6977da33c4316caebc284ad/bundle.json",
-        "sha256": "0f5bdcb239914f544e299259d9a68904e5975f87e0c71712c8fdd871d2653447"
+        "path": "oos_runtime/8ec344bbae4e35b0f3b76947b74364300ad628f8a8136d795daab00ce187dfe4/bundle.json",
+        "sha256": "59ca38f180e393abec1f6bc419384d35e54456fd61c1fd4652eb370b3170c917"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "7cfbd10b251a8e6acfa0656247e9f99f56c4b6e24849c8a36d66fce734f746a3",
         "promotion": {
-          "code_revision": "d590e02cd164b307bede6cb1032e86f506f463058978fd17fe07faf2bb40274d",
-          "dataset_sha256": "726c5f1a6295f1323671cd642bdbf6c4976623cd71fce1d2345446a04b70a445",
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "a331860e84a646b5fca88d9e3cd0b0741e48eb9a1012cb127d4dbee636a59dfa",
           "market_type": "SPOT",
-          "parameter_set_sha256": "feca57cc3c10c80e9086f18e57fd8f498715f7cd865a465b690612a523c4eff3",
+          "parameter_set_sha256": "054e2cde500c74e3de0cf53a0ea4cc187d205f1cbcdad5598459081a5c6e6be4",
           "strategy_id": "support_reclaim",
           "strategy_sha256": "7cfbd10b251a8e6acfa0656247e9f99f56c4b6e24849c8a36d66fce734f746a3",
           "strategy_version": "1",
@@ -209,22 +209,22 @@
           "timeframe": "1h"
         },
         "setup_type": "support_reclaim",
-        "validation_config_sha256": "e84a197309ba3365ecf90011ada2fc85235fc380dcad3d7c1c0bf6f1e6932910"
+        "validation_config_sha256": "c77f1ef41b693700b54a48e9eef88b3563aa0d059d524c75f96fee1a7cd511e9"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/4d0fd517399594f5b16e355a3ccdb7ded1a3d723d729cc3eff9244ef5d545435/bundle.json",
-        "sha256": "dde2dc58f7ca9f8cadc5b46922c62779bd1ae98991ea822073791e922ce0da3e"
+        "path": "oos_runtime/64cfbb8bd90688a6617f6c71f4bf20db19f57c150edaff178903fe3db5f9126c/bundle.json",
+        "sha256": "d3007d8bc5a29fb4a5e8be97c3c34aaa25ed072800dfc5d9b0706d2b31578514"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "4f33ee776ac3b463420d6a0f2c08352a0673d16633d2a32765d861fcb8e144ea",
         "promotion": {
-          "code_revision": "d590e02cd164b307bede6cb1032e86f506f463058978fd17fe07faf2bb40274d",
-          "dataset_sha256": "726c5f1a6295f1323671cd642bdbf6c4976623cd71fce1d2345446a04b70a445",
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "a331860e84a646b5fca88d9e3cd0b0741e48eb9a1012cb127d4dbee636a59dfa",
           "market_type": "SPOT",
-          "parameter_set_sha256": "feca57cc3c10c80e9086f18e57fd8f498715f7cd865a465b690612a523c4eff3",
+          "parameter_set_sha256": "054e2cde500c74e3de0cf53a0ea4cc187d205f1cbcdad5598459081a5c6e6be4",
           "strategy_id": "failed_breakout_reversal",
           "strategy_sha256": "4f33ee776ac3b463420d6a0f2c08352a0673d16633d2a32765d861fcb8e144ea",
           "strategy_version": "1",
@@ -232,22 +232,22 @@
           "timeframe": "1h"
         },
         "setup_type": "failed_breakout_reversal",
-        "validation_config_sha256": "1c1aec712b2948f11b5c894fcdd3b3bb8a254857f9b8e5c0656b928fdbe42bff"
+        "validation_config_sha256": "7893795b4a3991b17d69e613eb88150fcbbcaf251a41931315c0b30c31a6f5df"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/cf57ba427a11bbb2ab408bcc112d76931040673e22aaf0ea688c18c973e27a74/bundle.json",
-        "sha256": "4aa61cdbecb5f5355e9429edb493cec50135e0d576cd9ec4c888bd625eae082f"
+        "path": "oos_runtime/f2d1caf9eb552061c08e1b528ad612077e9e0d2976f6a92fc5397edbcd3606dc/bundle.json",
+        "sha256": "be158e4bb59097fabe96054cacd07b9e414146eb6593256e58e262a12295e209"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "63f712ab32697b7a9c67ee81847bcdc9f7171002e2f7e4e6a213ae2e12edd979",
         "promotion": {
-          "code_revision": "d590e02cd164b307bede6cb1032e86f506f463058978fd17fe07faf2bb40274d",
-          "dataset_sha256": "d1b3e59b5ad3f22154405c8022ab5b0354dac6734deb10ca7c712d5fb288ed81",
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "058e3458745e76d6202a762be480eec089e6949040cff4f391f89378129a84fc",
           "market_type": "SPOT",
-          "parameter_set_sha256": "43ee407708a48ea2da819ce0b597f20ee8c012155b1a48f874f996d7c59cbab5",
+          "parameter_set_sha256": "0aa632ce16ad795f3fd5e594e0b0658b4c89c6d2c7266c25f322f5730b651b37",
           "strategy_id": "trend_continuation",
           "strategy_sha256": "63f712ab32697b7a9c67ee81847bcdc9f7171002e2f7e4e6a213ae2e12edd979",
           "strategy_version": "1",
@@ -255,22 +255,22 @@
           "timeframe": "4h"
         },
         "setup_type": "trend_continuation",
-        "validation_config_sha256": "8eee72b0ff9cba558c858c18b312e3823533457adbda24aea38585152e03abc2"
+        "validation_config_sha256": "ecf31c5205fcfa07c47ba7ae8dd2c243a9f8a23d41c802d651ee4d0e0dc04600"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/4aebc13da13c331685f66e075d78adbb371a3a7fd94469355e0b82af2fe377e5/bundle.json",
-        "sha256": "ae902e6e0ef5542a5b7524e4d81b552b8afb5592b6cdef4eeaf47eb75b46e620"
+        "path": "oos_runtime/b71f4edf1f000796eed60b671d542fb9dfe6ba9543df35a018aa102d02fd26b2/bundle.json",
+        "sha256": "ffafd48a9fc66d94a7aaa9ee5cc365426878bdf6baa6d080dd5add1016913f12"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "d676e5ee3551bed7965e95cb421ae999225b9b6c0e2662468065506836fe5fc7",
         "promotion": {
-          "code_revision": "d590e02cd164b307bede6cb1032e86f506f463058978fd17fe07faf2bb40274d",
-          "dataset_sha256": "d1b3e59b5ad3f22154405c8022ab5b0354dac6734deb10ca7c712d5fb288ed81",
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "058e3458745e76d6202a762be480eec089e6949040cff4f391f89378129a84fc",
           "market_type": "SPOT",
-          "parameter_set_sha256": "43ee407708a48ea2da819ce0b597f20ee8c012155b1a48f874f996d7c59cbab5",
+          "parameter_set_sha256": "0aa632ce16ad795f3fd5e594e0b0658b4c89c6d2c7266c25f322f5730b651b37",
           "strategy_id": "pullback_continuation",
           "strategy_sha256": "d676e5ee3551bed7965e95cb421ae999225b9b6c0e2662468065506836fe5fc7",
           "strategy_version": "1",
@@ -278,22 +278,22 @@
           "timeframe": "4h"
         },
         "setup_type": "pullback_continuation",
-        "validation_config_sha256": "6e5f47589294f4c2c7e0cd38e48bffd13e41cc10a7553cf8093e460c26e7dec2"
+        "validation_config_sha256": "957010c5cd007f49b8b3c2c88b470e2c7fd7271bba128f9182c785e318351323"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/061455573f76974b2e8df6f32f06cda153b33998ebb6810e72167a12d656157a/bundle.json",
-        "sha256": "922199a764159fba35fb02fffb83e96f3434be188417f1766bc1de79df3d88f2"
+        "path": "oos_runtime/d84376c1324fe18339bd18a593973a573a8e0e89301838a485821498f3193deb/bundle.json",
+        "sha256": "397e7678228fd78376414cd4d28f559c56103c5e49c63dab4ff4e342b899f9a6"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "81ed5bdf546ea4521d379049a78ecd0c518945f72b7414517439d2e976d59c40",
         "promotion": {
-          "code_revision": "d590e02cd164b307bede6cb1032e86f506f463058978fd17fe07faf2bb40274d",
-          "dataset_sha256": "d1b3e59b5ad3f22154405c8022ab5b0354dac6734deb10ca7c712d5fb288ed81",
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "058e3458745e76d6202a762be480eec089e6949040cff4f391f89378129a84fc",
           "market_type": "SPOT",
-          "parameter_set_sha256": "43ee407708a48ea2da819ce0b597f20ee8c012155b1a48f874f996d7c59cbab5",
+          "parameter_set_sha256": "0aa632ce16ad795f3fd5e594e0b0658b4c89c6d2c7266c25f322f5730b651b37",
           "strategy_id": "breakout_retest",
           "strategy_sha256": "81ed5bdf546ea4521d379049a78ecd0c518945f72b7414517439d2e976d59c40",
           "strategy_version": "1",
@@ -301,22 +301,22 @@
           "timeframe": "4h"
         },
         "setup_type": "breakout_retest",
-        "validation_config_sha256": "3d2e8dd7249dde8dae5c80128f33eabe966cf644132be3af45bca4eba547e147"
+        "validation_config_sha256": "1acd73838e91895ec9338686015db2fc482100d95b9050b3b0badebfefa99711"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/4606b8f97b6cc8de8702a038f9579e47de2263cee50c889c1c6c1ec5b55d1a47/bundle.json",
-        "sha256": "a2982f7e4aa431c7852387f91d89aeed71ba3b580a1f226d1747c2d167b85620"
+        "path": "oos_runtime/f6a8dd030e25e1c6462c4d73d9174cc46e9ab5888b0e24b3bfbda167332bc205/bundle.json",
+        "sha256": "5835a4f21b547c509aff9a593dd031fc6807136726738fcd4cde52a578df4b4e"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "ab8ad8719e8ae46a24c00a9fa61b06b65ec081f6282f532f3e6fd5922d517a07",
         "promotion": {
-          "code_revision": "d590e02cd164b307bede6cb1032e86f506f463058978fd17fe07faf2bb40274d",
-          "dataset_sha256": "d1b3e59b5ad3f22154405c8022ab5b0354dac6734deb10ca7c712d5fb288ed81",
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "058e3458745e76d6202a762be480eec089e6949040cff4f391f89378129a84fc",
           "market_type": "SPOT",
-          "parameter_set_sha256": "43ee407708a48ea2da819ce0b597f20ee8c012155b1a48f874f996d7c59cbab5",
+          "parameter_set_sha256": "0aa632ce16ad795f3fd5e594e0b0658b4c89c6d2c7266c25f322f5730b651b37",
           "strategy_id": "support_reclaim",
           "strategy_sha256": "ab8ad8719e8ae46a24c00a9fa61b06b65ec081f6282f532f3e6fd5922d517a07",
           "strategy_version": "1",
@@ -324,22 +324,22 @@
           "timeframe": "4h"
         },
         "setup_type": "support_reclaim",
-        "validation_config_sha256": "5910dfcd0805be7c336bf63f0006353c2d3b88097110ad2ba257ef6456fb0d0c"
+        "validation_config_sha256": "18a642dcfb07e6a88492bbd3f653860c32147a51283052a13cdfe6878fc9e581"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/d96b2e5bec0a13541279315b199b321a953d9e2c7d2d1d419196a83272382765/bundle.json",
-        "sha256": "d27dec3db7cd1006974ca484c8b4c4800f50be74919a06cb0525f9966718aeb1"
+        "path": "oos_runtime/c9ee64e48fadb8e3a48fc2623a82bbf4e4a411a2e82babd8c6a7fca01ba55530/bundle.json",
+        "sha256": "627089c7b2d78787ad34b41e683b33caa9e7d160e85184d65811435169fe7ca2"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "4f33ee776ac3b463420d6a0f2c08352a0673d16633d2a32765d861fcb8e144ea",
         "promotion": {
-          "code_revision": "d590e02cd164b307bede6cb1032e86f506f463058978fd17fe07faf2bb40274d",
-          "dataset_sha256": "d1b3e59b5ad3f22154405c8022ab5b0354dac6734deb10ca7c712d5fb288ed81",
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "058e3458745e76d6202a762be480eec089e6949040cff4f391f89378129a84fc",
           "market_type": "SPOT",
-          "parameter_set_sha256": "43ee407708a48ea2da819ce0b597f20ee8c012155b1a48f874f996d7c59cbab5",
+          "parameter_set_sha256": "0aa632ce16ad795f3fd5e594e0b0658b4c89c6d2c7266c25f322f5730b651b37",
           "strategy_id": "failed_breakout_reversal",
           "strategy_sha256": "4f33ee776ac3b463420d6a0f2c08352a0673d16633d2a32765d861fcb8e144ea",
           "strategy_version": "1",
@@ -347,7 +347,7 @@
           "timeframe": "4h"
         },
         "setup_type": "failed_breakout_reversal",
-        "validation_config_sha256": "78281bccf0c5bde80fd611bff8ec505fb69b37136190ce163dab32850a08229e"
+        "validation_config_sha256": "ef9f58aad8bec69122a1a7741a40a3f15d189a8496d63da8e4b65b095f1e9d77"
       }
     }
   ]

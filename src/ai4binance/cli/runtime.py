@@ -908,14 +908,22 @@ def _run_virtual_market_research_cycle(
 ) -> int:
     from ai4binance.cli.research import run_public_research_command
 
-    return run_public_research_command(
+    journal = _virtual_wallet_journal(settings)
+    exit_code = run_public_research_command(
         "research-public",
         settings,
         public_acquisition=public_acquisition,
         whale_fusion_cycle=None,
         cycle_report=cycle_report,
-        virtual_wallet_journal=_virtual_wallet_journal(settings),
+        virtual_wallet_journal=journal,
     )
+    if cycle_report is not None:
+        cycle_report["daily_loss_tuning"] = _run_virtual_loss_tuning(
+            settings,
+            journal,
+            datetime.now(UTC),
+        )
+    return exit_code
 
 
 def _request_market_history_refresh_if_stale(
@@ -964,6 +972,186 @@ def _virtual_wallet_journal(settings: Settings) -> VirtualWalletJournal:
         state_path=settings.virtual_wallet_state_path,
         report_root=_virtual_wallet_report_root(settings.virtual_wallet_state_path),
     )
+
+
+def _run_virtual_loss_tuning(
+    settings: Settings,
+    journal: VirtualWalletJournal,
+    observed_at: datetime,
+) -> dict[str, object]:
+    """Run canonical Spot backtest/tuning after three same-day virtual losses."""
+
+    safe_state = {
+        "execution_allowed": False,
+        "promotion_status": "RESEARCH_ONLY",
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+    }
+    try:
+        trigger = journal.daily_loss_tuning_trigger(observed_at)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return {
+            "status": "BLOCKED",
+            "blockers": ["VIRTUAL_LOSS_TUNING_TRIGGER_UNAVAILABLE"],
+            "parameter_application": "NOT_APPLIED",
+            **safe_state,
+        }
+    if trigger.get("status") != "TRIGGERED":
+        return {**trigger, "parameter_application": "NOT_APPLIED"}
+    trigger_id = str(trigger.get("trigger_id", ""))
+    if not re.fullmatch(r"virtual-loss-tuning:[0-9a-f]{24}", trigger_id):
+        return {
+            "status": "BLOCKED",
+            "blockers": ["VIRTUAL_LOSS_TUNING_TRIGGER_INVALID"],
+            "parameter_application": "NOT_APPLIED",
+            **safe_state,
+        }
+    tuning_root = settings.validation_artifact_directory / "virtual_loss_tuning"
+    artifact_path = tuning_root / f"{trigger_id.rsplit(':', maxsplit=1)[-1]}.json"
+    existing = _load_json_mapping(artifact_path)
+    if existing:
+        if (
+            existing.get("trigger_id") != trigger_id
+            or existing.get("execution_allowed") is not False
+            or existing.get("promotion_status") != "RESEARCH_ONLY"
+            or existing.get("live_eligibility_status") != "LIVE_ORDER_BLOCKED"
+        ):
+            return {
+                "status": "BLOCKED",
+                "blockers": ["VIRTUAL_LOSS_TUNING_ARTIFACT_INVALID"],
+                "parameter_application": "NOT_APPLIED",
+                **safe_state,
+            }
+        if existing.get("status") == "RESEARCH_TUNING_COMPLETED":
+            return {
+                "status": "ALREADY_REVIEWED",
+                "trigger_id": trigger_id,
+                "artifact_path": str(artifact_path),
+                "parameter_application": "NOT_APPLIED",
+                **safe_state,
+            }
+        attempted_at = existing.get("attempted_at")
+        try:
+            previous_attempt = datetime.fromisoformat(str(attempted_at)).astimezone(UTC)
+        except (TypeError, ValueError):
+            previous_attempt = observed_at.astimezone(UTC) - timedelta(hours=1)
+        if observed_at.astimezone(UTC) - previous_attempt < timedelta(minutes=15):
+            return {
+                "status": "RETRY_PENDING",
+                "trigger_id": trigger_id,
+                "artifact_path": str(artifact_path),
+                "blockers": existing.get("blockers", []),
+                "parameter_application": "NOT_APPLIED",
+                **safe_state,
+            }
+
+    from ai4binance.application.validation_pipeline import VALIDATED_PLAYBOOKS
+    from ai4binance.data import DatasetIntegrityError, ParquetOHLCVArchive
+    from ai4binance.validation_pipeline_runtime import (
+        SPOT_VALIDATION_NOTIONAL_TO_EQUITY_RATIO,
+        HistoricalValidationRuntime,
+    )
+
+    raw_subjects = trigger.get("subjects")
+    subjects = raw_subjects if isinstance(raw_subjects, list) else []
+    archive = ParquetOHLCVArchive(
+        settings.dataset_directory / "spot"
+        if settings.market_history_local_candles
+        else settings.dataset_directory
+    )
+    runtime = HistoricalValidationRuntime(
+        report_directory=settings.backtest_report_directory / "virtual_loss_tuning",
+        position_notional_to_equity_ratio=(SPOT_VALIDATION_NOTIONAL_TO_EQUITY_RATIO),
+    )
+    results: list[dict[str, object]] = []
+    aggregate_blockers: list[str] = []
+    for raw_subject in subjects[:3]:
+        if not isinstance(raw_subject, Mapping):
+            aggregate_blockers.append("VIRTUAL_LOSS_TUNING_SUBJECT_INVALID")
+            continue
+        market = str(raw_subject.get("market", "")).upper()
+        symbol = str(raw_subject.get("symbol", "")).upper()
+        timeframe = str(raw_subject.get("timeframe", ""))
+        playbook = str(raw_subject.get("strategy_id", ""))
+        subject = {
+            "market": market,
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "strategy_id": playbook,
+        }
+        if market != "SPOT" or playbook not in VALIDATED_PLAYBOOKS:
+            blocker = "VIRTUAL_LOSS_TUNING_SUBJECT_UNSUPPORTED"
+            aggregate_blockers.append(blocker)
+            results.append(
+                {"subject": subject, "status": "BLOCKED", "blockers": [blocker]}
+            )
+            continue
+        try:
+            candles = archive.read(symbol, timeframe)
+            result = runtime.validate_one(
+                symbol,
+                timeframe,
+                playbook,
+                candles,
+                artifact_directory=tuning_root / "evidence",
+            )
+            tuning = cast(Any, result.tuning)
+            backtest = cast(Any, result.backtest)
+            if tuning is None or backtest is None:
+                raise ValueError("VIRTUAL_LOSS_TUNING_RESULT_INCOMPLETE")
+            results.append(
+                {
+                    "subject": subject,
+                    "status": "RESEARCH_TUNING_COMPLETED",
+                    "dataset_sha256": runtime.dataset_sha256(candles),
+                    "backtest_metrics": to_primitive(backtest.metrics),
+                    "tuning_report_id": tuning.report_id,
+                    "candidate_count": tuning.search_space.candidate_count,
+                    "selected_parameters": to_primitive(tuning.selected_parameters),
+                    "tuning_blockers": list(tuning.blockers),
+                    "validation_blockers": list(result.blockers),
+                    "parameter_application": "NOT_APPLIED",
+                }
+            )
+        except (
+            DatasetIntegrityError,
+            FileNotFoundError,
+            OSError,
+            TypeError,
+            ValueError,
+        ):
+            blocker = "VIRTUAL_LOSS_TUNING_DATA_OR_VALIDATION_UNAVAILABLE"
+            aggregate_blockers.append(blocker)
+            results.append(
+                {"subject": subject, "status": "BLOCKED", "blockers": [blocker]}
+            )
+    if not subjects:
+        aggregate_blockers.append("VIRTUAL_LOSS_TUNING_SUBJECTS_MISSING")
+    status = (
+        "RESEARCH_TUNING_COMPLETED"
+        if results
+        and all(item.get("status") == "RESEARCH_TUNING_COMPLETED" for item in results)
+        else "RETRY_PENDING"
+    )
+    payload = {
+        "schema_version": "VirtualLossTuningResult/v1",
+        "status": status,
+        "trigger_id": trigger_id,
+        "trigger": trigger,
+        "attempted_at": observed_at.astimezone(UTC).isoformat(),
+        "results": results,
+        "blockers": list(dict.fromkeys(aggregate_blockers)),
+        "parameter_application": "NOT_APPLIED",
+        **safe_state,
+    }
+    write_json_object_verified(
+        artifact_path,
+        payload,
+        blocker="VIRTUAL_LOSS_TUNING_WRITE_FAILED",
+        subject_id=trigger_id,
+        indent=2,
+        durable=True,
+    )
+    return {**payload, "artifact_path": str(artifact_path)}
 
 
 def _virtual_wallet_report_root(state_path: Path) -> Path:
