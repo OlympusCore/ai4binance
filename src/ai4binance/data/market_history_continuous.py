@@ -22,7 +22,7 @@ from ai4binance.core.errors import (
     ExchangeRateLimitError,
     ExchangeTransportError,
 )
-from ai4binance.data.archive import ParquetOHLCVArchive
+from ai4binance.data.archive import DatasetManifest, ParquetOHLCVArchive
 from ai4binance.data.market_history_sync import (
     MARKET_HISTORY_TIMEFRAMES,
     MarketHistorySourceUnavailableError,
@@ -2263,6 +2263,29 @@ class ContinuousMarketHistory:
                     source="CLOSED_CANDLE_BOUNDARY_REPAIR",
                     generated_at=now,
                 )
+            tail_start = datetime.fromisoformat(manifest.last_timestamp) + interval
+            if tail_start < end:
+                # Historical availability gaps must remain visible, but they must
+                # not prevent the already verified active listing segment from
+                # receiving its latest closed candles. Refresh the contiguous
+                # tail before walking backwards into an unavailable history
+                # window; collection progress continues to point at that window.
+                manifest = self._refresh_current_candle_tail(
+                    market=market,
+                    symbol=symbol,
+                    kind=kind,
+                    timeframe=timeframe,
+                    transport=transport,
+                    archive=archive,
+                    dataset_symbol=dataset_symbol,
+                    directory=directory,
+                    manifest=manifest,
+                    start=tail_start,
+                    end=end,
+                    interval=interval,
+                    now=now,
+                    replace_conflicts_from_sources=replace_conflicts_from_sources,
+                )
             last = datetime.fromisoformat(manifest.last_timestamp) + interval
             if cursor > last:
                 raise ValueError("collection progress exceeds the verified dataset")
@@ -2420,6 +2443,84 @@ class ContinuousMarketHistory:
             "requested_start": state["requested_start"],
             "first_available_at": state.get("first_available_at"),
         }
+
+    def _refresh_current_candle_tail(
+        self,
+        *,
+        market: str,
+        symbol: str,
+        kind: str,
+        timeframe: str,
+        transport: JsonTransport,
+        archive: ParquetOHLCVArchive,
+        dataset_symbol: str,
+        directory: Path,
+        manifest: DatasetManifest,
+        start: datetime,
+        end: datetime,
+        interval: timedelta,
+        now: datetime,
+        replace_conflicts_from_sources: tuple[str, ...],
+    ) -> DatasetManifest:
+        """Refresh a verified active segment without hiding older gaps."""
+
+        cursor = start
+        pending: list[OHLCVCandle] = []
+        source = f"BINANCE_PUBLIC_REST_{timeframe.upper()}"
+        prefix = _prefix(market)
+        for _ in range(self.pages_per_stream):
+            if cursor >= end:
+                break
+            remaining_intervals = max(
+                1,
+                int(
+                    ((end - cursor).total_seconds() + interval.total_seconds() - 1)
+                    // interval.total_seconds()
+                ),
+            )
+            params: dict[str, str | int] = {
+                "pair" if kind == "indexPriceKlines" else "symbol": symbol,
+                "interval": timeframe,
+                "startTime": int(cursor.timestamp() * 1000),
+                "endTime": int(end.timestamp() * 1000) - 1,
+                "limit": min(499, remaining_intervals),
+            }
+            if market == "coin_m_futures" and kind == "indexPriceKlines":
+                params["pair"] = self.coin_m_contracts[symbol][0]
+            raw = transport.get_json(prefix + kind, params)
+            if not isinstance(raw, list):
+                raise ValueError("kline response must be an array")
+            if not raw:
+                break
+            if len(raw) > 499:
+                raise ValueError("kline response exceeds its page limit")
+            candles = self._parse_rows(raw, cursor, end, interval=interval)
+            if candles[0].timestamp > cursor:
+                break
+            raw_payload: dict[str, object] = {
+                "source": source,
+                "volume_unit": "CONTRACTS"
+                if market == "coin_m_futures" and kind == "klines"
+                else "PROVIDER_NATIVE",
+                "rows": raw,
+                **_SAFE_STATE,
+            }
+            digest = sha256(
+                json.dumps(raw_payload, sort_keys=True).encode()
+            ).hexdigest()
+            _save(directory / "sources" / f"{digest}.json", raw_payload)
+            pending.extend(candles)
+            cursor = candles[-1].timestamp + interval
+        if not pending:
+            return manifest
+        return archive.update(
+            dataset_symbol,
+            timeframe,
+            tuple(pending),
+            source=source,
+            generated_at=now,
+            replace_conflicts_from_sources=replace_conflicts_from_sources,
+        )
 
     @staticmethod
     def _parse_rows(

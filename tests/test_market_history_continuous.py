@@ -1237,12 +1237,17 @@ def test_long_shutdown_does_not_slide_requested_start_forward(tmp_path: Path) ->
     instance._candles("spot", "BTCUSDT", "klines", transport, NOW)
     progress = tmp_path / "market/spot/BTCUSDT/5m/collection-progress.json"
     saved = _load(progress)
+    archive = ParquetOHLCVArchive(tmp_path / "market/spot")
+    previous_tail = datetime.fromisoformat(
+        archive.manifest("BTCUSDT", "5m").last_timestamp
+    ) + timedelta(minutes=5)
+    previous_call_count = len(transport.calls)
     collector(tmp_path, transport, pages=1)._candles(
         "spot", "BTCUSDT", "klines", transport, NOW + timedelta(days=45)
     )
     assert _load(progress)["requested_start"] == saved["requested_start"]
-    assert transport.calls[-1][1]["startTime"] == int(
-        datetime.fromisoformat(str(saved["next_at"])).timestamp() * 1000
+    assert transport.calls[previous_call_count][1]["startTime"] == int(
+        previous_tail.timestamp() * 1000
     )
 
 
@@ -1320,6 +1325,71 @@ def test_extended_existing_history_uses_vision_for_only_the_missing_window(
         (NOW.replace(hour=0, minute=0) - timedelta(days=400), stored_at)
     ]
     assert transport.calls == []
+
+
+def test_unavailable_history_does_not_leave_verified_active_tail_stale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    transport = Transport()
+    instance = collector(tmp_path, transport, pages=1)
+    archive = ParquetOHLCVArchive(tmp_path / "market/spot")
+    stored_at = NOW.replace(minute=0) - timedelta(hours=1)
+    archive.update(
+        "BTCUSDT",
+        "5m",
+        (
+            OHLCVCandle(
+                timestamp=stored_at,
+                open=Decimal("1"),
+                high=Decimal("1"),
+                low=Decimal("1"),
+                close=Decimal("1"),
+                volume=Decimal("1"),
+            ),
+        ),
+        source="BINANCE_PUBLIC_REST_5M",
+        generated_at=stored_at + timedelta(minutes=5),
+    )
+    requested_start = NOW.replace(minute=0) - timedelta(days=400)
+    progress = tmp_path / "market/spot/BTCUSDT/5m/collection-progress.json"
+    _save(
+        progress,
+        {
+            "requested_start": requested_start.isoformat(),
+            "next_at": requested_start.isoformat(),
+            "first_available_at": stored_at.isoformat(),
+        },
+    )
+    extended = ContinuousMarketHistory(
+        instance.history,
+        transport,
+        transport,
+        initial_days=400,
+        pages_per_stream=1,
+    )
+
+    def unavailable(**kwargs: object) -> tuple[datetime, dict[str, object]]:
+        cursor = cast(datetime, kwargs["cursor"])
+        return cursor, {
+            "status": "UNAVAILABLE",
+            "next_at": cursor.isoformat(),
+            "reason": "BINANCE_VISION_ARCHIVE_UNAVAILABLE",
+        }
+
+    monkeypatch.setattr(extended, "_vision_history", unavailable)
+
+    result = extended._candles("spot", "BTCUSDT", "klines", transport, NOW)
+
+    assert result["status"] == "UNAVAILABLE"
+    assert transport.calls[0][1]["startTime"] == int(
+        (stored_at + timedelta(minutes=5)).timestamp() * 1000
+    )
+    manifest = archive.manifest("BTCUSDT", "5m")
+    assert (
+        manifest.last_timestamp
+        == (NOW.replace(minute=0) - timedelta(minutes=5)).isoformat()
+    )
+    assert _load(progress)["next_at"] == requested_start.isoformat()
 
 
 def test_vision_history_skips_missing_archives_before_known_listing(
