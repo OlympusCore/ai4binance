@@ -205,6 +205,14 @@ def test_gateway_blockers_are_fail_closed_on_invalid_shape() -> None:
     assert _blockers({"blockers": "unexpected"}) == {"MARKET_GATEWAY_BLOCKERS_INVALID"}
 
 
+def test_gateway_reuses_the_canonical_continuous_collector_builder() -> None:
+    source = Path(gateway_cli.__file__).read_text(encoding="utf-8")
+
+    assert "build_continuous_market_history(" in source
+    assert "build_market_depth_collector(" in source
+    assert '"market-history-refresh-request.json"' not in source
+
+
 def test_gateway_heartbeat_preserves_bootstrap_evidence(tmp_path: Path) -> None:
     path = tmp_path / "market-history-latest.json"
     path.write_text(
@@ -321,7 +329,11 @@ def test_gateway_run_returns_fail_closed_for_fatal_bootstrap(
             del observed_at
             return {"blockers": ["PUBLIC_MARKET_UNIVERSE_UNAVAILABLE"]}
 
-    monkeypatch.setattr(gateway_cli, "ContinuousMarketHistory", _Collector)
+    monkeypatch.setattr(
+        gateway_cli,
+        "build_continuous_market_history",
+        lambda *_args, **_kwargs: _Collector(),
+    )
     settings = type(
         "Settings",
         (),
@@ -384,7 +396,11 @@ def test_gateway_run_completes_one_valid_local_cycle(
         async def run_once(self) -> tuple[str, str]:
             return ("PLANNED_ROLLOVER", "PLANNED_ROLLOVER")
 
-    monkeypatch.setattr(gateway_cli, "ContinuousMarketHistory", _Collector)
+    monkeypatch.setattr(
+        gateway_cli,
+        "build_continuous_market_history",
+        lambda *_args, **_kwargs: _Collector(),
+    )
     monkeypatch.setattr(gateway_cli, "SingleInstanceLease", _Lease)
     monkeypatch.setattr(
         gateway_cli,
@@ -469,7 +485,11 @@ def test_gateway_recovers_gap_and_reconnects_before_a_completed_cycle(
                 raise OSError("temporary")
             return ("PLANNED_ROLLOVER", "PLANNED_ROLLOVER")
 
-    monkeypatch.setattr(gateway_cli, "ContinuousMarketHistory", _Collector)
+    monkeypatch.setattr(
+        gateway_cli,
+        "build_continuous_market_history",
+        lambda *_args, **_kwargs: _Collector(),
+    )
     monkeypatch.setattr(gateway_cli, "SingleInstanceLease", _Lease)
     fake_time = type("Time", (), {"sleep": staticmethod(lambda _seconds: None)})()
     monkeypatch.setattr(gateway_cli, "time", fake_time)
@@ -537,8 +557,8 @@ def test_gateway_converts_lock_errors_to_blocked_payload(
     )
     monkeypatch.setattr(
         gateway_cli,
-        "ContinuousMarketHistory",
-        lambda **_kwargs: object(),
+        "build_continuous_market_history",
+        lambda *_args, **_kwargs: object(),
     )
     settings = type(
         "Settings",
@@ -602,7 +622,11 @@ def test_gateway_retries_backfill_then_blocks_an_invalid_universe(
                 return {"blockers": ["MARKET_DATA_BACKFILL_PENDING"]}
             return {"blockers": []}
 
-    monkeypatch.setattr(gateway_cli, "ContinuousMarketHistory", _Collector)
+    monkeypatch.setattr(
+        gateway_cli,
+        "build_continuous_market_history",
+        lambda *_args, **_kwargs: _Collector(),
+    )
     monkeypatch.setattr(gateway_cli, "SingleInstanceLease", _Lease)
     monkeypatch.setattr(
         gateway_cli,

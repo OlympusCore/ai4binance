@@ -47,6 +47,8 @@ def test_policy_projection_validates_and_accepts_current_representative_paths() 
         ".agents/skills/quality-gate-loop/scripts/invoke_gate.ps1",
         "config/governance/technology_language_ownership.yaml",
         "docs/architecture/diagrams/diagram_registry.yaml",
+        "publication/public_manifest.yaml",
+        "publication/sanitize_publication.py",
         "pyproject.toml",
         "schemas/governance/technology_language_ownership.schema.json",
         "scripts/quality.ps1",

@@ -433,3 +433,64 @@ def test_posix_file_lock_calls_platform_primitives(
     file_lock._release_file_lock(stream)
 
     assert calls == [(7, 2), (7, 8)]
+
+
+def test_windows_file_lock_retries_transient_deadlock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import errno
+    import sys
+    from types import SimpleNamespace
+
+    import ai4binance.events.file_lock as file_lock
+
+    calls: list[tuple[int, int, int]] = []
+
+    def locking(descriptor: int, operation: int, size: int) -> None:
+        calls.append((descriptor, operation, size))
+        if len(calls) < 3:
+            raise OSError(errno.EDEADLK, "fixture contention")
+
+    monkeypatch.setattr(os, "name", "nt")
+    monkeypatch.setattr("ai4binance.events.file_lock.time.sleep", lambda _seconds: None)
+    monkeypatch.setitem(
+        sys.modules,
+        "msvcrt",
+        SimpleNamespace(locking=locking, LK_NBLCK=1),
+    )
+    stream = cast(
+        Any,
+        SimpleNamespace(seek=lambda *_args: None, fileno=lambda: 7),
+    )
+
+    file_lock._acquire_file_lock(stream)
+
+    assert calls == [(7, 1, 1), (7, 1, 1), (7, 1, 1)]
+
+
+def test_windows_file_lock_times_out_on_persistent_contention(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import errno
+    import sys
+    from types import SimpleNamespace
+
+    import ai4binance.events.file_lock as file_lock
+
+    def locking(_descriptor: int, _operation: int, _size: int) -> None:
+        raise OSError(errno.EDEADLK, "fixture contention")
+
+    monkeypatch.setattr(os, "name", "nt")
+    monkeypatch.setattr(file_lock, "_WINDOWS_LOCK_TIMEOUT_SECONDS", 0.0)
+    monkeypatch.setitem(
+        sys.modules,
+        "msvcrt",
+        SimpleNamespace(locking=locking, LK_NBLCK=1),
+    )
+    stream = cast(
+        Any,
+        SimpleNamespace(seek=lambda *_args: None, fileno=lambda: 7),
+    )
+
+    with pytest.raises(TimeoutError, match="file lock acquisition timed out"):
+        file_lock._acquire_file_lock(stream)

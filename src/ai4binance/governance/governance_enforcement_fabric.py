@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import yaml
 
@@ -582,7 +582,10 @@ def _quality_axis(name: str, value: object) -> GovernanceQualityAxis:
 
 def _quality_standard_mappings(value: object) -> dict[str, tuple[str, ...]]:
     payload = _mapping(value, "quality policy")
-    standard = _mapping(payload.get("standard_impact_tests"), "standard_impact_tests")
+    standard_payload = payload.get("standard_impact_tests")
+    if standard_payload is None:
+        raise ValueError("quality policy retention requires standard_impact_tests")
+    standard = _mapping(standard_payload, "standard_impact_tests")
     mappings = standard.get("mappings")
     if not isinstance(mappings, list):
         raise ValueError("standard_impact_tests.mappings must be a list")
@@ -642,10 +645,10 @@ def _string(value: object, name: str) -> str:
 def _safe_path(value: object, name: str) -> str:
     path = _string(value, name)
     if (
-        path.startswith("/")
-        or Path(path).is_absolute()
+        PurePosixPath(path).is_absolute()
+        or PureWindowsPath(path).is_absolute()
         or "\\" in path
-        or ".." in Path(path).parts
+        or ".." in PurePosixPath(path).parts
     ):
         raise ValueError(f"{name} must be a repository-relative POSIX path")
     return path

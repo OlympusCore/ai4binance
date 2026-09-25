@@ -653,6 +653,7 @@ def test_research_service_dge_failure_is_deterministic_and_preserves_portfolio()
     )
     assert first.virtual_runtime_decision.eligibility.blockers == (
         "DGE_EVALUATION_FAILED",
+        "DGE_EVALUATION_ERROR_TYPE:ENGINE_EVALUATION",
         "DGE_SIMULATION_NOT_APPROVED",
     )
     assert (
@@ -685,6 +686,7 @@ def test_research_service_malformed_dge_context_fails_closed_without_mutation() 
     )
     assert workflow.virtual_runtime_decision.eligibility.blockers == (
         "DGE_EVALUATION_FAILED",
+        "DGE_EVALUATION_ERROR_TYPE:CONTEXT_TYPE",
         "DGE_SIMULATION_NOT_APPROVED",
     )
     assert (

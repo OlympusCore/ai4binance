@@ -127,6 +127,8 @@ def test_policy_reports_unreadable_sources_and_evidence_requirements(
         (policy_module._boolean, "false", "must be boolean"),
         (policy_module._strings, ("not", "a", "list"), "must be a string array"),
         (policy_module._safe_paths, ["../unsafe"], "repository-relative POSIX paths"),
+        (policy_module._safe_paths, ["/absolute"], "repository-relative POSIX paths"),
+        (policy_module._safe_paths, ["C:/absolute"], "repository-relative POSIX paths"),
     ],
 )
 def test_policy_value_validators_reject_malformed_input(

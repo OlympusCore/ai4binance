@@ -792,6 +792,18 @@ def test_architecture_migration_ledger_classifies_every_repository_module() -> N
     assert historical_persistence["target_paths"] == [
         "src/ai4binance/infrastructure/persistence/historical_replay.py"
     ]
+    internal_radar = by_path["src/ai4binance/internal_radar.py"]
+    assert internal_radar["classification"] == "SPLIT"
+    assert set(cast(list[str], internal_radar["target_paths"])) == {
+        "src/ai4binance/domain/evidence",
+        "src/ai4binance/application/pipelines",
+        "src/ai4binance/infrastructure/filesystem",
+    }
+    internal_radar_vision = by_path["src/ai4binance/internal_radar_vision.py"]
+    assert internal_radar_vision["classification"] == "MOVE"
+    assert internal_radar_vision["target_paths"] == [
+        "src/ai4binance/integrations/llm/internal_radar_vision.py"
+    ]
     virtual_attribution = by_path[
         "src/ai4binance/research/virtual_runtime_attribution.py"
     ]

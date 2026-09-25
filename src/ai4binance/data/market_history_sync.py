@@ -11,7 +11,7 @@ import time
 import urllib.parse
 import urllib.request
 import zipfile
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from datetime import time as datetime_time
@@ -43,6 +43,14 @@ _MAX_ARCHIVE_BYTES: Final = 128 * 1024 * 1024
 _MAX_UNCOMPRESSED_BYTES: Final = 256 * 1024 * 1024
 _UNIVERSE_CACHE_MAX_AGE: Final = timedelta(minutes=5)
 _COLLECTION_MAX_SYMBOLS_PER_MARKET: Final = 50
+_FAST_RETRY_BLOCKERS: Final = frozenset(
+    {
+        "PUBLIC_MARKET_UNIVERSE_UNAVAILABLE",
+        "PUBLIC_MARKET_UNIVERSE_EMPTY",
+        "PUBLIC_MARKET_LIQUIDITY_UNIVERSE_UNAVAILABLE",
+        "PUBLIC_MARKET_LIQUIDITY_UNIVERSE_EMPTY",
+    }
+)
 
 
 def read_cached_market_universe(
@@ -409,6 +417,9 @@ class MarketHistorySynchronizer:
             else self.universe_provider.eligible_market_snapshot()
         )
         if snapshot.blockers:
+            cached = read_cached_market_universe(cache_path, observed_at)
+            if cached is not None:
+                return cached
             return snapshot
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         temporary = cache_path.with_suffix(".json.tmp")
@@ -704,24 +715,43 @@ class MarketHistorySupervisor:
                 started = time.monotonic()
                 now = self.clock()
                 attempts += 1
+                fast_retry = False
+                result: object
                 try:
                     if self.cycle is None:
-                        self.synchronizer.sync_day(
+                        result = self.synchronizer.sync_day(
                             now.date() - timedelta(days=1), observed_at=now
                         )
                     else:
-                        self.cycle(now)
+                        result = self.cycle(now)
                 except (OSError, ValueError, ArithmeticError, ExchangeError) as error:
+                    fast_retry = True
                     if self.on_recoverable_error is not None:
                         self.on_recoverable_error(now, error)
                 else:
                     completed += 1
+                    fast_retry = _requires_fast_retry(result)
                 if max_cycles is None or attempts < max_cycles:
                     delay = self.interval_seconds
                     if self.cycle is not None:
                         delay = max(1, delay - (time.monotonic() - started))
+                    if fast_retry:
+                        delay = min(delay, 30)
                     self.sleeper(delay)
         return completed
+
+
+def _requires_fast_retry(result: object) -> bool:
+    blockers = (
+        result.get("blockers", ())
+        if isinstance(result, Mapping)
+        else getattr(result, "blockers", ())
+    )
+    return isinstance(blockers, (list, tuple)) and bool(
+        _FAST_RETRY_BLOCKERS.intersection(
+            item for item in blockers if isinstance(item, str)
+        )
+    )
 
 
 def _daily_kline_key(

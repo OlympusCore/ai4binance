@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import errno
 import os
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, BinaryIO, cast
+
+_WINDOWS_LOCK_RETRY_SECONDS = 0.05
+_WINDOWS_LOCK_TIMEOUT_SECONDS = 30.0
+_WINDOWS_RETRYABLE_LOCK_ERRORS = frozenset({errno.EACCES, errno.EAGAIN, errno.EDEADLK})
 
 
 @contextmanager
@@ -29,9 +35,21 @@ def _acquire_file_lock(stream: BinaryIO) -> None:
     if os.name == "nt":
         import msvcrt
 
-        stream.seek(0)
-        msvcrt.locking(stream.fileno(), msvcrt.LK_LOCK, 1)
-        return
+        deadline = time.monotonic() + _WINDOWS_LOCK_TIMEOUT_SECONDS
+        while True:
+            stream.seek(0)
+            try:
+                msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+                return
+            except OSError as error:
+                if (
+                    error.errno not in _WINDOWS_RETRYABLE_LOCK_ERRORS
+                    or time.monotonic() >= deadline
+                ):
+                    raise TimeoutError(
+                        "exclusive file lock acquisition timed out"
+                    ) from error
+                time.sleep(_WINDOWS_LOCK_RETRY_SECONDS)
 
     import fcntl
 

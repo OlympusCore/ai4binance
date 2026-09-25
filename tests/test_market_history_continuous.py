@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from threading import Event, Thread
+from types import SimpleNamespace
 from typing import cast
 
 import pytest
@@ -17,6 +18,7 @@ import pytest
 from ai4binance.cli.market_data import (
     _build_canonical_opportunity_pipeline,
     _priority_depth_markets,
+    build_market_depth_collector,
 )
 from ai4binance.cli.market_data import (
     main as market_data_main,
@@ -40,6 +42,9 @@ from ai4binance.data.market_history_sync import (
     MARKET_HISTORY_TIMEFRAMES,
     BinanceVisionArchiveCache,
     MarketHistorySynchronizer,
+)
+from ai4binance.infrastructure.persistence.safe_json import (
+    DestinationVerificationError,
 )
 from ai4binance.integrations.binance import BinanceEligibleMarketSnapshot
 from ai4binance.schemas import OHLCVCandle
@@ -413,6 +418,7 @@ def test_recoverable_cycle_failure_is_persisted_for_retry(tmp_path: Path) -> Non
     state = _load(instance.history.state_path)
     assert state["status"] == "DEGRADED"
     assert state["last_error_type"] == "OSError"
+    assert state["last_error_code"] == "MARKET_HISTORY_RECOVERABLE_ERROR"
     assert state["recovery_action"] == "RETRY_NEXT_CYCLE"
     assert state["completed_streams"] == 5
     assert state["total_streams"] == 10
@@ -422,6 +428,20 @@ def test_recoverable_cycle_failure_is_persisted_for_retry(tmp_path: Path) -> Non
     )
     assert state["execution_allowed"] is False
     assert state["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_recoverable_failure_exposes_only_verified_blocker_code(
+    tmp_path: Path,
+) -> None:
+    instance = collector(tmp_path, Transport())
+
+    instance.record_recoverable_cycle_failure(
+        NOW,
+        DestinationVerificationError("MARKET_HISTORY_WRITE_FAILED"),
+    )
+
+    state = _load(instance.history.state_path)
+    assert state["last_error_code"] == "MARKET_HISTORY_WRITE_FAILED"
 
 
 def test_recoverable_cycle_failure_tolerates_malformed_previous_blockers(
@@ -454,9 +474,9 @@ def test_resume_fetches_native_timeframes_without_local_materialization(
     assert all(row["network_download"] is True for row in refresh_rows)
     assert {row["closed_history_source"] for row in refresh_rows} == {
         f"BINANCE_VISION_{timeframe.upper()}_DIRECT"
-        for timeframe in MARKET_HISTORY_TIMEFRAMES
+        for timeframe in VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
     }
-    progress = tmp_path / "market/spot/BTCUSDT/5m/collection-progress.json"
+    progress = tmp_path / "market/spot/BTCUSDT/15m/collection-progress.json"
     resumed = collector(tmp_path, transport)
     second = resumed.sync_cycle(observed_at=NOW)
     assert second["status"] == "READY"
@@ -572,13 +592,15 @@ def test_sync_finishes_symbol_streams_and_publishes_durable_progress(
     report = instance.sync_cycle(observed_at=NOW)
 
     assert markets[:1] == ["spot"]
-    assert markets.count("spot") == 5
-    assert markets.count("usd_m_futures") == 9
-    assert snapshot_markets == (["spot", "usd_m_futures"] if long_backfill else [])
+    assert markets.count("spot") == len(MARKET_HISTORY_TIMEFRAMES)
+    assert markets.count("usd_m_futures") == (len(MARKET_HISTORY_TIMEFRAMES) + 4)
+    expected_snapshot_passes = 2 if long_backfill else 1
+    assert snapshot_markets == ["spot", "usd_m_futures"] * expected_snapshot_passes
     assert report["completed_symbols"] == 2
     assert report["total_symbols"] == 2
-    assert report["completed_streams"] == 14
-    assert report["total_streams"] == 14
+    expected_streams = (2 * len(MARKET_HISTORY_TIMEFRAMES)) + 4
+    assert report["completed_streams"] == expected_streams
+    assert report["total_streams"] == expected_streams
     assert report["completion_ratio"] == "1.000000"
     assert ready_symbols == [("SPOT", "ETHUSDT"), ("USD_M_FUTURES", "BTCUSDT")]
     assert report["opportunity_analysis_summary"] == {"CURRENT": 2}
@@ -646,9 +668,9 @@ def test_stream_plan_uses_each_native_price_candle_feed() -> None:
     assert spot_streams == tuple(
         ("klines", timeframe) for timeframe in MARKET_HISTORY_TIMEFRAMES
     )
-    assert futures_streams[:5] == spot_streams
-    assert len(spot_streams) == 5
-    assert len(futures_streams) == 9
+    assert futures_streams[: len(spot_streams)] == spot_streams
+    assert len(spot_streams) == len(MARKET_HISTORY_TIMEFRAMES)
+    assert len(futures_streams) == len(MARKET_HISTORY_TIMEFRAMES) + 4
 
 
 def test_priority_symbols_precede_background_backfill(tmp_path: Path) -> None:
@@ -684,7 +706,7 @@ def test_priority_symbols_precede_background_backfill(tmp_path: Path) -> None:
     assert len(streams) == 19
 
 
-def test_priority_depth_scope_does_not_subscribe_the_full_universe() -> None:
+def test_priority_depth_scope_covers_the_bounded_active_universe() -> None:
     class DepthUniverse:
         spot_symbols = ("HOTUSDT", "ETHUSDT")
         futures_symbols = ("BTCUSDT", "ETHUSDT")
@@ -695,13 +717,15 @@ def test_priority_depth_scope_does_not_subscribe_the_full_universe() -> None:
         ("HOTUSDT", "BTCUSDT", "MISSING"),
         include_coin_m=True,
     ) == {
-        "spot": ("HOTUSDT",),
-        "usd_m_futures": ("BTCUSDT",),
+        "spot": ("HOTUSDT", "ETHUSDT"),
+        "usd_m_futures": ("BTCUSDT", "ETHUSDT"),
         "coin_m_futures": (),
     }
 
 
-def test_priority_depth_scope_falls_back_to_top_volume_per_primary_market() -> None:
+def test_priority_depth_scope_preserves_top_volume_order_without_watchlist_match() -> (
+    None
+):
     class DepthUniverse:
         spot_symbols = ("ETHUSDT", "BTCUSDT")
         futures_symbols = ("BTCUSDT", "ETHUSDT")
@@ -712,9 +736,23 @@ def test_priority_depth_scope_falls_back_to_top_volume_per_primary_market() -> N
         ("HOTUSDT",),
         include_coin_m=False,
     ) == {
-        "spot": ("ETHUSDT",),
-        "usd_m_futures": ("BTCUSDT",),
+        "spot": ("ETHUSDT", "BTCUSDT"),
+        "usd_m_futures": ("BTCUSDT", "ETHUSDT"),
     }
+
+
+def test_depth_collector_shards_limit_reconnect_blast_radius(tmp_path: Path) -> None:
+    transport = Transport()
+    depth = build_market_depth_collector(
+        cast(MarketHistorySynchronizer, SimpleNamespace(archive_root=tmp_path)),
+        cast(
+            ContinuousMarketHistory,
+            SimpleNamespace(spot=transport, futures=transport, coin_m=None),
+        ),
+    )
+
+    assert depth.group_size == 10
+    assert depth.root == tmp_path / "depth"
 
 
 def test_opportunity_analysis_starts_after_native_timeframe_ingestion(
@@ -741,7 +779,7 @@ def test_opportunity_analysis_starts_after_native_timeframe_ingestion(
     instance.sync_cycle(observed_at=NOW)
 
     assert calls == list(MARKET_HISTORY_TIMEFRAMES)
-    assert analyzed_after == [5]
+    assert analyzed_after == [len(MARKET_HISTORY_TIMEFRAMES)]
 
 
 def test_native_streams_are_the_canonical_dashboard_input(
@@ -756,7 +794,7 @@ def test_native_streams_are_the_canonical_dashboard_input(
         *_args: object, timeframe: str | None, **_kwargs: object
     ) -> dict[str, object]:
         started.append(timeframe)
-        if timeframe == "1d":
+        if timeframe == "4h":
             native_streams_started.set()
         return {"status": "CURRENT"}
 
@@ -805,7 +843,7 @@ def test_symbol_with_incomplete_stream_does_not_start_opportunity_analysis(
         instance,
         "_collect_stream",
         lambda *_args, **kwargs: {
-            "status": "BACKFILLING" if kwargs.get("timeframe") == "5m" else "CURRENT"
+            "status": "BACKFILLING" if kwargs.get("timeframe") == "15m" else "CURRENT"
         },
     )
 
@@ -879,7 +917,7 @@ def test_canonical_opportunity_pipeline_reuses_archive_without_network(
                     "timeframe": timeframe,
                     "status": "CURRENT",
                 }
-                for timeframe in MARKET_HISTORY_TIMEFRAMES
+                for timeframe in VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
             ],
             "candidates": [
                 {
@@ -996,6 +1034,27 @@ def test_dashboard_refresh_request_is_coalesced_and_other_symbol_is_busy(
     assert busy["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
 
 
+def test_virtual_market_refresh_request_preserves_single_writer_safety(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "market-history-refresh-request.json"
+
+    request = enqueue_market_history_refresh_request(
+        path,
+        market="SPOT",
+        symbol="BTCUSDT",
+        eligible_symbols=("BTCUSDT",),
+        requested_at=NOW,
+        requester="VIRTUAL_MARKET",
+    )
+    status = market_history_refresh_status(path)
+
+    assert request["state"] == "PENDING"
+    assert status["requester"] == "VIRTUAL_MARKET"
+    assert status["execution_allowed"] is False
+    assert status["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
 def test_dashboard_refresh_request_is_completed_by_the_canonical_collector(
     tmp_path: Path,
 ) -> None:
@@ -1003,6 +1062,7 @@ def test_dashboard_refresh_request_is_completed_by_the_canonical_collector(
     instance.minimum_candles = 1
     instance.pages_per_stream = 6
     ready_at = NOW.replace(hour=23, minute=59)
+    instance.clock = lambda: ready_at
     request_path = (tmp_path / "market-history-refresh-request.json").resolve()
     instance.refresh_request_path = request_path
     request = enqueue_market_history_refresh_request(
@@ -1022,6 +1082,59 @@ def test_dashboard_refresh_request_is_completed_by_the_canonical_collector(
     assert status["execution_allowed"] is False
     assert status["promotion_status"] == "RESEARCH_ONLY"
     assert status["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_refresh_request_age_uses_current_clock_after_cycle_setup(
+    tmp_path: Path,
+) -> None:
+    instance = collector(tmp_path, Transport())
+    instance.minimum_candles = 1
+    instance.pages_per_stream = 6
+    request_path = (tmp_path / "market-history-refresh-request.json").resolve()
+    instance.refresh_request_path = request_path
+    requested_at = NOW + timedelta(minutes=2)
+    instance.clock = lambda: requested_at
+    enqueue_market_history_refresh_request(
+        request_path,
+        market="SPOT",
+        symbol="BTCUSDT",
+        eligible_symbols=("BTCUSDT",),
+        requested_at=requested_at,
+    )
+
+    instance.sync_cycle(observed_at=NOW)
+
+    status = market_history_refresh_status(request_path)
+    assert status["state"] == "DATA_READY", status
+    blockers = cast(tuple[object, ...], status["blockers"])
+    assert "MARKET_HISTORY_REFRESH_REQUEST_EXPIRED" not in blockers
+
+
+def test_refresh_request_completion_never_predates_its_request(
+    tmp_path: Path,
+) -> None:
+    instance = collector(tmp_path, Transport())
+    request_path = (tmp_path / "market-history-refresh-request.json").resolve()
+    instance.refresh_request_path = request_path
+    requested_at = NOW + timedelta(minutes=10)
+    request = enqueue_market_history_refresh_request(
+        request_path,
+        market="SPOT",
+        symbol="BTCUSDT",
+        eligible_symbols=("BTCUSDT",),
+        requested_at=requested_at,
+    )
+    instance.clock = lambda: NOW
+
+    instance._complete_refresh_request(
+        request,
+        NOW,
+        status="DATA_READY",
+        blockers=(),
+    )
+
+    completed = datetime.fromisoformat(str(_load(request_path)["completed_at"]))
+    assert completed >= requested_at
 
 
 def test_dashboard_request_preempts_the_bounded_background_queue(
@@ -1164,7 +1277,7 @@ def test_invalid_pages_fail_closed(fault: str) -> None:
 def test_corrupt_progress_is_reported_without_reset(tmp_path: Path) -> None:
     transport = Transport()
     instance = collector(tmp_path, transport)
-    progress = tmp_path / "market/spot/BTCUSDT/5m/collection-progress.json"
+    progress = tmp_path / "market/spot/BTCUSDT/15m/collection-progress.json"
     _save(
         progress,
         {
@@ -1176,7 +1289,7 @@ def test_corrupt_progress_is_reported_without_reset(tmp_path: Path) -> None:
     assert isinstance(report["blockers"], list)
     assert "MARKET_DATA_SOURCE_OR_INTEGRITY_FAILURE" in report["blockers"]
     assert not any(
-        path.endswith("klines") and params["interval"] == "5m"
+        path.endswith("klines") and params["interval"] == "15m"
         for path, params in transport.calls
     )
 
@@ -1857,6 +1970,37 @@ def test_dashboard_candidate_projection_filters_and_sanitizes_fields() -> None:
     ]
 
 
+def test_dashboard_candidate_projection_preserves_tuple_blockers() -> None:
+    from ai4binance.cli.market_data import _dashboard_candidate_projection
+
+    candidates: list[object] = [
+        {
+            "market": "SPOT",
+            "symbol": "BTCUSDT",
+            "execution_allowed": False,
+            "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+            "direction": "BULLISH",
+            "side": "BUY",
+            "quantity": "1",
+            "entry": "101",
+            "stop_loss": "98",
+            "tp1": "105",
+            "tp2": "108",
+            "tp3": "111",
+            "target_risk_reward": "2",
+            "blockers": ("RESEARCH_ONLY",),
+        }
+    ]
+
+    projected = _dashboard_candidate_projection(
+        candidates, market="SPOT", symbol="BTCUSDT"
+    )
+
+    assert projected[0]["blockers"] == ["RESEARCH_ONLY"]
+    assert projected[0]["execution_allowed"] is False
+    assert projected[0]["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
 def test_canonical_opportunity_pipeline_validates_time_and_busy_lease(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2073,7 +2217,7 @@ def test_market_history_daemon_starts_depth_and_reports_completion(
     depth_events: list[object] = []
 
     class Depth:
-        def __init__(self, _root: Path, transports: object) -> None:
+        def __init__(self, _root: Path, transports: object, **_kwargs: object) -> None:
             depth_events.append(transports)
 
         def start(self, markets: object) -> None:
@@ -2158,7 +2302,7 @@ def test_market_history_daemon_maps_runtime_failures_to_safe_blockers(
             pass
 
     class Depth:
-        def __init__(self, *_args: object) -> None:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
             pass
 
         def close(self) -> None:

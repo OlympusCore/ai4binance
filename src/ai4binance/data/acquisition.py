@@ -115,6 +115,7 @@ class DataAcquisitionAgent:
     max_workers: int = 4
     archive: ParquetOHLCVArchive | None = None
     depth_path: Path | None = None
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC)
 
     def __post_init__(self) -> None:
         if not is_spot_market_type(self.market_type):
@@ -145,6 +146,9 @@ class DataAcquisitionAgent:
         latest_price = self.client.ticker_price(symbol_info.symbol)
         book = self.client.book_ticker(symbol_info.symbol)
         raw_klines = self._fetch_klines(symbol_info.symbol, timeframes)
+        observed_at = self.clock() if self.depth_path is not None else server_time
+        if observed_at.utcoffset() is None or observed_at < server_time:
+            raise ValueError("data acquisition clock must follow server time")
 
         candles_by_timeframe: dict[str, tuple[OHLCVCandle, ...]] = {}
         freshness: dict[str, dict[str, object]] = {}
@@ -186,13 +190,13 @@ class DataAcquisitionAgent:
         )
         snapshot_id = self._snapshot_id(
             symbol_info.symbol,
-            server_time,
+            observed_at,
             latest_price,
             last_close_times,
         )
         return MarketSnapshot(
             snapshot_id=snapshot_id,
-            created_at=server_time,
+            created_at=observed_at,
             exchange="Binance",
             market_type=self.market_type,
             symbol=symbol_info.symbol,
@@ -206,7 +210,7 @@ class DataAcquisitionAgent:
                 "best_bid": str(book.bid),
                 "best_ask": str(book.ask),
                 "spread": str(book.spread),
-                **self._local_depth_summary(symbol_info.symbol, server_time),
+                **self._local_depth_summary(symbol_info.symbol, observed_at),
             },
             exchange_filters={
                 name: dict(values) for name, values in symbol_info.filters.items()

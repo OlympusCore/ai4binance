@@ -36,7 +36,10 @@ from ai4binance.exchange.rate_limit import (
     WeightedRateLimitGovernor,
     public_request_weight,
 )
-from ai4binance.infrastructure.persistence.safe_json import write_json_object_verified
+from ai4binance.infrastructure.persistence.safe_json import (
+    DestinationVerificationError,
+    write_json_object_verified,
+)
 from ai4binance.schemas import OHLCVCandle
 
 _DEFAULT_KLINE_INTERVAL = timedelta(minutes=5)
@@ -72,6 +75,7 @@ _REFRESH_REQUEST_MAX_AGE = timedelta(minutes=10)
 _STATE_RESULT_SAMPLE_LIMIT = 128
 _DASHBOARD_OPPORTUNITY_LIMIT = 100
 _DASHBOARD_REJECTION_LIMIT = 100
+_REFRESH_REQUESTERS = frozenset({"DASHBOARD", "VIRTUAL_MARKET"})
 _REFRESH_REQUEST_SAFE_FIELDS = {
     "execution_allowed": False,
     "promotion_status": "RESEARCH_ONLY",
@@ -168,11 +172,15 @@ def enqueue_market_history_refresh_request(
     symbol: str,
     eligible_symbols: tuple[str, ...],
     requested_at: datetime,
+    requester: str = "DASHBOARD",
 ) -> dict[str, object]:
-    """Persist one validated dashboard request; never replace another pending job."""
+    """Persist one bounded freshness request; never replace a pending job."""
 
     if requested_at.tzinfo is None or requested_at.utcoffset() is None:
         raise ValueError("refresh request timestamp must be timezone-aware")
+    normalized_requester = requester.strip().upper()
+    if normalized_requester not in _REFRESH_REQUESTERS:
+        raise ValueError("market history refresh requester is invalid")
     normalized_symbol = symbol.strip().upper()
     if (
         market not in {"SPOT", "USD_M_FUTURES"}
@@ -203,14 +211,14 @@ def enqueue_market_history_refresh_request(
     request_id = (
         "market-history:"
         + sha256(
-            f"DASHBOARD:{market}:{normalized_symbol}:{requested_at.isoformat()}".encode()
+            f"{normalized_requester}:{market}:{normalized_symbol}:{requested_at.isoformat()}".encode()
         ).hexdigest()[:24]
     )
     request: dict[str, object] = {
         "schema_version": "MarketHistoryRefreshRequest/v1",
         "request_id": request_id,
         "requested_at": requested_at.astimezone(UTC).isoformat(),
-        "requester": "DASHBOARD",
+        "requester": normalized_requester,
         "market": market,
         "symbol": normalized_symbol,
         "status": "PENDING",
@@ -240,7 +248,7 @@ def timeframe_refresh_schedule() -> list[dict[str, object]]:
             "gap_recovery_source": f"BINANCE_PUBLIC_REST_{timeframe.upper()}_ONLY",
             "network_download": True,
         }
-        for timeframe in MARKET_HISTORY_TIMEFRAMES
+        for timeframe in VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
     ]
 
 
@@ -248,6 +256,16 @@ def _save(path: Path, payload: Mapping[str, object]) -> None:
     write_json_object_verified(
         path, payload, blocker="MARKET_HISTORY_WRITE_FAILED", durable=True
     )
+
+
+def _recoverable_error_code(error: Exception) -> str:
+    """Expose only repository-owned verification codes, never exception detail."""
+
+    if isinstance(error, DestinationVerificationError):
+        code = str(error).strip()
+        if re.fullmatch(r"[A-Z][A-Z0-9_]{2,127}", code):
+            return code
+    return "MARKET_HISTORY_RECOVERABLE_ERROR"
 
 
 def _load(path: Path) -> dict[str, object]:
@@ -458,6 +476,9 @@ class ContinuousMarketHistory:
     vision_history_enabled: bool = True
     on_symbol_ready: SymbolReadyHandler | None = field(default=None, repr=False)
     on_symbol_screen: SymbolReadyHandler | None = field(default=None, repr=False)
+    clock: Callable[[], datetime] = field(
+        default=lambda: datetime.now(UTC), repr=False
+    )
 
     def __post_init__(self) -> None:
         if not 1 <= self.initial_days <= 3650 or not 1 <= self.pages_per_stream <= 32:
@@ -509,10 +530,10 @@ class ContinuousMarketHistory:
                 self.coin_m,
             ),
         )
-        # Historical candle collection must not wait behind bulk snapshot
-        # endpoints. Snapshots are supplementary metadata and are refreshed
-        # after the first bounded collection interval.
-        snapshot_refresh_due = time.monotonic() + 300
+        # VirtualMarket depends on these bounded bulk snapshots. Refresh once
+        # at cycle start so a service restart cannot leave an already-old
+        # ticker cache to expire during a long candle collection cycle.
+        snapshot_refresh_due = time.monotonic()
 
         def refresh_snapshots(snapshot_time: datetime) -> None:
             nonlocal snapshot_refresh_due
@@ -529,6 +550,10 @@ class ContinuousMarketHistory:
                     refreshed_universe is None or refreshed_universe.blockers
                 ) and "MARKET_UNIVERSE_METADATA_UNAVAILABLE" not in blockers:
                     blockers.append("MARKET_UNIVERSE_METADATA_UNAVAILABLE")
+                elif refreshed_universe is not None and not refreshed_universe.blockers:
+                    while "MARKET_UNIVERSE_METADATA_UNAVAILABLE" in blockers:
+                        blockers.remove("MARKET_UNIVERSE_METADATA_UNAVAILABLE")
+            snapshot_failed = False
             for snapshot_market, snapshot_symbols, snapshot_transport in market_work:
                 if snapshot_transport is None or not snapshot_symbols:
                     continue
@@ -540,9 +565,15 @@ class ContinuousMarketHistory:
                         snapshot_time,
                     )
                 except (OSError, ValueError, ExchangeError):
+                    snapshot_failed = True
                     if "MARKET_SNAPSHOT_UNAVAILABLE" not in blockers:
                         blockers.append("MARKET_SNAPSHOT_UNAVAILABLE")
+            if not snapshot_failed:
+                while "MARKET_SNAPSHOT_UNAVAILABLE" in blockers:
+                    blockers.remove("MARKET_SNAPSHOT_UNAVAILABLE")
             snapshot_refresh_due = time.monotonic() + 300
+
+        refresh_snapshots(now)
 
         work_items = self._interleaved_market_work(market_work)
         requested_identity: tuple[str, str] | None = None
@@ -551,14 +582,15 @@ class ContinuousMarketHistory:
             try:
                 candidate = _read_refresh_request(self.refresh_request_path)
                 if candidate is not None and candidate.get("status") == "PENDING":
+                    request_now = self.clock().astimezone(UTC)
                     requested_at = datetime.fromisoformat(
                         str(candidate["requested_at"])
                     )
-                    age = now - requested_at.astimezone(UTC)
+                    age = request_now - requested_at.astimezone(UTC)
                     if age < timedelta(minutes=-1) or age > _REFRESH_REQUEST_MAX_AGE:
                         self._complete_refresh_request(
                             candidate,
-                            now,
+                            request_now,
                             status="DATA_BLOCKED",
                             blockers=("MARKET_HISTORY_REFRESH_REQUEST_EXPIRED",),
                         )
@@ -728,7 +760,13 @@ class ContinuousMarketHistory:
                 opportunities = list(
                     cast(list[dict[str, object]], value["opportunities"])
                 )
-                if data_blocked:
+                if opportunities:
+                    status = (
+                        "CANDIDATES_AVAILABLE_WITH_DATA_GAPS"
+                        if data_blocked
+                        else "CANDIDATES_AVAILABLE"
+                    )
+                elif data_blocked:
                     status = "DATA_UNAVAILABLE"
                 elif analysis_blocked:
                     status = "ANALYSIS_BLOCKED"
@@ -738,8 +776,6 @@ class ContinuousMarketHistory:
                         if cast(int, value["delegated_symbol_count"]) == eligible
                         else "ANALYSIS_PENDING"
                     )
-                elif opportunities:
-                    status = "CANDIDATES_AVAILABLE"
                 else:
                     status = "NO_TRADE"
                 projection[market] = {
@@ -853,30 +889,6 @@ class ContinuousMarketHistory:
                     projection["no_opportunity_symbol_count"] = (
                         cast(int, projection["no_opportunity_symbol_count"]) + 1
                     )
-                candidates = analysis.get("dashboard_candidates")
-                if isinstance(candidates, list):
-                    valid_candidates = [
-                        candidate
-                        for candidate in candidates
-                        if isinstance(candidate, dict)
-                        and candidate.get("market") == market
-                        and candidate.get("symbol") == symbol
-                        and candidate.get("execution_allowed") is False
-                        and candidate.get("live_eligibility_status")
-                        == "LIVE_ORDER_BLOCKED"
-                    ]
-                    available = _DASHBOARD_OPPORTUNITY_LIMIT - len(
-                        cast(list[dict[str, object]], projection["opportunities"])
-                    )
-                    cast(list[dict[str, object]], projection["opportunities"]).extend(
-                        valid_candidates[:available]
-                    )
-                    projection["suppressed_opportunity_count"] = cast(
-                        int, projection["suppressed_opportunity_count"]
-                    ) + max(0, len(valid_candidates) - max(0, available))
-                    projection["published_opportunity_count"] = len(
-                        cast(list[dict[str, object]], projection["opportunities"])
-                    )
             elif status == "DATA_BLOCKED":
                 projection["data_blocked_symbol_count"] = (
                     cast(int, projection["data_blocked_symbol_count"]) + 1
@@ -889,6 +901,33 @@ class ContinuousMarketHistory:
                 projection["analysis_blocked_symbol_count"] = (
                     cast(int, projection["analysis_blocked_symbol_count"]) + 1
                 )
+
+            if status not in {"CURRENT", "DATA_BLOCKED"}:
+                return
+            candidates = analysis.get("dashboard_candidates")
+            if not isinstance(candidates, list):
+                return
+            valid_candidates = [
+                candidate
+                for candidate in candidates
+                if isinstance(candidate, dict)
+                and candidate.get("market") == market
+                and candidate.get("symbol") == symbol
+                and candidate.get("execution_allowed") is False
+                and candidate.get("live_eligibility_status") == "LIVE_ORDER_BLOCKED"
+            ]
+            available = _DASHBOARD_OPPORTUNITY_LIMIT - len(
+                cast(list[dict[str, object]], projection["opportunities"])
+            )
+            cast(list[dict[str, object]], projection["opportunities"]).extend(
+                valid_candidates[:available]
+            )
+            projection["suppressed_opportunity_count"] = cast(
+                int, projection["suppressed_opportunity_count"]
+            ) + max(0, len(valid_candidates) - max(0, available))
+            projection["published_opportunity_count"] = len(
+                cast(list[dict[str, object]], projection["opportunities"])
+            )
 
         def record_coverage(
             result: Mapping[str, object],
@@ -1265,7 +1304,10 @@ class ContinuousMarketHistory:
                         == active_identity
                     ]
                     request_blockers = self._refresh_request_data_blockers(
-                        active_identity[0], active_identity[1], now, request_results
+                        active_identity[0],
+                        active_identity[1],
+                        self.clock().astimezone(UTC),
+                        request_results,
                     )
                     self._complete_refresh_request(
                         active_request,
@@ -1399,10 +1441,18 @@ class ContinuousMarketHistory:
     ) -> None:
         if self.refresh_request_path is None:
             return
+        completed_at = self.clock()
+        if completed_at.utcoffset() is None:
+            raise ValueError("market refresh completion clock must be timezone-aware")
+        requested_at = datetime.fromisoformat(str(request["requested_at"]))
+        if requested_at.utcoffset() is None:
+            raise ValueError("market refresh request timestamp must be timezone-aware")
+        completion_utc = completed_at.astimezone(UTC)
+        requested_utc = requested_at.astimezone(UTC)
         result = {
             **request,
             "status": status,
-            "completed_at": observed_at.isoformat(),
+            "completed_at": max(completion_utc, requested_utc).isoformat(),
             "blockers": list(blockers),
         }
         write_json_object_verified(
@@ -1423,7 +1473,7 @@ class ContinuousMarketHistory:
     ) -> tuple[str, ...]:
         archive = ParquetOHLCVArchive(self.history.archive_root / market)
         blockers: list[str] = []
-        for timeframe in _DASHBOARD_REFRESH_TIMEFRAMES:
+        for timeframe in VIRTUAL_MARKET_COLLECTION_TIMEFRAMES:
             try:
                 manifest = archive.manifest(symbol, timeframe)
                 last_close = datetime.fromisoformat(
@@ -1619,6 +1669,7 @@ class ContinuousMarketHistory:
             "status": "DEGRADED",
             "observed_at": observed_at.astimezone(UTC).isoformat(),
             "last_error_type": type(error).__name__,
+            "last_error_code": _recoverable_error_code(error),
             "recovery_action": "RETRY_NEXT_CYCLE",
             "blockers": sorted(blockers),
             **_SAFE_STATE,

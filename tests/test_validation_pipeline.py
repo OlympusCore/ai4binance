@@ -25,8 +25,10 @@ from ai4binance.strategies.registry import StrategyRiskProfileRegistry
 from ai4binance.strategies.rules import historical_playbook_decision
 from ai4binance.validation import ParameterSet
 from ai4binance.validation_pipeline_runtime import (
+    SPOT_VALIDATION_NOTIONAL_TO_EQUITY_RATIO,
     HistoricalValidationRuntime,
     _build_historical_decision_resolver,
+    runtime_spot_backtest_engine,
 )
 
 
@@ -88,6 +90,50 @@ def test_preflight_checkpoint_identity_includes_simulation_assumptions() -> None
         backtest_engine=BacktestEngine(BacktestConfig(quantity=Decimal("0.001")))
     )
     assert baseline.config_sha256(10) != changed.config_sha256(10)
+
+
+def test_validation_walk_forward_uses_nonzero_purge_and_embargo() -> None:
+    config = HistoricalValidationRuntime._tuning_config(605).walk_forward
+
+    assert config.purge_size == 1
+    assert config.embargo_size == 1
+    assert config.train_size + (config.test_size * 5) + 5 == 605
+
+
+def test_runtime_spot_backtest_sizing_is_price_normalized_and_cash_bounded() -> None:
+    candles = tuple(
+        OHLCVCandle(
+            timestamp=datetime(2026, 1, 1, hour=index, tzinfo=UTC),
+            open=Decimal("80000") + Decimal(index * 1000),
+            high=Decimal("81500") + Decimal(index * 1000),
+            low=Decimal("79000") + Decimal(index * 1000),
+            close=Decimal("80500") + Decimal(index * 1000),
+            volume=Decimal("100"),
+        )
+        for index in range(3)
+    )
+
+    engine = runtime_spot_backtest_engine(
+        candles,
+        base_engine=BacktestEngine(),
+        notional_to_equity_ratio=SPOT_VALIDATION_NOTIONAL_TO_EQUITY_RATIO,
+    )
+
+    maximum_open = max(candle.open for candle in candles)
+    maximum_notional = maximum_open * engine.config.quantity
+    assert engine.config.quantity < Decimal("1")
+    assert maximum_notional <= (
+        engine.config.initial_cash_usdt * SPOT_VALIDATION_NOTIONAL_TO_EQUITY_RATIO
+    )
+    assert maximum_notional >= engine.config.minimum_notional
+
+
+@pytest.mark.parametrize("ratio", [Decimal("0"), Decimal("1.01")])
+def test_runtime_spot_backtest_sizing_rejects_unsafe_ratios(
+    ratio: Decimal,
+) -> None:
+    with pytest.raises(ValueError, match="within"):
+        HistoricalValidationRuntime(position_notional_to_equity_ratio=ratio)
 
 
 @pytest.mark.parametrize(
@@ -346,8 +392,16 @@ def test_validation_pipeline_runs_six_playbooks_and_persists_evidence(
     )
     assert resumed_trend.resumed_from_checkpoint is True
     assert resumed_trend.backtest is None
+    assert resumed_trend.run_card is not None
+    resumed_run_card = cast(dict[str, object], resumed_trend.run_card)
+    assert resumed_run_card["symbol"] == "BTCUSDT"
+    assert resumed_run_card["timeframe"] == "1h"
     assert resumed_trend.checkpoint_path is not None
     assert Path(resumed_trend.checkpoint_path).is_file()
+    checkpoint = json.loads(
+        Path(resumed_trend.checkpoint_path).read_text(encoding="utf-8")
+    )
+    assert len(checkpoint["run_card_sha256"]) == 64
     assert dict(resumed_trend.stage_timings_ms)["checkpoint_lookup"] >= 0
     resumed_manifest = json.loads(
         sorted((artifact_directory / "BTCUSDT" / "runs").glob("*.manifest.json"))[

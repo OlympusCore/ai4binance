@@ -11,12 +11,16 @@ import pytest
 
 from ai4binance.domain import ValidationStatus
 from ai4binance.validation.oos_maturity import (
+    MAX_ARTIFACT_BYTES,
     REQUIRED_MEASUREMENTS,
     OOSArtifactReference,
     OOSMaturityEvidenceBundle,
     OOSMaturityGate,
     OOSValidationSubject,
     _matches,
+    _validation_events,
+    load_spot_oos_validation_specification,
+    prepare_spot_oos_deployment,
 )
 from ai4binance.validation.promotion_evidence import (
     PromotionEvidenceQuery,
@@ -30,6 +34,114 @@ from ai4binance.validation.statistics import (
 )
 
 NOW = datetime(2026, 9, 11, tzinfo=UTC)
+
+
+def test_validation_events_accept_large_hash_bound_append_only_ledger(
+    tmp_path: Path,
+) -> None:
+    artifact_root = tmp_path / "validation"
+    artifact_root.mkdir()
+    source = artifact_root / "trend_continuation.jsonl"
+    prefix = json.dumps({"archived": "x" * MAX_ARTIFACT_BYTES}).encode() + b"\n"
+    event_types = (
+        "BACKTEST_RESULT",
+        "WALK_FORWARD_REPORT",
+        "TUNING_REPORT",
+        "BACKTEST_ROBUSTNESS_REPORT",
+    )
+    current = b"".join(
+        json.dumps(
+            {
+                "event_type": event_type,
+                "payload": {"result": {"sequence": index}},
+            }
+        ).encode()
+        + b"\n"
+        for index, event_type in enumerate(event_types, start=1)
+    )
+    raw = prefix + current
+    source.write_bytes(raw)
+
+    events, reference = _validation_events(
+        {"artifact_sha256": ((str(source), sha256(raw).hexdigest()),)},
+        artifact_root,
+    )
+
+    assert set(events) == set(event_types)
+    assert events["BACKTEST_RESULT"]["sequence"] == 1
+    assert reference is not None
+    assert reference.path == "trend_continuation.jsonl"
+    assert reference.sha256 == sha256(raw).hexdigest()
+
+
+def test_validation_events_reject_hash_mismatch(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "validation"
+    artifact_root.mkdir()
+    source = artifact_root / "trend_continuation.jsonl"
+    source.write_text(
+        json.dumps({"event_type": "BACKTEST_RESULT", "payload": {"result": {}}}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="SPOT_OOS_SOURCE_HASH_INVALID"):
+        _validation_events(
+            {"artifact_sha256": ((str(source), "0" * 64),)},
+            artifact_root,
+        )
+
+
+def test_active_spot_specification_prepares_exact_research_only_deployment(
+    tmp_path: Path,
+) -> None:
+    specification_path = Path("config/research/virtual_market_acceptance.yaml")
+    specification = load_spot_oos_validation_specification(specification_path)
+    assert specification["status"] == "ACTIVE"
+    assert specification["approval_status"] == "PENDING_INDEPENDENT_REVIEW"
+    assert _matches(
+        "2026-09-10T00:00:00+00:00",
+        {"operator": "present", "value": True},
+    )
+    artifact_root = tmp_path / "validation"
+    deployment_path = tmp_path / "config" / "runtime_validation_deployment.json"
+    result = prepare_spot_oos_deployment(
+        artifact_root=artifact_root,
+        deployment_path=deployment_path,
+        specification_path=specification_path,
+        run_cards=(
+            {
+                "hypothesis_id": "hyp:trend_continuation:1h",
+                "symbol": "BTCUSDT",
+                "timeframe": "1h",
+                "strategy_sha256": "a" * 64,
+                "config_sha256": "b" * 64,
+                "dataset_sha256": "c" * 64,
+                "code_revision": "WORKTREE_UNVERIFIED",
+                "fee_rate": 0.001,
+                "slippage_rate": 0.0005,
+                "promotion_status": "RESEARCH_ONLY",
+                "execution_allowed": False,
+            },
+        ),
+        observed_at=NOW,
+    )
+    assert result["status"] == "EVIDENCE_COLLECTION_IN_PROGRESS"
+    assert result["subject_count"] == 1
+
+    from ai4binance.agents.validation_gate import ValidationGate
+
+    gate = ValidationGate.from_deployment(
+        artifact_root=artifact_root,
+        deployment_path=deployment_path,
+        as_of=NOW,
+    )
+    assert not gate.evidence_load_blockers
+    assert len(gate.expected_subjects) == 1
+    maturity = OOSMaturityGate(artifact_root).evaluate(gate.evidence_bundles[0])
+    assert maturity.status == "OOS_MATURITY_INCOMPLETE"
+    assert "EVIDENCE_COLLECTION_IN_PROGRESS" in maturity.blockers
+    assert "DATASET_EVIDENCE_MISSING" in maturity.blockers
+    assert "PROMOTION_EVIDENCE_INCOMPLETE" in maturity.blockers
+    assert "VALIDATION_SPECIFICATION_MISSING" not in maturity.blockers
 
 
 def test_bonferroni_changes_the_interval_used_by_the_gate() -> None:
@@ -328,6 +440,11 @@ def test_runtime_validation_consumes_exact_maturity_and_keeps_all_vetoes(
         assert decision.blockers
     if case == "risk_veto":
         assert "RISK.VETO" in decision.blockers
+    if case == "unbound":
+        assert any(
+            blocker.startswith("OOS_SUBJECT_NOT_CONFIGURED:")
+            for blocker in decision.blockers
+        )
 
 
 @pytest.mark.parametrize(

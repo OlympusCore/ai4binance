@@ -110,6 +110,31 @@ class VirtualGovernanceEvaluatorLike(Protocol):
     ) -> VirtualGovernanceResult: ...
 
 
+def _dge_error_type(error: Exception) -> str:
+    """Return a bounded diagnostic class without exposing exception detail."""
+
+    stage_codes = {
+        "DGE_CANDIDATE_ADAPTATION_FAILED": "CANDIDATE_ADAPTATION",
+        "DGE_CONTEXT_BUILD_FAILED": "CONTEXT_BUILD",
+        "DGE_CONTEXT_TYPE_INVALID": "CONTEXT_TYPE",
+        "DGE_CONTEXT_SURFACE_INVALID": "CONTEXT_SURFACE",
+        "DGE_ENGINE_EVALUATION_FAILED": "ENGINE_EVALUATION",
+    }
+    if str(error) in stage_codes:
+        return stage_codes[str(error)]
+    if isinstance(error, ArithmeticError):
+        return "ARITHMETIC_ERROR"
+    if isinstance(error, AttributeError):
+        return "ATTRIBUTE_ERROR"
+    if isinstance(error, KeyError):
+        return "KEY_ERROR"
+    if isinstance(error, RuntimeError):
+        return "RUNTIME_ERROR"
+    if isinstance(error, TypeError):
+        return "TYPE_ERROR"
+    return "VALUE_ERROR"
+
+
 class BalanceLike(Protocol):
     asset: str
     free: object
@@ -1183,11 +1208,14 @@ class ResearchApplicationService:
             RuntimeError,
             TypeError,
             ValueError,
-        ):
+        ) as error:
             return (
                 fallback_id,
                 DGE_DATA_UNAVAILABLE,
-                (DGE_EVALUATION_FAILED,),
+                (
+                    DGE_EVALUATION_FAILED,
+                    f"DGE_EVALUATION_ERROR_TYPE:{_dge_error_type(error)}",
+                ),
                 False,
             )
         return (

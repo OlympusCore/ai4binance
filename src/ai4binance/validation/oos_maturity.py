@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -20,6 +20,12 @@ from math import isfinite
 from pathlib import Path
 from typing import cast
 
+import yaml
+
+from ai4binance.infrastructure.persistence.safe_json import (
+    write_json_object_verified,
+)
+from ai4binance.storage import read_bounded_jsonl_tail
 from ai4binance.validation.promotion_evidence import (
     PromotionEvidenceQuery,
     PromotionEvidenceRegistry,
@@ -47,6 +53,244 @@ def runtime_source_sha256() -> str:
             raise ValueError("OOS_RUNTIME_SOURCE_INVALID")
         identities.append((path.relative_to(root).as_posix(), sha256(raw).hexdigest()))
     return sha256(json.dumps(identities, separators=(",", ":")).encode()).hexdigest()
+
+
+def load_spot_oos_validation_specification(path: Path) -> dict[str, object]:
+    """Load the active Spot threshold template without granting promotion."""
+
+    if (
+        not path.is_file()
+        or path.is_symlink()
+        or path.stat().st_size > MAX_ARTIFACT_BYTES
+    ):
+        raise ValueError("SPOT_OOS_SPECIFICATION_INVALID")
+    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    root = _object(payload)
+    specification = _object(root.get("spot_oos_validation_specification"))
+    authority = _object(specification.get("authority"))
+    timeframes = specification.get("timeframes")
+    requirements = _object(specification.get("requirements"))
+    if (
+        specification.get("schema_version") != "1.0"
+        or specification.get("status") != "ACTIVE"
+        or specification.get("approval_status") != "PENDING_INDEPENDENT_REVIEW"
+        or not _required_text(specification, "specification_id")
+        or not _required_text(specification, "owner")
+        or specification.get("market_scope") != ["SPOT"]
+        or timeframes != ["15m", "1h", "4h"]
+        or authority.get("execution_allowed") is not False
+        or authority.get("promotion_status") != "RESEARCH_ONLY"
+        or authority.get("live_eligibility_status") != "LIVE_ORDER_BLOCKED"
+    ):
+        raise ValueError("SPOT_OOS_SPECIFICATION_INVALID")
+    if set(requirements) != set(REQUIRED_MEASUREMENTS):
+        raise ValueError("SPOT_OOS_REQUIREMENTS_INVALID")
+    for stage, required in REQUIRED_MEASUREMENTS.items():
+        rules = _object(requirements.get(stage))
+        if not {"blockers", *required}.issubset(rules):
+            raise ValueError(f"SPOT_OOS_REQUIREMENTS_INVALID:{stage}")
+        for rule in rules.values():
+            rule_value = _object(rule)
+            if (
+                rule_value.get("operator")
+                not in {
+                    "eq",
+                    "in",
+                    "gte",
+                    "gt",
+                    "lte",
+                    "lt",
+                    "present",
+                }
+                or "value" not in rule_value
+            ):
+                raise ValueError(f"SPOT_OOS_REQUIREMENTS_INVALID:{stage}")
+    return specification
+
+
+def prepare_spot_oos_deployment(
+    *,
+    artifact_root: Path,
+    deployment_path: Path,
+    specification_path: Path,
+    run_cards: Sequence[Mapping[str, object]],
+    observed_at: datetime,
+) -> dict[str, object]:
+    """Materialize exact research-only Spot subjects from validation run cards.
+
+    This starts the evidence chain and removes an ambiguous missing-deployment
+    failure. It deliberately creates no stage evidence and no promotion review.
+    """
+
+    if observed_at.tzinfo is None or observed_at.utcoffset() is None:
+        raise ValueError("SPOT_OOS_OBSERVED_AT_INVALID")
+    if not 1 <= len(run_cards) <= 256:
+        raise ValueError("SPOT_OOS_RUN_CARD_INVENTORY_INVALID")
+    template = load_spot_oos_validation_specification(specification_path)
+    runtime_sha256 = runtime_source_sha256()
+    strategy_version = _required_text(template, "strategy_version")
+    allowed_timeframes = cast(list[object], template["timeframes"])
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    entries: list[dict[str, object]] = []
+    subject_keys: set[str] = set()
+    for card in run_cards:
+        if (
+            card.get("execution_allowed") is not False
+            or card.get("promotion_status") != "RESEARCH_ONLY"
+        ):
+            raise ValueError("SPOT_OOS_RUN_CARD_AUTHORITY_INVALID")
+        hypothesis_id = _required_text(card, "hypothesis_id")
+        hypothesis_parts = hypothesis_id.split(":")
+        if len(hypothesis_parts) != 3 or hypothesis_parts[0] != "hyp":
+            raise ValueError("SPOT_OOS_HYPOTHESIS_ID_INVALID")
+        setup_type = hypothesis_parts[1]
+        timeframe = _required_text(card, "timeframe")
+        if hypothesis_parts[2] != timeframe or timeframe not in allowed_timeframes:
+            raise ValueError("SPOT_OOS_TIMEFRAME_INVALID")
+        strategy_sha256 = _required_hash(card, "strategy_sha256")
+        parameter_set_sha256 = _required_hash(card, "config_sha256")
+        dataset_sha256 = _required_hash(card, "dataset_sha256")
+        cost_payload = {
+            "fee_rate": card.get("fee_rate"),
+            "slippage_rate": card.get("slippage_rate"),
+            "market_type": "SPOT",
+        }
+        cost_model_sha256 = sha256(
+            json.dumps(
+                cost_payload,
+                allow_nan=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode()
+        ).hexdigest()
+        query = PromotionEvidenceQuery(
+            strategy_id=setup_type,
+            strategy_version=strategy_version,
+            strategy_sha256=strategy_sha256,
+            symbol=_required_text(card, "symbol").upper(),
+            market_type="SPOT",
+            timeframe=timeframe,
+            parameter_set_sha256=parameter_set_sha256,
+            dataset_sha256=dataset_sha256,
+            # Historical exploratory cards may carry WORKTREE_UNVERIFIED. The
+            # deployment identity instead binds the exact installed source
+            # digest; it never relabels that card as clean or approved.
+            code_revision=runtime_sha256,
+            as_of=observed_at,
+        )
+        subject_directory = sha256(
+            json.dumps(query.subject_key, separators=(",", ":")).encode()
+        ).hexdigest()
+        exact_root = artifact_root / "oos_runtime" / subject_directory
+        specification_payload: dict[str, object] = {
+            "schema_version": "1.0",
+            "specification_id": template["specification_id"],
+            "status": "ACTIVE",
+            "owner": template["owner"],
+            "approval_status": template["approval_status"],
+            "scope": list(query.subject_key[:6]),
+            "requirements": _replace_specification_placeholders(
+                template["requirements"],
+                cost_model_sha256=cost_model_sha256,
+                runtime_sha256=runtime_sha256,
+            ),
+            "execution_allowed": False,
+            "promotion_status": "RESEARCH_ONLY",
+            "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+        }
+        specification_file = exact_root / "specification.json"
+        write_json_object_verified(
+            specification_file,
+            specification_payload,
+            blocker="SPOT_OOS_SPECIFICATION_WRITE_FAILED",
+            subject_id=subject_directory,
+            indent=2,
+            durable=True,
+        )
+        specification_reference = OOSArtifactReference(
+            specification_file.relative_to(artifact_root).as_posix(),
+            sha256(specification_file.read_bytes()).hexdigest(),
+        )
+        subject = OOSValidationSubject(
+            promotion=query,
+            setup_type=setup_type,
+            feature_definition_sha256=strategy_sha256,
+            cost_model_sha256=cost_model_sha256,
+            validation_config_sha256=specification_reference.sha256,
+        )
+        if subject.subject_key in subject_keys:
+            raise ValueError("SPOT_OOS_DUPLICATE_SUBJECT")
+        subject_keys.add(subject.subject_key)
+        available_artifacts = _materialize_available_validation_evidence(
+            artifact_root=artifact_root,
+            exact_root=exact_root,
+            subject=subject,
+            run_card=card,
+            observed_at=observed_at,
+        )
+        bundle_payload: dict[str, object] = {
+            "schema_version": "1.0",
+            "subject": _subject_payload(subject),
+            "artifacts": {
+                name: _reference_payload(reference)
+                for name, reference in available_artifacts
+            },
+            "specification": _reference_payload(specification_reference),
+            "promotion_records": [],
+            "blockers": ["EVIDENCE_COLLECTION_IN_PROGRESS"],
+            "execution_allowed": False,
+            "promotion_status": "RESEARCH_ONLY",
+            "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+        }
+        bundle_file = exact_root / "bundle.json"
+        write_json_object_verified(
+            bundle_file,
+            bundle_payload,
+            blocker="SPOT_OOS_BUNDLE_WRITE_FAILED",
+            subject_id=subject.subject_key,
+            indent=2,
+            durable=True,
+        )
+        bundle_reference = OOSArtifactReference(
+            bundle_file.relative_to(artifact_root).as_posix(),
+            sha256(bundle_file.read_bytes()).hexdigest(),
+        )
+        entries.append(
+            {
+                "subject": _subject_payload(subject),
+                "bundle": _reference_payload(bundle_reference),
+            }
+        )
+    deployment: dict[str, object] = {
+        "schema_version": "1.0",
+        "runtime_source_sha256": runtime_sha256,
+        "subjects": entries,
+        "execution_allowed": False,
+        "promotion_status": "RESEARCH_ONLY",
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+    }
+    write_json_object_verified(
+        deployment_path,
+        deployment,
+        blocker="SPOT_OOS_DEPLOYMENT_WRITE_FAILED",
+        subject_id="spot-oos-runtime-deployment",
+        indent=2,
+        durable=True,
+    )
+    return {
+        "status": "EVIDENCE_COLLECTION_IN_PROGRESS",
+        "subject_count": len(entries),
+        "deployment_path": str(deployment_path),
+        "runtime_source_sha256": runtime_sha256,
+        "blockers": [
+            "VALIDATION_STAGE_EVIDENCE_INCOMPLETE",
+            "PROMOTION_EVIDENCE_INCOMPLETE",
+            "INDEPENDENT_REVIEW_REQUIRED",
+        ],
+        "execution_allowed": False,
+        "promotion_status": "RESEARCH_ONLY",
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+    }
 
 
 # These are evidence obligations, not numerical promotion thresholds.
@@ -614,6 +858,412 @@ class OOSMaturityGate:
                 raise ValueError("HOLDOUT_CONTAMINATED")
 
 
+def _required_hash(payload: Mapping[str, object], name: str) -> str:
+    value = _required_text(payload, name)
+    if not _HASH.fullmatch(value):
+        raise ValueError(f"OOS_FIELD_HASH_INVALID:{name}")
+    return value
+
+
+def _reference_payload(reference: OOSArtifactReference) -> dict[str, str]:
+    return {"path": reference.path, "sha256": reference.sha256}
+
+
+def _subject_payload(subject: OOSValidationSubject) -> dict[str, object]:
+    query = subject.promotion
+    return {
+        "promotion": {
+            "strategy_id": query.strategy_id,
+            "strategy_version": query.strategy_version,
+            "strategy_sha256": query.strategy_sha256,
+            "symbol": query.symbol,
+            "market_type": query.market_type,
+            "timeframe": query.timeframe,
+            "parameter_set_sha256": query.parameter_set_sha256,
+            "dataset_sha256": query.dataset_sha256,
+            "code_revision": query.code_revision,
+        },
+        "setup_type": subject.setup_type,
+        "feature_definition_sha256": subject.feature_definition_sha256,
+        "cost_model_sha256": subject.cost_model_sha256,
+        "validation_config_sha256": subject.validation_config_sha256,
+    }
+
+
+def _materialize_available_validation_evidence(
+    *,
+    artifact_root: Path,
+    exact_root: Path,
+    subject: OOSValidationSubject,
+    run_card: Mapping[str, object],
+    observed_at: datetime,
+) -> tuple[tuple[str, OOSArtifactReference], ...]:
+    """Bind producer-owned validation outputs without inventing missing stages."""
+
+    events, origin = _validation_events(run_card, artifact_root)
+    backtest = events.get("BACKTEST_RESULT")
+    walk_forward = events.get("WALK_FORWARD_REPORT")
+    tuning = events.get("TUNING_REPORT")
+    robustness = events.get("BACKTEST_ROBUSTNESS_REPORT")
+    if origin is None:
+        return ()
+    stages: list[tuple[str, dict[str, object], list[str]]] = []
+    if backtest is not None:
+        assumptions = _object(backtest.get("assumptions"))
+        stages.append(
+            (
+                "backtest",
+                {
+                    "blockers": [],
+                    "realism_status": "PASS",
+                    "cost_model_sha256": subject.cost_model_sha256,
+                    "execution_model_version": "SPOT_BACKTEST_V1",
+                },
+                (
+                    []
+                    if assumptions.get("fee_ratio") is not None
+                    and assumptions.get("slippage_ratio") is not None
+                    else ["BACKTEST_COST_ASSUMPTIONS_MISSING"]
+                ),
+            )
+        )
+    if walk_forward is not None:
+        config = _object(walk_forward.get("config"))
+        wf_blockers = _string_list(walk_forward.get("blockers"))
+        folds = walk_forward.get("folds")
+        stages.append(
+            (
+                "walk_forward",
+                {
+                    "blockers": wf_blockers,
+                    "fold_count": len(folds) if isinstance(folds, list) else 0,
+                    "train_only_selection": True,
+                    "purge": _nonnegative_int(config.get("purge_size")),
+                    "embargo": _nonnegative_int(config.get("embargo_size")),
+                },
+                wf_blockers,
+            )
+        )
+        regimes = walk_forward.get("regime_performance")
+        regime_rows = regimes if isinstance(regimes, list) else []
+        regime_names = {
+            str(_object(row).get("regime", "UNKNOWN")) for row in regime_rows
+        }
+        total_regime_trades = sum(
+            _nonnegative_int(_object(row).get("trade_count")) for row in regime_rows
+        )
+        unknown_trades = sum(
+            _nonnegative_int(_object(row).get("trade_count"))
+            for row in regime_rows
+            if _object(row).get("regime") == "UNKNOWN"
+        )
+        regime_blockers = (
+            []
+            if regime_rows and total_regime_trades > 0
+            else ["REGIME_ATTRIBUTION_INCOMPLETE"]
+        )
+        stages.append(
+            (
+                "regime",
+                {
+                    "blockers": regime_blockers,
+                    "regime_count": len(regime_names - {"UNKNOWN"}),
+                    "unknown_ratio": (
+                        unknown_trades / total_regime_trades
+                        if total_regime_trades
+                        else 1.0
+                    ),
+                    "attribution_status": (
+                        "PASS" if not regime_blockers else "INCOMPLETE"
+                    ),
+                },
+                regime_blockers,
+            )
+        )
+        statistical = _object(walk_forward.get("statistical_evidence"))
+        confidence = statistical.get("confidence_interval")
+        confidence_lower = (
+            confidence[0]
+            if isinstance(confidence, list) and len(confidence) == 2
+            else 0.0
+        )
+        wf_robustness = _object(walk_forward.get("robustness"))
+        backtest_metrics = _object(backtest.get("metrics")) if backtest else {}
+        statistical_blockers = _string_list(statistical.get("blockers"))
+        stages.append(
+            (
+                "statistics",
+                {
+                    "blockers": statistical_blockers,
+                    "effective_sample_size": _nonnegative_int(
+                        statistical.get("effective_sample_size")
+                    ),
+                    "confidence_interval_lower": confidence_lower,
+                    "profit_factor": backtest_metrics.get("profit_factor") or 0.0,
+                    "profitable_fold_ratio": wf_robustness.get(
+                        "profitable_fold_ratio", 0.0
+                    ),
+                    "hypothesis_count": _nonnegative_int(
+                        statistical.get("hypothesis_count")
+                    ),
+                    "multiple_testing_method": statistical.get(
+                        "correction", "UNAVAILABLE"
+                    ),
+                    "confirmatory": statistical.get("confirmatory") is True,
+                },
+                statistical_blockers,
+            )
+        )
+    if walk_forward is not None and tuning is not None and robustness is not None:
+        wf_robustness = _object(walk_forward.get("robustness"))
+        sensitivity = _object(tuning.get("sensitivity"))
+        robustness_blockers = list(
+            dict.fromkeys(
+                (
+                    *_string_list(wf_robustness.get("blockers")),
+                    *_string_list(sensitivity.get("blockers")),
+                    *_string_list(robustness.get("blockers")),
+                    "CPCV_EVIDENCE_MISSING",
+                )
+            )
+        )
+        stages.append(
+            (
+                "robustness",
+                {
+                    "blockers": robustness_blockers,
+                    "parameter_stability": (
+                        "PASS"
+                        if not _string_list(sensitivity.get("blockers"))
+                        else "FAIL"
+                    ),
+                    "fold_stability": (
+                        "PASS"
+                        if "WEAK_OOS_FOLD_CONSISTENCY" not in robustness_blockers
+                        else "FAIL"
+                    ),
+                    "regime_stability": (
+                        "PASS"
+                        if _nonnegative_int(wf_robustness.get("regime_count")) >= 3
+                        else "FAIL"
+                    ),
+                    "cpcv_status": "NOT_AVAILABLE",
+                    "monte_carlo_status": (
+                        "PASS"
+                        if not any(
+                            blocker.startswith("BOOTSTRAP_")
+                            for blocker in robustness_blockers
+                        )
+                        else "FAIL"
+                    ),
+                    "selection_overfit_status": (
+                        "PASS" if not _string_list(tuning.get("blockers")) else "FAIL"
+                    ),
+                    "edge_concentration": wf_robustness.get("edge_concentration", 1.0),
+                    "failure_modes_status": (
+                        "PASS"
+                        if not _string_list(robustness.get("blockers"))
+                        else "FAIL"
+                    ),
+                },
+                robustness_blockers,
+            )
+        )
+        stress = robustness.get("stress_results")
+        stress_rows = stress if isinstance(stress, list) else []
+        cost_blockers = _string_list(robustness.get("blockers"))
+        stages.append(
+            (
+                "cost_stress",
+                {
+                    "blockers": cost_blockers,
+                    "scenario_coverage": [
+                        str(_object(_object(row).get("scenario")).get("name"))
+                        for row in stress_rows
+                    ],
+                    "edge_survival": bool(stress_rows)
+                    and all(
+                        _finite_float(_object(row).get("net_return")) > 0
+                        and _finite_float(_object(row).get("expectancy_usdt")) > 0
+                        for row in stress_rows
+                    ),
+                },
+                cost_blockers,
+            )
+        )
+    return tuple(
+        (
+            stage,
+            _write_stage_evidence(
+                artifact_root=artifact_root,
+                exact_root=exact_root,
+                subject=subject,
+                stage=stage,
+                measurements=measurements,
+                blockers=blockers,
+                observed_at=observed_at,
+                origin=origin,
+            ),
+        )
+        for stage, measurements, blockers in stages
+    )
+
+
+def _validation_events(
+    run_card: Mapping[str, object], artifact_root: Path
+) -> tuple[dict[str, dict[str, object]], OOSArtifactReference | None]:
+    raw_references = run_card.get("artifact_sha256")
+    if not isinstance(raw_references, (list, tuple)) or not raw_references:
+        return {}, None
+    first = raw_references[0]
+    if not isinstance(first, (list, tuple)) or len(first) != 2:
+        return {}, None
+    path = Path(str(first[0]))
+    resolved = path.resolve() if path.is_absolute() else (Path.cwd() / path).resolve()
+    root = artifact_root.resolve()
+    try:
+        relative = resolved.relative_to(root)
+    except ValueError as exc:
+        raise ValueError("SPOT_OOS_SOURCE_OUTSIDE_ARTIFACT_ROOT") from exc
+    digest = _stream_sha256(resolved)
+    if digest != str(first[1]):
+        raise ValueError("SPOT_OOS_SOURCE_HASH_INVALID")
+    try:
+        raw_events = read_bounded_jsonl_tail(
+            resolved,
+            max_lines=4,
+            max_bytes=MAX_ARTIFACT_BYTES,
+        )
+    except (OSError, ValueError) as exc:
+        raise ValueError("SPOT_OOS_SOURCE_EVENTS_INVALID") from exc
+    events: dict[str, dict[str, object]] = {}
+    try:
+        for line in raw_events:
+            row = _object(json.loads(line))
+            event_type = _required_text(row, "event_type")
+            payload = _object(row.get("payload"))
+            value = next(iter(payload.values()), None)
+            events[event_type] = _object(value)
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise ValueError("SPOT_OOS_SOURCE_EVENTS_INVALID") from exc
+    return events, OOSArtifactReference(relative.as_posix(), digest)
+
+
+def _stream_sha256(path: Path) -> str:
+    digest = sha256()
+    with path.open("rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _write_stage_evidence(
+    *,
+    artifact_root: Path,
+    exact_root: Path,
+    subject: OOSValidationSubject,
+    stage: str,
+    measurements: dict[str, object],
+    blockers: list[str],
+    observed_at: datetime,
+    origin: OOSArtifactReference,
+) -> OOSArtifactReference:
+    source_payload = {
+        "subject_key": subject.subject_key,
+        **measurements,
+        "origin_artifact": _reference_payload(origin),
+    }
+    source_path = exact_root / f"{stage}.source.json"
+    write_json_object_verified(
+        source_path,
+        source_payload,
+        blocker="SPOT_OOS_STAGE_SOURCE_WRITE_FAILED",
+        subject_id=f"{subject.subject_key}:{stage}:source",
+        indent=2,
+        durable=True,
+    )
+    source_reference = OOSArtifactReference(
+        source_path.relative_to(artifact_root).as_posix(),
+        sha256(source_path.read_bytes()).hexdigest(),
+    )
+    evidence_payload = {
+        "subject_key": subject.subject_key,
+        "stage": stage,
+        "measurements": measurements,
+        "observed_at": observed_at.isoformat(),
+        "expires_at": (observed_at + timedelta(days=30)).isoformat(),
+        "blockers": blockers,
+        "execution_allowed": False,
+        "promotion_status": "RESEARCH_ONLY",
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+        "source_artifacts": [_reference_payload(source_reference)],
+        "measurement_sources": {
+            name: {"source_index": 0, "pointer": [name]} for name in measurements
+        },
+    }
+    evidence_path = exact_root / f"{stage}.json"
+    write_json_object_verified(
+        evidence_path,
+        evidence_payload,
+        blocker="SPOT_OOS_STAGE_EVIDENCE_WRITE_FAILED",
+        subject_id=f"{subject.subject_key}:{stage}",
+        indent=2,
+        durable=True,
+    )
+    return OOSArtifactReference(
+        evidence_path.relative_to(artifact_root).as_posix(),
+        sha256(evidence_path.read_bytes()).hexdigest(),
+    )
+
+
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, list) or any(
+        not isinstance(item, str) or not item for item in value
+    ):
+        return []
+    return list(value)
+
+
+def _nonnegative_int(value: object) -> int:
+    return value if type(value) is int and value >= 0 else 0
+
+
+def _finite_float(value: object) -> float:
+    try:
+        number = Decimal(str(value))
+    except InvalidOperation:
+        return 0.0
+    return float(number) if number.is_finite() else 0.0
+
+
+def _replace_specification_placeholders(
+    value: object, *, cost_model_sha256: str, runtime_sha256: str
+) -> object:
+    if isinstance(value, dict):
+        return {
+            str(key): _replace_specification_placeholders(
+                item,
+                cost_model_sha256=cost_model_sha256,
+                runtime_sha256=runtime_sha256,
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [
+            _replace_specification_placeholders(
+                item,
+                cost_model_sha256=cost_model_sha256,
+                runtime_sha256=runtime_sha256,
+            )
+            for item in value
+        ]
+    if value == "$COST_MODEL_SHA256":
+        return cost_model_sha256
+    if value == "$RUNTIME_SOURCE_SHA256":
+        return runtime_sha256
+    return value
+
+
 def _required_text(payload: Mapping[str, object], name: str) -> str:
     value = payload.get(name)
     if not isinstance(value, str) or not value.strip():
@@ -675,6 +1325,8 @@ def _matches(value: object, rule: Mapping[str, object]) -> bool:
         return isinstance(expected, list) and any(
             type(value) is type(item) and value == item for item in expected
         )
+    if operator == "present":
+        return expected is True and value not in (None, "", [], {})
     if isinstance(value, bool) or isinstance(expected, bool):
         return False
     try:

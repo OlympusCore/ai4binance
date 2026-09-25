@@ -471,38 +471,40 @@ class TradeDecision:
             raise ValueError("DGE authority profile must match the execution surface")
         if self.automation_mode is not authority_profile.automation_mode:
             raise ValueError("DGE automation mode must match the execution surface")
-        if self.auto_execution_allowed != authority_profile.auto_execution_allowed:
+        decision_profile_enabled = self.paper_execution_allowed
+        if self.auto_execution_allowed != (
+            authority_profile.auto_execution_allowed and decision_profile_enabled
+        ):
             raise ValueError(
                 "DGE autonomous simulation must match the execution surface profile"
             )
-        if (
-            self.simulated_execution_allowed
-            != authority_profile.simulated_execution_allowed
+        if self.simulated_execution_allowed != (
+            authority_profile.simulated_execution_allowed and decision_profile_enabled
         ):
             raise ValueError(
                 "DGE simulated execution must match the execution surface profile"
             )
-        if (
-            self.autonomous_learning_allowed
-            != authority_profile.autonomous_learning_allowed
+        if self.autonomous_learning_allowed != (
+            authority_profile.autonomous_learning_allowed and decision_profile_enabled
         ):
             raise ValueError(
                 "DGE autonomous learning must match the execution surface profile"
             )
-        if (
-            self.bounded_self_improvement_allowed
-            != authority_profile.bounded_self_improvement_allowed
+        if self.bounded_self_improvement_allowed != (
+            authority_profile.bounded_self_improvement_allowed
+            and decision_profile_enabled
         ):
             raise ValueError(
                 "DGE self-improvement must match the execution surface profile"
             )
-        if self.simulated_spot_allowed != authority_profile.simulated_spot_allowed:
+        if self.simulated_spot_allowed != (
+            authority_profile.simulated_spot_allowed and decision_profile_enabled
+        ):
             raise ValueError(
                 "DGE simulated Spot scope must match the execution surface profile"
             )
-        if (
-            self.simulated_futures_allowed
-            != authority_profile.simulated_futures_allowed
+        if self.simulated_futures_allowed != (
+            authority_profile.simulated_futures_allowed and decision_profile_enabled
         ):
             raise ValueError(
                 "DGE simulated Futures scope must match the execution surface profile"
