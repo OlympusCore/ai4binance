@@ -218,7 +218,7 @@ class SoundDeviceRecorder:
 
     def capture(self) -> object | None:
         import numpy as np
-        import sounddevice as sd  # type: ignore[import-untyped]
+        import sounddevice as sd
 
         try:
             audio = sd.rec(
@@ -247,7 +247,7 @@ class FasterWhisperTranscriber:
 
     def __post_init__(self) -> None:
         import truststore
-        from faster_whisper import WhisperModel  # type: ignore[import-untyped]
+        from faster_whisper import WhisperModel
 
         truststore.inject_into_ssl()
         self.model_directory.mkdir(parents=True, exist_ok=True)

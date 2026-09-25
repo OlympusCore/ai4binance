@@ -86,7 +86,16 @@ strict = true
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["numpy", "numpy.*"]
+module = [
+  "faster_whisper",
+  "faster_whisper.*",
+  "numpy",
+  "numpy.*",
+  "sounddevice",
+  "sounddevice.*",
+  "truststore",
+  "truststore.*",
+]
 ignore_missing_imports = true
 
 
