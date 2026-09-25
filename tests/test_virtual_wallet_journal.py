@@ -54,6 +54,64 @@ def test_virtual_wallet_journal_initializes_independent_wallets_and_report(
     assert "2026-09-12T13:00:00+00:00" in report
 
 
+def test_daily_loss_tuning_trigger_requires_three_losses_in_same_utc_day() -> None:
+    from ai4binance import virtual_wallet_journal as module
+
+    def movement(index: int, *, pnl: str, exit_at: datetime) -> dict[str, object]:
+        return {
+            "movement_id": f"movement:{index}",
+            "market": "SPOT",
+            "closed_trade": {
+                "trade_id": f"trade:{index}",
+                "exit_time": exit_at.isoformat(),
+                "net_pnl_usdt": pnl,
+            },
+            "managed_position": {
+                "symbol": "BTCUSDT",
+                "timeframe": "1h",
+                "strategy_id": "trend_continuation",
+                "strategy_version": "1",
+                "strategy_config_hash": "a" * 64,
+                "entry_price": "100",
+                "initial_quantity": "1",
+            },
+        }
+
+    prior = movement(0, pnl="-2", exit_at=NOW - timedelta(days=1))
+    first = movement(1, pnl="-1", exit_at=NOW - timedelta(hours=2))
+    win = movement(2, pnl="3", exit_at=NOW - timedelta(hours=1))
+    second = movement(3, pnl="-2", exit_at=NOW - timedelta(minutes=30))
+    before = module._daily_loss_tuning_trigger((prior, first, win, second), NOW)
+    assert before["status"] == "NOT_TRIGGERED"
+    assert before["loss_count_today"] == 2
+
+    third = movement(4, pnl="-3", exit_at=NOW)
+    triggered = module._daily_loss_tuning_trigger(
+        (prior, first, win, second, third), NOW
+    )
+    repeated = module._daily_loss_tuning_trigger(
+        (
+            prior,
+            first,
+            win,
+            second,
+            third,
+            movement(5, pnl="-4", exit_at=NOW),
+        ),
+        NOW,
+    )
+
+    assert triggered["status"] == "TRIGGERED"
+    assert triggered["loss_threshold"] == 3
+    assert triggered["loss_count_today"] == 3
+    assert len(cast(list[object], triggered["losses"])) == 3
+    assert len(cast(list[object], triggered["subjects"])) == 1
+    assert repeated["trigger_id"] == triggered["trigger_id"]
+    assert repeated["execution_allowed"] is False
+    assert repeated["promotion_status"] == "RESEARCH_ONLY"
+    assert repeated["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
 def test_virtual_wallet_journal_records_every_change_once_with_timestamp(
     tmp_path: Path,
 ) -> None:

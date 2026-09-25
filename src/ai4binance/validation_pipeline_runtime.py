@@ -7,6 +7,7 @@ import json
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import datetime
+from decimal import ROUND_DOWN, Decimal
 from functools import partial
 from hashlib import sha256
 from pathlib import Path
@@ -74,6 +75,38 @@ from ai4binance.validation.oos_maturity import (
 from ai4binance.validation.regimes import classify_validation_regime
 from ai4binance.validation.storage import WalkForwardAuditWriter
 
+SPOT_VALIDATION_NOTIONAL_TO_EQUITY_RATIO = Decimal("0.25")
+
+
+def runtime_spot_backtest_engine(
+    candles: tuple[Any, ...],
+    *,
+    base_engine: BacktestEngine,
+    notional_to_equity_ratio: Decimal,
+) -> BacktestEngine:
+    """Build a price-normalized Spot engine for one immutable validation set."""
+
+    if not candles:
+        raise ValueError("runtime Spot sizing requires validation candles")
+    if (
+        not notional_to_equity_ratio.is_finite()
+        or notional_to_equity_ratio <= 0
+        or notional_to_equity_ratio > 1
+    ):
+        raise ValueError("runtime Spot notional ratio must be within (0, 1]")
+    config = base_engine.config
+    maximum_entry_price = max(candle.open for candle in candles)
+    if maximum_entry_price <= 0:
+        raise ValueError("runtime Spot maximum entry price must be positive")
+    target_notional = config.initial_cash_usdt * notional_to_equity_ratio
+    quantity = (target_notional / maximum_entry_price).quantize(
+        config.step_size,
+        rounding=ROUND_DOWN,
+    )
+    if quantity <= 0 or quantity * maximum_entry_price < config.minimum_notional:
+        raise ValueError("runtime Spot price-normalized quantity is not tradable")
+    return BacktestEngine(replace(config, quantity=quantity))
+
 
 def _build_historical_decision_resolver(
     candles: tuple[Any, ...] | None = None,
@@ -130,6 +163,12 @@ class HistoricalValidationRuntime:
         default_factory=load_backtest_layout_manifest
     )
     report_directory: Path | None = None
+    position_notional_to_equity_ratio: Decimal | None = None
+
+    def __post_init__(self) -> None:
+        ratio = self.position_notional_to_equity_ratio
+        if ratio is not None and (not ratio.is_finite() or ratio <= 0 or ratio > 1):
+            raise ValueError("validation position notional ratio must be within (0, 1]")
 
     def start_validation_run(
         self,
@@ -335,8 +374,17 @@ class HistoricalValidationRuntime:
             regime_classifier=self._regime,
             risk_profile_registry=self.risk_profile_registry,
         )
+        backtest_engine = (
+            self.backtest_engine
+            if self.position_notional_to_equity_ratio is None
+            else runtime_spot_backtest_engine(
+                candles,
+                base_engine=self.backtest_engine,
+                notional_to_equity_ratio=self.position_notional_to_equity_ratio,
+            )
+        )
         stage_started = perf_counter_ns()
-        backtest = self.backtest_engine.run(
+        backtest = backtest_engine.run(
             symbol=symbol,
             timeframe=timeframe,
             candles=candles,
@@ -348,7 +396,7 @@ class HistoricalValidationRuntime:
             self.tuning_engine,
             validator=replace(
                 self.tuning_engine.validator,
-                backtest_engine=self.backtest_engine,
+                backtest_engine=backtest_engine,
             ),
         )
         tuning = tuning_engine.tune(
@@ -377,7 +425,7 @@ class HistoricalValidationRuntime:
             symbol=symbol,
             timeframe=timeframe,
             candles=candles,
-            backtest_config=self.backtest_engine.config,
+            backtest_config=backtest_engine.config,
             provider_factory=lambda: HistoricalPlaybookAdapter(
                 playbook=playbook,
                 parameters=tuning.selected_parameters,
@@ -478,6 +526,11 @@ class HistoricalValidationRuntime:
                     "minimum_validation_candles": MINIMUM_VALIDATION_CANDLES,
                     "candle_count": candle_count,
                     "backtest_config": to_primitive(self.backtest_engine.config),
+                    "position_notional_to_equity_ratio": (
+                        str(self.position_notional_to_equity_ratio)
+                        if self.position_notional_to_equity_ratio is not None
+                        else None
+                    ),
                     "stress_scenarios": to_primitive(
                         self.robustness_analyzer.scenarios
                     ),
@@ -489,6 +542,11 @@ class HistoricalValidationRuntime:
                 "validated_playbooks": VALIDATED_PLAYBOOKS,
                 "search_space": to_primitive(self._search_space()),
                 "backtest_config": to_primitive(self.backtest_engine.config),
+                "position_notional_to_equity_ratio": (
+                    str(self.position_notional_to_equity_ratio)
+                    if self.position_notional_to_equity_ratio is not None
+                    else None
+                ),
                 "stress_scenarios": to_primitive(self.robustness_analyzer.scenarios),
                 "tuning_config": to_primitive(self._tuning_config(candle_count)),
                 "strategy_risk_profiles": self._risk_profiles_payload(),
@@ -519,6 +577,9 @@ class HistoricalValidationRuntime:
             return
         artifact_path = Path(result.artifact_path)
         checkpoint_path = self._checkpoint_path(artifact_path)
+        run_card_path = artifact_path.with_name(f"{result.playbook}.run-card.json")
+        if result.run_card is None or not run_card_path.is_file():
+            raise ValueError("VALIDATION_CHECKPOINT_RUN_CARD_MISSING")
         write_json_object_verified(
             checkpoint_path,
             {
@@ -531,6 +592,7 @@ class HistoricalValidationRuntime:
                 "config_sha256": config_sha256,
                 "implementation_sha256": implementation_sha256,
                 "artifact_sha256": sha256(artifact_path.read_bytes()).hexdigest(),
+                "run_card_sha256": sha256(run_card_path.read_bytes()).hexdigest(),
                 "promotion_status": result.promotion_status.value,
                 "blockers": list(result.blockers),
                 "signal_blockers": [list(item) for item in result.signal_blockers],
@@ -561,7 +623,12 @@ class HistoricalValidationRuntime:
             playbook,
         )
         checkpoint_path = self._checkpoint_path(artifact_path)
-        if not checkpoint_path.is_file() or not artifact_path.is_file():
+        run_card_path = artifact_path.with_name(f"{playbook}.run-card.json")
+        if (
+            not checkpoint_path.is_file()
+            or not artifact_path.is_file()
+            or not run_card_path.is_file()
+        ):
             return None
         try:
             payload = read_json_object(
@@ -577,6 +644,7 @@ class HistoricalValidationRuntime:
                 "config_sha256": config_sha256,
                 "implementation_sha256": implementation_sha256,
                 "artifact_sha256": sha256(artifact_path.read_bytes()).hexdigest(),
+                "run_card_sha256": sha256(run_card_path.read_bytes()).hexdigest(),
                 "execution_allowed": False,
                 "live_eligibility_status": "LIVE_ORDER_BLOCKED",
             }
@@ -587,6 +655,21 @@ class HistoricalValidationRuntime:
                 payload.get("signal_blockers")
             )
             promotion_status = ValidationStatus(str(payload["promotion_status"]))
+            run_card = read_json_object(
+                run_card_path,
+                blocker="VALIDATION_CHECKPOINT_RUN_CARD_READ_FAILED",
+            )
+            run_card_expected = {
+                "symbol": symbol.strip().upper(),
+                "timeframe": timeframe,
+                "dataset_sha256": dataset_sha256,
+                "promotion_status": promotion_status.value,
+                "execution_allowed": False,
+            }
+            if any(
+                run_card.get(key) != value for key, value in run_card_expected.items()
+            ):
+                return None
         except (
             DestinationVerificationError,
             KeyError,
@@ -601,6 +684,7 @@ class HistoricalValidationRuntime:
             candle_count=len(candles),
             promotion_status=promotion_status,
             blockers=blockers,
+            run_card=dict(run_card),
             signal_blockers=signal_blockers,
             artifact_path=str(artifact_path),
             checkpoint_path=str(checkpoint_path),
@@ -631,7 +715,9 @@ class HistoricalValidationRuntime:
     @staticmethod
     def _tuning_config(candle_count: int) -> TuningConfig:
         test_size = max(10, candle_count // 8)
-        train_size = candle_count - (test_size * 5)
+        purge_size = 1
+        embargo_size = 1
+        train_size = candle_count - (test_size * 5) - purge_size - (embargo_size * 4)
         return TuningConfig(
             WalkForwardConfig(
                 train_size=train_size,
@@ -640,6 +726,8 @@ class HistoricalValidationRuntime:
                 min_folds=5,
                 min_oos_trades=5,
                 min_regime_count=2,
+                purge_size=purge_size,
+                embargo_size=embargo_size,
             ),
             min_neighbor_count=2,
             min_neighbor_pass_ratio=0.5,
@@ -772,7 +860,7 @@ class HistoricalValidationRuntime:
             config_sha256=ResearchRunCard.hash_json(
                 {
                     "search_space": to_primitive(self._search_space()),
-                    "backtest_config": to_primitive(self.backtest_engine.config),
+                    "backtest_config": to_primitive(backtest.assumptions),
                     "stress_scenarios": to_primitive(
                         self.robustness_analyzer.scenarios
                     ),

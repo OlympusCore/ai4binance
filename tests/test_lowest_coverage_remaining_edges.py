@@ -682,7 +682,7 @@ def test_system_report_helpers_cover_invalid_components_and_payloads(
     health = system_report_module.local_advisory_health_payload(settings)
     assert health["status"] == "DEGRADED"
     health_blockers = cast(tuple[str, ...], health["blockers"])
-    assert "QWEN_PROMPTER_LISTENER_MISSING" in health_blockers
+    assert "LOCAL_ADVISORY_LISTENER_MISSING" in health_blockers
 
     invalid = system_report_module._safe_component("demo", lambda: "not-dict")
     failed = system_report_module._safe_component(

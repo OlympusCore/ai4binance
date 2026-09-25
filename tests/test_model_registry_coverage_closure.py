@@ -436,7 +436,7 @@ def test_registry_validation_covers_artifact_failure_modes(tmp_path: Path) -> No
     assert passed.execution_allowed is False
     assert passed.promotion_status == "RESEARCH_ONLY"
     assert passed.live_eligibility_status == "LIVE_ORDER_BLOCKED"
-    assert unverifiable.blockers == ("ARTIFACT_HASH_UNVERIFIABLE:coverage-model",)
+    assert unverifiable.blockers == ("LOCAL_MODEL_MANIFEST_INVALID:coverage-model",)
     assert outside.blockers == ("ARTIFACT_URI_OUTSIDE_REPOSITORY:coverage-model",)
     assert missing.blockers == ("ARTIFACT_MISSING:coverage-model",)
 

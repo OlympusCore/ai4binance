@@ -3,12 +3,14 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 MANIFEST_PATH = Path("config/governance/governed_document_lock_manifest.json")
 DEFAULT_OUTPUT_DIR = Path("runtime/artifacts/repository_validation/governance")
+_SHA256_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 
 
 def _sha256(path: Path) -> str:
@@ -62,9 +64,14 @@ def build_approval_evidence(
     *,
     repository_root: Path,
     approval_id: str,
+    manifest_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     manifest_path = repository_root / MANIFEST_PATH
-    manifest = _load_manifest(manifest_path)
+    manifest = (
+        manifest_payload
+        if manifest_payload is not None
+        else _load_manifest(manifest_path)
+    )
     approval = _approval_record(manifest, approval_id)
     if approval.get("approval_status") != "APPROVED":
         raise ValueError("approval record must be APPROVED")
@@ -154,6 +161,79 @@ def build_approval_evidence(
     }
 
 
+def _load_bound_evidence(
+    *,
+    repository_root: Path,
+    approval: dict[str, Any],
+    output_path: Path,
+) -> dict[str, Any] | None:
+    evidence_path = str(approval.get("approval_evidence_path", "")).strip()
+    evidence_sha256 = str(approval.get("approval_evidence_sha256", "")).strip().lower()
+    if not evidence_path and not evidence_sha256:
+        return None
+    if not evidence_path or not evidence_sha256:
+        raise ValueError("BOUND_APPROVAL_EVIDENCE_REFERENCE_INCOMPLETE")
+    relative = PurePosixPath(evidence_path)
+    if (
+        relative.is_absolute()
+        or PureWindowsPath(evidence_path).is_absolute()
+        or "\\" in evidence_path
+        or ".." in relative.parts
+    ):
+        raise ValueError("BOUND_APPROVAL_EVIDENCE_PATH_INVALID")
+    if _SHA256_PATTERN.fullmatch(evidence_sha256) is None:
+        raise ValueError("BOUND_APPROVAL_EVIDENCE_SHA256_INVALID")
+    bound_path = (repository_root / evidence_path).resolve()
+    if output_path.resolve() != bound_path:
+        raise ValueError("BOUND_APPROVAL_EVIDENCE_PATH_OVERRIDE_BLOCKED")
+    if not bound_path.is_file():
+        raise ValueError("BOUND_APPROVAL_EVIDENCE_MISSING")
+    if _sha256(bound_path) != evidence_sha256:
+        raise ValueError("BOUND_APPROVAL_EVIDENCE_IMMUTABLE_MISMATCH")
+    payload = _load_manifest(bound_path)
+    if (
+        payload.get("artifact_origin")
+        != "governed_document_lock_written_owner_approval"
+    ):
+        raise ValueError("BOUND_APPROVAL_EVIDENCE_ORIGIN_INVALID")
+    if (
+        str(payload.get("approval_id", "")).strip()
+        != str(approval.get("approval_id", "")).strip()
+    ):
+        raise ValueError("BOUND_APPROVAL_EVIDENCE_ID_MISMATCH")
+    return payload
+
+
+def persist_approval_evidence(
+    *,
+    repository_root: Path,
+    approval_id: str,
+    output_path: Path,
+    manifest_payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    manifest = (
+        manifest_payload
+        if manifest_payload is not None
+        else _load_manifest(repository_root / MANIFEST_PATH)
+    )
+    approval = _approval_record(manifest, approval_id)
+    bound = _load_bound_evidence(
+        repository_root=repository_root,
+        approval=approval,
+        output_path=output_path,
+    )
+    if bound is not None:
+        return bound
+    payload = build_approval_evidence(
+        repository_root=repository_root,
+        approval_id=approval_id,
+        manifest_payload=manifest,
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return payload
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -166,10 +246,6 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     repository_root = Path(args.repository_root).resolve()
-    payload = build_approval_evidence(
-        repository_root=repository_root,
-        approval_id=args.approval_id,
-    )
     if args.output_path:
         output_path = Path(args.output_path)
         if not output_path.is_absolute():
@@ -180,8 +256,11 @@ def main(argv: list[str] | None = None) -> int:
             / DEFAULT_OUTPUT_DIR
             / f"governed_document_lock_approval_{_slug(args.approval_id)}.json"
         )
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    payload = persist_approval_evidence(
+        repository_root=repository_root,
+        approval_id=args.approval_id,
+        output_path=output_path,
+    )
     print(json.dumps(payload, indent=2))
     return 0
 

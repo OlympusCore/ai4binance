@@ -37,6 +37,8 @@ __all__ = [
 _LOCAL_ADVISORY_MODEL = "qwen3:8b"
 _LOCAL_ADVISORY_PROVIDER = "llama.cpp"
 _LOCAL_ADVISORY_ENDPOINT_PREFIX = "http://127.0.0.1:8080"
+_PRIMARY_LOCAL_REASONING_HEALTH_FILE = "primary-local-reasoning-health.json"
+_QWEN_PROMPTER_HEALTH_FILE = "qwen-prompter-health.json"
 _AUTO_LEARN_CAPABILITIES = (
     "observe",
     "analyze",
@@ -314,36 +316,45 @@ def runtime_state_payload(
 
 
 def local_advisory_health_payload(settings: Settings) -> dict[str, object]:
-    """Verify the only production advisory route: loopback llama.cpp qwen3:8b."""
+    """Verify the canonical local llama.cpp qwen3 advisory route."""
     blockers: list[str] = []
-    state_path = settings.runtime_state_path.parent / "qwen-prompter-health.json"
+    state_directory = settings.runtime_state_path.parent
+    primary_state_path = state_directory / _PRIMARY_LOCAL_REASONING_HEALTH_FILE
+    compatibility_state_path = state_directory / _QWEN_PROMPTER_HEALTH_FILE
+    state_path = primary_state_path
     health: dict[str, object] = {}
     try:
-        loaded = json.loads(state_path.read_text(encoding="utf-8-sig"))
+        loaded = json.loads(primary_state_path.read_text(encoding="utf-8-sig"))
         if isinstance(loaded, dict):
             health = cast(dict[str, object], loaded)
         else:
-            blockers.append("QWEN_PROMPTER_STATE_INVALID")
+            blockers.append("PRIMARY_LOCAL_REASONING_STATE_INVALID")
     except FileNotFoundError:
-        blockers.append("QWEN_PROMPTER_STATE_MISSING")
+        state_path = compatibility_state_path
+        try:
+            loaded = json.loads(state_path.read_text(encoding="utf-8-sig"))
+            if isinstance(loaded, dict):
+                health = cast(dict[str, object], loaded)
+            else:
+                blockers.append("QWEN_PROMPTER_STATE_INVALID")
+        except FileNotFoundError:
+            blockers.append("PRIMARY_LOCAL_REASONING_STATE_MISSING")
+        except (OSError, json.JSONDecodeError):
+            blockers.append("QWEN_PROMPTER_STATE_INVALID")
     except (OSError, json.JSONDecodeError):
-        blockers.append("QWEN_PROMPTER_STATE_INVALID")
+        blockers.append("PRIMARY_LOCAL_REASONING_STATE_INVALID")
 
     if health.get("provider") != _LOCAL_ADVISORY_PROVIDER:
         blockers.append("LLAMA_CPP_PROVIDER_MISMATCH")
     if health.get("status") != "RUNNING":
-        blockers.append("QWEN_PROMPTER_NOT_RUNNING")
-    if health.get("model") != _LOCAL_ADVISORY_MODEL:
-        blockers.append("QWEN_PROMPTER_MODEL_MISMATCH")
+        blockers.append("LOCAL_ADVISORY_NOT_RUNNING")
+    runtime_model = str(health.get("runtime_model") or health.get("model") or "")
+    if runtime_model != _LOCAL_ADVISORY_MODEL:
+        blockers.append("LOCAL_ADVISORY_MODEL_MISMATCH")
     endpoint = str(health.get("endpoint", ""))
     if not endpoint.startswith(_LOCAL_ADVISORY_ENDPOINT_PREFIX):
         blockers.append("LLAMA_CPP_ENDPOINT_NOT_LOOPBACK")
 
-    pid = _safe_int(health.get("provider_pid"))
-    if pid is None:
-        pid = _safe_int(health.get("pid"))
-    if pid is None or pid < 1 or not SingleInstanceLease._pid_is_alive(pid):
-        blockers.append("QWEN_PROMPTER_PID_NOT_ALIVE")
     listener_pids = tuple(
         sorted(
             pid
@@ -353,10 +364,17 @@ def local_advisory_health_payload(settings: Settings) -> dict[str, object]:
             if pid is not None
         )
     )
+    pid = _safe_int(health.get("provider_pid"))
+    if pid is None:
+        pid = _safe_int(health.get("pid"))
+    if pid is None and listener_pids:
+        pid = listener_pids[0]
+    if pid is None or pid < 1 or not SingleInstanceLease._pid_is_alive(pid):
+        blockers.append("LOCAL_ADVISORY_PID_NOT_ALIVE")
     if not listener_pids:
-        blockers.append("QWEN_PROMPTER_LISTENER_MISSING")
+        blockers.append("LOCAL_ADVISORY_LISTENER_MISSING")
     elif not any(SingleInstanceLease._pid_is_alive(value) for value in listener_pids):
-        blockers.append("QWEN_PROMPTER_LISTENER_NOT_ALIVE")
+        blockers.append("LOCAL_ADVISORY_LISTENER_NOT_ALIVE")
     auto_learn = _auto_learn_payload(
         health,
         status=str(health.get("status", "UNKNOWN")),
@@ -367,10 +385,11 @@ def local_advisory_health_payload(settings: Settings) -> dict[str, object]:
         "status": "READY" if not blockers else "DEGRADED",
         "provider": _LOCAL_ADVISORY_PROVIDER,
         "endpoint": endpoint or _LOCAL_ADVISORY_ENDPOINT_PREFIX,
-        "model": _LOCAL_ADVISORY_MODEL,
+        "model": runtime_model or _LOCAL_ADVISORY_MODEL,
         "loopback_only": True,
         "listener_pids": listener_pids,
         "prompter_state_path": str(state_path),
+        "health_source_service": health.get("service"),
         "prompter_status": health.get("status"),
         "prompter_pid": pid,
         "auto_learn": auto_learn,

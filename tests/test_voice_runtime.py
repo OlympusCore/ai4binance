@@ -282,7 +282,7 @@ class FallbackWhisperModelFactory:
 def test_whisper_adapter_initializes_and_transcribes(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    import faster_whisper  # type: ignore[import-untyped]
+    import faster_whisper
     import truststore
 
     monkeypatch.setattr(truststore, "inject_into_ssl", lambda: None)
@@ -340,7 +340,7 @@ def test_sound_recorder_distinguishes_signal_and_silence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import numpy as np
-    import sounddevice  # type: ignore[import-untyped]
+    import sounddevice
 
     monkeypatch.setattr(sounddevice, "wait", lambda: None)
     monkeypatch.setattr(

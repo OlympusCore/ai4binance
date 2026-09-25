@@ -1,0 +1,354 @@
+{
+  "execution_allowed": false,
+  "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+  "promotion_status": "RESEARCH_ONLY",
+  "runtime_source_sha256": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+  "schema_version": "1.0",
+  "subjects": [
+    {
+      "bundle": {
+        "path": "oos_runtime/542ca70809c81c41839c003d50c8e83f14227eba302031e8d72a9c2320193902/bundle.json",
+        "sha256": "0ea2b993bdb38844ec882a70d0704bdda0e3ea4ca68590834af3388c03a2188d"
+      },
+      "subject": {
+        "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
+        "feature_definition_sha256": "63f712ab32697b7a9c67ee81847bcdc9f7171002e2f7e4e6a213ae2e12edd979",
+        "promotion": {
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "670c3909a381f375b0a99fcef256378c5b3892b2eefbde3167300dc91ed561b5",
+          "market_type": "SPOT",
+          "parameter_set_sha256": "4bd1c4a9aa115e27998e0721c7700ae6a1d8a8cf09af95d34b3ce624edda1ac9",
+          "strategy_id": "trend_continuation",
+          "strategy_sha256": "63f712ab32697b7a9c67ee81847bcdc9f7171002e2f7e4e6a213ae2e12edd979",
+          "strategy_version": "1",
+          "symbol": "BTCUSDT",
+          "timeframe": "15m"
+        },
+        "setup_type": "trend_continuation",
+        "validation_config_sha256": "41f2ae9107a79985e46f8522323133261f99fb4ec9d9d4265b0f57c3d3956cd4"
+      }
+    },
+    {
+      "bundle": {
+        "path": "oos_runtime/0c17e1a8754613e9607e63e434e93349b83f0dd6da00a044165ad532eae358e0/bundle.json",
+        "sha256": "c082ac3615f22fdb10f8662a45cc357d642e87fbb39c94730034184d2fa774bc"
+      },
+      "subject": {
+        "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
+        "feature_definition_sha256": "acfb727377466011e73a0b3782f76bc445b3dc7d7fbddda33c8b0811370dc852",
+        "promotion": {
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "670c3909a381f375b0a99fcef256378c5b3892b2eefbde3167300dc91ed561b5",
+          "market_type": "SPOT",
+          "parameter_set_sha256": "4bd1c4a9aa115e27998e0721c7700ae6a1d8a8cf09af95d34b3ce624edda1ac9",
+          "strategy_id": "pullback_continuation",
+          "strategy_sha256": "acfb727377466011e73a0b3782f76bc445b3dc7d7fbddda33c8b0811370dc852",
+          "strategy_version": "1",
+          "symbol": "BTCUSDT",
+          "timeframe": "15m"
+        },
+        "setup_type": "pullback_continuation",
+        "validation_config_sha256": "3fc299291cbb97b9cc53bd413af44289eb93da55ec2733ad415c82f871865a2f"
+      }
+    },
+    {
+      "bundle": {
+        "path": "oos_runtime/1cd1f756c2dfe2e6e5b72ad580f250a1f5c6f10038e9a51acc41a74a966c204e/bundle.json",
+        "sha256": "03f1c4e0d8e776bb758f255c3945694a2ce33b722d43f21de485b007f3edebc0"
+      },
+      "subject": {
+        "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
+        "feature_definition_sha256": "2a7e0ad5ccc7292a0b06b76b233fa93552d34bfe993a0db4976e3404b1ff7486",
+        "promotion": {
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "670c3909a381f375b0a99fcef256378c5b3892b2eefbde3167300dc91ed561b5",
+          "market_type": "SPOT",
+          "parameter_set_sha256": "4bd1c4a9aa115e27998e0721c7700ae6a1d8a8cf09af95d34b3ce624edda1ac9",
+          "strategy_id": "breakout_retest",
+          "strategy_sha256": "2a7e0ad5ccc7292a0b06b76b233fa93552d34bfe993a0db4976e3404b1ff7486",
+          "strategy_version": "1",
+          "symbol": "BTCUSDT",
+          "timeframe": "15m"
+        },
+        "setup_type": "breakout_retest",
+        "validation_config_sha256": "3580cd32f763b70502b44c2d474bc935e0bfe1c85b4401341de1f063ce6d5562"
+      }
+    },
+    {
+      "bundle": {
+        "path": "oos_runtime/8262f89da3dece8463ff55097d2933306fa4aca927d58c0383b2288156f2f5ad/bundle.json",
+        "sha256": "8126174a6f065fb927444983023d7ec9dcb76928147de1e18465555fe8d0bb39"
+      },
+      "subject": {
+        "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
+        "feature_definition_sha256": "7cfbd10b251a8e6acfa0656247e9f99f56c4b6e24849c8a36d66fce734f746a3",
+        "promotion": {
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "670c3909a381f375b0a99fcef256378c5b3892b2eefbde3167300dc91ed561b5",
+          "market_type": "SPOT",
+          "parameter_set_sha256": "4bd1c4a9aa115e27998e0721c7700ae6a1d8a8cf09af95d34b3ce624edda1ac9",
+          "strategy_id": "support_reclaim",
+          "strategy_sha256": "7cfbd10b251a8e6acfa0656247e9f99f56c4b6e24849c8a36d66fce734f746a3",
+          "strategy_version": "1",
+          "symbol": "BTCUSDT",
+          "timeframe": "15m"
+        },
+        "setup_type": "support_reclaim",
+        "validation_config_sha256": "5bfc944927f384c71d5a567195d4f9f3fab658cf15ef634a4009b6ca0d8276b7"
+      }
+    },
+    {
+      "bundle": {
+        "path": "oos_runtime/a2cd1cdce2adf647174ca45f03075535c7fcb9b0c05313b27f9f3ae7ed9a4d42/bundle.json",
+        "sha256": "1f87af0f67f5250fc737428dd9cfa34e6fde3571a1df5af0f85665fc273bf1b5"
+      },
+      "subject": {
+        "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
+        "feature_definition_sha256": "4f33ee776ac3b463420d6a0f2c08352a0673d16633d2a32765d861fcb8e144ea",
+        "promotion": {
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "670c3909a381f375b0a99fcef256378c5b3892b2eefbde3167300dc91ed561b5",
+          "market_type": "SPOT",
+          "parameter_set_sha256": "4bd1c4a9aa115e27998e0721c7700ae6a1d8a8cf09af95d34b3ce624edda1ac9",
+          "strategy_id": "failed_breakout_reversal",
+          "strategy_sha256": "4f33ee776ac3b463420d6a0f2c08352a0673d16633d2a32765d861fcb8e144ea",
+          "strategy_version": "1",
+          "symbol": "BTCUSDT",
+          "timeframe": "15m"
+        },
+        "setup_type": "failed_breakout_reversal",
+        "validation_config_sha256": "af093bbf27c520339541d1f4dc6cbd416cb7d370216e64e70164e02ce9a64582"
+      }
+    },
+    {
+      "bundle": {
+        "path": "oos_runtime/fcfc4e58d7a510d8a7598d4006dd736d3538480696988e509653d589b254feba/bundle.json",
+        "sha256": "ac989b936304b50caad60375adff155c1cc6567568a20cf92c3d236f9fa217fb"
+      },
+      "subject": {
+        "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
+        "feature_definition_sha256": "63f712ab32697b7a9c67ee81847bcdc9f7171002e2f7e4e6a213ae2e12edd979",
+        "promotion": {
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "a331860e84a646b5fca88d9e3cd0b0741e48eb9a1012cb127d4dbee636a59dfa",
+          "market_type": "SPOT",
+          "parameter_set_sha256": "054e2cde500c74e3de0cf53a0ea4cc187d205f1cbcdad5598459081a5c6e6be4",
+          "strategy_id": "trend_continuation",
+          "strategy_sha256": "63f712ab32697b7a9c67ee81847bcdc9f7171002e2f7e4e6a213ae2e12edd979",
+          "strategy_version": "1",
+          "symbol": "BTCUSDT",
+          "timeframe": "1h"
+        },
+        "setup_type": "trend_continuation",
+        "validation_config_sha256": "ffb237f4724bd11617cf1bfbf21c900542a5e42f7c2a4cea9a15c036ae01be0a"
+      }
+    },
+    {
+      "bundle": {
+        "path": "oos_runtime/c8ca129ca37d86dbba6f7e084565b52b9376c57f56a21ee327d73860b9f0d8e4/bundle.json",
+        "sha256": "b6180f55d27849bce4647b353e6468771eedd73e596b406399051dc594d2a9e4"
+      },
+      "subject": {
+        "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
+        "feature_definition_sha256": "d676e5ee3551bed7965e95cb421ae999225b9b6c0e2662468065506836fe5fc7",
+        "promotion": {
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "a331860e84a646b5fca88d9e3cd0b0741e48eb9a1012cb127d4dbee636a59dfa",
+          "market_type": "SPOT",
+          "parameter_set_sha256": "054e2cde500c74e3de0cf53a0ea4cc187d205f1cbcdad5598459081a5c6e6be4",
+          "strategy_id": "pullback_continuation",
+          "strategy_sha256": "d676e5ee3551bed7965e95cb421ae999225b9b6c0e2662468065506836fe5fc7",
+          "strategy_version": "1",
+          "symbol": "BTCUSDT",
+          "timeframe": "1h"
+        },
+        "setup_type": "pullback_continuation",
+        "validation_config_sha256": "136713eaba26dde6d5dd4394f075b7961334b6bb5b58d3a4b64b32002083ed21"
+      }
+    },
+    {
+      "bundle": {
+        "path": "oos_runtime/d46c8a4d6034d44bcf58ed60c82fd61afcb835273bb524bff27ce46073503baf/bundle.json",
+        "sha256": "fcd53ac8b8ac14b71a49b8b91d7ccb9c51db0ee98684ff1904d059da68c0f86b"
+      },
+      "subject": {
+        "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
+        "feature_definition_sha256": "2a7e0ad5ccc7292a0b06b76b233fa93552d34bfe993a0db4976e3404b1ff7486",
+        "promotion": {
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "a331860e84a646b5fca88d9e3cd0b0741e48eb9a1012cb127d4dbee636a59dfa",
+          "market_type": "SPOT",
+          "parameter_set_sha256": "054e2cde500c74e3de0cf53a0ea4cc187d205f1cbcdad5598459081a5c6e6be4",
+          "strategy_id": "breakout_retest",
+          "strategy_sha256": "2a7e0ad5ccc7292a0b06b76b233fa93552d34bfe993a0db4976e3404b1ff7486",
+          "strategy_version": "1",
+          "symbol": "BTCUSDT",
+          "timeframe": "1h"
+        },
+        "setup_type": "breakout_retest",
+        "validation_config_sha256": "4299b3871fba400b20b27f75d4d8754093ba57d7ac249cf0b579eb0f863a4eb4"
+      }
+    },
+    {
+      "bundle": {
+        "path": "oos_runtime/8ec344bbae4e35b0f3b76947b74364300ad628f8a8136d795daab00ce187dfe4/bundle.json",
+        "sha256": "59ca38f180e393abec1f6bc419384d35e54456fd61c1fd4652eb370b3170c917"
+      },
+      "subject": {
+        "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
+        "feature_definition_sha256": "7cfbd10b251a8e6acfa0656247e9f99f56c4b6e24849c8a36d66fce734f746a3",
+        "promotion": {
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "a331860e84a646b5fca88d9e3cd0b0741e48eb9a1012cb127d4dbee636a59dfa",
+          "market_type": "SPOT",
+          "parameter_set_sha256": "054e2cde500c74e3de0cf53a0ea4cc187d205f1cbcdad5598459081a5c6e6be4",
+          "strategy_id": "support_reclaim",
+          "strategy_sha256": "7cfbd10b251a8e6acfa0656247e9f99f56c4b6e24849c8a36d66fce734f746a3",
+          "strategy_version": "1",
+          "symbol": "BTCUSDT",
+          "timeframe": "1h"
+        },
+        "setup_type": "support_reclaim",
+        "validation_config_sha256": "c77f1ef41b693700b54a48e9eef88b3563aa0d059d524c75f96fee1a7cd511e9"
+      }
+    },
+    {
+      "bundle": {
+        "path": "oos_runtime/64cfbb8bd90688a6617f6c71f4bf20db19f57c150edaff178903fe3db5f9126c/bundle.json",
+        "sha256": "d3007d8bc5a29fb4a5e8be97c3c34aaa25ed072800dfc5d9b0706d2b31578514"
+      },
+      "subject": {
+        "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
+        "feature_definition_sha256": "4f33ee776ac3b463420d6a0f2c08352a0673d16633d2a32765d861fcb8e144ea",
+        "promotion": {
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "a331860e84a646b5fca88d9e3cd0b0741e48eb9a1012cb127d4dbee636a59dfa",
+          "market_type": "SPOT",
+          "parameter_set_sha256": "054e2cde500c74e3de0cf53a0ea4cc187d205f1cbcdad5598459081a5c6e6be4",
+          "strategy_id": "failed_breakout_reversal",
+          "strategy_sha256": "4f33ee776ac3b463420d6a0f2c08352a0673d16633d2a32765d861fcb8e144ea",
+          "strategy_version": "1",
+          "symbol": "BTCUSDT",
+          "timeframe": "1h"
+        },
+        "setup_type": "failed_breakout_reversal",
+        "validation_config_sha256": "7893795b4a3991b17d69e613eb88150fcbbcaf251a41931315c0b30c31a6f5df"
+      }
+    },
+    {
+      "bundle": {
+        "path": "oos_runtime/f2d1caf9eb552061c08e1b528ad612077e9e0d2976f6a92fc5397edbcd3606dc/bundle.json",
+        "sha256": "be158e4bb59097fabe96054cacd07b9e414146eb6593256e58e262a12295e209"
+      },
+      "subject": {
+        "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
+        "feature_definition_sha256": "63f712ab32697b7a9c67ee81847bcdc9f7171002e2f7e4e6a213ae2e12edd979",
+        "promotion": {
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "058e3458745e76d6202a762be480eec089e6949040cff4f391f89378129a84fc",
+          "market_type": "SPOT",
+          "parameter_set_sha256": "0aa632ce16ad795f3fd5e594e0b0658b4c89c6d2c7266c25f322f5730b651b37",
+          "strategy_id": "trend_continuation",
+          "strategy_sha256": "63f712ab32697b7a9c67ee81847bcdc9f7171002e2f7e4e6a213ae2e12edd979",
+          "strategy_version": "1",
+          "symbol": "BTCUSDT",
+          "timeframe": "4h"
+        },
+        "setup_type": "trend_continuation",
+        "validation_config_sha256": "ecf31c5205fcfa07c47ba7ae8dd2c243a9f8a23d41c802d651ee4d0e0dc04600"
+      }
+    },
+    {
+      "bundle": {
+        "path": "oos_runtime/b71f4edf1f000796eed60b671d542fb9dfe6ba9543df35a018aa102d02fd26b2/bundle.json",
+        "sha256": "ffafd48a9fc66d94a7aaa9ee5cc365426878bdf6baa6d080dd5add1016913f12"
+      },
+      "subject": {
+        "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
+        "feature_definition_sha256": "d676e5ee3551bed7965e95cb421ae999225b9b6c0e2662468065506836fe5fc7",
+        "promotion": {
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "058e3458745e76d6202a762be480eec089e6949040cff4f391f89378129a84fc",
+          "market_type": "SPOT",
+          "parameter_set_sha256": "0aa632ce16ad795f3fd5e594e0b0658b4c89c6d2c7266c25f322f5730b651b37",
+          "strategy_id": "pullback_continuation",
+          "strategy_sha256": "d676e5ee3551bed7965e95cb421ae999225b9b6c0e2662468065506836fe5fc7",
+          "strategy_version": "1",
+          "symbol": "BTCUSDT",
+          "timeframe": "4h"
+        },
+        "setup_type": "pullback_continuation",
+        "validation_config_sha256": "957010c5cd007f49b8b3c2c88b470e2c7fd7271bba128f9182c785e318351323"
+      }
+    },
+    {
+      "bundle": {
+        "path": "oos_runtime/d84376c1324fe18339bd18a593973a573a8e0e89301838a485821498f3193deb/bundle.json",
+        "sha256": "397e7678228fd78376414cd4d28f559c56103c5e49c63dab4ff4e342b899f9a6"
+      },
+      "subject": {
+        "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
+        "feature_definition_sha256": "81ed5bdf546ea4521d379049a78ecd0c518945f72b7414517439d2e976d59c40",
+        "promotion": {
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "058e3458745e76d6202a762be480eec089e6949040cff4f391f89378129a84fc",
+          "market_type": "SPOT",
+          "parameter_set_sha256": "0aa632ce16ad795f3fd5e594e0b0658b4c89c6d2c7266c25f322f5730b651b37",
+          "strategy_id": "breakout_retest",
+          "strategy_sha256": "81ed5bdf546ea4521d379049a78ecd0c518945f72b7414517439d2e976d59c40",
+          "strategy_version": "1",
+          "symbol": "BTCUSDT",
+          "timeframe": "4h"
+        },
+        "setup_type": "breakout_retest",
+        "validation_config_sha256": "1acd73838e91895ec9338686015db2fc482100d95b9050b3b0badebfefa99711"
+      }
+    },
+    {
+      "bundle": {
+        "path": "oos_runtime/f6a8dd030e25e1c6462c4d73d9174cc46e9ab5888b0e24b3bfbda167332bc205/bundle.json",
+        "sha256": "5835a4f21b547c509aff9a593dd031fc6807136726738fcd4cde52a578df4b4e"
+      },
+      "subject": {
+        "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
+        "feature_definition_sha256": "ab8ad8719e8ae46a24c00a9fa61b06b65ec081f6282f532f3e6fd5922d517a07",
+        "promotion": {
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "058e3458745e76d6202a762be480eec089e6949040cff4f391f89378129a84fc",
+          "market_type": "SPOT",
+          "parameter_set_sha256": "0aa632ce16ad795f3fd5e594e0b0658b4c89c6d2c7266c25f322f5730b651b37",
+          "strategy_id": "support_reclaim",
+          "strategy_sha256": "ab8ad8719e8ae46a24c00a9fa61b06b65ec081f6282f532f3e6fd5922d517a07",
+          "strategy_version": "1",
+          "symbol": "BTCUSDT",
+          "timeframe": "4h"
+        },
+        "setup_type": "support_reclaim",
+        "validation_config_sha256": "18a642dcfb07e6a88492bbd3f653860c32147a51283052a13cdfe6878fc9e581"
+      }
+    },
+    {
+      "bundle": {
+        "path": "oos_runtime/c9ee64e48fadb8e3a48fc2623a82bbf4e4a411a2e82babd8c6a7fca01ba55530/bundle.json",
+        "sha256": "627089c7b2d78787ad34b41e683b33caa9e7d160e85184d65811435169fe7ca2"
+      },
+      "subject": {
+        "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
+        "feature_definition_sha256": "4f33ee776ac3b463420d6a0f2c08352a0673d16633d2a32765d861fcb8e144ea",
+        "promotion": {
+          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+          "dataset_sha256": "058e3458745e76d6202a762be480eec089e6949040cff4f391f89378129a84fc",
+          "market_type": "SPOT",
+          "parameter_set_sha256": "0aa632ce16ad795f3fd5e594e0b0658b4c89c6d2c7266c25f322f5730b651b37",
+          "strategy_id": "failed_breakout_reversal",
+          "strategy_sha256": "4f33ee776ac3b463420d6a0f2c08352a0673d16633d2a32765d861fcb8e144ea",
+          "strategy_version": "1",
+          "symbol": "BTCUSDT",
+          "timeframe": "4h"
+        },
+        "setup_type": "failed_breakout_reversal",
+        "validation_config_sha256": "ef9f58aad8bec69122a1a7741a40a3f15d189a8496d63da8e4b65b095f1e9d77"
+      }
+    }
+  ]
+}

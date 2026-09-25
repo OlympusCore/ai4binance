@@ -151,7 +151,9 @@ def test_public_showcase_rejects_hash_drift_and_secret_scan_failure(
     assert not (tmp_path / "scan-output").exists()
 
 
-@pytest.mark.parametrize("value", ("", "/absolute", "back\\slash", "a/../b"))
+@pytest.mark.parametrize(
+    "value,", [("",), ("/absolute",), ("back\\slash",), ("a/../b",)]
+)
 def test_showcase_helpers_reject_unsafe_contract_values(value: str) -> None:
     with pytest.raises(PublicShowcaseError):
         showcase._safe_relative_path(value, field="artifact")
@@ -188,12 +190,14 @@ def test_showcase_scan_and_output_preconditions_fail_closed(
     executable = tmp_path / "gitleaks.exe"
     executable.write_text("fixture", encoding="utf-8")
     failed = type("Completed", (), {"returncode": 1})()
-    monkeypatch.setattr(showcase.subprocess, "run", lambda *_args, **_kwargs: failed)
+    monkeypatch.setattr(
+        "ai4binance.ops.public_showcase.subprocess.run",
+        lambda *_args, **_kwargs: failed,
+    )
     with pytest.raises(PublicShowcaseError, match="failed"):
         showcase.run_gitleaks_scan(tmp_path, executable)
     monkeypatch.setattr(
-        showcase.subprocess,
-        "run",
+        "ai4binance.ops.public_showcase.subprocess.run",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("unavailable")),
     )
     with pytest.raises(PublicShowcaseError, match="did not complete"):
@@ -234,7 +238,12 @@ def test_showcase_rejects_each_authority_expansion_shape(tmp_path: Path) -> None
         "sha256": "a" * 64,
     }
     assert showcase._parse_artifacts([valid])[0].source == "README.md"
-    for artifacts in ([{}], [{**valid, "sha256": "A" * 64}], [valid, valid]):
+    invalid_artifacts: tuple[list[dict[str, str]], ...] = (
+        [{}],
+        [{**valid, "sha256": "A" * 64}],
+        [valid, valid],
+    )
+    for artifacts in invalid_artifacts:
         with pytest.raises(PublicShowcaseError):
             showcase._parse_artifacts(artifacts)
     with pytest.raises(PublicShowcaseError, match="non-empty"):
@@ -244,7 +253,8 @@ def test_showcase_rejects_each_authority_expansion_shape(tmp_path: Path) -> None
 
     manifest_path = tmp_path / "version.yaml"
     manifest_path.write_text(
-        "version: 2\npublication: {}\nallowed_artifacts: []\ndenied_paths: []\nsecret_scan: {}\n",
+        "version: 2\npublication: {}\nallowed_artifacts: []\n"
+        "denied_paths: []\nsecret_scan: {}\n",
         encoding="utf-8",
     )
     with pytest.raises(PublicShowcaseError, match="version"):

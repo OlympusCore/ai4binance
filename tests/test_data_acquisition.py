@@ -112,7 +112,10 @@ def test_local_archive_missing_fails_closed_without_kline_network(
 def test_local_snapshot_priority_reuses_canonical_liquidity_order(
     tmp_path: Path,
 ) -> None:
-    from ai4binance.cli.runtime import _virtual_market_priority_symbols
+    from ai4binance.cli.runtime import (
+        _virtual_market_priority_symbols,
+        _virtual_market_ranked_symbols,
+    )
     from ai4binance.config import Settings
     from tests.test_binance_market_universe_provider import _SpotTransport
 
@@ -138,6 +141,7 @@ def test_local_snapshot_priority_reuses_canonical_liquidity_order(
         "SOLUSDT",
     )
     assert _virtual_market_priority_symbols(settings, (), ("BTCUSDT",), NOW) == ()
+    assert _virtual_market_ranked_symbols(settings, (), NOW) == ("SOLUSDT",)
     assert (
         _virtual_market_priority_symbols(
             settings, (), ("SOLUSDT",), NOW + timedelta(hours=1)
@@ -179,7 +183,11 @@ def test_acquisition_consumes_verified_local_depth_and_rejects_stale_or_gapped(
         "bridged": True,
     }
     journal.append([("spot", "HOTUSDT", "checkpoint", checkpoint, NOW.timestamp())])
-    agent = DataAcquisitionAgent(client=FakePublicClient(), depth_path=path)
+    agent = DataAcquisitionAgent(
+        client=FakePublicClient(),
+        depth_path=path,
+        clock=lambda: NOW,
+    )
     snapshot = agent.acquire("HOTUSDT", ("1m",))
     assert snapshot.order_book_summary["bid_depth"] == "2"
     assert snapshot.order_book_summary["ask_depth"] == "3"

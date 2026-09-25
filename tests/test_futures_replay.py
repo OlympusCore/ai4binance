@@ -435,7 +435,9 @@ def test_local_futures_oos_cli_publishes_research_only_evidence(
         candles=candles,
         derivatives=_derivatives(candles),
     )
-    replay_path = tmp_path / "runtime" / "datasets" / "futures" / "hotusdt.json"
+    replay_path = (
+        tmp_path / "runtime" / "data" / "datasets" / "futures" / "hotusdt.json"
+    )
     _write_replay(replay_path, dataset)
     revision = "c" * 40
 
@@ -477,7 +479,9 @@ def test_local_futures_oos_cli_rejects_tampered_replay_without_artifact(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    replay_path = tmp_path / "runtime" / "datasets" / "futures" / "hotusdt.json"
+    replay_path = (
+        tmp_path / "runtime" / "data" / "datasets" / "futures" / "hotusdt.json"
+    )
     _write_replay(replay_path, _dataset())
     payload = json.loads(replay_path.read_text(encoding="utf-8"))
     payload["dataset_sha256"] = "0" * 64

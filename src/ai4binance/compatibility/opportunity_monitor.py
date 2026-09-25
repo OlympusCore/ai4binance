@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -414,7 +414,7 @@ def _decimal(value: object) -> Decimal | None:
         return None
 
 
-def _research_position_estimate(candidate: dict[str, object]) -> dict[str, object]:
+def _research_position_estimate(candidate: Mapping[str, object]) -> dict[str, object]:
     """Return a bounded research sizing estimate without execution authority."""
 
     if not has_complete_measurable_trade_plan(candidate):

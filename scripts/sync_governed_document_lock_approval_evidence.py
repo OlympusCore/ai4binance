@@ -11,7 +11,7 @@ from export_governed_document_lock_approval import (
     _load_manifest,
     _sha256,
     _slug,
-    build_approval_evidence,
+    persist_approval_evidence,
 )
 
 
@@ -99,20 +99,18 @@ def sync_manifest(
     if normalized_written_owner_approvals is not None:
         manifest["written_owner_approvals"] = normalized_written_owner_approvals
         written_owner_approvals = normalized_written_owner_approvals
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-
     exported: list[dict[str, Any]] = []
     for item in approval_records:
         if not isinstance(item, dict):
             raise ValueError("approval record entries must be JSON objects")
         approval_id = _approval_id(item)
         output_path = _output_path(repository_root, approval_id)
-        payload = build_approval_evidence(
+        payload = persist_approval_evidence(
             repository_root=repository_root,
             approval_id=approval_id,
+            output_path=output_path,
+            manifest_payload=manifest,
         )
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         relative_output_path = output_path.relative_to(repository_root).as_posix()
         evidence_sha256 = _sha256(output_path)
         _attach_evidence_ref(

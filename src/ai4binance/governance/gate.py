@@ -1239,6 +1239,7 @@ def build_governance_gate_report(
     approval_records: tuple[ApprovalRecord, ...] = (),
     require_change_set: bool = False,
     enforce_approval: bool = False,
+    traceability_audit: TraceabilityAuditReport | None = None,
 ) -> GovernanceGateReport:
     """Combine policy eligibility sub-gates on top of proven quality evidence."""
 
@@ -1338,6 +1339,7 @@ def build_governance_gate_report(
         alignment_status=alignment_report.status.value,
         alignment_findings=alignment_findings,
         blockers=tuple(dict.fromkeys(blockers)),
+        traceability_audit=traceability_audit,
     )
     approval_verification = _build_approval_verification(
         change_set=selected_change_set,
@@ -2663,6 +2665,61 @@ def load_approval_records_with_fallback(
     return load_approval_records(default_candidate)
 
 
+def load_frozen_traceability_audit(
+    report_path: Path,
+    *,
+    repository_root: Path,
+) -> TraceabilityAuditReport:
+    payload = _load_json_report_object(
+        report_path,
+        artifact_name="frozen governance gate report",
+    )
+    raw_audit = payload.get("traceability_audit")
+    if not isinstance(raw_audit, dict):
+        raise ValueError(
+            "frozen governance gate report requires traceability_audit evidence"
+        )
+    raw_missing_requirements = raw_audit.get("missing_requirements", [])
+    raw_blockers = raw_audit.get("blockers", [])
+    if not isinstance(raw_missing_requirements, list) or not isinstance(
+        raw_blockers, list
+    ):
+        raise ValueError(
+            "frozen traceability audit blockers and missing requirements must be arrays"
+        )
+    missing_requirements: list[TraceabilityRequirement] = []
+    for item in raw_missing_requirements:
+        if not isinstance(item, dict):
+            raise ValueError(
+                "frozen traceability audit missing requirements must be objects"
+            )
+        missing_requirements.append(
+            TraceabilityRequirement(
+                trace_kind=ConsequentialTraceKind(str(item.get("trace_kind", ""))),
+                subject_ref=str(item.get("subject_ref", "")),
+                event_name=str(item.get("event_name", "")),
+                subject_type=str(item.get("subject_type", "")),
+                approval_ref=str(item.get("approval_ref", "")),
+            )
+        )
+    expected_journal_path = canonical_trace_journal_path(
+        repository_root.resolve()
+    ).resolve()
+    audit = TraceabilityAuditReport(
+        journal_path=Path(str(raw_audit.get("journal_path", ""))).resolve(),
+        status=TraceabilityStatus(str(raw_audit.get("status", ""))),
+        requirement_count=int(raw_audit.get("requirement_count", -1)),
+        record_count=int(raw_audit.get("record_count", -1)),
+        blockers=tuple(str(item) for item in raw_blockers),
+        missing_requirements=tuple(missing_requirements),
+    )
+    if audit.journal_path != expected_journal_path:
+        raise ValueError(
+            "frozen traceability audit journal path does not match repository"
+        )
+    return audit
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Build deterministic quality or governance gate reports."
@@ -2704,6 +2761,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--bandit-evidence-sha256")
     parser.add_argument("--deterministic-quality-gate-report")
     parser.add_argument("--approval-record-report")
+    parser.add_argument("--frozen-governance-gate-report")
     parser.add_argument(
         "--changed-path",
         action="append",
@@ -2870,6 +2928,14 @@ def main(argv: list[str] | None = None) -> int:
             ),
         ),
         require_change_set=True,
+        traceability_audit=(
+            None
+            if parsed.frozen_governance_gate_report is None
+            else load_frozen_traceability_audit(
+                Path(parsed.frozen_governance_gate_report),
+                repository_root=repository_root,
+            )
+        ),
     )
     output_path.write_text(
         json.dumps(governance_report.to_payload(), indent=2) + "\n",

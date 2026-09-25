@@ -44,7 +44,7 @@ languages:
     role: "canonical_application_language"
     suffixes: [".py", ".pyi"]
     enforce_placement: true
-    allowed_paths: [".agents/", "src/", "tests/", "scripts/", "tools/"]
+    allowed_paths: [".agents/", "src/", "tests/", "scripts/", "tools/", "publication/sanitize_publication.py"]
     allowed_capabilities: ["application_orchestration", "governance_integration", "risk_orchestration", "validation", "trading_intelligence"]
     forbidden_capabilities: ["live_execution_authority", "risk_override", "governance_bypass"]
     forbidden_content_patterns: []
@@ -169,7 +169,7 @@ languages:
     role: "declarative_configuration"
     suffixes: [".yaml", ".yml", ".toml"]
     enforce_placement: true
-    allowed_paths: [".agents/", ".codex/", ".github/", "config/", "docs/architecture/diagrams/diagram_registry.yaml", "docs/registries/", "workflows/", "pyproject.toml"]
+    allowed_paths: [".agents/", ".codex/", ".github/", "config/", "docs/architecture/diagrams/diagram_registry.yaml", "docs/registries/", "publication/public_manifest.yaml", "workflows/", "pyproject.toml"]
     allowed_capabilities: ["configuration", "declaration", "registry_projection"]
     forbidden_capabilities: ["executable_policy_engine", "hidden_business_logic"]
     forbidden_content_patterns: []

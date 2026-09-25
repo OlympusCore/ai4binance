@@ -62,6 +62,32 @@ def test_quality_attestation_does_not_inherit_an_ancestor_git_repository(
     assert attestation.change_set_sha256 == sha256(b"").hexdigest()
 
 
+def test_quality_attestation_ignores_source_generated_build_artifacts(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "src" / "ai4binance"
+    source.mkdir(parents=True)
+    (source / "module.py").write_text("VALUE = 1\n", encoding="utf-8")
+    baseline = constitution_sync_module.build_quality_gate_workspace_attestation(
+        tmp_path
+    )
+
+    egg_info = tmp_path / "src" / "ai4binance.egg-info"
+    egg_info.mkdir()
+    (egg_info / "PKG-INFO").write_text(
+        "Metadata-Version: 2.1\n",
+        encoding="utf-8",
+    )
+    (source / "module.cpython-314.pyc").write_bytes(b"generated")
+    (source / "module.pyo").write_bytes(b"generated")
+
+    generated = constitution_sync_module.build_quality_gate_workspace_attestation(
+        tmp_path
+    )
+
+    assert generated.repository_tree_sha256 == baseline.repository_tree_sha256
+
+
 def write_core_documents(root: Path, *, compliance_extra: str = "") -> None:
     (root / "AGENTS.md").write_text(
         "\n".join(
@@ -471,6 +497,110 @@ def test_governance_alignment_surfaces_loose_governance_code(
     assert LooseCodeGapKind.QUALITY_EVIDENCE_MISSING in finding_kinds
     assert report.coverage_percent is None
     assert "LIVE_ORDER_BLOCKED" in report.blockers
+
+
+def test_governance_alignment_accepts_transitive_compliance_trace(
+    tmp_path: Path,
+) -> None:
+    source_path = "src/ai4binance/governance/example_policy.py"
+    source = tmp_path / source_path
+    source.parent.mkdir(parents=True)
+    source.write_text("class ExamplePolicy: ...\n", encoding="utf-8")
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tests / "test_example_policy.py").write_text(
+        "from ai4binance.governance.example_policy import ExamplePolicy\n",
+        encoding="utf-8",
+    )
+    write_core_documents(
+        tmp_path,
+        compliance_extra="docs/standards/example_policy_standard.md",
+    )
+    standard = tmp_path / "docs" / "standards" / "example_policy_standard.md"
+    standard.parent.mkdir(parents=True, exist_ok=True)
+    standard.write_text(
+        "# Example Policy Standard\n\n"
+        "## ELI10\n\n"
+        "See `docs/references/example_policy_reference.md`.\n",
+        encoding="utf-8",
+    )
+    reference = tmp_path / "docs" / "references" / "example_policy_reference.md"
+    reference.parent.mkdir(parents=True)
+    reference.write_text(
+        f"# Example Policy Reference\n\n## ELI10\n\n`{source_path}`\n",
+        encoding="utf-8",
+    )
+    write_quality_evidence(tmp_path)
+
+    report = audit_governance_alignment(
+        tmp_path,
+        changed_paths=(source_path, "tests/test_example_policy.py"),
+    )
+
+    assert report.status is GovernanceAlignmentStatus.PASS
+    assert report.findings == ()
+
+
+def test_governance_alignment_rejects_unlinked_document_as_compliance_trace(
+    tmp_path: Path,
+) -> None:
+    source_path = "src/ai4binance/governance/unlinked_policy.py"
+    source = tmp_path / source_path
+    source.parent.mkdir(parents=True)
+    source.write_text("class UnlinkedPolicy: ...\n", encoding="utf-8")
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tests / "test_unlinked_policy.py").write_text(
+        "from ai4binance.governance.unlinked_policy import UnlinkedPolicy\n",
+        encoding="utf-8",
+    )
+    write_core_documents(tmp_path)
+    unlinked = tmp_path / "docs" / "references" / "unlinked_policy.md"
+    unlinked.parent.mkdir(parents=True)
+    unlinked.write_text(
+        f"# Unlinked Policy\n\n## ELI10\n\n`{source_path}`\n",
+        encoding="utf-8",
+    )
+    write_quality_evidence(tmp_path)
+
+    report = audit_governance_alignment(
+        tmp_path,
+        changed_paths=(source_path, "tests/test_unlinked_policy.py"),
+    )
+    finding_kinds = {finding.kind for finding in report.findings}
+
+    assert LooseCodeGapKind.GOVERNANCE_CODE_WITHOUT_COMPLIANCE in finding_kinds
+    assert LooseCodeGapKind.SOURCE_WITHOUT_WRITTEN_RULE not in finding_kinds
+
+
+def test_governance_alignment_accepts_publication_boundary_as_written_rule(
+    tmp_path: Path,
+) -> None:
+    source_path = "src/ai4binance/ops/public_showcase.py"
+    source = tmp_path / source_path
+    source.parent.mkdir(parents=True)
+    source.write_text("class PublicShowcase: ...\n", encoding="utf-8")
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tests / "test_public_showcase.py").write_text(
+        "from ai4binance.ops.public_showcase import PublicShowcase\n",
+        encoding="utf-8",
+    )
+    write_core_documents(tmp_path)
+    publication = tmp_path / "publication" / "README.md"
+    publication.parent.mkdir()
+    publication.write_text(
+        f"# Publication Boundary\n\n`{source_path}`\n", encoding="utf-8"
+    )
+    write_quality_evidence(tmp_path)
+
+    report = audit_governance_alignment(
+        tmp_path,
+        changed_paths=(source_path, "tests/test_public_showcase.py"),
+    )
+    finding_kinds = {finding.kind for finding in report.findings}
+
+    assert LooseCodeGapKind.SOURCE_WITHOUT_WRITTEN_RULE not in finding_kinds
 
 
 def test_governance_alignment_surfaces_constitution_family_mismatch(

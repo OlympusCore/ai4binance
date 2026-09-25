@@ -50,7 +50,11 @@ from ai4binance.reporting import to_primitive
 from ai4binance.research_runtime import build_research_application_service
 from ai4binance.schemas import MarketSnapshot
 from ai4binance.storage import AuditEvent, JsonlAuditStore
-from ai4binance.validation_pipeline_runtime import HistoricalValidationRuntime
+from ai4binance.validation.oos_maturity import prepare_spot_oos_deployment
+from ai4binance.validation_pipeline_runtime import (
+    SPOT_VALIDATION_NOTIONAL_TO_EQUITY_RATIO,
+    HistoricalValidationRuntime,
+)
 from ai4binance.virtual_wallet_journal import (
     VirtualWalletJournal,
     VirtualWalletJournalError,
@@ -82,9 +86,37 @@ def run_validate_research(settings: Settings, symbol: str | None) -> int:
             ),
             artifact_directory=settings.validation_artifact_directory,
             runtime=HistoricalValidationRuntime(
-                report_directory=settings.backtest_report_directory
+                report_directory=settings.backtest_report_directory,
+                position_notional_to_equity_ratio=(
+                    SPOT_VALIDATION_NOTIONAL_TO_EQUITY_RATIO
+                ),
             ),
         ).run(validation_symbol, settings.timeframes)
+        run_cards = tuple(
+            cast(dict[str, object], to_primitive(result.run_card))
+            for result in batch.results
+            if result.run_card is not None
+        )
+        oos_deployment = (
+            prepare_spot_oos_deployment(
+                artifact_root=settings.validation_artifact_directory,
+                deployment_path=settings.runtime_validation_deployment_path,
+                specification_path=Path(
+                    "config/research/virtual_market_acceptance.yaml"
+                ),
+                run_cards=run_cards,
+                observed_at=datetime.now(UTC),
+            )
+            if run_cards
+            else {
+                "status": "VALIDATION_RUN_CARDS_MISSING",
+                "subject_count": 0,
+                "blockers": ["VALIDATION_RUN_CARDS_MISSING"],
+                "execution_allowed": False,
+                "promotion_status": "RESEARCH_ONLY",
+                "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+            }
+        )
         payload: dict[str, object] = {
             "symbol": batch.symbol,
             "results": tuple(
@@ -110,6 +142,7 @@ def run_validate_research(settings: Settings, symbol: str | None) -> int:
             ),
             "execution_allowed": batch.execution_allowed,
             "live_eligibility_status": batch.live_eligibility_status,
+            "oos_deployment": oos_deployment,
         }
         print(json.dumps(to_primitive(payload), ensure_ascii=False, sort_keys=True))
         return 0

@@ -4276,6 +4276,28 @@ def test_repository_validator_allows_runtime_top_level_without_warning(
     assert report.live_eligibility_status == "LIVE_ORDER_BLOCKED"
 
 
+def test_repository_policy_registers_publication_and_security_surfaces(
+    tmp_path: Path,
+) -> None:
+    _write_required_knowledge_docs(tmp_path)
+    (tmp_path / ".gitleaksignore").write_text("", encoding="utf-8")
+    (tmp_path / "LICENSE").write_text("test license\n", encoding="utf-8")
+    (tmp_path / "examples").mkdir()
+    (tmp_path / "publication").mkdir()
+
+    policy = RepositoryPolicy.ai4binance_vnext()
+    report = validate_repository(tmp_path, policy=policy)
+    registered = {".gitleaksignore", "LICENSE", "examples", "publication"}
+
+    assert policy.version == "1.3.1"
+    assert registered <= set(policy.allowed_top_level_paths)
+    assert not any(
+        finding.kind is RepositoryFindingKind.UNKNOWN_TOP_LEVEL_PATH
+        and finding.path in registered
+        for finding in report.findings
+    )
+
+
 def test_repository_validator_ignores_temporary_top_level_directories(
     tmp_path: Path,
 ) -> None:
@@ -5772,6 +5794,65 @@ def test_governed_document_lock_approval_script_exports_verified_chain(
     assert evidence["current_alignment_status"] == "VERIFIED"
     assert evidence["approved_documents"][0]["hash_matches_current_content"] is True
 
+    manifest_path = tmp_path / GOVERNED_DOCUMENT_LOCK_MANIFEST_PATH
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    evidence_bytes = output_path.read_bytes()
+    evidence_sha256 = _sha256(output_path)
+    manifest["approval_records"][0]["approval_evidence_path"] = output_path.relative_to(
+        tmp_path
+    ).as_posix()
+    manifest["approval_records"][0]["approval_evidence_sha256"] = evidence_sha256
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    argv_before = sys.argv[:]
+    try:
+        sys.argv = [
+            "export_governed_document_lock_approval.py",
+            "--repository-root",
+            str(tmp_path),
+            "--approval-id",
+            "AI4B-GOV-DOCLOCK-TEST-001",
+            "--output-path",
+            str(output_path),
+        ]
+        with pytest.raises(SystemExit) as excinfo:
+            runpy.run_path(
+                str(ROOT / "scripts" / "export_governed_document_lock_approval.py"),
+                run_name="__main__",
+            )
+        assert excinfo.value.code == 0
+    finally:
+        sys.argv = argv_before
+    assert output_path.read_bytes() == evidence_bytes
+
+    output_path.write_text("{}\n", encoding="utf-8")
+    tampered_bytes = output_path.read_bytes()
+    argv_before = sys.argv[:]
+    try:
+        sys.argv = [
+            "export_governed_document_lock_approval.py",
+            "--repository-root",
+            str(tmp_path),
+            "--approval-id",
+            "AI4B-GOV-DOCLOCK-TEST-001",
+            "--output-path",
+            str(output_path),
+        ]
+        with pytest.raises(
+            ValueError,
+            match="BOUND_APPROVAL_EVIDENCE_IMMUTABLE_MISMATCH",
+        ):
+            runpy.run_path(
+                str(ROOT / "scripts" / "export_governed_document_lock_approval.py"),
+                run_name="__main__",
+            )
+    finally:
+        sys.argv = argv_before
+    assert output_path.read_bytes() == tampered_bytes
+
 
 def test_governed_document_lock_approval_script_exports_historical_chain(
     tmp_path: Path,
@@ -6022,6 +6103,32 @@ def test_governed_document_lock_sync_script_normalizes_legacy_written_owner_orph
     )
     assert len(approval_record["approval_evidence_sha256"]) == 64
     assert written_owner_approval == approval_record
+
+    evidence_path = tmp_path / approval_record["approval_evidence_path"]
+    evidence_bytes = evidence_path.read_bytes()
+    argv_before = sys.argv[:]
+    sys_path_before = sys.path[:]
+    try:
+        sys.path.insert(0, str(ROOT / "scripts"))
+        sys.argv = [
+            "sync_governed_document_lock_approval_evidence.py",
+            "--repository-root",
+            str(tmp_path),
+        ]
+        with pytest.raises(SystemExit) as excinfo:
+            runpy.run_path(
+                str(
+                    ROOT
+                    / "scripts"
+                    / "sync_governed_document_lock_approval_evidence.py"
+                ),
+                run_name="__main__",
+            )
+        assert excinfo.value.code == 0
+    finally:
+        sys.argv = argv_before
+        sys.path[:] = sys_path_before
+    assert evidence_path.read_bytes() == evidence_bytes
 
 
 def test_repository_validator_allows_reserved_source_of_truth_filename(

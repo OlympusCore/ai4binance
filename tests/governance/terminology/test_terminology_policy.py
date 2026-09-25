@@ -127,8 +127,9 @@ def test_terminology_helpers_and_policy_contract_fail_closed(tmp_path: Path) -> 
         terminology_module._string(" ", "value")
     with pytest.raises(ValueError, match="string array"):
         terminology_module._strings([""], "value")
-    with pytest.raises(ValueError, match="repository-relative"):
-        terminology_module._safe_path("../outside", "value")
+    for unsafe_path in ("../outside", "/absolute", "C:/absolute", "folder\\file"):
+        with pytest.raises(ValueError, match="repository-relative"):
+            terminology_module._safe_path(unsafe_path, "value")
 
 
 def test_terminology_scan_covers_deprecated_missing_and_projection_drift(
@@ -137,9 +138,7 @@ def test_terminology_scan_covers_deprecated_missing_and_projection_drift(
     loaded_policy = load_terminology_policy(ROOT)
     policy = replace(
         loaded_policy,
-        terms=(
-            replace(loaded_policy.terms[0], deprecated_aliases=("legacy",)),
-        ),
+        terms=(replace(loaded_policy.terms[0], deprecated_aliases=("legacy",)),),
     )
     target = tmp_path / policy.scan_roots[0] / "terms.txt"
     target.parent.mkdir(parents=True)

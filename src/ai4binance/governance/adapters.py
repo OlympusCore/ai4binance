@@ -107,31 +107,57 @@ class VirtualMarketDgeAdapter:
     ) -> VirtualGovernanceResult:
         """Return the dependency-neutral result for one canonical DGE evaluation."""
 
-        dge_candidate = _virtual_dge_candidate(
-            candidate,
-            market=market,
-            quantity=quantity,
-        )
-        context = (
-            self.context_builder(snapshot, analysis, candidate, portfolio)
-            if self.context_builder is not None
-            else _default_virtual_dge_context(
-                snapshot,
-                analysis,
+        try:
+            dge_candidate = _virtual_dge_candidate(
                 candidate,
-                portfolio,
-                risk_approved=risk_approved,
-                portfolio_verified=portfolio_verified,
                 quantity=quantity,
+                market=market,
             )
-        )
+        except (
+            ArithmeticError,
+            AttributeError,
+            KeyError,
+            TypeError,
+            ValueError,
+        ) as error:
+            raise ValueError("DGE_CANDIDATE_ADAPTATION_FAILED") from error
+        try:
+            context = (
+                self.context_builder(snapshot, analysis, candidate, portfolio)
+                if self.context_builder is not None
+                else _default_virtual_dge_context(
+                    snapshot,
+                    analysis,
+                    candidate,
+                    portfolio,
+                    risk_approved=risk_approved,
+                    portfolio_verified=portfolio_verified,
+                    quantity=quantity,
+                )
+            )
+        except (
+            ArithmeticError,
+            AttributeError,
+            KeyError,
+            TypeError,
+            ValueError,
+        ) as error:
+            raise ValueError("DGE_CONTEXT_BUILD_FAILED") from error
         if not isinstance(context, DgeGovernanceContext):
-            raise TypeError(
-                "virtual DGE context builder must return DgeGovernanceContext"
-            )
+            raise ValueError("DGE_CONTEXT_TYPE_INVALID")
         if context.execution_surface is not ExecutionSurface.VIRTUAL_MARKET:
-            raise ValueError("virtual DGE context must use VIRTUAL_MARKET")
-        decision = self.dge.evaluate(dge_candidate, context)
+            raise ValueError("DGE_CONTEXT_SURFACE_INVALID")
+        try:
+            decision = self.dge.evaluate(dge_candidate, context)
+        except (
+            ArithmeticError,
+            AttributeError,
+            KeyError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ) as error:
+            raise ValueError("DGE_ENGINE_EVALUATION_FAILED") from error
         blockers = tuple(
             dict.fromkeys((*decision.hard_blockers, *decision.soft_blockers))
         )
@@ -273,9 +299,17 @@ def _default_virtual_dge_context(
         structure_valid=True,
         negative_evidence_clear=(
             isinstance(candidate_blockers, tuple)
-            and not candidate_blockers
             and isinstance(analysis_blockers, tuple)
-            and not analysis_blockers
+            and not _has_any(
+                (*candidate_blockers, *analysis_blockers),
+                (
+                    "NEGATIVE",
+                    "CRITICAL_CONFLICT",
+                    "FAILED_BREAKOUT",
+                    "PUMP",
+                    "MANIPULATION",
+                ),
+            )
         ),
         oos_approved=oos_passed,
         risk_approved=risk_approved,

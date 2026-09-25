@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("Install", "InstallMarketHistory", "InstallVirtualMarket", "RunRuntime", "RunVirtualMarket", "RunVoice", "RunValidation", "RunAccounting", "RunAccountingWs", "RunSkillDiscovery", "RunMarketHistory", "RunFuturesMultiTf")]
+    [ValidateSet("Install", "InstallMarketHistory", "InstallVirtualMarket", "RestartMarketHistory", "RestartVirtualMarket", "RunRuntime", "RunVirtualMarket", "RunVoice", "RunValidation", "RunAccounting", "RunAccountingWs", "RunSkillDiscovery", "RunMarketHistory", "RunFuturesMultiTf")]
     [string]$Mode = "Install",
     [switch]$EnableVoiceTask,
     [switch]$EnableValidationTask,
@@ -41,17 +41,64 @@ function Rotate-LogFile {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
         return
     }
-    for ($index = $BackupCount; $index -ge 1; $index--) {
-        $source = if ($index -eq 1) { $Path } else { "$Path.$($index - 1)" }
-        $target = "$Path.$index"
-        if (Test-Path -LiteralPath $source -PathType Leaf) {
-            if ((Get-Item -LiteralPath $source).Length -gt $MaximumBytes) {
-                $trimmed = "$source.trimmed"
-                Get-Content -LiteralPath $source -Tail 20000 |
-                Set-Content -LiteralPath $trimmed -Encoding UTF8
-                Move-Item -LiteralPath $trimmed -Destination $source -Force
+    $temporaryFiles = [System.Collections.Generic.List[string]]::new()
+    try {
+        for ($index = $BackupCount; $index -ge 1; $index--) {
+            $source = if ($index -eq 1) { $Path } else { "$Path.$($index - 1)" }
+            $target = "$Path.$index"
+            if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+                continue
             }
-            Move-Item -LiteralPath $source -Destination $target -Force
+            if ((Get-Item -LiteralPath $source).Length -gt $MaximumBytes) {
+                $trimmed = "$source.$PID.trimmed"
+                $temporaryFiles.Add($trimmed)
+                $inputStream = [System.IO.File]::Open(
+                    $source,
+                    [System.IO.FileMode]::Open,
+                    [System.IO.FileAccess]::Read,
+                    [System.IO.FileShare]::ReadWrite
+                )
+                try {
+                    $inputStream.Position = [Math]::Max(
+                        0,
+                        $inputStream.Length - $MaximumBytes
+                    )
+                    $outputStream = [System.IO.File]::Open(
+                        $trimmed,
+                        [System.IO.FileMode]::Create,
+                        [System.IO.FileAccess]::Write,
+                        [System.IO.FileShare]::None
+                    )
+                    try {
+                        $inputStream.CopyTo($outputStream)
+                    }
+                    finally {
+                        $outputStream.Dispose()
+                    }
+                }
+                finally {
+                    $inputStream.Dispose()
+                }
+                [System.IO.File]::Delete($source)
+                [System.IO.File]::Move($trimmed, $source)
+            }
+            if (Test-Path -LiteralPath $target -PathType Leaf) {
+                [System.IO.File]::Delete($target)
+            }
+            [System.IO.File]::Move($source, $target)
+        }
+    }
+    catch {
+        # Logging maintenance must never prevent a safety-bounded service from
+        # starting. The next restart retries rotation after transient locks.
+        Write-Warning (
+            "Log rotation deferred for {0}: {1}" -f `
+                $Path, $_.Exception.Message
+        )
+    }
+    finally {
+        foreach ($temporary in $temporaryFiles) {
+            Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
         }
     }
 }
@@ -115,8 +162,19 @@ function Invoke-ServicePython {
     } -ArgumentList $HealthPath, $Service, $PID
     Push-Location -LiteralPath $root
     try {
-        & $python -B @Arguments 1>> $StdoutPath 2>> $StderrPath
-        return [int]$LASTEXITCODE
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            # Windows PowerShell 5 surfaces native stderr as ErrorRecord objects.
+            # Service diagnostics must be logged without terminating a healthy
+            # resident Python process; its real exit code remains authoritative.
+            $ErrorActionPreference = "Continue"
+            & $python -B @Arguments 1>> $StdoutPath 2>> $StderrPath
+            $nativeExitCode = [int]$LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+        return $nativeExitCode
     }
     finally {
         Pop-Location
@@ -171,6 +229,104 @@ function Start-BoundedService {
             -ExitCode $exitCode
         Start-Sleep -Seconds 60
     } while ($true)
+}
+
+function Restart-BoundedScheduledService {
+    param(
+        [Parameter(Mandatory = $true)][string]$Service,
+        [Parameter(Mandatory = $true)][string]$Module,
+        [Parameter(Mandatory = $true)][string]$Command
+    )
+    $entry = Get-ServiceManifestEntry -Service $Service
+    $taskName = [string]$entry.task_name
+    $lockPath = Join-Path $stateDirectory ([string]$entry.lock_file)
+    $oldLockPid = 0
+    if (Test-Path -LiteralPath $lockPath -PathType Leaf) {
+        try {
+            $lockPayload = Get-Content -LiteralPath $lockPath -Raw
+            try {
+                $lockDocument = $lockPayload | ConvertFrom-Json -ErrorAction Stop
+                $oldLockPid = [int]$lockDocument.pid
+            }
+            catch {
+                if ($lockPayload -match '^\s*\d+\s*$') {
+                    $oldLockPid = [int]$lockPayload
+                }
+            }
+        }
+        catch {
+            $oldLockPid = 0
+        }
+    }
+
+    Stop-ScheduledTask -TaskName $taskName -ErrorAction Stop
+    Start-Sleep -Seconds 2
+    $pythonPattern = [regex]::Escape($python)
+    $modulePattern = [regex]::Escape($Module)
+    $commandPattern = [regex]::Escape($Command)
+    $expectedCommandLine = "^`"?$pythonPattern`"?\s+-B\s+-m\s+$modulePattern\s+$commandPattern$"
+    for ($attempt = 0; $attempt -lt 4; $attempt++) {
+        $matches = @(
+            Get-CimInstance Win32_Process | Where-Object {
+                ([string]$_.CommandLine) -match $expectedCommandLine
+            }
+        )
+        if ($matches.Count -eq 0) {
+            break
+        }
+        $parentIds = @($matches.ParentProcessId)
+        $leaves = @($matches | Where-Object { $_.ProcessId -notin $parentIds })
+        if ($leaves.Count -eq 0) {
+            $leaves = $matches
+        }
+        foreach ($process in $leaves) {
+            Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+            Wait-Process -Id $process.ProcessId -Timeout 5 -ErrorAction SilentlyContinue
+        }
+    }
+    $remaining = @(
+        Get-CimInstance Win32_Process | Where-Object {
+            ([string]$_.CommandLine) -match $expectedCommandLine
+        }
+    )
+    if ($remaining.Count -ne 0) {
+        throw "Exact $Service process tree did not stop cleanly."
+    }
+
+    Start-ScheduledTask -TaskName $taskName -ErrorAction Stop
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(30)
+    do {
+        Start-Sleep -Seconds 1
+        $newLockPid = 0
+        try {
+            $lockPayload = Get-Content -LiteralPath $lockPath -Raw
+            try {
+                $lockDocument = $lockPayload | ConvertFrom-Json -ErrorAction Stop
+                $newLockPid = [int]$lockDocument.pid
+            }
+            catch {
+                if ($lockPayload -match '^\s*\d+\s*$') {
+                    $newLockPid = [int]$lockPayload
+                }
+            }
+        }
+        catch {
+            $newLockPid = 0
+        }
+        $newOwner = if ($newLockPid -gt 0) {
+            Get-Process -Id $newLockPid -ErrorAction SilentlyContinue
+        }
+        else {
+            $null
+        }
+    } while (
+        ($newLockPid -eq $oldLockPid -or $null -eq $newOwner) -and
+        [DateTimeOffset]::UtcNow -lt $deadline
+    )
+    if ($newLockPid -eq $oldLockPid -or $null -eq $newOwner) {
+        throw "Fresh $Service lock owner was not observed within 30 seconds."
+    }
+    Write-Output "$Service restarted with lock PID $newLockPid."
 }
 
 function Start-BoundedValidation {
@@ -229,6 +385,20 @@ function Register-VirtualMarketTask {
     return [string]$entry.task_name
 }
 
+if ($Mode -eq "RestartMarketHistory") {
+    Restart-BoundedScheduledService `
+        -Service "market-history" `
+        -Module "ai4binance.cli.market_data" `
+        -Command "daemon"
+    exit 0
+}
+if ($Mode -eq "RestartVirtualMarket") {
+    Restart-BoundedScheduledService `
+        -Service "virtual-market" `
+        -Module "ai4binance.cli" `
+        -Command "virtual-market-daemon"
+    exit 0
+}
 if ($Mode -eq "RunRuntime") {
     Start-BoundedService -Service "runtime" -Command "runtime-daemon" -RestartForever
 }

@@ -12,10 +12,21 @@ from pathlib import Path
 
 from websockets.exceptions import ConnectionClosed
 
-from ai4binance.cli.market_data import build_market_history_synchronizer
+from ai4binance.cli.market_data import (
+    _priority_depth_markets,
+    build_continuous_market_history,
+    build_market_depth_collector,
+    build_market_history_synchronizer,
+)
 from ai4binance.config import Settings
-from ai4binance.data.market_data_gateway import MarketStreamGapError, build_gateway
+from ai4binance.data.market_data_gateway import (
+    BinanceMarketDataGateway,
+    MarketStreamGapError,
+    build_gateway,
+)
+from ai4binance.data.market_depth import MarketDepthCollector
 from ai4binance.data.market_history_continuous import ContinuousMarketHistory
+from ai4binance.data.market_history_sync import MarketHistorySynchronizer
 from ai4binance.infrastructure.persistence.safe_json import write_json_object_verified
 from ai4binance.ops.runtime import SingleInstanceLease
 
@@ -73,21 +84,15 @@ def run_gateway(settings: Settings, *, max_cycles: int | None = None) -> int:
     if max_cycles is not None and max_cycles < 1:
         raise ValueError("max_cycles must be positive")
     synchronizer = build_market_history_synchronizer(settings)
-    collector = ContinuousMarketHistory(
-        history=synchronizer,
-        spot=synchronizer.universe_provider.spot_transport,
-        futures=synchronizer.universe_provider.futures_transport,
-        initial_days=settings.market_history_initial_days,
-        pages_per_stream=settings.market_history_pages_per_stream,
-        max_workers=settings.market_history_max_workers,
-        minimum_candles=settings.minimum_closed_candles,
-        coin_m=None,
-        priority_symbols=tuple(
-            dict.fromkeys(
-                (settings.symbol, *settings.fixed_symbols, *settings.priority_watchlist)
-            )
-        ),
+    collector = build_continuous_market_history(
+        settings,
+        synchronizer,
+        root=Path.cwd(),
+        include_coin_m=False,
     )
+    depth = None
+    if getattr(settings, "market_depth_enabled", False):
+        depth = build_market_depth_collector(synchronizer, collector)
     lock_path = _absolute(settings.market_history_state_path).with_suffix(".lock")
     heartbeat = _GatewayStateHeartbeat(_absolute(settings.market_history_state_path))
     completed = 0
@@ -95,25 +100,15 @@ def run_gateway(settings: Settings, *, max_cycles: int | None = None) -> int:
         with SingleInstanceLease(lock_path):
             while max_cycles is None or completed < max_cycles:
                 observed_at = datetime.now(UTC)
+                _refresh_depth(depth, synchronizer, collector, observed_at)
                 bootstrap = collector.sync_cycle(observed_at=observed_at)
                 blockers = _blockers(bootstrap)
-                if "MARKET_DATA_BACKFILL_PENDING" in blockers and not (
-                    blockers & _FATAL_INGESTION_BLOCKERS
-                ):
+                ingestion_outcome = _ingestion_outcome(blockers)
+                if ingestion_outcome == "RETRY":
                     time.sleep(min(60.0, settings.market_history_live_interval_seconds))
                     continue
-                if blockers & _FATAL_INGESTION_BLOCKERS:
-                    print(
-                        json.dumps(
-                            {
-                                "command": "market-gateway-daemon",
-                                "status": "DATA_BLOCKED",
-                                "blockers": sorted(blockers),
-                                **_SAFE_STATE,
-                            },
-                            sort_keys=True,
-                        )
-                    )
+                if ingestion_outcome == "BLOCKED":
+                    _print_gateway_blocked("DATA_BLOCKED", blockers)
                     return 2
                 universe = synchronizer._eligible_universe(
                     datetime.now(UTC), force_refresh=False
@@ -132,20 +127,8 @@ def run_gateway(settings: Settings, *, max_cycles: int | None = None) -> int:
                     ),
                     activity_observer=heartbeat,
                 )
-                reconnect_attempt = 0
-                while True:
-                    try:
-                        asyncio.run(gateway.run_once())
-                    except MarketStreamGapError:
-                        # The next outer loop performs bounded REST gap recovery
-                        # before either WebSocket connection can resume.
-                        break
-                    except (ConnectionClosed, OSError, TimeoutError):
-                        reconnect_attempt += 1
-                        time.sleep(_reconnect_delay(reconnect_attempt))
-                        continue
+                if _run_live_cycle(gateway):
                     completed += 1
-                    break
     except RuntimeError as error:
         blocker_code = (
             "MARKET_GATEWAY_ALREADY_RUNNING"
@@ -164,7 +147,68 @@ def run_gateway(settings: Settings, *, max_cycles: int | None = None) -> int:
             )
         )
         return 2
+    finally:
+        if depth is not None:
+            depth.close()
     return 0
+
+
+def _refresh_depth(
+    depth: MarketDepthCollector | None,
+    synchronizer: MarketHistorySynchronizer,
+    collector: ContinuousMarketHistory,
+    observed_at: datetime,
+) -> None:
+    if depth is None:
+        return
+    universe = synchronizer._eligible_universe(observed_at, force_refresh=True)
+    if universe.blockers:
+        return
+    depth.start(
+        _priority_depth_markets(
+            universe,
+            collector.priority_symbols,
+            include_coin_m=False,
+        )
+    )
+
+
+def _ingestion_outcome(blockers: frozenset[str]) -> str:
+    if blockers & _FATAL_INGESTION_BLOCKERS:
+        return "BLOCKED"
+    if "MARKET_DATA_BACKFILL_PENDING" in blockers:
+        return "RETRY"
+    return "READY"
+
+
+def _print_gateway_blocked(status: str, blockers: frozenset[str]) -> None:
+    print(
+        json.dumps(
+            {
+                "command": "market-gateway-daemon",
+                "status": status,
+                "blockers": sorted(blockers),
+                **_SAFE_STATE,
+            },
+            sort_keys=True,
+        )
+    )
+
+
+def _run_live_cycle(gateway: BinanceMarketDataGateway) -> bool:
+    reconnect_attempt = 0
+    while True:
+        try:
+            asyncio.run(gateway.run_once())
+        except MarketStreamGapError:
+            # The next outer loop performs bounded REST gap recovery before either
+            # WebSocket connection can resume.
+            return False
+        except (ConnectionClosed, OSError, TimeoutError):
+            reconnect_attempt += 1
+            time.sleep(_reconnect_delay(reconnect_attempt))
+            continue
+        return True
 
 
 def _absolute(path: Path) -> Path:

@@ -1299,7 +1299,7 @@ def test_gitleaks_ignore_list_contains_only_exact_historic_fingerprints() -> Non
         if line and not line.startswith("#")
     ]
 
-    assert len(entries) == 11
+    assert len(entries) == 13
     assert all(":generic-api-key:" in entry for entry in entries)
     assert all(re.fullmatch(r"[0-9a-f]{40}:.+:[1-9][0-9]*", entry) for entry in entries)
 

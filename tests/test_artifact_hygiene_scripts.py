@@ -2415,6 +2415,13 @@ def test_quality_script_rejects_inline_approval_generation_parameters(
     )
 
 
+def test_quality_script_binds_approval_replay_to_frozen_governance_report() -> None:
+    text = _quality_script_text()
+
+    assert '"--frozen-governance-gate-report"' in text
+    assert "-FrozenGovernanceGateReportPath $context.governance_path" in text
+
+
 def test_quality_script_retries_governance_gate_with_external_approval_artifact(
     tmp_path: Path,
 ) -> None:
@@ -4359,9 +4366,9 @@ def test_qwen_prompter_startup_task_is_visible_and_advisory_only() -> None:
     llama_server_text = (Path("scripts") / "start_llama_server.ps1").read_text(
         encoding="utf-8"
     )
-    vision_server_text = (
-        Path("scripts") / "start_local_vision_server.ps1"
-    ).read_text(encoding="utf-8")
+    vision_server_text = (Path("scripts") / "start_local_vision_server.ps1").read_text(
+        encoding="utf-8"
+    )
     local_llm_text = (Path("scripts") / "start_local_llm.ps1").read_text(
         encoding="utf-8"
     )

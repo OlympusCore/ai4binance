@@ -28,7 +28,12 @@ NOW = datetime(2026, 9, 11, tzinfo=UTC)
 
 
 def _json_transport(value: object | None = None) -> JsonTransport:
-    return cast(JsonTransport, object() if value is None else value)
+    return cast(
+        JsonTransport,
+        SimpleNamespace(get_json=lambda *_args, **_kwargs: snapshot())
+        if value is None
+        else value,
+    )
 
 
 def snapshot() -> dict[str, object]:
@@ -87,6 +92,39 @@ def test_snapshot_bridge_checkpoint_and_replay(
     following = event(symbol, 104, 105, 103)
     journal.append([(market, symbol, "delta", following, NOW.timestamp())])
     assert read_local_depth(path, market, symbol, now=NOW)["lastUpdateId"] == 105
+    journal.close()
+
+
+def test_checkpoint_compacts_superseded_depth_events(tmp_path: Path) -> None:
+    path = tmp_path / "depth.sqlite3"
+    journal = DepthJournal(path)
+    book = ReadOnlyOrderBook("BTCUSDT")
+    apply_depth_snapshot(book, snapshot())
+    first = event("BTCUSDT")
+    assert apply_depth_event(book, first, "spot")
+    journal.append(
+        [
+            ("spot", "BTCUSDT", "snapshot", snapshot(), NOW.timestamp()),
+            ("spot", "BTCUSDT", "delta", first, NOW.timestamp()),
+            (
+                "spot",
+                "ETHUSDT",
+                "snapshot",
+                snapshot(),
+                NOW.timestamp(),
+            ),
+        ]
+    )
+
+    journal.append(
+        [("spot", "BTCUSDT", "checkpoint", _checkpoint(book), NOW.timestamp())]
+    )
+
+    retained = journal.connection.execute(
+        "SELECT symbol,kind FROM depth_events ORDER BY seq"
+    ).fetchall()
+    assert retained == [("ETHUSDT", "snapshot"), ("BTCUSDT", "checkpoint")]
+    assert read_local_depth(path, "spot", "BTCUSDT", now=NOW)["lastUpdateId"] == 101
     journal.close()
 
 

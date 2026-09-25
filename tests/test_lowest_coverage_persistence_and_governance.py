@@ -454,6 +454,14 @@ def test_safe_json_public_serialization_and_verification_paths(tmp_path: Path) -
     )
     assert result.status == "VERIFIED"
     assert path.read_text(encoding="utf-8").endswith("\n")
+    canonical_result = write_json_object_verified(
+        path, {"blockers": ("FIRST", "SECOND")}, blocker="WRITE"
+    )
+    assert canonical_result.expected_sha256 == canonical_result.observed_sha256
+    assert json.loads(path.read_text(encoding="utf-8"))["blockers"] == [
+        "FIRST",
+        "SECOND",
+    ]
     assert to_primitive(
         {
             "enum": _ExampleEnum.VALUE,

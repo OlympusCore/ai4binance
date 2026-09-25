@@ -542,6 +542,7 @@ def _audit_loose_code(
     if not source_paths:
         return ()
     docs_blob = _read_docs_blob(root)
+    compliance_trace_blob = _read_compliance_trace_blob(root)
     tests_blob = _read_tests_blob(root)
     findings: list[LooseCodeFinding] = []
 
@@ -552,8 +553,9 @@ def _audit_loose_code(
         )
         has_changed_test = bool(test_paths)
         has_written_rule = source_path in docs_blob or module_token in docs_blob
-        has_compliance = source_path in _read_text(
-            root / "docs/compliance/registry_compliance_matrix.md"
+        has_compliance = (
+            source_path in compliance_trace_blob
+            or module_token in compliance_trace_blob
         )
 
         if not has_test_evidence:
@@ -591,6 +593,41 @@ def _audit_loose_code(
                 )
             )
     return tuple(findings)
+
+
+def _read_compliance_trace_blob(root: Path) -> str:
+    """Resolve source references through documents linked by the compliance matrix."""
+    compliance_path = root / "docs/compliance/registry_compliance_matrix.md"
+    compliance_text = _read_text(compliance_path)
+    docs_root = root / "docs"
+    if not compliance_text or not docs_root.is_dir():
+        return compliance_text
+
+    documents = {
+        path.relative_to(root).as_posix(): path.read_text(encoding="utf-8")
+        for path in sorted(docs_root.rglob("*.md"))
+        if path != compliance_path
+    }
+    pending = sorted(path for path in documents if path in compliance_text)
+    visited: set[str] = set()
+    traced_text = [compliance_text]
+
+    while pending:
+        document_path = pending.pop(0)
+        if document_path in visited:
+            continue
+        visited.add(document_path)
+        document_text = documents[document_path]
+        traced_text.append(document_text)
+        pending.extend(
+            candidate
+            for candidate in sorted(documents)
+            if candidate not in visited
+            and candidate not in pending
+            and candidate in document_text
+        )
+
+    return "\n".join(traced_text)
 
 
 def load_current_quality_gate_evidence(root: Path) -> QualityGateEvidence | None:
@@ -678,6 +715,7 @@ def _load_quality_gate(root: Path) -> QualityGateEvidence | None:
 def _read_docs_blob(root: Path) -> str:
     chunks = [
         _read_text(root / "README.md"),
+        _read_text(root / "publication/README.md"),
         _read_text(root / "docs/governance/instruction_core_custom_instructions.md"),
         _read_text(root / "docs/providers/instruction_codex_provider.md"),
     ]
@@ -781,6 +819,8 @@ def _quality_gate_attestation_ignores(parts: tuple[str, ...]) -> bool:
         if normalized.startswith(".pytest-tmp"):
             return True
         if normalized == ".coverage" or normalized.startswith(".coverage."):
+            return True
+        if normalized.endswith((".egg-info", ".pyc", ".pyo")):
             return True
     return False
 

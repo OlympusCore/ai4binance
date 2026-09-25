@@ -24,13 +24,13 @@ from ai4binance.application.opportunity_monitor import (
     universe_monitor_summary,
 )
 from ai4binance.cli.opportunity_monitor import refresh_candle_windows
+from ai4binance.compatibility import opportunity_monitor as monitor_module
 from ai4binance.compatibility.opportunity_monitor import (
     SAFE_STATE as COMPATIBILITY_SAFE_STATE,
 )
 from ai4binance.compatibility.opportunity_monitor import (
     refresh_monitor as compatibility_refresh_monitor,
 )
-from ai4binance.compatibility import opportunity_monitor as monitor_module
 from ai4binance.config import Settings
 from ai4binance.data.archive import ParquetOHLCVArchive
 from ai4binance.data.market_history_sync import read_cached_market_universe
@@ -101,7 +101,7 @@ def test_monitor_helper_boundaries_and_research_estimates(
     with pytest.raises(ValueError, match="read boundary"):
         read_monitor(tmp_path, "SPOT", "BTCUSDT")
 
-    candidate = {
+    candidate: dict[str, object] = {
         "market": "SPOT",
         "direction": "BULLISH",
         "entry": "101",

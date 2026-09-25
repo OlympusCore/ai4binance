@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
@@ -32,12 +33,12 @@ from ai4binance.data.market_data_gateway import (
     SharedMarketCache,
     build_gateway,
 )
-from ai4binance.exchange.public_stream import SpotKlineUpdate
+from ai4binance.exchange import rate_limit as rate_limit_module
+from ai4binance.exchange.public_stream import BinanceSpotKlineParser, SpotKlineUpdate
 from ai4binance.exchange.rate_limit import (
     WeightedRateLimitGovernor,
     public_request_weight,
 )
-from ai4binance.exchange import rate_limit as rate_limit_module
 from ai4binance.schemas import OHLCVCandle
 
 START = datetime(2026, 9, 17, 0, 0, tzinfo=UTC)
@@ -204,6 +205,14 @@ def test_gateway_blockers_are_fail_closed_on_invalid_shape() -> None:
     assert _blockers({"blockers": "unexpected"}) == {"MARKET_GATEWAY_BLOCKERS_INVALID"}
 
 
+def test_gateway_reuses_the_canonical_continuous_collector_builder() -> None:
+    source = Path(gateway_cli.__file__).read_text(encoding="utf-8")
+
+    assert "build_continuous_market_history(" in source
+    assert "build_market_depth_collector(" in source
+    assert '"market-history-refresh-request.json"' not in source
+
+
 def test_gateway_heartbeat_preserves_bootstrap_evidence(tmp_path: Path) -> None:
     path = tmp_path / "market-history-latest.json"
     path.write_text(
@@ -236,7 +245,7 @@ def test_gateway_helpers_cover_invalid_and_bounded_inputs(
     path = tmp_path / "state.json"
     path.write_text('{"blockers": "invalid"}', encoding="utf-8")
     heartbeat = _GatewayStateHeartbeat(path, interval_seconds=0)
-    monkeypatch.setattr(gateway_cli.time, "monotonic", lambda: 1.0)
+    monkeypatch.setattr("ai4binance.cli.market_gateway.time.monotonic", lambda: 1.0)
     heartbeat(START)
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["blockers"] == ["MARKET_GATEWAY_STATE_BLOCKERS_INVALID"]
@@ -254,7 +263,9 @@ def test_gateway_heartbeat_handles_read_failures_and_throttles_writes(
     path.write_text("not-json", encoding="utf-8")
     heartbeat = _GatewayStateHeartbeat(path, interval_seconds=10)
     monotonic = iter((10.0, 11.0))
-    monkeypatch.setattr(gateway_cli.time, "monotonic", lambda: next(monotonic))
+    monkeypatch.setattr(
+        "ai4binance.cli.market_gateway.time.monotonic", lambda: next(monotonic)
+    )
     heartbeat(START)
     first = path.read_text(encoding="utf-8")
     heartbeat(START)
@@ -318,7 +329,11 @@ def test_gateway_run_returns_fail_closed_for_fatal_bootstrap(
             del observed_at
             return {"blockers": ["PUBLIC_MARKET_UNIVERSE_UNAVAILABLE"]}
 
-    monkeypatch.setattr(gateway_cli, "ContinuousMarketHistory", _Collector)
+    monkeypatch.setattr(
+        gateway_cli,
+        "build_continuous_market_history",
+        lambda *_args, **_kwargs: _Collector(),
+    )
     settings = type(
         "Settings",
         (),
@@ -381,7 +396,11 @@ def test_gateway_run_completes_one_valid_local_cycle(
         async def run_once(self) -> tuple[str, str]:
             return ("PLANNED_ROLLOVER", "PLANNED_ROLLOVER")
 
-    monkeypatch.setattr(gateway_cli, "ContinuousMarketHistory", _Collector)
+    monkeypatch.setattr(
+        gateway_cli,
+        "build_continuous_market_history",
+        lambda *_args, **_kwargs: _Collector(),
+    )
     monkeypatch.setattr(gateway_cli, "SingleInstanceLease", _Lease)
     monkeypatch.setattr(
         gateway_cli,
@@ -466,7 +485,11 @@ def test_gateway_recovers_gap_and_reconnects_before_a_completed_cycle(
                 raise OSError("temporary")
             return ("PLANNED_ROLLOVER", "PLANNED_ROLLOVER")
 
-    monkeypatch.setattr(gateway_cli, "ContinuousMarketHistory", _Collector)
+    monkeypatch.setattr(
+        gateway_cli,
+        "build_continuous_market_history",
+        lambda *_args, **_kwargs: _Collector(),
+    )
     monkeypatch.setattr(gateway_cli, "SingleInstanceLease", _Lease)
     fake_time = type("Time", (), {"sleep": staticmethod(lambda _seconds: None)})()
     monkeypatch.setattr(gateway_cli, "time", fake_time)
@@ -534,8 +557,8 @@ def test_gateway_converts_lock_errors_to_blocked_payload(
     )
     monkeypatch.setattr(
         gateway_cli,
-        "ContinuousMarketHistory",
-        lambda **_kwargs: object(),
+        "build_continuous_market_history",
+        lambda *_args, **_kwargs: object(),
     )
     settings = type(
         "Settings",
@@ -599,7 +622,11 @@ def test_gateway_retries_backfill_then_blocks_an_invalid_universe(
                 return {"blockers": ["MARKET_DATA_BACKFILL_PENDING"]}
             return {"blockers": []}
 
-    monkeypatch.setattr(gateway_cli, "ContinuousMarketHistory", _Collector)
+    monkeypatch.setattr(
+        gateway_cli,
+        "build_continuous_market_history",
+        lambda *_args, **_kwargs: _Collector(),
+    )
     monkeypatch.setattr(gateway_cli, "SingleInstanceLease", _Lease)
     monkeypatch.setattr(
         gateway_cli,
@@ -607,8 +634,7 @@ def test_gateway_retries_backfill_then_blocks_an_invalid_universe(
         lambda _settings: synchronizer,
     )
     monkeypatch.setattr(
-        gateway_cli.time,
-        "sleep",
+        "ai4binance.cli.market_gateway.time.sleep",
         lambda _seconds: None,
     )
     settings = type(
@@ -781,9 +807,9 @@ def test_processor_handles_cache_and_invalid_combined_stream_payloads() -> None:
     cache = _Cache()
     processor = CanonicalMarketStreamProcessor(
         "SPOT",
-        _Writer(),
-        cache,
-        monotonic=lambda: 1.0,  # type: ignore[arg-type]
+        cast(DirectTimeframeWriter, _Writer()),
+        cast(SharedMarketCache, cache),
+        monotonic=lambda: 1.0,
     )
     assert processor.process('{"e":"24hrTicker"}') == "CACHE_UPDATED"
     assert cache.flushed == 1
@@ -816,10 +842,10 @@ def test_dual_gateway_flushes_both_caches_after_connections_finish() -> None:
     spot_processor = _Processor()
     futures_processor = _Processor()
     gateway = BinanceMarketDataGateway(
-        _Connection(),
-        _Connection(),
-        spot_processor,  # type: ignore[arg-type]
-        futures_processor,  # type: ignore[arg-type]
+        cast(CombinedStreamConnectionManager, _Connection()),
+        cast(CombinedStreamConnectionManager, _Connection()),
+        cast(CanonicalMarketStreamProcessor, spot_processor),
+        cast(CanonicalMarketStreamProcessor, futures_processor),
     )
     assert asyncio.run(gateway.run_once()) == ("PLANNED_ROLLOVER", "PLANNED_ROLLOVER")
     assert spot_processor.cache.flushes == futures_processor.cache.flushes == 1
@@ -876,16 +902,21 @@ def test_gateway_rejects_invalid_inputs_and_processes_closed_kline(
     writes: list[tuple[str, str]] = []
     processor = CanonicalMarketStreamProcessor(
         "SPOT",
-        SimpleNamespace(
-            append=lambda symbol, timeframe, *_: writes.append((symbol, timeframe))
+        cast(
+            DirectTimeframeWriter,
+            SimpleNamespace(
+                append=lambda symbol, timeframe, *_: writes.append((symbol, timeframe))
+            ),
         ),
         cache,
-        parser=SimpleNamespace(parse=lambda _: update),
+        parser=cast(BinanceSpotKlineParser, SimpleNamespace(parse=lambda _: update)),
         activity_observer=lambda _: None,
     )
     assert processor.process('{"e":"kline"}') == "CLOSED_5M_APPLIED"
     assert writes == [("BTCUSDT", "5m")]
-    processor.parser = SimpleNamespace(parse=lambda _: object())  # type: ignore[assignment]
+    processor.parser = cast(
+        BinanceSpotKlineParser, SimpleNamespace(parse=lambda _: object())
+    )
     assert processor.process('{"e":"kline"}') == "RECONNECT_REQUIRED"
 
 

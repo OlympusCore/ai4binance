@@ -337,7 +337,8 @@ def test_authority_graph_closes_all_fabric_family_paths() -> None:
 
 
 def test_fabric_contract_helpers_reject_untrusted_shapes(tmp_path: Path) -> None:
-    for value in (None, [], "text"):
+    invalid_mappings: tuple[object, ...] = (None, [], "text")
+    for value in invalid_mappings:
         with pytest.raises(ValueError, match="mapping"):
             fabric_module._mapping(value, "value")
     for value in (None, "", "   "):
@@ -347,7 +348,7 @@ def test_fabric_contract_helpers_reject_untrusted_shapes(tmp_path: Path) -> None
         with pytest.raises(ValueError, match="POSIX"):
             fabric_module._safe_path(value, "path")
     for value in (None, [], ["x", "x"]):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=r"non-empty list|must be unique"):
             fabric_module._safe_paths(value, "paths")
     for value in ("bad", "A" * 64, "a" * 63):
         with pytest.raises(ValueError, match="SHA-256"):
@@ -355,7 +356,7 @@ def test_fabric_contract_helpers_reject_untrusted_shapes(tmp_path: Path) -> None
     plain = tmp_path / "plain.md"
     plain.write_text("no metadata", encoding="utf-8")
     assert fabric_module._frontmatter(plain) == {}
-    with pytest.raises(ValueError, match="retention"):
+    with pytest.raises(ValueError, match="standard_impact_tests"):
         fabric_module._quality_standard_mappings({})
 
 
@@ -462,7 +463,7 @@ def test_family_integrity_reports_missing_standard_projection_and_schema(
 
 
 def test_quality_mapping_parser_rejects_malformed_and_duplicate_entries() -> None:
-    for payload in (
+    invalid_payloads: tuple[dict[str, object], ...] = (
         {"standard_impact_tests": {}},
         {"standard_impact_tests": {"mappings": [{"name": "x", "tests": "bad"}]}},
         {
@@ -473,8 +474,12 @@ def test_quality_mapping_parser_rejects_malformed_and_duplicate_entries() -> Non
                 ]
             }
         },
-    ):
-        with pytest.raises(ValueError):
+    )
+    for payload in invalid_payloads:
+        with pytest.raises(
+            ValueError,
+            match=r"mappings must be a list|mapping tests must be a list|duplicate",
+        ):
             fabric_module._quality_standard_mappings(payload)
     assert fabric_module._quality_standard_mappings(
         {
@@ -503,11 +508,11 @@ def test_fabric_low_level_contracts_cover_metadata_and_duplicate_paths(
     frontmatter = tmp_path / "standard.md"
     frontmatter.write_text("---\ndocument_id: TEST\n---\n", encoding="utf-8")
     assert fabric_module._frontmatter(frontmatter)["document_id"] == "TEST"
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="must be unique"):
         fabric_module._safe_paths(["tests/a.py", "tests/a.py"], "paths")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="POSIX path"):
         fabric_module._safe_path("../escape", "path")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="SHA-256"):
         fabric_module._sha256_text("A" * 64)
 
 

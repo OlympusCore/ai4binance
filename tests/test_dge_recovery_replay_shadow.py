@@ -56,7 +56,7 @@ def test_virtual_context_routes_only_current_bound_regime_and_mtf(stale: bool) -
         current,
         SimpleNamespace(
             snapshot_id=current.snapshot_id,
-            blockers=(),
+            blockers=("OOS_DEPLOYMENT_MISSING",),
             agent_results={"market_regime": regime, "multi_timeframe": mtf},
         ),
         candidate,
@@ -69,6 +69,7 @@ def test_virtual_context_routes_only_current_bound_regime_and_mtf(stale: bool) -
     assert context.mtf_aligned is (not stale)
     assert context.oos_approved is False
     assert context.validation_approved is False
+    assert context.negative_evidence_clear is True
 
 
 def test_recovery_radar_candidates_are_governed_without_live_authority() -> None:

@@ -86,6 +86,26 @@ def test_archive_cache_downloads_once_then_verifies_local_source(
         cache.verified(key, kind="ohlcv")
 
 
+def test_archive_cache_verifies_checksum_with_unicode_filename(
+    tmp_path: Path,
+) -> None:
+    key = "data/futures/um/monthly/klines/龙虾USDT/15m/龙虾USDT-15m-2026-03.zip"
+    payload = _kline_zip(5)
+    digest = hashlib.sha256(payload).hexdigest()
+    published = f"{digest}  龙虾USDT-15m-2026-03.zip\n".encode()
+
+    def fetch(url: str) -> bytes:
+        return published if url.endswith(".CHECKSUM") else payload
+
+    source, recovered = BinanceVisionArchiveCache(tmp_path, fetch).verified(
+        key, kind="ohlcv"
+    )
+
+    assert recovered == payload
+    assert source.sha256 == digest
+    assert source.network_request_count == 2
+
+
 def test_archive_cache_rejects_unsafe_and_unpublished_sources(tmp_path: Path) -> None:
     def missing(url: str) -> bytes:
         raise HTTPError(url, 404, "missing", Message(), None)
@@ -271,6 +291,34 @@ def test_supervisor_retries_recoverable_cycle_failure_without_exiting(
     assert 1 <= sleeps[0] <= 900
 
 
+def test_supervisor_fast_retries_transient_universe_blocker(tmp_path: Path) -> None:
+    sleeps: list[float] = []
+    attempts = 0
+
+    def cycle(_now: datetime) -> dict[str, object]:
+        nonlocal attempts
+        attempts += 1
+        return {
+            "blockers": (
+                ["PUBLIC_MARKET_LIQUIDITY_UNIVERSE_UNAVAILABLE"]
+                if attempts == 1
+                else []
+            )
+        }
+
+    supervisor = MarketHistorySupervisor(
+        synchronizer=object(),  # type: ignore[arg-type]
+        interval_seconds=900,
+        lock_path=(tmp_path / "market-history.lock").resolve(),
+        sleeper=sleeps.append,
+        clock=lambda: OBSERVED_AT,
+        cycle=cycle,
+    )
+
+    assert supervisor.run(max_cycles=2) == 2
+    assert sleeps == [30]
+
+
 def test_supervisor_does_not_hide_programming_errors(tmp_path: Path) -> None:
     supervisor = MarketHistorySupervisor(
         synchronizer=object(),  # type: ignore[arg-type]
@@ -353,6 +401,45 @@ def test_eligible_universe_force_refreshes_current_exchange_metadata(
     )
     assert cached is not None
     assert cached.futures_symbols == ("BTCUSDT",)
+
+
+def test_force_refresh_falls_back_only_to_current_verified_universe_cache(
+    tmp_path: Path,
+) -> None:
+    class TransientProvider:
+        calls = 0
+
+        def eligible_market_snapshot(self) -> BinanceEligibleMarketSnapshot:
+            self.calls += 1
+            if self.calls == 1:
+                return BinanceEligibleMarketSnapshot(
+                    spot_symbols=("BTCUSDT",), futures_symbols=("BTCUSDT",)
+                )
+            return BinanceEligibleMarketSnapshot(
+                spot_symbols=(),
+                futures_symbols=(),
+                blockers=("PUBLIC_MARKET_UNIVERSE_UNAVAILABLE",),
+            )
+
+    provider = TransientProvider()
+    synchronizer = MarketHistorySynchronizer(
+        universe_provider=provider,  # type: ignore[arg-type]
+        archive_root=tmp_path / "market",
+        source_cache=BinanceVisionArchiveCache(tmp_path / "sources", lambda _: b""),
+        state_path=tmp_path / "state.json",
+    )
+
+    synchronizer._eligible_universe(OBSERVED_AT, force_refresh=True)
+    current = synchronizer._eligible_universe(
+        OBSERVED_AT + timedelta(minutes=1), force_refresh=True
+    )
+    stale = synchronizer._eligible_universe(
+        OBSERVED_AT + timedelta(minutes=6), force_refresh=True
+    )
+
+    assert current.spot_symbols == ("BTCUSDT",)
+    assert not current.blockers
+    assert stale.blockers == ("PUBLIC_MARKET_UNIVERSE_UNAVAILABLE",)
 
 
 def test_eligible_universe_uses_the_bounded_top_volume_provider_when_available(

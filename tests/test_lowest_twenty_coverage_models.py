@@ -90,14 +90,9 @@ def test_runtime_environment_rejects_unsafe_temp_contracts(
 ) -> None:
     directory = temporary_directory[0]
     monkeypatch.setattr(
-        ai4binance.tomllib,
-        "load",
+        "ai4binance.tomllib.load",
         lambda _stream: {
-            "tool": {
-                "ai4binance": {
-                    "runtime": {"temporary_directory": directory}
-                }
-            }
+            "tool": {"ai4binance": {"runtime": {"temporary_directory": directory}}}
         },
     )
     with pytest.raises(ValueError, match="Temporary directory"):
@@ -162,8 +157,8 @@ def test_shadow_diff_cannot_widen_execution_authority() -> None:
     with pytest.raises(ValueError, match="cannot authorize"):
         DgeShadowDecisionDiff(
             shadow_rule_id="shadow-1",
-            baseline_decision=blocked,  # type: ignore[arg-type]
-            shadow_decision=blocked,  # type: ignore[arg-type]
+            baseline_decision=blocked,
+            shadow_decision=blocked,
             would_change_decision=False,
             changed_fields=(),
             execution_allowed=True,
@@ -171,8 +166,8 @@ def test_shadow_diff_cannot_widen_execution_authority() -> None:
     with pytest.raises(ValueError, match="shadow rule id"):
         DgeShadowDecisionDiff(
             shadow_rule_id=" ",
-            baseline_decision=blocked,  # type: ignore[arg-type]
-            shadow_decision=blocked,  # type: ignore[arg-type]
+            baseline_decision=blocked,
+            shadow_decision=blocked,
             would_change_decision=False,
             changed_fields=(),
         )
@@ -223,7 +218,8 @@ def test_trend_events_observe_records_crosses_and_confirmed_slope(
         ),
     )
     observed = trend_events_module.TrendEventsAgent._observe(
-        "1h", (object(),) * 201  # type: ignore[arg-type]
+        "1h",
+        (object(),) * 201,  # type: ignore[arg-type]
     )
     _timeframe, direction, _band, events, slope = observed
     assert direction == 1

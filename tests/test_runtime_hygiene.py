@@ -11,11 +11,11 @@ from ai4binance.infrastructure.filesystem.runtime_artifacts.layout import (
     RuntimeArtifactLayoutManifest,
     RuntimeRetentionPolicy,
 )
+from ai4binance.ops import runtime_hygiene
 from ai4binance.ops.runtime_hygiene import (
     build_runtime_hygiene_report,
     persist_runtime_hygiene_report,
 )
-from ai4binance.ops import runtime_hygiene
 
 
 def _manifest() -> RuntimeArtifactLayoutManifest:

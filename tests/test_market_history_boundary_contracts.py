@@ -92,6 +92,23 @@ def test_refresh_request_status_and_size_limits(tmp_path: Path) -> None:
         h._load(path)
 
 
+def test_virtual_market_refresh_request_is_a_bounded_compatible_requester(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "request.json"
+    path.write_text(
+        json.dumps(request_payload() | {"requester": "VIRTUAL_MARKET"}),
+        encoding="utf-8",
+    )
+
+    result = h.market_history_refresh_status(path)
+
+    assert result["state"] == "PENDING"
+    assert result["requester"] == "VIRTUAL_MARKET"
+    assert result["execution_allowed"] is False
+    assert result["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -511,7 +528,10 @@ def test_refresh_dataset_blockers_distinguish_gaps_staleness_and_derivatives(
         blockers = instance._refresh_request_data_blockers(
             "usd_m_futures", "BTCUSDT", NOW, [{"kind": "funding", "status": "BLOCKED"}]
         )
-        assert f"MARKET_HISTORY_REFRESH_{code}:5m" in blockers
+        assert all(
+            f"MARKET_HISTORY_REFRESH_{code}:{timeframe}" in blockers
+            for timeframe in h.VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
+        )
         assert "FUTURES_DERIVATIVES_CONTEXT_UNAVAILABLE" in blockers
     instance._complete_refresh_request({}, NOW, status="DATA_READY", blockers=())
     with pytest.raises(ValueError, match="market is invalid"):
@@ -660,7 +680,7 @@ def test_metered_transport_updates_budget_and_funding_clock(
     [
         ("CURRENT", "CANDIDATES_AVAILABLE"),
         ("DELEGATED", "ANALYSIS_UNAVAILABLE"),
-        ("DATA_BLOCKED", "DATA_UNAVAILABLE"),
+        ("DATA_BLOCKED", "CANDIDATES_AVAILABLE_WITH_DATA_GAPS"),
         ("BLOCKED", "ANALYSIS_BLOCKED"),
     ],
 )
@@ -706,6 +726,7 @@ def test_cycle_failure_persists_safe_retry_state(tmp_path: Path) -> None:
     state = h._load(instance.history.state_path)
     assert state["status"] == "DEGRADED"
     assert state["last_error_type"] == "OSError"
+    assert state["last_error_code"] == "MARKET_HISTORY_RECOVERABLE_ERROR"
     assert "private path" not in json.dumps(state)
 
 

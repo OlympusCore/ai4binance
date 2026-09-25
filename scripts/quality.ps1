@@ -2091,6 +2091,7 @@ function Invoke-DeterministicGovernanceGateStep {
         [Parameter(Mandatory = $true)]
         [object]$ConstitutionSyncEvidence,
         [string]$ApprovalRecordPathOverride = "",
+        [string]$FrozenGovernanceGateReportPath = "",
         [int[]]$AllowedExitCodes = @(0)
     )
 
@@ -2146,6 +2147,12 @@ function Invoke-DeterministicGovernanceGateStep {
     )
     if (-not [string]::IsNullOrWhiteSpace($ApprovalRecordPathOverride)) {
         $arguments += @("--approval-record-report", $ApprovalRecordPathOverride)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($FrozenGovernanceGateReportPath)) {
+        $arguments += @(
+            "--frozen-governance-gate-report",
+            $FrozenGovernanceGateReportPath
+        )
     }
     return Invoke-QualityStepWithAllowedExitCodes `
         -Name "Deterministic governance gate" `
@@ -2474,7 +2481,8 @@ function Invoke-FullApprovalReplayQualityGate {
         -DocsHygieneEvidence $context.governance.docs_hygiene `
         -ArtifactHygieneEvidence $context.governance.artifact_hygiene `
         -ConstitutionSyncEvidence $context.governance.constitution_sync_tests `
-        -ApprovalRecordPathOverride $context.approval_record_path | Out-Null
+        -ApprovalRecordPathOverride $context.approval_record_path `
+        -FrozenGovernanceGateReportPath $context.governance_path | Out-Null
     Invoke-GeneratedArtifactCleanup
     Invoke-ProcessTempRetentionCleanup
     Assert-QualityWorkspaceStable -Stage "BEFORE_APPROVAL_REPLAY_GREEN_EVIDENCE"
