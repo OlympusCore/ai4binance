@@ -392,8 +392,16 @@ def test_validation_pipeline_runs_six_playbooks_and_persists_evidence(
     )
     assert resumed_trend.resumed_from_checkpoint is True
     assert resumed_trend.backtest is None
+    assert resumed_trend.run_card is not None
+    resumed_run_card = cast(dict[str, object], resumed_trend.run_card)
+    assert resumed_run_card["symbol"] == "BTCUSDT"
+    assert resumed_run_card["timeframe"] == "1h"
     assert resumed_trend.checkpoint_path is not None
     assert Path(resumed_trend.checkpoint_path).is_file()
+    checkpoint = json.loads(
+        Path(resumed_trend.checkpoint_path).read_text(encoding="utf-8")
+    )
+    assert len(checkpoint["run_card_sha256"]) == 64
     assert dict(resumed_trend.stage_timings_ms)["checkpoint_lookup"] >= 0
     resumed_manifest = json.loads(
         sorted((artifact_directory / "BTCUSDT" / "runs").glob("*.manifest.json"))[

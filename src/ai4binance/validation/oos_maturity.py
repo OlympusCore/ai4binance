@@ -25,6 +25,7 @@ import yaml
 from ai4binance.infrastructure.persistence.safe_json import (
     write_json_object_verified,
 )
+from ai4binance.storage import read_bounded_jsonl_tail
 from ai4binance.validation.promotion_evidence import (
     PromotionEvidenceQuery,
     PromotionEvidenceRegistry,
@@ -1124,20 +1125,36 @@ def _validation_events(
         relative = resolved.relative_to(root)
     except ValueError as exc:
         raise ValueError("SPOT_OOS_SOURCE_OUTSIDE_ARTIFACT_ROOT") from exc
-    raw = resolved.read_bytes()
-    digest = sha256(raw).hexdigest()
-    if digest != str(first[1]) or len(raw) > MAX_ARTIFACT_BYTES:
+    digest = _stream_sha256(resolved)
+    if digest != str(first[1]):
         raise ValueError("SPOT_OOS_SOURCE_HASH_INVALID")
+    try:
+        raw_events = read_bounded_jsonl_tail(
+            resolved,
+            max_lines=4,
+            max_bytes=MAX_ARTIFACT_BYTES,
+        )
+    except (OSError, ValueError) as exc:
+        raise ValueError("SPOT_OOS_SOURCE_EVENTS_INVALID") from exc
     events: dict[str, dict[str, object]] = {}
-    for line in raw.splitlines():
-        if not line.strip():
-            continue
-        row = _object(json.loads(line))
-        event_type = _required_text(row, "event_type")
-        payload = _object(row.get("payload"))
-        value = next(iter(payload.values()), None)
-        events[event_type] = _object(value)
+    try:
+        for line in raw_events:
+            row = _object(json.loads(line))
+            event_type = _required_text(row, "event_type")
+            payload = _object(row.get("payload"))
+            value = next(iter(payload.values()), None)
+            events[event_type] = _object(value)
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise ValueError("SPOT_OOS_SOURCE_EVENTS_INVALID") from exc
     return events, OOSArtifactReference(relative.as_posix(), digest)
+
+
+def _stream_sha256(path: Path) -> str:
+    digest = sha256()
+    with path.open("rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _write_stage_evidence(

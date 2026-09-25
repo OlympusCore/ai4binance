@@ -11,12 +11,14 @@ import pytest
 
 from ai4binance.domain import ValidationStatus
 from ai4binance.validation.oos_maturity import (
+    MAX_ARTIFACT_BYTES,
     REQUIRED_MEASUREMENTS,
     OOSArtifactReference,
     OOSMaturityEvidenceBundle,
     OOSMaturityGate,
     OOSValidationSubject,
     _matches,
+    _validation_events,
     load_spot_oos_validation_specification,
     prepare_spot_oos_deployment,
 )
@@ -32,6 +34,60 @@ from ai4binance.validation.statistics import (
 )
 
 NOW = datetime(2026, 9, 11, tzinfo=UTC)
+
+
+def test_validation_events_accept_large_hash_bound_append_only_ledger(
+    tmp_path: Path,
+) -> None:
+    artifact_root = tmp_path / "validation"
+    artifact_root.mkdir()
+    source = artifact_root / "trend_continuation.jsonl"
+    prefix = json.dumps({"archived": "x" * MAX_ARTIFACT_BYTES}).encode() + b"\n"
+    event_types = (
+        "BACKTEST_RESULT",
+        "WALK_FORWARD_REPORT",
+        "TUNING_REPORT",
+        "BACKTEST_ROBUSTNESS_REPORT",
+    )
+    current = b"".join(
+        json.dumps(
+            {
+                "event_type": event_type,
+                "payload": {"result": {"sequence": index}},
+            }
+        ).encode()
+        + b"\n"
+        for index, event_type in enumerate(event_types, start=1)
+    )
+    raw = prefix + current
+    source.write_bytes(raw)
+
+    events, reference = _validation_events(
+        {"artifact_sha256": ((str(source), sha256(raw).hexdigest()),)},
+        artifact_root,
+    )
+
+    assert set(events) == set(event_types)
+    assert events["BACKTEST_RESULT"]["sequence"] == 1
+    assert reference is not None
+    assert reference.path == "trend_continuation.jsonl"
+    assert reference.sha256 == sha256(raw).hexdigest()
+
+
+def test_validation_events_reject_hash_mismatch(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "validation"
+    artifact_root.mkdir()
+    source = artifact_root / "trend_continuation.jsonl"
+    source.write_text(
+        json.dumps({"event_type": "BACKTEST_RESULT", "payload": {"result": {}}}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="SPOT_OOS_SOURCE_HASH_INVALID"):
+        _validation_events(
+            {"artifact_sha256": ((str(source), "0" * 64),)},
+            artifact_root,
+        )
 
 
 def test_active_spot_specification_prepares_exact_research_only_deployment(

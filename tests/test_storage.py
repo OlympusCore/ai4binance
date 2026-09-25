@@ -355,6 +355,18 @@ def test_bounded_jsonl_tail_returns_only_recent_nonempty_lines(
     )
 
 
+def test_bounded_jsonl_tail_discards_partial_leading_record(tmp_path: Path) -> None:
+    path = tmp_path / "large-records.jsonl"
+    large = json.dumps({"id": 1, "value": "x" * 200_000}).encode()
+    latest = json.dumps({"id": 2}).encode()
+    path.write_bytes(b'{"id":0}\n' + large + b"\n" + latest + b"\n")
+
+    assert read_bounded_jsonl_tail(path, max_lines=2, max_bytes=500_000) == (
+        large,
+        latest,
+    )
+
+
 def test_verified_write_result_rejects_inconsistent_states() -> None:
     with pytest.raises(ValueError, match="identity"):
         VerifiedWriteResult("", "event", VerificationStatus.VERIFIED)

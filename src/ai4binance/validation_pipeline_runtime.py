@@ -577,6 +577,9 @@ class HistoricalValidationRuntime:
             return
         artifact_path = Path(result.artifact_path)
         checkpoint_path = self._checkpoint_path(artifact_path)
+        run_card_path = artifact_path.with_name(f"{result.playbook}.run-card.json")
+        if result.run_card is None or not run_card_path.is_file():
+            raise ValueError("VALIDATION_CHECKPOINT_RUN_CARD_MISSING")
         write_json_object_verified(
             checkpoint_path,
             {
@@ -589,6 +592,7 @@ class HistoricalValidationRuntime:
                 "config_sha256": config_sha256,
                 "implementation_sha256": implementation_sha256,
                 "artifact_sha256": sha256(artifact_path.read_bytes()).hexdigest(),
+                "run_card_sha256": sha256(run_card_path.read_bytes()).hexdigest(),
                 "promotion_status": result.promotion_status.value,
                 "blockers": list(result.blockers),
                 "signal_blockers": [list(item) for item in result.signal_blockers],
@@ -619,7 +623,12 @@ class HistoricalValidationRuntime:
             playbook,
         )
         checkpoint_path = self._checkpoint_path(artifact_path)
-        if not checkpoint_path.is_file() or not artifact_path.is_file():
+        run_card_path = artifact_path.with_name(f"{playbook}.run-card.json")
+        if (
+            not checkpoint_path.is_file()
+            or not artifact_path.is_file()
+            or not run_card_path.is_file()
+        ):
             return None
         try:
             payload = read_json_object(
@@ -635,6 +644,7 @@ class HistoricalValidationRuntime:
                 "config_sha256": config_sha256,
                 "implementation_sha256": implementation_sha256,
                 "artifact_sha256": sha256(artifact_path.read_bytes()).hexdigest(),
+                "run_card_sha256": sha256(run_card_path.read_bytes()).hexdigest(),
                 "execution_allowed": False,
                 "live_eligibility_status": "LIVE_ORDER_BLOCKED",
             }
@@ -645,6 +655,21 @@ class HistoricalValidationRuntime:
                 payload.get("signal_blockers")
             )
             promotion_status = ValidationStatus(str(payload["promotion_status"]))
+            run_card = read_json_object(
+                run_card_path,
+                blocker="VALIDATION_CHECKPOINT_RUN_CARD_READ_FAILED",
+            )
+            run_card_expected = {
+                "symbol": symbol.strip().upper(),
+                "timeframe": timeframe,
+                "dataset_sha256": dataset_sha256,
+                "promotion_status": promotion_status.value,
+                "execution_allowed": False,
+            }
+            if any(
+                run_card.get(key) != value for key, value in run_card_expected.items()
+            ):
+                return None
         except (
             DestinationVerificationError,
             KeyError,
@@ -659,6 +684,7 @@ class HistoricalValidationRuntime:
             candle_count=len(candles),
             promotion_status=promotion_status,
             blockers=blockers,
+            run_card=dict(run_card),
             signal_blockers=signal_blockers,
             artifact_path=str(artifact_path),
             checkpoint_path=str(checkpoint_path),
