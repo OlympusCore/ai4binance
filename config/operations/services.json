@@ -82,7 +82,7 @@
     {
       "service": "market-history",
       "task_name": "AI4BINANCE-Market-History",
-      "command": "python -m ai4binance.cli.market_gateway",
+      "command": "python -m ai4binance.cli.market_data daemon",
       "mode": "RunMarketHistory",
       "required": true,
       "enabled": true,

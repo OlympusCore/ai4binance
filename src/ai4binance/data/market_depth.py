@@ -35,6 +35,7 @@ _URLS = {
     "usd_m_futures": "wss://fstream.binance.com/public/stream",
     "coin_m_futures": "wss://dstream.binance.com/stream",
 }
+_DEPTH_COMPACTION_BATCH_SIZE = 50_000
 DepthRecord = tuple[str, str, str, dict[str, object], float]
 
 
@@ -162,6 +163,18 @@ class DepthJournal:
                 """,
                     (market, symbol, checkpoint, seq, status, received),
                 )
+                if checkpoint is not None:
+                    self.connection.execute(
+                        "DELETE FROM depth_events WHERE seq IN ("
+                        "SELECT seq FROM depth_events WHERE market=? AND symbol=? "
+                        "AND seq<? ORDER BY seq LIMIT ?)",
+                        (
+                            market,
+                            symbol,
+                            checkpoint,
+                            _DEPTH_COMPACTION_BATCH_SIZE,
+                        ),
+                    )
 
     def close(self) -> None:
         with self.lock:
@@ -414,7 +427,6 @@ class MarketDepthCollector:
         last_flush, started = time.monotonic(), time.monotonic()
         executor = ThreadPoolExecutor(max_workers=1)
         received_bytes = 0
-        subscribed_at = 0.0
 
         def resync(symbol: str) -> None:
             """Invalidate only the broken book and queue its bounded resnapshot."""
@@ -454,16 +466,14 @@ class MarketDepthCollector:
                             maximum_levels=100_000,
                             futures_sequence=market != "spot",
                         )
-                        subscribed_at = time.monotonic()
-                if pending and future is None and time.monotonic() - subscribed_at > 20:
-                    future = executor.submit(
-                        self.transports[market].get_json,
-                        _prefix(market) + "depth",
-                        {
-                            "symbol": pending,
-                            "limit": 5000 if market == "spot" else 1000,
-                        },
-                    )
+                        future = executor.submit(
+                            self.transports[market].get_json,
+                            _prefix(market) + "depth",
+                            {
+                                "symbol": pending,
+                                "limit": 5000 if market == "spot" else 1000,
+                            },
+                        )
                 if future is not None and future.done():
                     raw = future.result()
                     if pending is None or not isinstance(raw, dict):

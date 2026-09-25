@@ -42,6 +42,12 @@ def test_settings_normalize_market_type() -> None:
         Settings(market_type="options")  # type: ignore[arg-type]
 
 
+def test_settings_route_futures_oos_to_the_cli_contract_artifact_root() -> None:
+    assert Settings().futures_oos_artifact_directory == Path(
+        "runtime/artifacts/validation/futures_oos"
+    )
+
+
 def test_settings_expose_local_llm_gpu_controls(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -136,9 +142,9 @@ def test_settings_reject_minimum_history_above_request_limit() -> None:
         Settings(candle_limit=100, minimum_closed_candles=200)
 
 
-def test_settings_accepts_three_month_history_with_daily_quality_floor() -> None:
-    settings = Settings(market_history_initial_days=90)
-    assert settings.market_history_initial_days == 90
+def test_settings_defaults_to_governed_spot_oos_history_horizon() -> None:
+    settings = Settings()
+    assert settings.market_history_initial_days == 400
     assert settings.max_data_workers == 4
     assert settings.market_history_max_workers == 8
     assert settings.market_history_opportunity_workers == 2

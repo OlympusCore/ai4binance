@@ -54,6 +54,7 @@ from ai4binance.governance.gate import (
     build_governance_gate_report,
     load_approval_records,
     load_approval_records_with_fallback,
+    load_frozen_traceability_audit,
     load_repository_validator_evidence,
     main,
 )
@@ -935,6 +936,67 @@ def test_governance_gate_passes_when_required_canonical_trace_exists(
     assert report.traceability_audit.status is TraceabilityStatus.PASS
     assert report.traceability_hard_veto is True
     assert report.traceability_audit.requirement_count == 2
+
+
+def test_governance_gate_replay_reuses_frozen_traceability_audit(
+    tmp_path: Path,
+) -> None:
+    write_core_documents(tmp_path)
+    write_quality_evidence(tmp_path)
+    (tmp_path / "traceability-note.txt").write_text(
+        "traceability\n",
+        encoding="utf-8",
+    )
+    _stamp_authority_frontmatter(tmp_path)
+    change_set = _change_set(tmp_path, "traceability-note.txt")
+    quality_report = _quality_report(tmp_path, change_set=change_set)
+    frozen_audit = TraceabilityAuditReport(
+        journal_path=canonical_trace_journal_path(tmp_path).resolve(),
+        status=TraceabilityStatus.PASS,
+        requirement_count=1,
+        record_count=7,
+    )
+    frozen_report_path = tmp_path / "frozen-governance.json"
+    frozen_report_path.write_text(
+        json.dumps({"traceability_audit": frozen_audit.to_payload()}),
+        encoding="utf-8",
+    )
+
+    loaded_audit = load_frozen_traceability_audit(
+        frozen_report_path,
+        repository_root=tmp_path,
+    )
+    first = build_governance_gate_report(
+        repository_root=tmp_path,
+        repository_validator=load_repository_validator_evidence(
+            _write_validator_report(tmp_path)
+        ),
+        docs_hygiene=_docs_hygiene(True),
+        artifact_hygiene=_artifact_hygiene(True),
+        constitution_sync_tests=_constitution_sync_tests(True),
+        deterministic_quality_gate=quality_report,
+        change_set=change_set,
+        require_change_set=True,
+        traceability_audit=loaded_audit,
+    )
+    _write_auto_audit_traceability_artifact(tmp_path, include_journal=True)
+    second = build_governance_gate_report(
+        repository_root=tmp_path,
+        repository_validator=load_repository_validator_evidence(
+            _write_validator_report(tmp_path)
+        ),
+        docs_hygiene=_docs_hygiene(True),
+        artifact_hygiene=_artifact_hygiene(True),
+        constitution_sync_tests=_constitution_sync_tests(True),
+        deterministic_quality_gate=quality_report,
+        change_set=change_set,
+        require_change_set=True,
+        traceability_audit=loaded_audit,
+    )
+
+    assert first.gate_evidence_sha256 == second.gate_evidence_sha256
+    assert second.traceability_audit == frozen_audit
+    assert second.traceability_audit.record_count == 7
 
 
 def test_governance_gate_verifies_bound_approval_records(tmp_path: Path) -> None:

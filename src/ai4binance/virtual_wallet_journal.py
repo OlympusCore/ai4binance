@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from hashlib import sha256
 from itertools import pairwise
 from pathlib import Path
 from typing import cast
@@ -35,6 +36,7 @@ _WALLET_NAMES = {
 _INITIAL_EQUITY_USDT = Decimal("1000")
 _INITIAL_EVENT = "VIRTUAL_WALLET_INITIALIZED"
 _MOVEMENT_EVENT = "VIRTUAL_WALLET_MOVEMENT_RECORDED"
+_DAILY_LOSS_TUNING_THRESHOLD = 3
 
 
 class VirtualWalletJournalError(RuntimeError):
@@ -371,6 +373,19 @@ class VirtualWalletJournal:
         ) as error:
             raise VirtualWalletJournalError(str(error)) from error
 
+    def daily_loss_tuning_trigger(self, observed_at: datetime) -> dict[str, object]:
+        """Create one deterministic research trigger per three same-day losses."""
+
+        try:
+            return _daily_loss_tuning_trigger(
+                self._read_movements(),
+                _utc_timestamp(observed_at),
+            )
+        except VirtualWalletJournalError:
+            raise
+        except (ArithmeticError, KeyError, TypeError, ValueError) as error:
+            raise VirtualWalletJournalError(str(error)) from error
+
     @staticmethod
     def _latest_positions(
         movements: tuple[dict[str, object], ...],
@@ -625,6 +640,111 @@ def _initial_portfolio(market: str) -> VirtualPortfolioState:
         cash_usdt=_INITIAL_EQUITY_USDT,
         equity_usdt=_INITIAL_EQUITY_USDT,
     )
+
+
+def _daily_loss_tuning_trigger(
+    movements: tuple[dict[str, object], ...],
+    observed_at: datetime,
+) -> dict[str, object]:
+    safe_state = {
+        "execution_allowed": False,
+        "promotion_status": "RESEARCH_ONLY",
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+    }
+    observed_day = observed_at.astimezone(UTC).date()
+    losses_by_market: dict[str, list[dict[str, object]]] = {}
+    for movement in movements:
+        closed_trade = movement.get("closed_trade")
+        position = movement.get("managed_position")
+        if not isinstance(closed_trade, Mapping) or not isinstance(position, Mapping):
+            continue
+        net_pnl = _required_decimal(closed_trade, "net_pnl_usdt")
+        if net_pnl >= 0:
+            continue
+        exit_time = datetime.fromisoformat(
+            _aware_timestamp_text(closed_trade.get("exit_time"))
+        ).astimezone(UTC)
+        if exit_time.date() != observed_day:
+            continue
+        market = _required_text(movement, "market").upper()
+        if market not in _MARKETS:
+            raise ValueError("VIRTUAL_LOSS_TUNING_MARKET_INVALID")
+        entry_price = _required_decimal(position, "entry_price")
+        quantity = _required_decimal(position, "initial_quantity")
+        notional = entry_price * quantity
+        if notional <= 0:
+            raise ValueError("VIRTUAL_LOSS_TUNING_NOTIONAL_INVALID")
+        losses_by_market.setdefault(market, []).append(
+            {
+                "movement_id": _required_text(movement, "movement_id"),
+                "trade_id": _required_text(closed_trade, "trade_id"),
+                "exit_time": exit_time.isoformat(),
+                "net_pnl_usdt": str(net_pnl),
+                "net_return": str(net_pnl / notional),
+                "subject": {
+                    "market": market,
+                    "symbol": _required_text(position, "symbol").upper(),
+                    "timeframe": _required_text(position, "timeframe"),
+                    "strategy_id": _required_text(position, "strategy_id"),
+                    "strategy_version": _required_text(position, "strategy_version"),
+                    "strategy_config_hash": _required_text(
+                        position, "strategy_config_hash"
+                    ),
+                },
+            }
+        )
+
+    triggers: list[dict[str, object]] = []
+    for market, losses in losses_by_market.items():
+        completed_count = (
+            len(losses) // _DAILY_LOSS_TUNING_THRESHOLD
+        ) * _DAILY_LOSS_TUNING_THRESHOLD
+        if completed_count < _DAILY_LOSS_TUNING_THRESHOLD:
+            continue
+        batch = losses[completed_count - _DAILY_LOSS_TUNING_THRESHOLD : completed_count]
+        subjects = list(
+            {
+                json.dumps(item["subject"], sort_keys=True): item["subject"]
+                for item in batch
+            }.values()
+        )
+        identity = {
+            "kind": "SAME_UTC_DAY_NET_LOSS_BATCH",
+            "market": market,
+            "trade_date": observed_day.isoformat(),
+            "evidence_ids": [item["movement_id"] for item in batch],
+        }
+        digest = sha256(
+            json.dumps(identity, separators=(",", ":"), sort_keys=True).encode()
+        ).hexdigest()
+        triggers.append(
+            {
+                "schema_version": "VirtualLossTuningTrigger/v1",
+                "status": "TRIGGERED",
+                "trigger_id": f"virtual-loss-tuning:{digest[:24]}",
+                **identity,
+                "loss_threshold": _DAILY_LOSS_TUNING_THRESHOLD,
+                "loss_count_today": len(losses),
+                "observed_at": observed_at.isoformat(),
+                "losses": batch,
+                "subjects": subjects,
+                **safe_state,
+            }
+        )
+    if not triggers:
+        return {
+            "schema_version": "VirtualLossTuningTrigger/v1",
+            "status": "NOT_TRIGGERED",
+            "trade_date": observed_day.isoformat(),
+            "loss_threshold": _DAILY_LOSS_TUNING_THRESHOLD,
+            "loss_count_today": max(
+                (len(losses) for losses in losses_by_market.values()),
+                default=0,
+            ),
+            "observed_at": observed_at.isoformat(),
+            **safe_state,
+        }
+    return max(triggers, key=lambda item: str(item["observed_at"]))
 
 
 def _independent_portfolios(

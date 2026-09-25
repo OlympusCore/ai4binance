@@ -38,7 +38,7 @@ def test_canonical_dashboard_source_builds_deterministic_offline_assets(
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "DASHBOARD_PACKAGE_BUILT"
     assert _sha256(stage / "app.js") == (
-        "a1396a57d098495cbe5ed00f881e35d25c2db3c83183fffba28bcb415c4eff59"
+        "56c052e1234a1317bf303ed053792c3ec5cc852c5f1b59d24e48415280a5fe31"
     )
     assert _sha256(stage / "app.css") == (
         "820ea8899490af3d761e507a88d0af4fd4ecbf587cbd7118c8faa665b5569cc5"
@@ -93,6 +93,8 @@ def test_virtual_market_separates_trade_records_from_potential_opportunities() -
     assert "Entry / Stop / TP1 / TP2 / TP3 / R/R" in views
     assert "Opportunity generation health" in views
     assert "rejected_by_reason" in views
+    assert "CANDIDATES_AVAILABLE_WITH_DATA_GAPS" in views
+    assert "Published research opportunities remain visible" in views
     assert "Rejected attempts are diagnostic evidence, not opportunities" in views
     assert "has_complete_measurable_opportunity" in (
         SOURCE / "market_views.py.in"
@@ -102,6 +104,20 @@ def test_virtual_market_separates_trade_records_from_potential_opportunities() -
     )
     assert "def _dashboard_trade_records" in wallet
     assert "def _trade_record_dashboard_row" in wallet
+
+
+def test_dashboard_exposes_virtual_runtime_preconditions_as_inactive() -> None:
+    server = (SOURCE / "server.py.in").read_text(encoding="utf-8")
+    views = (SOURCE / "local_views.js").read_text(encoding="utf-8")
+
+    assert '"virtual_runtime_evaluated"' in server
+    assert '"virtual_simulation_outcome"' in server
+    assert '"risk_approved"' in server
+    assert (
+        "daemon.virtual_simulation_outcome||projection.status||daemon.status" in views
+    )
+    assert "Runtime evaluated" in views
+    assert "Risk approved" in views
 
 
 def test_dashboard_projects_auto_audit_movements_with_method_provenance() -> None:

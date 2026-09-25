@@ -279,6 +279,9 @@ def _root_file_migration_rule(
         "historical_replay_state.py": (
             "domain/portfolio|domain/evidence|infrastructure/persistence"
         ),
+        "internal_radar.py": (
+            "domain/evidence|application/pipelines|infrastructure/filesystem"
+        ),
         "opportunity_radar.py": "domain/intelligence|application/pipelines",
         "rag.py": "domain/intelligence|domain/evidence|integrations/llm",
         "rag_corrective.py": (
@@ -309,6 +312,7 @@ def _root_file_migration_rule(
             "infrastructure/persistence/historical_replay.py"
         ),
         "indicators.py": "domain/features/indicators.py",
+        "internal_radar_vision.py": "integrations/llm/internal_radar_vision.py",
         "market_context.py": "domain/snapshot/market_context.py",
         "markets.py": "domain/market/markets.py",
         "opportunities.py": "domain/setup/opportunities.py",

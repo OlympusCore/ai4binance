@@ -41,7 +41,7 @@ def test_service_manifest_is_shared_safe_and_complete() -> None:
     assert required["skill-discovery"].lock_file == "skill_discovery.lock"
     assert required["market-history"].task_name == "AI4BINANCE-Market-History"
     assert required["market-history"].command == (
-        "python -m ai4binance.cli.market_gateway"
+        "python -m ai4binance.cli.market_data daemon"
     )
     scheduled = {spec.service: spec for spec in specs if not spec.required}
     assert scheduled["ykb-report"].health_mode == "SCHEDULED"
@@ -157,6 +157,10 @@ def test_startup_install_script_preserves_cli_module_runtime_commands() -> None:
     assert '$env:PYTHONDONTWRITEBYTECODE = "1"' in install_text
     assert "& $python -B @Arguments" in install_text
     assert "& $python @Arguments" not in install_text
+    assert "$previousErrorActionPreference = $ErrorActionPreference" in install_text
+    assert '$ErrorActionPreference = "Continue"' in install_text
+    assert "$ErrorActionPreference = $previousErrorActionPreference" in install_text
+    assert "$nativeExitCode = [int]$LASTEXITCODE" in install_text
     assert '-Arguments @("-m", "ai4binance.cli", "archive-public")' in install_text
     assert '-Arguments @("-m", "ai4binance.cli", "validate-research")' in install_text
     assert "-WindowStyle Hidden" in install_text
@@ -189,6 +193,11 @@ def test_startup_install_script_preserves_cli_module_runtime_commands() -> None:
     assert 'Get-ServiceManifestEntry -Service "virtual-market"' in install_text
     assert "InstallVirtualMarket" in install_text
     assert "RunVirtualMarket" in install_text
+    assert "RestartVirtualMarket" in install_text
+    assert "RestartMarketHistory" in install_text
+    assert "function Restart-BoundedScheduledService" in install_text
+    assert "Exact $Service process tree did not stop cleanly." in install_text
+    assert "Fresh $Service lock owner was not observed" in install_text
     assert "ai4binance\\.cli\\s+virtual-market-daemon" in status_text
     assert "VIRTUAL_MARKET" in status_text
     assert 'Join-Path $stateDirectory "virtual-market.json"' in status_text

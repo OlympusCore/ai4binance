@@ -101,7 +101,7 @@ def test_monitor_helper_boundaries_and_research_estimates(
     with pytest.raises(ValueError, match="read boundary"):
         read_monitor(tmp_path, "SPOT", "BTCUSDT")
 
-    candidate = {
+    candidate: dict[str, object] = {
         "market": "SPOT",
         "direction": "BULLISH",
         "entry": "101",

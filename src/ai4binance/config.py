@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     fixed_symbols: tuple[str, ...] = ()
     priority_watchlist: tuple[str, ...] = ()
     futures_symbol_exclusions: tuple[str, ...] = ("HOTUSDT",)
-    timeframes: tuple[str, ...] = ("5m", "15m", "1h", "4h", "1d")
+    timeframes: tuple[str, ...] = ("15m", "1h", "4h")
     trading_mode: Literal["paper", "live"] = "paper"
     order_mode: Literal["manual", "dry_run", "paper", "auto", "live"] = "manual"
     allow_auto_live_orders: bool = False
@@ -51,10 +51,9 @@ class Settings(BaseSettings):
     market_history_state_path: Path = Path("runtime/state/market-history-latest.json")
     market_history_interval_seconds: float = 21_600.0
     market_history_live_interval_seconds: float = 300.0
-    # Every persisted timeframe receives at least this direct-history window.
-    # The collector extends individual timeframes further when deterministic
-    # closed-candle quality requires it (for example, 201 daily bars).
-    market_history_initial_days: int = 90
+    # Keep enough native history to satisfy the governed 365-day Spot OOS
+    # observation floor, with a bounded buffer for publication lag and gaps.
+    market_history_initial_days: int = 400
     market_history_pages_per_stream: int = 32
     market_history_max_workers: int = 8
     market_history_opportunity_workers: int = 2
@@ -72,7 +71,7 @@ class Settings(BaseSettings):
         "config/research/runtime_validation_deployment.json"
     )
     futures_oos_artifact_directory: Path = Path(
-        "runtime/artifacts/research/backtest/oos"
+        "runtime/artifacts/validation/futures_oos"
     )
     backtest_report_directory: Path = Path("runtime/reports/backtest")
     backtest_layout_manifest_path: Path = Path(

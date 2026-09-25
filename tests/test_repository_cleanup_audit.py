@@ -201,7 +201,9 @@ def test_repository_cleanup_audit_text_summarizes_structure_classifications() ->
         command="repository-cleanup-audit",
     )
 
-    assert "static_file_decisions: ARCHIVE_CANDIDATE=8, ENTRY_POINT=12, KEEP=25" in text
+    assert (
+        "static_file_decisions: ARCHIVE_CANDIDATE=13, ENTRY_POINT=11, KEEP=25" in text
+    )
     report = payload["report"]
     assert isinstance(report, dict)
     static_classifications = report["static_unimported_classifications"]

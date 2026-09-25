@@ -1,6 +1,8 @@
 """Append-only audit storage and secret redaction tests."""
 
 import json
+import os
+import time
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import Enum
@@ -354,6 +356,18 @@ def test_bounded_jsonl_tail_returns_only_recent_nonempty_lines(
     )
 
 
+def test_bounded_jsonl_tail_discards_partial_leading_record(tmp_path: Path) -> None:
+    path = tmp_path / "large-records.jsonl"
+    large = json.dumps({"id": 1, "value": "x" * 200_000}).encode()
+    latest = json.dumps({"id": 2}).encode()
+    path.write_bytes(b'{"id":0}\n' + large + b"\n" + latest + b"\n")
+
+    assert read_bounded_jsonl_tail(path, max_lines=2, max_bytes=500_000) == (
+        large,
+        latest,
+    )
+
+
 def test_verified_write_result_rejects_inconsistent_states() -> None:
     with pytest.raises(ValueError, match="identity"):
         VerifiedWriteResult("", "event", VerificationStatus.VERIFIED)
@@ -401,6 +415,24 @@ def test_write_json_object_verified_reads_destination_back(tmp_path: Path) -> No
     assert json.loads(path.read_text(encoding="utf-8"))["status"] == "ok"
 
 
+def test_write_json_object_verified_compares_canonical_json_shapes(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "state" / "latest.json"
+
+    result = write_json_object_verified(
+        path,
+        {"blockers": ("FIRST", "SECOND")},
+        blocker="STATE_VERIFY_FAILED",
+    )
+
+    assert result.expected_sha256 == result.observed_sha256
+    assert json.loads(path.read_text(encoding="utf-8"))["blockers"] == [
+        "FIRST",
+        "SECOND",
+    ]
+
+
 def test_write_json_object_verified_stops_on_failed_read_back(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -422,6 +454,61 @@ def test_write_json_object_verified_stops_on_failed_read_back(
             blocker="STATE_VERIFY_FAILED",
             subject_id="state-1",
         )
+
+
+def test_write_json_object_verified_retries_transient_replace_denial(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "state" / "latest.json"
+    original_replace = os.replace
+    attempts = 0
+    delays: list[float] = []
+
+    def flaky_replace(source: Path, destination: Path) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise PermissionError(5, "transient sharing violation")
+        original_replace(source, destination)
+
+    monkeypatch.setattr(os, "replace", flaky_replace)
+    monkeypatch.setattr(time, "sleep", delays.append)
+
+    result = write_json_object_verified(
+        path,
+        {"status": "ok"},
+        blocker="STATE_VERIFY_FAILED",
+    )
+
+    assert result.status is VerificationStatus.VERIFIED
+    assert attempts == 3
+    assert delays == [0.01, 0.02]
+
+
+def test_write_json_object_verified_preserves_persistent_replace_denial(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "state" / "latest.json"
+    attempts = 0
+
+    def denied_replace(_source: Path, _destination: Path) -> None:
+        nonlocal attempts
+        attempts += 1
+        raise PermissionError(5, "persistent sharing violation")
+
+    monkeypatch.setattr(os, "replace", denied_replace)
+    monkeypatch.setattr(time, "sleep", lambda _delay: None)
+
+    with pytest.raises(PermissionError, match="persistent sharing violation"):
+        write_json_object_verified(
+            path,
+            {"status": "ok"},
+            blocker="STATE_VERIFY_FAILED",
+        )
+
+    assert attempts == 8
 
 
 def test_jsonl_store_optional_durable_flush(

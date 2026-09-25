@@ -105,11 +105,12 @@ class ValidationGate:
             and not gate_result.blockers
             for name in ("data_quality", "universe_liquidity")
         )
-        maturity_ref = (
-            self._maturity_reference(snapshot, selected)
+        maturity_ref, maturity_blockers = (
+            self._maturity_evaluation(snapshot, selected)
             if required_gates_passed
-            else None
+            else (None, ())
         )
+        blockers.extend(maturity_blockers)
         if maturity_ref is None:
             blockers.extend(
                 (
@@ -237,13 +238,20 @@ class ValidationGate:
     def _maturity_reference(
         self, snapshot: MarketSnapshot, candidates: tuple[TradeCandidate, ...]
     ) -> str | None:
+        """Return a complete maturity reference for compatibility callers."""
+
+        return self._maturity_evaluation(snapshot, candidates)[0]
+
+    def _maturity_evaluation(
+        self, snapshot: MarketSnapshot, candidates: tuple[TradeCandidate, ...]
+    ) -> tuple[str | None, tuple[str, ...]]:
         """Revalidate bytes against independently supplied deployment identities.
 
         Candidate scores, promotion labels and run-card presence are not evidence.
         No configured identity or bundle means no approval, including simulation.
         """
         if self.artifact_root is None or len(candidates) != 1:
-            return None
+            return None, ()
         candidate = candidates[0]
         subjects = tuple(
             subject
@@ -256,7 +264,10 @@ class ValidationGate:
             )
         )
         if len(subjects) != 1:
-            return None
+            return None, (
+                "OOS_SUBJECT_NOT_CONFIGURED:"
+                f"{candidate.setup_name}:{snapshot.symbol}:{candidate.timeframe}",
+            )
         expected = subjects[0]
         bundles = tuple(
             bundle
@@ -267,7 +278,7 @@ class ValidationGate:
             )
         )
         if len(bundles) != 1:
-            return None
+            return None, ("OOS_SUBJECT_BUNDLE_NOT_CONFIGURED",)
         current_subject = replace(
             expected, promotion=replace(expected.promotion, as_of=snapshot.created_at)
         )
@@ -275,8 +286,8 @@ class ValidationGate:
             replace(bundles[0], subject=current_subject)
         )
         if result.status != "OOS_MATURITY_COMPLETE" or result.blockers:
-            return None
-        return f"OOS_MATURITY:{result.bundle_sha256}"
+            return None, result.blockers
+        return f"OOS_MATURITY:{result.bundle_sha256}", ()
 
     @staticmethod
     def _metadata_value(

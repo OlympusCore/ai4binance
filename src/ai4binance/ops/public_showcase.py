@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import shutil
-import subprocess
+import subprocess  # Required for the repository-pinned scanner.  # nosec B404
 import tempfile
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 import yaml
+
+_SCAN_PASSED_STATUS: Final = "PASSED"
 
 
 class PublicShowcaseError(ValueError):
@@ -183,7 +185,7 @@ def run_gitleaks_scan(stage_root: Path, executable: Path) -> None:
         )
     report_path = stage_root.parent / f"{stage_root.name}-gitleaks.json"
     try:
-        completed = subprocess.run(  # noqa: S603 - executable is repository-pinned.
+        completed = subprocess.run(  # noqa: S603  # Pinned executable.  # nosec B603
             [
                 str(executable),
                 "dir",
@@ -271,7 +273,7 @@ def stage_public_showcase(
         "status": "READY_FOR_HUMAN_APPROVAL",
         "publication_name": manifest.name,
         "selected_artifacts": selected,
-        "secret_scan": "PASSED",
+        "secret_scan": _SCAN_PASSED_STATUS,
         "remote_publication_allowed": False,
         "human_approval_required": True,
         "execution_allowed": False,

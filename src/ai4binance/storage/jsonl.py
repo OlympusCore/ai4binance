@@ -688,11 +688,20 @@ def read_bounded_jsonl_tail(
         buffer = b""
         while cursor > 0:
             start = max(0, cursor - _TAIL_READ_CHUNK_BYTES)
+            starts_at_record_boundary = start == 0
+            if start > 0:
+                stream.seek(start - 1)
+                previous = stream.read(1)
+                stream.seek(start)
+                current = stream.read(1)
+                starts_at_record_boundary = previous in b"\r\n" or current in b"\r\n"
             stream.seek(start)
             buffer = stream.read(cursor - start) + buffer
             if len(buffer) > max_bytes:
                 raise OSError("JSONL tail exceeds bounded read limit")
             lines = tuple(line for line in buffer.splitlines() if line.strip())
+            if lines and not starts_at_record_boundary:
+                lines = lines[1:]
             if len(lines) >= max_lines or start == 0:
                 return lines[-max_lines:]
             cursor = start
