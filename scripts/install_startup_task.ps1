@@ -41,17 +41,64 @@ function Rotate-LogFile {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
         return
     }
-    for ($index = $BackupCount; $index -ge 1; $index--) {
-        $source = if ($index -eq 1) { $Path } else { "$Path.$($index - 1)" }
-        $target = "$Path.$index"
-        if (Test-Path -LiteralPath $source -PathType Leaf) {
-            if ((Get-Item -LiteralPath $source).Length -gt $MaximumBytes) {
-                $trimmed = "$source.trimmed"
-                Get-Content -LiteralPath $source -Tail 20000 |
-                Set-Content -LiteralPath $trimmed -Encoding UTF8
-                Move-Item -LiteralPath $trimmed -Destination $source -Force
+    $temporaryFiles = [System.Collections.Generic.List[string]]::new()
+    try {
+        for ($index = $BackupCount; $index -ge 1; $index--) {
+            $source = if ($index -eq 1) { $Path } else { "$Path.$($index - 1)" }
+            $target = "$Path.$index"
+            if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+                continue
             }
-            Move-Item -LiteralPath $source -Destination $target -Force
+            if ((Get-Item -LiteralPath $source).Length -gt $MaximumBytes) {
+                $trimmed = "$source.$PID.trimmed"
+                $temporaryFiles.Add($trimmed)
+                $inputStream = [System.IO.File]::Open(
+                    $source,
+                    [System.IO.FileMode]::Open,
+                    [System.IO.FileAccess]::Read,
+                    [System.IO.FileShare]::ReadWrite
+                )
+                try {
+                    $inputStream.Position = [Math]::Max(
+                        0,
+                        $inputStream.Length - $MaximumBytes
+                    )
+                    $outputStream = [System.IO.File]::Open(
+                        $trimmed,
+                        [System.IO.FileMode]::Create,
+                        [System.IO.FileAccess]::Write,
+                        [System.IO.FileShare]::None
+                    )
+                    try {
+                        $inputStream.CopyTo($outputStream)
+                    }
+                    finally {
+                        $outputStream.Dispose()
+                    }
+                }
+                finally {
+                    $inputStream.Dispose()
+                }
+                [System.IO.File]::Delete($source)
+                [System.IO.File]::Move($trimmed, $source)
+            }
+            if (Test-Path -LiteralPath $target -PathType Leaf) {
+                [System.IO.File]::Delete($target)
+            }
+            [System.IO.File]::Move($source, $target)
+        }
+    }
+    catch {
+        # Logging maintenance must never prevent a safety-bounded service from
+        # starting. The next restart retries rotation after transient locks.
+        Write-Warning (
+            "Log rotation deferred for {0}: {1}" -f `
+                $Path, $_.Exception.Message
+        )
+    }
+    finally {
+        foreach ($temporary in $temporaryFiles) {
+            Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
         }
     }
 }

@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from hashlib import sha256
 from pathlib import Path
+from typing import cast
 
 _MODEL_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{2,127}$")
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
@@ -478,24 +479,9 @@ def _local_model_manifest_blockers(
         if not isinstance(item, Mapping):
             return (f"LOCAL_MODEL_MANIFEST_INVALID:{model_id}",)
         try:
-            _require_keys(
-                item,
-                {"role", "path", "byte_length", "sha256"},
-                "local model artifact",
+            candidate, expected_length, expected_sha256 = _local_model_artifact(
+                repository_root, cast(Mapping[str, object], item)
             )
-            artifact_path = _text(item["path"], "local model artifact path")
-            expected_sha256 = _text(item["sha256"], "local model artifact sha256")
-            expected_length = item["byte_length"]
-            if (
-                not _SHA256.fullmatch(expected_sha256)
-                or not isinstance(expected_length, int)
-                or expected_length < 1
-                or Path(artifact_path).is_absolute()
-                or not artifact_path.startswith("models/")
-            ):
-                raise ValueError("local model artifact contract is invalid")
-            candidate = (repository_root / artifact_path).resolve()
-            candidate.relative_to(repository_root)
         except (TypeError, ValueError):
             return (f"LOCAL_MODEL_MANIFEST_INVALID:{model_id}",)
         if not candidate.is_file():
@@ -511,6 +497,33 @@ def _local_model_manifest_blockers(
                 f"LOCAL_MODEL_ARTIFACT_HASH_MISMATCH:{model_id}:{item['role']}"
             )
     return tuple(blockers)
+
+
+def _local_model_artifact(
+    repository_root: Path,
+    item: Mapping[str, object],
+) -> tuple[Path, int, str]:
+    """Validate one manifest artifact and resolve its repository-local path."""
+
+    _require_keys(
+        item,
+        {"role", "path", "byte_length", "sha256"},
+        "local model artifact",
+    )
+    artifact_path = _text(item["path"], "local model artifact path")
+    expected_sha256 = _text(item["sha256"], "local model artifact sha256")
+    expected_length = item["byte_length"]
+    if (
+        not _SHA256.fullmatch(expected_sha256)
+        or not isinstance(expected_length, int)
+        or expected_length < 1
+        or Path(artifact_path).is_absolute()
+        or not artifact_path.startswith("models/")
+    ):
+        raise ValueError("local model artifact contract is invalid")
+    candidate = (repository_root / artifact_path).resolve()
+    candidate.relative_to(repository_root)
+    return candidate, expected_length, expected_sha256
 
 
 def _sha256_file(path: Path) -> str:

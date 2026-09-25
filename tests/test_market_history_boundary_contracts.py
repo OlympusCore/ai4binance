@@ -92,6 +92,23 @@ def test_refresh_request_status_and_size_limits(tmp_path: Path) -> None:
         h._load(path)
 
 
+def test_virtual_market_refresh_request_is_a_bounded_compatible_requester(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "request.json"
+    path.write_text(
+        json.dumps(request_payload() | {"requester": "VIRTUAL_MARKET"}),
+        encoding="utf-8",
+    )
+
+    result = h.market_history_refresh_status(path)
+
+    assert result["state"] == "PENDING"
+    assert result["requester"] == "VIRTUAL_MARKET"
+    assert result["execution_allowed"] is False
+    assert result["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
 @pytest.mark.parametrize(
     "payload",
     [

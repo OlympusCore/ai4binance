@@ -168,91 +168,29 @@ def run_internal_radar_once(
 
     known, pending, pending_state_present = _read_state(state_path)
     files, enumeration_blockers = _image_files(source)
-    new_candidates: list[dict[str, object]] = []
-    candidates_by_id: dict[str, Path] = {}
-    next_known: set[str] = set()
-    for path in files:
-        candidate, fingerprint = _candidate(path, source)
-        if fingerprint is None:
-            continue
-        next_known.add(fingerprint)
-        candidates_by_id[str(candidate["candidate_id"])] = path
-        if include_existing or not pending_state_present or fingerprint not in known:
-            new_candidates.append(candidate)
-
-    pending_by_id = {
-        str(item["candidate_id"]): item
-        for item in pending
-        if isinstance(item.get("candidate_id"), str)
-    }
-    for candidate in new_candidates:
-        pending_by_id.setdefault(str(candidate["candidate_id"]), candidate)
-
-    vision_blockers: list[str] = []
-    vision_analysis_count = 0
-    if vision_enabled:
-        runner = vision_runner or LlamaCppVisionRunner()
-        for candidate_id in sorted(pending_by_id, key=str.casefold):
-            candidate = pending_by_id[candidate_id]
-            if _has_current_vision_evidence(candidate):
-                continue
-            source_path = candidates_by_id.get(candidate_id)
-            content_sha256 = candidate.get("content_sha256")
-            if source_path is None or not isinstance(content_sha256, str):
-                continue
-            evidence = runner.analyze(
-                candidate_id=candidate_id,
-                source_content_sha256=content_sha256,
-                image_path=source_path,
-            )
-            vision_analysis_count += 1
-            candidate["vision_evidence"] = evidence.to_payload()
-            candidate["last_scan_timestamp_utc"] = datetime.now(UTC).isoformat()
-            candidate["assessment_status"] = evidence.status
-            candidate["system_benefit"] = evidence.system_contribution or "NOT_ASSESSED"
-            candidate["system_tradeoff"] = (
-                ",".join(evidence.tradeoff_categories)
-                if evidence.tradeoff_categories
-                else "NOT_ASSESSED"
-            )
-            candidate["recommendation"] = "HUMAN_REVIEW_REQUIRED"
-            vision_blockers.extend(evidence.blockers)
-            _write_state_checkpoint(
-                state_path=state_path,
-                observed_at=now,
-                known_fingerprints=known | next_known,
-                candidates=pending_by_id,
-            )
-            if vision_analysis_count % _LATEST_CHECKPOINT_INTERVAL == 0:
-                checkpoint_candidates = tuple(
-                    pending_by_id[key]
-                    for key in sorted(pending_by_id, key=str.casefold)
-                )
-                _persist_result(
-                    InternalRadarResult(
-                        True,
-                        "RUNNING_WITH_BLOCKERS",
-                        now,
-                        len(files),
-                        len(new_candidates),
-                        len(checkpoint_candidates),
-                        True,
-                        vision_analysis_count,
-                        tuple(
-                            dict.fromkeys(
-                                (
-                                    *enumeration_blockers,
-                                    *vision_blockers,
-                                    "VISION_ANALYSIS_IN_PROGRESS",
-                                )
-                            )
-                        ),
-                        state_path,
-                        latest_path,
-                        checkpoint_candidates,
-                    ),
-                    candidate_paths=candidates_by_id,
-                )
+    new_candidates, candidates_by_id, next_known, pending_by_id = (
+        _collect_radar_candidates(
+            files=files,
+            source=source,
+            known=known,
+            pending=pending,
+            pending_state_present=pending_state_present,
+            include_existing=include_existing,
+        )
+    )
+    vision_blockers, vision_analysis_count = _analyze_pending_candidates(
+        vision_enabled=vision_enabled,
+        vision_runner=vision_runner,
+        pending_by_id=pending_by_id,
+        candidates_by_id=candidates_by_id,
+        state_path=state_path,
+        latest_path=latest_path,
+        observed_at=now,
+        known_fingerprints=known | next_known,
+        scanned_count=len(files),
+        new_candidate_count=len(new_candidates),
+        enumeration_blockers=enumeration_blockers,
+    )
     candidates = tuple(
         pending_by_id[key] for key in sorted(pending_by_id, key=str.casefold)
     )
@@ -283,6 +221,157 @@ def run_internal_radar_once(
         candidates=pending_by_id,
     )
     return _persist_result(result, candidate_paths=candidates_by_id)
+
+
+def _collect_radar_candidates(
+    *,
+    files: tuple[Path, ...],
+    source: Path,
+    known: set[str],
+    pending: tuple[dict[str, object], ...],
+    pending_state_present: bool,
+    include_existing: bool,
+) -> tuple[
+    list[dict[str, object]],
+    dict[str, Path],
+    set[str],
+    dict[str, dict[str, object]],
+]:
+    """Build deterministic new and pending candidate projections."""
+
+    new_candidates: list[dict[str, object]] = []
+    candidates_by_id: dict[str, Path] = {}
+    next_known: set[str] = set()
+    for path in files:
+        candidate, fingerprint = _candidate(path, source)
+        if fingerprint is None:
+            continue
+        next_known.add(fingerprint)
+        candidates_by_id[str(candidate["candidate_id"])] = path
+        if include_existing or not pending_state_present or fingerprint not in known:
+            new_candidates.append(candidate)
+
+    pending_by_id = {
+        str(item["candidate_id"]): item
+        for item in pending
+        if isinstance(item.get("candidate_id"), str)
+    }
+    for candidate in new_candidates:
+        pending_by_id.setdefault(str(candidate["candidate_id"]), candidate)
+    return new_candidates, candidates_by_id, next_known, pending_by_id
+
+
+def _analyze_pending_candidates(
+    *,
+    vision_enabled: bool,
+    vision_runner: LlamaCppVisionRunner | None,
+    pending_by_id: dict[str, dict[str, object]],
+    candidates_by_id: dict[str, Path],
+    state_path: Path,
+    latest_path: Path,
+    observed_at: datetime,
+    known_fingerprints: set[str],
+    scanned_count: int,
+    new_candidate_count: int,
+    enumeration_blockers: tuple[str, ...],
+) -> tuple[list[str], int]:
+    """Attach bounded advisory vision evidence and persist restart checkpoints."""
+
+    if not vision_enabled:
+        return [], 0
+    runner = vision_runner or LlamaCppVisionRunner()
+    blockers: list[str] = []
+    analysis_count = 0
+    for candidate_id in sorted(pending_by_id, key=str.casefold):
+        candidate = pending_by_id[candidate_id]
+        if _has_current_vision_evidence(candidate):
+            continue
+        source_path = candidates_by_id.get(candidate_id)
+        content_sha256 = candidate.get("content_sha256")
+        if source_path is None or not isinstance(content_sha256, str):
+            continue
+        evidence = runner.analyze(
+            candidate_id=candidate_id,
+            source_content_sha256=content_sha256,
+            image_path=source_path,
+        )
+        analysis_count += 1
+        candidate["vision_evidence"] = evidence.to_payload()
+        candidate["last_scan_timestamp_utc"] = datetime.now(UTC).isoformat()
+        candidate["assessment_status"] = evidence.status
+        candidate["system_benefit"] = evidence.system_contribution or "NOT_ASSESSED"
+        candidate["system_tradeoff"] = (
+            ",".join(evidence.tradeoff_categories)
+            if evidence.tradeoff_categories
+            else "NOT_ASSESSED"
+        )
+        candidate["recommendation"] = "HUMAN_REVIEW_REQUIRED"
+        blockers.extend(evidence.blockers)
+        _write_state_checkpoint(
+            state_path=state_path,
+            observed_at=observed_at,
+            known_fingerprints=known_fingerprints,
+            candidates=pending_by_id,
+        )
+        if analysis_count % _LATEST_CHECKPOINT_INTERVAL == 0:
+            _persist_vision_checkpoint(
+                observed_at=observed_at,
+                scanned_count=scanned_count,
+                new_candidate_count=new_candidate_count,
+                analysis_count=analysis_count,
+                enumeration_blockers=enumeration_blockers,
+                vision_blockers=blockers,
+                state_path=state_path,
+                latest_path=latest_path,
+                pending_by_id=pending_by_id,
+                candidates_by_id=candidates_by_id,
+            )
+    return blockers, analysis_count
+
+
+def _persist_vision_checkpoint(
+    *,
+    observed_at: datetime,
+    scanned_count: int,
+    new_candidate_count: int,
+    analysis_count: int,
+    enumeration_blockers: tuple[str, ...],
+    vision_blockers: list[str],
+    state_path: Path,
+    latest_path: Path,
+    pending_by_id: dict[str, dict[str, object]],
+    candidates_by_id: dict[str, Path],
+) -> None:
+    """Persist one restart-safe progress projection for long vision runs."""
+
+    candidates = tuple(
+        pending_by_id[key] for key in sorted(pending_by_id, key=str.casefold)
+    )
+    _persist_result(
+        InternalRadarResult(
+            True,
+            "RUNNING_WITH_BLOCKERS",
+            observed_at,
+            scanned_count,
+            new_candidate_count,
+            len(candidates),
+            True,
+            analysis_count,
+            tuple(
+                dict.fromkeys(
+                    (
+                        *enumeration_blockers,
+                        *vision_blockers,
+                        "VISION_ANALYSIS_IN_PROGRESS",
+                    )
+                )
+            ),
+            state_path,
+            latest_path,
+            candidates,
+        ),
+        candidate_paths=candidates_by_id,
+    )
 
 
 def load_internal_radar_latest(repository_root: Path) -> dict[str, object]:

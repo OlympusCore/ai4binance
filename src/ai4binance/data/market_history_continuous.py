@@ -52,10 +52,13 @@ _SAFE_STATE: dict[str, object] = {
     "promotion_status": "RESEARCH_ONLY",
     "live_eligibility_status": "LIVE_ORDER_BLOCKED",
 }
-VIRTUAL_MARKET_COLLECTION_TIMEFRAMES: Final = MARKET_HISTORY_TIMEFRAMES
-_DASHBOARD_REFRESH_TIMEFRAMES = ("5m", "15m", "1h", "4h", "1d")
-_SCREEN_TIMEFRAMES = VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
-_ENRICHMENT_TIMEFRAMES: Final[tuple[str, ...]] = ()
+_SCREEN_TIMEFRAMES: Final = ("15m", "1h", "4h")
+_ENRICHMENT_TIMEFRAMES: Final = ("5m",)
+VIRTUAL_MARKET_COLLECTION_TIMEFRAMES: Final = (
+    *_SCREEN_TIMEFRAMES,
+    *_ENRICHMENT_TIMEFRAMES,
+)
+_DASHBOARD_REFRESH_TIMEFRAMES = VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
 # The canonical live path persists native decision timeframes directly. REST
 # remains bounded to bootstrap and gap recovery.
 _PROGRESS_HEARTBEAT_SECONDS = 5
@@ -74,6 +77,7 @@ _REFRESH_REQUEST_SAFE_FIELDS = {
     "promotion_status": "RESEARCH_ONLY",
     "live_eligibility_status": "LIVE_ORDER_BLOCKED",
 }
+_REFRESH_REQUEST_REQUESTERS = frozenset({"DASHBOARD", "VIRTUAL_MARKET"})
 _REFRESH_REQUEST_PENDING_FIELDS = frozenset(
     {
         "schema_version",
@@ -127,7 +131,7 @@ def _read_refresh_request(path: Path) -> dict[str, object] | None:
         value.get("schema_version") != "MarketHistoryRefreshRequest/v1"
         or not isinstance(value.get("request_id"), str)
         or not isinstance(value.get("requester"), str)
-        or value.get("requester") != "DASHBOARD"
+        or value.get("requester") not in _REFRESH_REQUEST_REQUESTERS
         or value.get("market") not in {"SPOT", "USD_M_FUTURES"}
         or not isinstance(value.get("symbol"), str)
         or _REFRESH_REQUEST_SYMBOL.fullmatch(str(value["symbol"])) is None
@@ -594,7 +598,15 @@ class ContinuousMarketHistory:
                 blockers.append("MARKET_HISTORY_REFRESH_REQUEST_INVALID")
         stream_items = self._interleaved_stream_work(work_items)
         staged = self.on_symbol_screen is not None
-        active_collection_timeframes = MARKET_HISTORY_TIMEFRAMES
+        active_collection_timeframes = (
+            _SCREEN_TIMEFRAMES if staged else MARKET_HISTORY_TIMEFRAMES
+        )
+        analysis_timeframes = (
+            VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
+            if staged
+            else MARKET_HISTORY_TIMEFRAMES
+        )
+        reported_timeframes = analysis_timeframes
         staged_markets = {"spot", "usd_m_futures"} if staged else set()
         if staged:
             stream_items = tuple(
@@ -621,10 +633,22 @@ class ContinuousMarketHistory:
         }
         coverage: dict[str, dict[str, Counter[str]]] = {
             market_labels[market]: {
-                timeframe: Counter() for timeframe in MARKET_HISTORY_TIMEFRAMES
+                timeframe: Counter() for timeframe in reported_timeframes
             }
             for market, _, transport in market_work
-            if transport is not None
+            if transport is not None and (not staged or market in staged_markets)
+        }
+        coverage_expected: dict[str, Counter[str]] = {
+            market_labels[market]: Counter(
+                {
+                    timeframe: len(symbols)
+                    if timeframe in active_collection_timeframes
+                    else 0
+                    for timeframe in reported_timeframes
+                }
+            )
+            for market, symbols, transport in market_work
+            if transport is not None and (not staged or market in staged_markets)
         }
         completed_symbols = 0
         completed_streams = 0
@@ -671,28 +695,22 @@ class ContinuousMarketHistory:
 
             with coverage_lock:
                 projection: dict[str, list[dict[str, object]]] = {}
-                universe_counts = {
-                    "SPOT": len(universe.spot_symbols),
-                    "USD_M_FUTURES": len(universe.futures_symbols),
-                    "COIN_M_FUTURES": len(universe.coin_m_symbols),
-                }
                 for market, rows in coverage.items():
                     entries: list[dict[str, object]] = []
-                    for timeframe in MARKET_HISTORY_TIMEFRAMES:
+                    for timeframe in reported_timeframes:
                         counts = rows[timeframe]
                         resolved = sum(counts.values())
+                        expected = coverage_expected[market][timeframe]
                         entries.append(
                             {
                                 "timeframe": timeframe,
-                                "universe_count": universe_counts[market],
+                                "universe_count": expected,
                                 "current_count": counts["CURRENT"],
                                 "stale_count": 0,
                                 "invalid_count": counts["BLOCKED"],
                                 "unavailable_count": counts["UNAVAILABLE"],
                                 "refresh_required_count": counts["BACKFILLING"],
-                                "pending_count": max(
-                                    0, universe_counts[market] - resolved
-                                ),
+                                "pending_count": max(0, expected - resolved),
                             }
                         )
                     projection[market] = entries
@@ -928,7 +946,7 @@ class ContinuousMarketHistory:
                     if (
                         kind == "klines"
                         and isinstance(timeframe, str)
-                        and timeframe in active_collection_timeframes
+                        and timeframe in analysis_timeframes
                     ):
                         dashboard_statuses_by_symbol.setdefault(identity, {})[
                             timeframe
@@ -936,12 +954,12 @@ class ContinuousMarketHistory:
                         dashboard_statuses = dashboard_statuses_by_symbol[identity]
                         if identity not in analysis_started and len(
                             dashboard_statuses
-                        ) == len(active_collection_timeframes):
+                        ) == len(analysis_timeframes):
                             analysis_started.add(identity)
                             analysis_ready = all(
                                 dashboard_statuses.get(required)
                                 in _ANALYSIS_READY_STREAM_STATES
-                                for required in active_collection_timeframes
+                                for required in analysis_timeframes
                             )
                     if completed_by_symbol[identity] == required_streams[identity]:
                         completed_symbols += 1
@@ -1102,6 +1120,9 @@ class ContinuousMarketHistory:
                     for tf in _ENRICHMENT_TIMEFRAMES:
                         if (*identity, "klines", tf) not in queued_keys:
                             background.append((*identity, transport, "klines", tf))
+                            label = market_labels[identity[0]]
+                            with coverage_lock:
+                                coverage_expected[label][tf] += 1
                             added += 1
                     if added:
                         with progress_lock:
@@ -1141,7 +1162,8 @@ class ContinuousMarketHistory:
                     active_identity = identity
                     enqueue_enrichment(identity)
                     request_remaining = {
-                        ("klines", timeframe) for timeframe in MARKET_HISTORY_TIMEFRAMES
+                        ("klines", timeframe)
+                        for timeframe in VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
                     }
                     request_remaining.difference_update(
                         (kind, timeframe)
@@ -1205,7 +1227,9 @@ class ContinuousMarketHistory:
                             ):
                                 queue.append(candidate)
                                 continue
-                            if not self._is_supplemental_stream(kind, timeframe):
+                            if not staged or not self._is_supplemental_stream(
+                                kind, timeframe
+                            ):
                                 return candidate
                             identity = (market, symbol)
                             with progress_lock:
@@ -1320,8 +1344,12 @@ class ContinuousMarketHistory:
             "schema_version": "2.0",
             "observed_at": now.isoformat(),
             "status": "DEGRADED" if blockers else "READY",
-            "timeframes": list(MARKET_HISTORY_TIMEFRAMES),
-            "timeframe_refresh_schedule": timeframe_refresh_schedule(),
+            "timeframes": list(reported_timeframes),
+            "timeframe_refresh_schedule": [
+                row
+                for row in timeframe_refresh_schedule()
+                if row["timeframe"] in reported_timeframes
+            ],
             "collection_plan": self._collection_plan(),
             "initial_history_days": self.initial_days,
             "spot_universe_count": len(universe.spot_symbols),
@@ -1507,10 +1535,10 @@ class ContinuousMarketHistory:
     def _collection_plan(self) -> dict[str, object]:
         staged = self.on_symbol_screen is not None
         return {
-            "mode": "TOP_VOLUME_FULL_MULTITF" if staged else "FULL_HISTORY",
+            "mode": "SCREEN_THEN_ENRICH" if staged else "FULL_HISTORY",
             "screen_timeframes": list(_SCREEN_TIMEFRAMES) if staged else [],
             "enrichment_timeframes": list(_ENRICHMENT_TIMEFRAMES) if staged else [],
-            "enrichment_scope": "ALL_SELECTED_SYMBOLS" if staged else "ALL",
+            "enrichment_scope": "OPPORTUNITY_CANDIDATES" if staged else "ALL",
             "deferred_streams": [
                 "markPriceKlines",
                 "indexPriceKlines",

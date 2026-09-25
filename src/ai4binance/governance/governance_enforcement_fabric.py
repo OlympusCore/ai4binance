@@ -641,7 +641,12 @@ def _string(value: object, name: str) -> str:
 
 def _safe_path(value: object, name: str) -> str:
     path = _string(value, name)
-    if Path(path).is_absolute() or "\\" in path or ".." in Path(path).parts:
+    if (
+        path.startswith("/")
+        or Path(path).is_absolute()
+        or "\\" in path
+        or ".." in Path(path).parts
+    ):
         raise ValueError(f"{name} must be a repository-relative POSIX path")
     return path
 

@@ -32,12 +32,12 @@ from ai4binance.data.market_data_gateway import (
     SharedMarketCache,
     build_gateway,
 )
+from ai4binance.exchange import rate_limit as rate_limit_module
 from ai4binance.exchange.public_stream import SpotKlineUpdate
 from ai4binance.exchange.rate_limit import (
     WeightedRateLimitGovernor,
     public_request_weight,
 )
-from ai4binance.exchange import rate_limit as rate_limit_module
 from ai4binance.schemas import OHLCVCandle
 
 START = datetime(2026, 9, 17, 0, 0, tzinfo=UTC)

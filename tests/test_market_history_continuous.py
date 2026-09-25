@@ -25,6 +25,9 @@ from ai4binance.config import Settings
 from ai4binance.core.errors import ExchangeHttpError, ExchangeTransportError
 from ai4binance.data.archive import ParquetOHLCVArchive
 from ai4binance.data.market_history_continuous import (
+    _ENRICHMENT_TIMEFRAMES,
+    _SCREEN_TIMEFRAMES,
+    VIRTUAL_MARKET_COLLECTION_TIMEFRAMES,
     ContinuousMarketHistory,
     MeteredPublicTransport,
     PublicRequestBudget,
@@ -133,7 +136,7 @@ def test_collection_worker_limit_supports_bounded_archive_parallelism(
 
 
 @pytest.mark.parametrize("workers", [1, 4])
-def test_staged_universe_collects_all_virtual_market_timeframes_before_analysis(
+def test_staged_universe_downloads_baseline_then_enriches_candidates_before_analysis(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, workers: int
 ) -> None:
     instance = collector(tmp_path, Transport())
@@ -175,17 +178,42 @@ def test_staged_universe_collects_all_virtual_market_timeframes_before_analysis(
     instance.on_symbol_screen = screen
     instance.on_symbol_ready = analyze
     result = instance.sync_cycle(observed_at=NOW)
-    assert len(calls) == 20
-    assert {tf for _, _, tf in calls} == set(MARKET_HISTORY_TIMEFRAMES)
+    assert len(calls) == 14
+    assert {tf for _, _, tf in calls} == set(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES)
+    assert sum(tf == "5m" for _, _, tf in calls) == 2
+    assert {(market, symbol) for market, symbol, tf in calls if tf == "5m"} == {
+        ("spot", "ETHUSDT"),
+        ("usd_m_futures", "ETHUSDT"),
+    }
     assert len(calls) == len(set(calls))
     assert sorted(analyzed) == [
-        ("SPOT", "BTCUSDT"),
         ("SPOT", "ETHUSDT"),
-        ("USD_M_FUTURES", "BTCUSDT"),
         ("USD_M_FUTURES", "ETHUSDT"),
     ]
-    assert result["total_streams"] == result["completed_streams"] == 20
+    assert result["total_streams"] == result["completed_streams"] == 14
     assert result["completed_symbols"] == 4
+    assert result["timeframes"] == ["15m", "1h", "4h", "5m"]
+    coverage = cast(dict[str, list[dict[str, object]]], result["collector_coverage"])
+    for market in ("SPOT", "USD_M_FUTURES"):
+        expected = {row["timeframe"]: row for row in coverage[market]}
+        assert expected["15m"]["universe_count"] == 2
+        assert expected["1h"]["universe_count"] == 2
+        assert expected["4h"]["universe_count"] == 2
+        assert expected["5m"]["universe_count"] == 1
+        assert all(row["pending_count"] == 0 for row in coverage[market])
+    assert result["collection_plan"] == {
+        "mode": "SCREEN_THEN_ENRICH",
+        "screen_timeframes": list(_SCREEN_TIMEFRAMES),
+        "enrichment_timeframes": list(_ENRICHMENT_TIMEFRAMES),
+        "enrichment_scope": "OPPORTUNITY_CANDIDATES",
+        "deferred_streams": [
+            "markPriceKlines",
+            "indexPriceKlines",
+            "funding",
+            "open_interest",
+            "coin_m_futures",
+        ],
+    }
     assert result["execution_allowed"] is False
 
 
@@ -210,7 +238,7 @@ def test_staged_screen_failure_or_no_trigger_never_downloads_enrichment(
     monkeypatch.setattr(instance, "_collect_stream", collect)
     instance.on_symbol_screen = screen
     instance.sync_cycle(observed_at=NOW)
-    assert calls == list(MARKET_HISTORY_TIMEFRAMES)
+    assert calls == list(_SCREEN_TIMEFRAMES)
 
 
 def test_existing_archive_fetches_only_holes_then_tail_without_replaying_rows(
@@ -297,7 +325,7 @@ def test_futures_enrichment_uses_canonical_monitor_under_shared_lease(
         *,
         timeframes: tuple[str, ...] | None = None,
     ) -> dict[str, object]:
-        assert timeframes == MARKET_HISTORY_TIMEFRAMES
+        assert timeframes == VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
         lock = (
             root
             / "runtime/artifacts/opportunity-radar/monitor/USD_M_FUTURES"
@@ -364,11 +392,11 @@ def test_staged_explicit_refresh_coalesces_candidate_enrichment(
         "live_eligibility_status": "LIVE_ORDER_BLOCKED",
     }
     result = instance.sync_cycle(observed_at=NOW)
-    assert calls == list(MARKET_HISTORY_TIMEFRAMES)
+    assert calls == list(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES)
     assert (
         result["completed_streams"]
         == result["total_streams"]
-        == len(MARKET_HISTORY_TIMEFRAMES)
+        == len(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES)
     )
 
 
@@ -928,7 +956,7 @@ def test_canonical_opportunity_pipeline_reuses_archive_without_network(
             "now": NOW,
             "minimum_candles": 200,
             "candle_limit": 250,
-            "timeframes": MARKET_HISTORY_TIMEFRAMES,
+            "timeframes": VIRTUAL_MARKET_COLLECTION_TIMEFRAMES,
         }
     ]
     assert futures["status"] == "DELEGATED"
@@ -1882,7 +1910,7 @@ def test_canonical_opportunity_pipeline_fails_closed_for_malformed_payloads(
     assert result["candidate_count"] == 0
     assert result["blockers"] == [
         f"OPPORTUNITY_DATA_UNAVAILABLE:{timeframe}"
-        for timeframe in MARKET_HISTORY_TIMEFRAMES
+        for timeframe in VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
     ]
 
 
