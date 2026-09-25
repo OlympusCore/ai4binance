@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -83,12 +84,12 @@ def test_collect_findings_and_evaluate_fail_closed_for_bad_tool_data(
     completed = type(
         "Completed", (), {"returncode": 2, "stderr": "tool failed", "stdout": ""}
     )()
-    monkeypatch.setattr(ratchet.subprocess, "run", lambda *_args, **_kwargs: completed)
+    monkeypatch.setattr(subprocess, "run", lambda *_args, **_kwargs: completed)
     with pytest.raises(RuntimeError, match="tool failed"):
         collect_ruff_findings(ROOT)
 
     malformed = type("Completed", (), {"returncode": 0, "stderr": "", "stdout": "{}"})()
-    monkeypatch.setattr(ratchet.subprocess, "run", lambda *_args, **_kwargs: malformed)
+    monkeypatch.setattr(subprocess, "run", lambda *_args, **_kwargs: malformed)
     with pytest.raises(ValueError, match="JSON array"):
         collect_ruff_findings(ROOT)
 

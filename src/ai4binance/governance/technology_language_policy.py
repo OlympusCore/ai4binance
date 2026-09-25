@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import cast
 
 import yaml
@@ -359,9 +359,10 @@ def _strings(value: object, name: str) -> tuple[str, ...]:
 def _safe_paths(value: object, name: str) -> tuple[str, ...]:
     paths = _strings(value, name)
     if any(
-        Path(path).is_absolute()
+        PurePosixPath(path).is_absolute()
+        or PureWindowsPath(path).is_absolute()
         or "\\" in path
-        or ".." in Path(path.replace("/", "\\")).parts
+        or ".." in PurePosixPath(path).parts
         for path in paths
     ):
         raise ValueError(f"{name} must contain repository-relative POSIX paths")

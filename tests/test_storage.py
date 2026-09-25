@@ -1,6 +1,8 @@
 """Append-only audit storage and secret redaction tests."""
 
 import json
+import os
+import time
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import Enum
@@ -9,7 +11,6 @@ from typing import cast
 
 import pytest
 
-import ai4binance.storage.destination_verification as destination_verification
 from ai4binance.infrastructure.persistence import safe_json
 from ai4binance.storage import (
     AuditEvent,
@@ -460,7 +461,7 @@ def test_write_json_object_verified_retries_transient_replace_denial(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     path = tmp_path / "state" / "latest.json"
-    original_replace = destination_verification.os.replace
+    original_replace = os.replace
     attempts = 0
     delays: list[float] = []
 
@@ -471,8 +472,8 @@ def test_write_json_object_verified_retries_transient_replace_denial(
             raise PermissionError(5, "transient sharing violation")
         original_replace(source, destination)
 
-    monkeypatch.setattr(destination_verification.os, "replace", flaky_replace)
-    monkeypatch.setattr(destination_verification.time, "sleep", delays.append)
+    monkeypatch.setattr(os, "replace", flaky_replace)
+    monkeypatch.setattr(time, "sleep", delays.append)
 
     result = write_json_object_verified(
         path,
@@ -497,8 +498,8 @@ def test_write_json_object_verified_preserves_persistent_replace_denial(
         attempts += 1
         raise PermissionError(5, "persistent sharing violation")
 
-    monkeypatch.setattr(destination_verification.os, "replace", denied_replace)
-    monkeypatch.setattr(destination_verification.time, "sleep", lambda _delay: None)
+    monkeypatch.setattr(os, "replace", denied_replace)
+    monkeypatch.setattr(time, "sleep", lambda _delay: None)
 
     with pytest.raises(PermissionError, match="persistent sharing violation"):
         write_json_object_verified(

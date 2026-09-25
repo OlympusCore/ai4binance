@@ -716,6 +716,7 @@ class MarketHistorySupervisor:
                 now = self.clock()
                 attempts += 1
                 fast_retry = False
+                result: object
                 try:
                     if self.cycle is None:
                         result = self.synchronizer.sync_day(

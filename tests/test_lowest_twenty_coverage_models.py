@@ -6,6 +6,7 @@ or excluding production code from measurement.
 
 from __future__ import annotations
 
+import tomllib
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -90,7 +91,7 @@ def test_runtime_environment_rejects_unsafe_temp_contracts(
 ) -> None:
     directory = temporary_directory[0]
     monkeypatch.setattr(
-        ai4binance.tomllib,
+        tomllib,
         "load",
         lambda _stream: {
             "tool": {"ai4binance": {"runtime": {"temporary_directory": directory}}}
@@ -158,8 +159,8 @@ def test_shadow_diff_cannot_widen_execution_authority() -> None:
     with pytest.raises(ValueError, match="cannot authorize"):
         DgeShadowDecisionDiff(
             shadow_rule_id="shadow-1",
-            baseline_decision=blocked,  # type: ignore[arg-type]
-            shadow_decision=blocked,  # type: ignore[arg-type]
+            baseline_decision=blocked,
+            shadow_decision=blocked,
             would_change_decision=False,
             changed_fields=(),
             execution_allowed=True,
@@ -167,8 +168,8 @@ def test_shadow_diff_cannot_widen_execution_authority() -> None:
     with pytest.raises(ValueError, match="shadow rule id"):
         DgeShadowDecisionDiff(
             shadow_rule_id=" ",
-            baseline_decision=blocked,  # type: ignore[arg-type]
-            shadow_decision=blocked,  # type: ignore[arg-type]
+            baseline_decision=blocked,
+            shadow_decision=blocked,
             would_change_decision=False,
             changed_fields=(),
         )

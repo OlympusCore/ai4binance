@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import cast
 
 import pytest
 import yaml
@@ -215,11 +216,11 @@ def test_validator_reports_all_registry_document_and_relation_failures(
     _write_document(tmp_path, path, "D999")
     entries = [
         _entry(diagram_id="wrong"),
-        _entry(diagram_id="D001", path=123),
+        _entry(diagram_id="D001", path=cast(str, 123)),
         _entry(diagram_id="D002", path="../escape"),
         _entry(diagram_id="D003", path=path),
         _entry(diagram_id="D004", path=path),
-        _entry(diagram_id="D005", related_diagrams=[1]),
+        _entry(diagram_id="D005", related_diagrams=[cast(str, 1)]),
     ]
     _write_registry(tmp_path, entries)
     codes = _finding_codes(tmp_path)

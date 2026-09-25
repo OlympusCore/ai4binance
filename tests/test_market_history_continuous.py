@@ -1084,7 +1084,8 @@ def test_refresh_request_age_uses_current_clock_after_cycle_setup(
 
     status = market_history_refresh_status(request_path)
     assert status["state"] == "DATA_READY", status
-    assert "MARKET_HISTORY_REFRESH_REQUEST_EXPIRED" not in status["blockers"]
+    blockers = cast(tuple[object, ...], status["blockers"])
+    assert "MARKET_HISTORY_REFRESH_REQUEST_EXPIRED" not in blockers
 
 
 def test_refresh_request_completion_never_predates_its_request(

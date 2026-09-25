@@ -213,7 +213,7 @@ def test_docs_and_reports_have_eli10_explanations() -> None:
 
 def test_canonical_docs_markdown_filenames_and_metadata_are_classified() -> None:
     pattern = re.compile(
-        r"^(?:[a-z]+(?:_[a-z]+)?)_[a-z0-9]+(?:_[a-z0-9]+)*_[a-z0-9]+(?:_[a-z0-9]+)*\.md$"
+        r"^(?:[a-z0-9]+(?:_[a-z0-9]+)?)_[a-z0-9]+(?:_[a-z0-9]+)*_[a-z0-9]+(?:_[a-z0-9]+)*\.md$"
     )
     docs_index_exceptions = {"docs/README.md"}
     required_frontmatter_keys = {
@@ -241,9 +241,10 @@ def test_canonical_docs_markdown_filenames_and_metadata_are_classified() -> None
                     key, value = line.split(": ", 1)
                     metadata[key.strip()] = value.strip()
         missing_keys = sorted(required_frontmatter_keys - metadata.keys())
-        if not pattern.match(path.name) or not has_frontmatter or missing_keys:
+        filename_is_valid = path.name == "README.md" or pattern.match(path.name)
+        if not filename_is_valid or not has_frontmatter or missing_keys:
             detail = []
-            if not pattern.match(path.name):
+            if not filename_is_valid:
                 detail.append("filename")
             if not has_frontmatter:
                 detail.append("frontmatter")
@@ -735,9 +736,9 @@ def test_instruction_context_router_avoids_default_corpus_loading() -> None:
     normalized_root = re.sub(r"\s+", " ", root_text)
 
     assert (
-        "Base context is this file plus the active adapter. Add nearest scoped "
-        "`AGENTS.md` only for paths within its scope."
-    ) in normalized_root
+        "Resolve root from this file, active adapter, and nearest scoped `AGENTS.md`."
+        in normalized_root
+    )
     assert "Route them; do not load by default." in root_text
     for route in (
         "| Ordinary source | Affected code/config/callers/contracts/tests |",

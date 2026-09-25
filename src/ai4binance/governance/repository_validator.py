@@ -529,11 +529,15 @@ CANONICAL_TOP_LEVEL_PATHS: tuple[str, ...] = (
 SUPPORT_TOP_LEVEL_PATHS: tuple[str, ...] = (
     ".agents",
     ".codex",
+    ".gitleaksignore",
     ".github",
     ".pytest-tmp-open-web",
     ".venv",
     ".vscode",
+    "examples",
     "factory",
+    "LICENSE",
+    "publication",
     "requirements.txt",
     "research",
 )
@@ -637,6 +641,10 @@ class RepositoryPolicy:
             *LEGACY_TOP_LEVEL_PATHS,
         )
         owners = {
+            ".gitleaksignore": "Security",
+            "LICENSE": "Governance",
+            "examples": "Documentation",
+            "publication": "Governance",
             "src": "Engineering",
             "tests": "Quality",
             "docs": "Governance",
@@ -663,7 +671,7 @@ class RepositoryPolicy:
         }
         return cls(
             policy_id="AI4B-GOV-REPO-POLICY",
-            version="1.3.0",
+            version="1.3.1",
             allowed_top_level_paths=allowed,
             source_roots=("src/ai4binance",),
             test_roots=("tests",),

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
 from ai4binance.governance.model_registry import build_advisory_inference_envelope
 from ai4binance.internal_radar import run_internal_radar_once
@@ -32,7 +33,8 @@ def test_internal_radar_persists_redacted_new_image_candidate(tmp_path: Path) ->
     assert "Last scan timestamp (UTC): `2026-09-18T00:00:00+00:00`" in markdown
     assert "[private-name.jpg](file://" in markdown
     assert "NOT_ASSESSED_WITHOUT_CONFIGURED_VISION_ANALYZER" in markdown
-    candidate = payload["candidates"][0]
+    candidates = cast(list[object], payload["candidates"])
+    candidate = candidates[0]
     assert isinstance(candidate, dict)
     assert "private-name" not in str(candidate)
     privacy = payload["privacy"]
@@ -41,7 +43,7 @@ def test_internal_radar_persists_redacted_new_image_candidate(tmp_path: Path) ->
     assert privacy["markdown_local_file_links_included"] is True
     assert payload["last_scan_timestamp_utc"] == "2026-09-18T00:00:00+00:00"
     assert "relative_path" not in candidate
-    assert payload["privacy"]["source_images_copied"] is False
+    assert privacy["source_images_copied"] is False
     assert payload["execution_allowed"] is False
 
 
@@ -84,12 +86,15 @@ def test_internal_radar_vision_mode_persists_blocked_evidence_without_image_copy
         vision_runner=BlockingVisionRunner(),  # type: ignore[arg-type]
     )
 
-    candidate = result.to_payload()["candidates"][0]
+    payload = result.to_payload()
+    candidates = cast(list[object], payload["candidates"])
+    candidate = candidates[0]
     assert isinstance(candidate, dict)
     assert candidate["assessment_status"] == "BLOCKED"
     assert "private-name" not in str(candidate)
     assert "UNREGISTERED_MODEL:local-llamacpp-qwen25vl-3b" in result.blockers
-    assert result.to_payload()["privacy"]["source_images_copied"] is False
+    privacy = cast(dict[str, object], payload["privacy"])
+    assert privacy["source_images_copied"] is False
 
 
 def test_internal_radar_vision_summary_only_counts_validated_observations(
@@ -131,14 +136,16 @@ def test_internal_radar_vision_summary_only_counts_validated_observations(
         vision_runner=ObservedVisionRunner(),  # type: ignore[arg-type]
     )
 
-    summary = result.to_payload()["vision_summary"]
+    payload = result.to_payload()
+    summary = payload["vision_summary"]
     assert isinstance(summary, dict)
     assert summary["observed_count"] == 1
     assert summary["benefit_categories"] == {"OPERATIONAL_VISIBILITY": 1}
     assert summary["tradeoff_categories"] == {"HUMAN_REVIEW_REQUIRED": 1}
-    progress = result.to_payload()["vision_progress"]
+    progress = payload["vision_progress"]
     assert progress == {"analysed": 1, "awaiting_analysis": 0}
-    candidate = result.to_payload()["candidates"][0]
+    candidates = cast(list[object], payload["candidates"])
+    candidate = candidates[0]
     assert isinstance(candidate, dict)
     assert str(candidate["last_scan_timestamp_utc"]).endswith("+00:00")
     markdown = result.latest_path.with_suffix(".md").read_text(encoding="utf-8")

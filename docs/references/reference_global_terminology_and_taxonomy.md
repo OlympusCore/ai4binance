@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-REF-TERM-TAX-001
 title: AI4BINANCE Global Terminology and Taxonomy Reference
 document_type: REFERENCE
-version: 1.0.1
+version: 1.0.2
 status: DRAFT
 owner: Enterprise Knowledge Governance
 authority_level: REFERENCE
@@ -35,6 +35,10 @@ It is explanatory only and does not replace the active governed standard.
 This reference preserves the project-wide terminology families, decision vocabulary, evidence vocabulary, risk vocabulary, lifecycle vocabulary, registry vocabulary, and taxonomy maps from the active standard.
 
 Normative authority remains in `docs/standards/standard_terminology_governance.md`.
+
+The deterministic terminology projection and validation mechanics are implemented by
+`src/ai4binance/governance/terminology_policy.py`. The implementation remains
+non-authoritative and cannot widen the standard or the shared enforcement fabric.
 
 | Output file | Original sections |
 |---|---|

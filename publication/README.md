@@ -7,6 +7,12 @@ second, non-overridable defense layer.
 The export remains local-only until its selected files have passed
 sanitization, secret scanning, diff review, and explicit human approval.
 
+`src/ai4binance/ops/public_showcase.py` enforces the local staging boundary and
+invokes the repository-pinned Gitleaks binary with a fixed argument vector,
+`shell=False`, bounded timeout handling, and redacted output. This scanner
+boundary is report/block only and never grants publication, promotion,
+deployment, or trading authority.
+
 ## Disclosure Policy
 
 | Level | Public treatment |

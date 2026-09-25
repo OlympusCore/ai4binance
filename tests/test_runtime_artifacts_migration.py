@@ -145,7 +145,7 @@ def test_layout_mapping_helpers_cover_all_invalid_contract_shapes() -> None:
     for value in text_mapping_values:
         with pytest.raises(
             ValueError,
-            match=r"roots must be (a non-empty object|contain non-empty strings)",
+            match=r"roots must (?:be a non-empty object|contain non-empty strings)",
         ):
             layout._text_mapping(value, "roots")
     with pytest.raises(ValueError, match="canonical_root must be a non-empty string"):

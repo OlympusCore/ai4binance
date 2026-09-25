@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import cast
 from urllib.request import Request
 
 import pytest
@@ -96,7 +97,9 @@ def test_vision_runner_persists_only_validated_categorical_evidence(
         return Response()
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
-    evidence = LlamaCppVisionRunner(model_gateway=AllowedGateway()).analyze(
+    evidence = LlamaCppVisionRunner(
+        model_gateway=cast(ModelGateway, AllowedGateway())
+    ).analyze(
         candidate_id="internal-image:0123456789abcdef",
         source_content_sha256="b" * 64,
         image_path=image,
@@ -108,7 +111,8 @@ def test_vision_runner_persists_only_validated_categorical_evidence(
     assert payload["image_category"] == "DASHBOARD"
     assert payload["extracted_text_present"] is True
     assert "private-image" not in json.dumps(payload)
-    assert payload["privacy"]["raw_ocr_text_persisted"] is False
+    privacy = cast(dict[str, object], payload["privacy"])
+    assert privacy["raw_ocr_text_persisted"] is False
     assert payload["execution_allowed"] is False
 
 
@@ -133,7 +137,9 @@ def test_vision_runner_rejects_unstructured_model_output(
             return None
 
     monkeypatch.setattr("urllib.request.urlopen", lambda *_args, **_kwargs: Response())
-    evidence = LlamaCppVisionRunner(model_gateway=AllowedGateway()).analyze(
+    evidence = LlamaCppVisionRunner(
+        model_gateway=cast(ModelGateway, AllowedGateway())
+    ).analyze(
         candidate_id="internal-image:0123456789abcdef",
         source_content_sha256="c" * 64,
         image_path=image,
@@ -178,7 +184,9 @@ def test_vision_runner_accepts_one_json_code_fence(
             return None
 
     monkeypatch.setattr("urllib.request.urlopen", lambda *_args, **_kwargs: Response())
-    evidence = LlamaCppVisionRunner(model_gateway=AllowedGateway()).analyze(
+    evidence = LlamaCppVisionRunner(
+        model_gateway=cast(ModelGateway, AllowedGateway())
+    ).analyze(
         candidate_id="internal-image:0123456789abcdef",
         source_content_sha256="d" * 64,
         image_path=image,
