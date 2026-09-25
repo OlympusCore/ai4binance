@@ -62,6 +62,32 @@ def test_quality_attestation_does_not_inherit_an_ancestor_git_repository(
     assert attestation.change_set_sha256 == sha256(b"").hexdigest()
 
 
+def test_quality_attestation_ignores_source_generated_build_artifacts(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "src" / "ai4binance"
+    source.mkdir(parents=True)
+    (source / "module.py").write_text("VALUE = 1\n", encoding="utf-8")
+    baseline = constitution_sync_module.build_quality_gate_workspace_attestation(
+        tmp_path
+    )
+
+    egg_info = tmp_path / "src" / "ai4binance.egg-info"
+    egg_info.mkdir()
+    (egg_info / "PKG-INFO").write_text(
+        "Metadata-Version: 2.1\n",
+        encoding="utf-8",
+    )
+    (source / "module.cpython-314.pyc").write_bytes(b"generated")
+    (source / "module.pyo").write_bytes(b"generated")
+
+    generated = constitution_sync_module.build_quality_gate_workspace_attestation(
+        tmp_path
+    )
+
+    assert generated.repository_tree_sha256 == baseline.repository_tree_sha256
+
+
 def write_core_documents(root: Path, *, compliance_extra: str = "") -> None:
     (root / "AGENTS.md").write_text(
         "\n".join(

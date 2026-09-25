@@ -820,6 +820,8 @@ def _quality_gate_attestation_ignores(parts: tuple[str, ...]) -> bool:
             return True
         if normalized == ".coverage" or normalized.startswith(".coverage."):
             return True
+        if normalized.endswith((".egg-info", ".pyc", ".pyo")):
+            return True
     return False
 
 
