@@ -135,10 +135,11 @@ def _eligible_symbols(cache_root: Path) -> tuple[str, ...]:
         observed_at = datetime.fromisoformat(str(payload["observed_at"]))
     except (KeyError, TypeError, ValueError):
         raise ValueError("FUTURES_MULTITF_UNIVERSE_INVALID") from None
+    if observed_at.utcoffset() is None:
+        raise ValueError("FUTURES_MULTITF_UNIVERSE_INVALID")
     age = datetime.now(UTC) - observed_at
     if (
-        observed_at.utcoffset() is None
-        or not timedelta(0) <= age <= _UNIVERSE_MAX_AGE
+        not timedelta(0) <= age <= _UNIVERSE_MAX_AGE
         or payload.get("source") != RESEARCH_MARKET_UNIVERSE_SOURCE
         or payload.get("execution_allowed") is not False
         or payload.get("live_eligibility_status") != "LIVE_ORDER_BLOCKED"

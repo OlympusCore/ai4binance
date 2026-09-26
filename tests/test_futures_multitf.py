@@ -466,6 +466,19 @@ def test_eligible_symbols_validates_and_normalizes_cached_universe(
         _eligible_symbols(tmp_path)
 
     path.write_text(
+        json.dumps(
+            {
+                **base,
+                "observed_at": datetime.now().replace(microsecond=0).isoformat(),
+                "futures_symbols": ["BTCUSDT"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="UNIVERSE_INVALID"):
+        _eligible_symbols(tmp_path)
+
+    path.write_text(
         json.dumps({**base, "futures_symbols": ["../bad", 7]}),
         encoding="utf-8",
     )
