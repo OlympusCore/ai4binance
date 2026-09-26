@@ -94,6 +94,32 @@ def test_external_agents_require_sourced_numeric_snapshots() -> None:
     assert stale.blockers == ("EXTERNAL_EVIDENCE_STALE_OR_FUTURE",)
 
 
+def test_derivatives_context_does_not_require_a_directional_prediction() -> None:
+    registry = build_default_registry()
+    base = technical_snapshot()
+    snapshot = replace(
+        base,
+        market_type="USD_M_FUTURES",
+        derivatives_snapshot={
+            "source_count": 4,
+            "as_of": base.created_at.isoformat(),
+            "funding_rate": "0.0001",
+            "open_interest": "500000",
+            "mark_price": "1.118",
+            "index_price": "1.117",
+        },
+    )
+    agent = build_advanced_agent(registry.get("derivatives"))
+    assert agent is not None
+
+    result = agent.analyze(snapshot, {})
+
+    assert result.status is AgentStatus.PARTIAL
+    assert result.directional_vote == 0.0
+    assert result.score == 50.0
+    assert result.warnings == ("SUPPLEMENTARY_FUTURES_CONTEXT_ONLY",)
+
+
 def test_order_flow_uses_explicit_depth_and_remains_supplementary() -> None:
     registry = build_default_registry()
     snapshot = replace(

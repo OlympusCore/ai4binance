@@ -2,14 +2,16 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from hashlib import sha256
+from typing import cast
 
 from ai4binance.domain import Action, CandidateStatus, TradeCandidate
 from ai4binance.intelligence.contracts import (
     CalibrationState,
     ConfidenceComponent,
+    ConfirmedSwing,
     DerivativesContextEvidence,
     PatternHypothesisEvidence,
     ScenarioDirection,
@@ -17,29 +19,26 @@ from ai4binance.intelligence.contracts import (
     ScenarioState,
     ScenarioType,
     StructuralLevelEvidence,
+    StructureEvent,
     StructureState,
+    SwingKind,
     TimeframeStructureEvidence,
     TradingIntelligenceState,
     TrendGeometryEvidence,
 )
+from ai4binance.intelligence.derivatives import FuturesContextEngine
 from ai4binance.intelligence.levels import StructuralLevelMapEngine
+from ai4binance.intelligence.patterns import PatternHypothesisFabric
+from ai4binance.intelligence.trend import TrendGeometryEngine
 from ai4binance.schemas import (
     AgentResult,
+    DataQuality,
     MarketSnapshot,
-    is_futures_market_type,
     is_usable_agent_result,
 )
 
 ZERO = Decimal("0")
 STRUCTURE_PRIORITY = ("1d", "4h", "1h", "15m", "5m")
-PATTERN_AGENTS = (
-    "chart_pattern",
-    "fibonacci",
-    "harmonic_pattern",
-    "elliott_wave",
-    "candlestick",
-    "price_action",
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +48,20 @@ class TradingIntelligenceEngine:
     level_map_engine: StructuralLevelMapEngine = field(
         default_factory=StructuralLevelMapEngine
     )
+    trend_geometry_engine: TrendGeometryEngine = field(
+        default_factory=TrendGeometryEngine
+    )
+    pattern_hypothesis_fabric: PatternHypothesisFabric = field(
+        default_factory=PatternHypothesisFabric
+    )
+    futures_context_engine: FuturesContextEngine = field(
+        default_factory=FuturesContextEngine
+    )
+    minimum_scenario_separation: float = 0.10
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.minimum_scenario_separation <= 1.0:
+            raise ValueError("scenario separation must be between zero and one")
 
     def build(
         self,
@@ -59,14 +72,16 @@ class TradingIntelligenceEngine:
         identity_blockers = self._identity_blockers(snapshot, agent_results)
         structures = self._structures(snapshot, agent_results)
         levels = self._levels(snapshot, agent_results, structures)
-        trend_geometry = self._trend_geometry(snapshot, agent_results)
+        trend_geometry = self._trend_geometry(snapshot, agent_results, structures)
         pattern_hypotheses = self._patterns(snapshot, agent_results)
         derivatives = self._derivatives(snapshot, agent_results)
+        cost_ratio, cost_blockers = self._cost_model(snapshot, derivatives)
         scenarios, selected_id, scenario_blockers, warnings = self._scenarios(
             snapshot,
             agent_results,
             structures,
             levels,
+            trend_geometry,
             pattern_hypotheses,
             derivatives,
         )
@@ -92,6 +107,8 @@ class TradingIntelligenceEngine:
             derivatives_context=derivatives,
             scenarios=scenarios,
             selected_scenario_id=selected_id,
+            estimated_round_trip_cost_ratio=cost_ratio,
+            cost_blockers=cost_blockers,
             blockers=blockers,
             warnings=warnings,
         )
@@ -179,6 +196,13 @@ class TradingIntelligenceEngine:
             elif primary.state is not ScenarioState.CONFIRMED:
                 status = CandidateStatus.RESEARCH_ONLY
                 candidate_blockers.extend(("SCENARIO_NOT_CONFIRMED", *primary.blockers))
+            net_risk_reward = self._net_risk_reward(
+                candidate,
+                state.estimated_round_trip_cost_ratio,
+            )
+            if candidate.market_type == "USD_M_FUTURES" and net_risk_reward is None:
+                status = CandidateStatus.RESEARCH_ONLY
+                candidate_blockers.extend(state.cost_blockers)
             bound.append(
                 replace(
                     candidate,
@@ -192,9 +216,23 @@ class TradingIntelligenceEngine:
                         else None
                     ),
                     structural_risk_reward=candidate.risk_reward,
-                    net_risk_reward=None,
+                    net_risk_reward=net_risk_reward,
+                    estimated_round_trip_cost_ratio=(
+                        state.estimated_round_trip_cost_ratio
+                    ),
                     expected_r=None,
                     probability_calibration_state=primary.calibration_state.value,
+                    entry_trigger=self._entry_trigger(primary),
+                    entry_state=(
+                        "ENTRY_VALID"
+                        if primary.state is ScenarioState.CONFIRMED
+                        else "ENTRY_NOT_READY"
+                    ),
+                    entry_expiry=self._entry_expiry(
+                        candidate.timestamp,
+                        candidate.timeframe,
+                    ),
+                    target_sources=("STRATEGY_ENGINE_STRUCTURAL_TARGET",),
                     evidence=tuple(
                         dict.fromkeys(
                             (
@@ -208,6 +246,59 @@ class TradingIntelligenceEngine:
                 )
             )
         return tuple(bound)
+
+    @classmethod
+    def _cost_model(
+        cls,
+        snapshot: MarketSnapshot,
+        derivatives: DerivativesContextEvidence,
+    ) -> tuple[Decimal | None, tuple[str, ...]]:
+        blockers: list[str] = []
+        latest_price = snapshot.latest_price
+        if latest_price is None or latest_price <= ZERO or snapshot.spread is None:
+            blockers.append("COST_SPREAD_EVIDENCE_UNAVAILABLE")
+            spread_ratio = None
+        else:
+            spread_ratio = snapshot.spread / latest_price
+        fee_ratio = cls._decimal(
+            snapshot.market_metadata.get("estimated_fee_ratio")
+            or snapshot.market_metadata.get("fee_ratio")
+        )
+        slippage_ratio = cls._decimal(
+            snapshot.market_metadata.get("estimated_slippage_ratio")
+        )
+        if fee_ratio is None or fee_ratio < ZERO:
+            blockers.append("COST_FEE_EVIDENCE_UNAVAILABLE")
+        if slippage_ratio is None or slippage_ratio < ZERO:
+            blockers.append("COST_SLIPPAGE_EVIDENCE_UNAVAILABLE")
+        funding_ratio = ZERO
+        if snapshot.market_type == "USD_M_FUTURES":
+            if derivatives.funding_rate is None:
+                blockers.append("COST_FUNDING_EVIDENCE_UNAVAILABLE")
+            else:
+                funding_ratio = abs(derivatives.funding_rate)
+        if blockers:
+            return None, tuple(dict.fromkeys(blockers))
+        assert spread_ratio is not None
+        assert fee_ratio is not None
+        assert slippage_ratio is not None
+        round_trip = spread_ratio + (fee_ratio * 2) + (slippage_ratio * 2)
+        return round_trip + funding_ratio, ()
+
+    @staticmethod
+    def _net_risk_reward(
+        candidate: TradeCandidate,
+        cost_ratio: Decimal | None,
+    ) -> Decimal | None:
+        if cost_ratio is None:
+            return None
+        entry = candidate.entry_price
+        risk = abs(entry - candidate.invalidation_level)
+        gross_reward = abs(candidate.take_profit_levels[0] - entry)
+        net_reward = gross_reward - (entry * cost_ratio)
+        if risk <= ZERO or net_reward <= ZERO:
+            return None
+        return cast(Decimal, net_reward / risk)
 
     @staticmethod
     def _identity_blockers(
@@ -260,6 +351,8 @@ class TradingIntelligenceEngine:
                         if confidence is not None
                         else result.confidence
                     ),
+                    swings=self._swings(raw.get("swings"), timeframe),
+                    events=self._events(raw.get("events")),
                     reason_codes=("MARKET_STRUCTURE_AGENT_PROJECTION",),
                     warnings=self._string_tuple(raw.get("structure_warnings")),
                 )
@@ -279,114 +372,25 @@ class TradingIntelligenceEngine:
         self,
         snapshot: MarketSnapshot,
         agent_results: Mapping[str, AgentResult],
+        structures: tuple[TimeframeStructureEvidence, ...],
     ) -> tuple[TrendGeometryEvidence, ...]:
         result = agent_results.get("trend_channel")
-        if result is None or not is_usable_agent_result(result):
-            return ()
-        metadata = result.calculation_metadata
-        slope = self._decimal(metadata.get("slope"))
-        width = self._decimal(metadata.get("channel_width"))
-        if slope is None or width is None:
-            return ()
-        source_timeframe = next(
-            (
-                timeframe
-                for timeframe in STRUCTURE_PRIORITY
-                if len(snapshot.ohlcv_by_timeframe.get(timeframe, ())) >= 55
-            ),
-            "UNKNOWN",
-        )
-        blockers = (
-            ("TREND_SOURCE_TIMEFRAME_UNBOUND",) if source_timeframe == "UNKNOWN" else ()
-        )
-        return (
-            TrendGeometryEvidence(
-                source_timeframe=source_timeframe,
-                slope=slope,
-                channel_width=width,
-                state=str(metadata.get("direction", "UNKNOWN")),
-                touch_quality="NOT_MEASURED",
-                evidence_ref="trend_channel:LINEAR_CHANNEL_SLOPE",
-                confidence=result.confidence,
-                blockers=blockers,
-            ),
-        )
+        return self.trend_geometry_engine.build(snapshot, structures, result)
 
     def _patterns(
         self,
         snapshot: MarketSnapshot,
         agent_results: Mapping[str, AgentResult],
     ) -> tuple[PatternHypothesisEvidence, ...]:
-        hypotheses: list[PatternHypothesisEvidence] = []
-        for name in PATTERN_AGENTS:
-            result = agent_results.get(name)
-            if result is None or not is_usable_agent_result(result):
-                continue
-            direction = self._direction(result.directional_vote)
-            lifecycle = str(
-                result.calculation_metadata.get("lifecycle_state", "RESEARCH_ONLY")
-            )
-            evidence_for = result.evidence or (f"{name}:RULE_EVALUATED",)
-            digest = sha256(
-                f"{snapshot.snapshot_id}|{name}|{direction.value}".encode()
-            ).hexdigest()[:16]
-            hypotheses.append(
-                PatternHypothesisEvidence(
-                    hypothesis_id=f"pattern:{digest}",
-                    family=name.upper(),
-                    direction=direction,
-                    lifecycle_state=lifecycle,
-                    confidence=result.confidence,
-                    evidence_for=evidence_for,
-                    evidence_against=tuple(
-                        dict.fromkeys(
-                            (
-                                *result.counter_evidence,
-                                *result.blockers,
-                                *result.warnings,
-                            )
-                        )
-                    ),
-                    invalidation=result.invalidation,
-                )
-            )
-        return tuple(hypotheses)
+        return self.pattern_hypothesis_fabric.build(snapshot, agent_results)
 
     def _derivatives(
         self,
         snapshot: MarketSnapshot,
         agent_results: Mapping[str, AgentResult],
     ) -> DerivativesContextEvidence:
-        if not is_futures_market_type(snapshot.market_type):
-            return DerivativesContextEvidence(
-                status="NOT_APPLICABLE",
-                source_count=0,
-                as_of=None,
-                evidence_refs=("SPOT_MARKET",),
-            )
         result = agent_results.get("derivatives")
-        if result is None or not is_usable_agent_result(result) or result.blockers:
-            return DerivativesContextEvidence(
-                status="BLOCKED",
-                source_count=0,
-                as_of=None,
-                blockers=("FUTURES_DERIVATIVES_CONTEXT_UNAVAILABLE",),
-            )
-        source_count = self._integer(result.calculation_metadata.get("source_count"))
-        as_of = self._datetime(result.calculation_metadata.get("as_of"))
-        if source_count is None or source_count < 1 or as_of is None:
-            return DerivativesContextEvidence(
-                status="BLOCKED",
-                source_count=0,
-                as_of=None,
-                blockers=("FUTURES_DERIVATIVES_CONTEXT_INVALID",),
-            )
-        return DerivativesContextEvidence(
-            status="AVAILABLE",
-            source_count=source_count,
-            as_of=as_of,
-            evidence_refs=result.evidence or ("DERIVATIVES_AGENT",),
-        )
+        return self.futures_context_engine.build(snapshot, result)
 
     def _scenarios(
         self,
@@ -394,6 +398,7 @@ class TradingIntelligenceEngine:
         agent_results: Mapping[str, AgentResult],
         structures: tuple[TimeframeStructureEvidence, ...],
         levels: tuple[StructuralLevelEvidence, ...],
+        trend_geometry: tuple[TrendGeometryEvidence, ...],
         patterns: tuple[PatternHypothesisEvidence, ...],
         derivatives: DerivativesContextEvidence,
     ) -> tuple[
@@ -407,6 +412,7 @@ class TradingIntelligenceEngine:
         directional = by_timeframe.get("4h") or by_timeframe.get("1h")
         setup = by_timeframe.get("1h") or directional
         mtf = agent_results.get("multi_timeframe")
+        data_quality = agent_results.get("data_quality")
         regime_result = agent_results.get("market_regime")
         regime = self._regime(regime_result)
         if directional is None:
@@ -415,7 +421,14 @@ class TradingIntelligenceEngine:
             return (scenario,), None, unavailable, ()
         direction = self._structure_direction(directional.state)
         if direction is ScenarioDirection.NEUTRAL:
-            scenario = self._neutral_scenario(snapshot, directional, regime, mtf)
+            scenario = self._neutral_scenario(
+                snapshot,
+                directional,
+                regime,
+                mtf,
+                data_quality,
+                derivatives,
+            )
             return (scenario,), scenario.scenario_id, (), ()
         blockers = list(self._hierarchy_blockers(direction, macro, setup, mtf))
         trigger = self._trigger(agent_results)
@@ -440,7 +453,9 @@ class TradingIntelligenceEngine:
             regime,
             direction,
             levels,
+            trend_geometry,
             patterns,
+            derivatives,
             mtf,
             trigger,
             trigger_direction,
@@ -454,6 +469,14 @@ class TradingIntelligenceEngine:
             regime=regime,
             mtf_confidence=mtf.confidence if mtf is not None else 0.0,
             trigger_confidence=trigger.confidence if trigger is not None else 0.0,
+            data_confidence=self._data_confidence(snapshot, data_quality),
+            context_confidence=(
+                derivatives.confidence
+                if derivatives.status == "AVAILABLE"
+                else 1.0
+                if derivatives.status == "NOT_APPLICABLE"
+                else 0.0
+            ),
             evidence_for=evidence_for,
             evidence_against=tuple(dict.fromkeys(blockers)),
             blockers=scenario_blockers,
@@ -467,6 +490,12 @@ class TradingIntelligenceEngine:
             trigger_direction,
         )
         scenarios = (primary,) if reversal is None else (primary, reversal)
+        if (
+            reversal is not None
+            and abs(primary.confidence - reversal.confidence)
+            < self.minimum_scenario_separation
+        ):
+            blockers.append("SCENARIO_SEPARATION_INSUFFICIENT")
         selected_id = None if blockers else primary.scenario_id
         return (
             scenarios,
@@ -481,6 +510,8 @@ class TradingIntelligenceEngine:
         structure: TimeframeStructureEvidence,
         regime: str,
         mtf: AgentResult | None,
+        data_quality: AgentResult | None,
+        derivatives: DerivativesContextEvidence,
     ) -> ScenarioHypothesis:
         scenario_type = (
             ScenarioType.BREAKOUT_PENDING
@@ -496,6 +527,14 @@ class TradingIntelligenceEngine:
             regime=regime,
             mtf_confidence=mtf.confidence if mtf is not None else 0.0,
             trigger_confidence=0.0,
+            data_confidence=self._data_confidence(snapshot, data_quality),
+            context_confidence=(
+                derivatives.confidence
+                if derivatives.status == "AVAILABLE"
+                else 1.0
+                if derivatives.status == "NOT_APPLICABLE"
+                else 0.0
+            ),
             evidence_for=(
                 f"STRUCTURE:{structure.timeframe}:{structure.state.value}",
                 f"REGIME:{regime}",
@@ -558,7 +597,9 @@ class TradingIntelligenceEngine:
         regime: str,
         direction: ScenarioDirection,
         levels: tuple[StructuralLevelEvidence, ...],
+        trend_geometry: tuple[TrendGeometryEvidence, ...],
         patterns: tuple[PatternHypothesisEvidence, ...],
+        derivatives: DerivativesContextEvidence,
         mtf: AgentResult | None,
         trigger: AgentResult | None,
         trigger_direction: ScenarioDirection,
@@ -572,6 +613,13 @@ class TradingIntelligenceEngine:
             for item in levels
             if item.source_timeframe == structure.timeframe
             and item.freshness != "STALE"
+        )
+        if derivatives.status == "AVAILABLE":
+            evidence.extend(derivatives.evidence_refs)
+        evidence.extend(
+            item.evidence_ref
+            for item in trend_geometry
+            if item.source_timeframe == structure.timeframe and not item.blockers
         )
         if mtf is not None:
             evidence.extend(mtf.evidence or ("MULTI_TIMEFRAME_EVALUATED",))
@@ -629,6 +677,8 @@ class TradingIntelligenceEngine:
         mtf_confidence: float,
         trigger_confidence: float,
         evidence_for: tuple[str, ...],
+        data_confidence: float = 1.0,
+        context_confidence: float = 1.0,
         evidence_against: tuple[str, ...] = (),
         blockers: tuple[str, ...] = (),
     ) -> ScenarioHypothesis:
@@ -636,6 +686,8 @@ class TradingIntelligenceEngine:
             ConfidenceComponent("structure", structure.confidence),
             ConfidenceComponent("multi_timeframe", max(0.0, mtf_confidence)),
             ConfidenceComponent("entry_trigger", max(0.0, trigger_confidence)),
+            ConfidenceComponent("data_quality", max(0.0, data_confidence)),
+            ConfidenceComponent("futures_context", max(0.0, context_confidence)),
         )
         payload = (
             f"{snapshot.snapshot_id}|{scenario_type.value}|{direction.value}|"
@@ -669,6 +721,8 @@ class TradingIntelligenceEngine:
             ConfidenceComponent("structure", 0.0),
             ConfidenceComponent("multi_timeframe", 0.0),
             ConfidenceComponent("entry_trigger", 0.0),
+            ConfidenceComponent("data_quality", 0.0),
+            ConfidenceComponent("futures_context", 0.0),
         )
         digest = sha256(f"{snapshot.snapshot_id}|NO_VALID_SETUP".encode()).hexdigest()[
             :20
@@ -712,6 +766,49 @@ class TradingIntelligenceEngine:
         return value if isinstance(value, str) and value.strip() else "UNKNOWN"
 
     @staticmethod
+    def _data_confidence(
+        snapshot: MarketSnapshot,
+        result: AgentResult | None,
+    ) -> float:
+        if result is not None and is_usable_agent_result(result):
+            return result.confidence
+        if snapshot.data_quality is DataQuality.DATA_VALID:
+            return 1.0
+        if snapshot.data_quality is DataQuality.DATA_DEGRADED:
+            return 0.5
+        return 0.0
+
+    @staticmethod
+    def _entry_trigger(scenario: ScenarioHypothesis) -> str:
+        return next(
+            (
+                item
+                for item in scenario.evidence_for
+                if any(
+                    marker in item
+                    for marker in ("ENGULFING", "BREAKOUT", "RETEST", "TRIGGER")
+                )
+            ),
+            "SCENARIO_CONFIRMATION",
+        )
+
+    @staticmethod
+    def _entry_expiry(timestamp: datetime, timeframe: str) -> datetime | None:
+        unit = timeframe[-1:].lower()
+        raw_value = timeframe[:-1]
+        if not raw_value.isdigit():
+            return None
+        value = int(raw_value)
+        if value < 1:
+            return None
+        delta = {
+            "m": timedelta(minutes=value),
+            "h": timedelta(hours=value),
+            "d": timedelta(days=value),
+        }.get(unit)
+        return timestamp + delta if delta is not None else None
+
+    @staticmethod
     def _structure_direction(state: StructureState) -> ScenarioDirection:
         if state is StructureState.BULLISH:
             return ScenarioDirection.LONG
@@ -747,6 +844,97 @@ class TradingIntelligenceEngine:
             if isinstance(value, str)
             else None
         )
+
+    @classmethod
+    def _swings(
+        cls,
+        value: object,
+        timeframe: str,
+    ) -> tuple[ConfirmedSwing, ...]:
+        if not isinstance(value, (tuple, list)):
+            return ()
+        swings: list[ConfirmedSwing] = []
+        for item in value:
+            raw = cls._mapping(item)
+            kind_value = raw.get("kind")
+            index = cls._integer(raw.get("candle_index"))
+            occurred_at = cls._datetime(raw.get("occurred_at"))
+            available_at = cls._datetime(raw.get("available_at"))
+            price = cls._decimal(raw.get("price"))
+            label = raw.get("label")
+            significance = cls._decimal(raw.get("atr_significance"))
+            try:
+                kind = SwingKind(kind_value) if isinstance(kind_value, str) else None
+            except ValueError:
+                kind = None
+            if (
+                kind is None
+                or index is None
+                or occurred_at is None
+                or available_at is None
+                or price is None
+                or not isinstance(label, str)
+                or significance is None
+            ):
+                continue
+            try:
+                swings.append(
+                    ConfirmedSwing(
+                        timeframe=timeframe,
+                        kind=kind,
+                        candle_index=index,
+                        occurred_at=occurred_at,
+                        available_at=available_at,
+                        price=price,
+                        label=label,
+                        atr_significance=significance,
+                    )
+                )
+            except ValueError:
+                continue
+        return tuple(swings)
+
+    @classmethod
+    def _events(cls, value: object) -> tuple[StructureEvent, ...]:
+        if not isinstance(value, (tuple, list)):
+            return ()
+        events: list[StructureEvent] = []
+        for item in value:
+            raw = cls._mapping(item)
+            event_type = raw.get("event_type")
+            direction_value = raw.get("direction")
+            level = cls._decimal(raw.get("level"))
+            occurred_at = cls._datetime(raw.get("occurred_at"))
+            evidence_ref = raw.get("evidence_ref")
+            try:
+                direction = (
+                    ScenarioDirection(direction_value)
+                    if isinstance(direction_value, str)
+                    else None
+                )
+            except ValueError:
+                direction = None
+            if (
+                not isinstance(event_type, str)
+                or direction is None
+                or level is None
+                or occurred_at is None
+                or not isinstance(evidence_ref, str)
+            ):
+                continue
+            try:
+                events.append(
+                    StructureEvent(
+                        event_type=event_type,
+                        direction=direction,
+                        level=level,
+                        occurred_at=occurred_at,
+                        evidence_ref=evidence_ref,
+                    )
+                )
+            except ValueError:
+                continue
+        return tuple(events)
 
     @staticmethod
     def _mapping(value: object) -> Mapping[str, object]:

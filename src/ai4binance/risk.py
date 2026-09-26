@@ -162,6 +162,13 @@ class RiskEngine:
         blockers = list(candidate.blockers)
         if candidate.status is not CandidateStatus.READY_FOR_RISK:
             blockers.append("CANDIDATE_NOT_READY_FOR_RISK")
+        if candidate.scenario_id is not None and candidate.entry_state != "ENTRY_VALID":
+            blockers.append("SCENARIO_ENTRY_NOT_VALID")
+        if (
+            candidate.entry_expiry is not None
+            and snapshot.created_at >= candidate.entry_expiry
+        ):
+            blockers.append("CANDIDATE_ENTRY_EXPIRED")
         if (
             execution_surface is ExecutionSurface.BINANCE_MARKET
             and candidate.promotion_status

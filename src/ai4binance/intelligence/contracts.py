@@ -63,6 +63,28 @@ class CalibrationState(StrEnum):
     CALIBRATED = "OOS_CALIBRATED"
 
 
+class PatternLifecycleState(StrEnum):
+    """Normalized research lifecycle for every pattern family."""
+
+    FORMING = "FORMING"
+    CONFIRMED = "CONFIRMED"
+    FAILED = "FAILED"
+    INVALIDATED = "INVALIDATED"
+    CONTEXT_ONLY = "CONTEXT_ONLY"
+    ALTERNATIVE_UNRESOLVED = "ALTERNATIVE_UNRESOLVED"
+
+
+class TrendGeometryState(StrEnum):
+    """Lifecycle of one deterministic dynamic trend zone."""
+
+    VALID = "TRENDLINE_VALID"
+    WEAKENING = "TRENDLINE_WEAKENING"
+    BREAK = "TRENDLINE_BREAK"
+    FALSE_BREAK = "TRENDLINE_FALSE_BREAK"
+    RETEST = "TRENDLINE_RETEST"
+    SIDEWAYS = "TRENDLINE_SIDEWAYS"
+
+
 def _require_aware(name: str, value: datetime) -> None:
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError(f"{name} must be timezone-aware")
@@ -205,6 +227,15 @@ class TrendGeometryEvidence:
     touch_quality: str
     evidence_ref: str
     confidence: float
+    anchor_points: tuple[tuple[datetime, Decimal], ...] = field(default_factory=tuple)
+    intercept: Decimal = ZERO
+    touch_count: int = 0
+    atr_normalized_error: Decimal = ZERO
+    age_bars: int = 0
+    break_state: str = "UNBROKEN"
+    retest_state: str = "NOT_RETESTED"
+    compression_state: str = "NOT_MEASURED"
+    acceleration_state: str = "NOT_MEASURED"
     blockers: tuple[str, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
@@ -218,6 +249,24 @@ class TrendGeometryEvidence:
             raise ValueError("trend geometry identity cannot be empty")
         if self.channel_width < ZERO:
             raise ValueError("trend channel width cannot be negative")
+        if self.touch_count < 0 or self.age_bars < 0:
+            raise ValueError("trend geometry counts cannot be negative")
+        if self.atr_normalized_error < ZERO:
+            raise ValueError("trend geometry error cannot be negative")
+        for timestamp, price in self.anchor_points:
+            _require_aware("trend anchor timestamp", timestamp)
+            if price <= ZERO:
+                raise ValueError("trend anchor price must be positive")
+        if any(
+            not value.strip()
+            for value in (
+                self.break_state,
+                self.retest_state,
+                self.compression_state,
+                self.acceleration_state,
+            )
+        ):
+            raise ValueError("trend geometry lifecycle cannot be empty")
         _require_confidence("trend geometry confidence", self.confidence)
         _require_nonblank("trend geometry blockers", self.blockers)
 
@@ -234,6 +283,10 @@ class PatternHypothesisEvidence:
     evidence_for: tuple[str, ...]
     evidence_against: tuple[str, ...] = field(default_factory=tuple)
     invalidation: str | None = None
+    source_timeframe: str = "UNKNOWN"
+    geometry_quality: float = 0.0
+    completion_quality: float = 0.0
+    attributes: tuple[tuple[str, str], ...] = field(default_factory=tuple)
     primary_direction_signal: bool = False
     execution_allowed: bool = False
 
@@ -242,6 +295,12 @@ class PatternHypothesisEvidence:
         if any(not value.strip() for value in required):
             raise ValueError("pattern hypothesis identity cannot be empty")
         _require_confidence("pattern hypothesis confidence", self.confidence)
+        _require_confidence("pattern geometry quality", self.geometry_quality)
+        _require_confidence("pattern completion quality", self.completion_quality)
+        if not self.source_timeframe.strip():
+            raise ValueError("pattern source timeframe cannot be empty")
+        if any(not key.strip() or not value.strip() for key, value in self.attributes):
+            raise ValueError("pattern attributes cannot contain blank values")
         _require_nonblank("pattern evidence_for", self.evidence_for)
         _require_nonblank("pattern evidence_against", self.evidence_against)
         if self.primary_direction_signal or self.execution_allowed:
@@ -257,6 +316,16 @@ class DerivativesContextEvidence:
     as_of: datetime | None
     evidence_refs: tuple[str, ...] = field(default_factory=tuple)
     blockers: tuple[str, ...] = field(default_factory=tuple)
+    age_seconds: int | None = None
+    funding_rate: Decimal | None = None
+    open_interest: Decimal | None = None
+    basis: Decimal | None = None
+    mark_price: Decimal | None = None
+    index_price: Decimal | None = None
+    mark_index_divergence: Decimal | None = None
+    taker_buy_sell_ratio: Decimal | None = None
+    crowding_state: str = "UNKNOWN"
+    confidence: float = 0.0
     execution_allowed: bool = False
 
     def __post_init__(self) -> None:
@@ -264,10 +333,42 @@ class DerivativesContextEvidence:
             raise ValueError("derivatives context identity is invalid")
         if self.as_of is not None:
             _require_aware("derivatives context as_of", self.as_of)
+        if self.age_seconds is not None and self.age_seconds < 0:
+            raise ValueError("derivatives context age cannot be negative")
+        self._validate_metrics()
+        _require_confidence("derivatives context confidence", self.confidence)
+        if not self.crowding_state.strip():
+            raise ValueError("derivatives crowding state cannot be empty")
         _require_nonblank("derivatives evidence refs", self.evidence_refs)
         _require_nonblank("derivatives blockers", self.blockers)
         if self.execution_allowed:
             raise ValueError("derivatives context cannot authorize execution")
+
+    def _validate_metrics(self) -> None:
+        """Reject non-finite or impossible typed derivatives metrics."""
+        for field_name in (
+            "funding_rate",
+            "open_interest",
+            "basis",
+            "mark_price",
+            "index_price",
+            "mark_index_divergence",
+            "taker_buy_sell_ratio",
+        ):
+            value = getattr(self, field_name)
+            if value is not None and not value.is_finite():
+                raise ValueError(f"{field_name} must be finite")
+        for field_name in (
+            "open_interest",
+            "mark_price",
+            "index_price",
+            "taker_buy_sell_ratio",
+        ):
+            value = getattr(self, field_name)
+            if value is not None and value < ZERO:
+                raise ValueError(f"{field_name} cannot be negative")
+        if self.mark_index_divergence is not None and self.mark_index_divergence < ZERO:
+            raise ValueError("mark/index divergence cannot be negative")
 
 
 @dataclass(frozen=True, slots=True)
@@ -342,6 +443,8 @@ class TradingIntelligenceState:
     derivatives_context: DerivativesContextEvidence
     scenarios: tuple[ScenarioHypothesis, ...]
     selected_scenario_id: str | None
+    estimated_round_trip_cost_ratio: Decimal | None = None
+    cost_blockers: tuple[str, ...] = field(default_factory=tuple)
     blockers: tuple[str, ...] = field(default_factory=tuple)
     warnings: tuple[str, ...] = field(default_factory=tuple)
     promotion_status: str = "RESEARCH_ONLY"
@@ -354,6 +457,12 @@ class TradingIntelligenceState:
         _require_aware("trading intelligence timestamp", self.timestamp)
         _require_nonblank("trading intelligence blockers", self.blockers)
         _require_nonblank("trading intelligence warnings", self.warnings)
+        _require_nonblank("trading intelligence cost blockers", self.cost_blockers)
+        if self.estimated_round_trip_cost_ratio is not None and (
+            not self.estimated_round_trip_cost_ratio.is_finite()
+            or self.estimated_round_trip_cost_ratio < ZERO
+        ):
+            raise ValueError("trading intelligence cost ratio is invalid")
         scenario_ids = tuple(item.scenario_id for item in self.scenarios)
         if len(scenario_ids) != len(set(scenario_ids)):
             raise ValueError("trading intelligence scenario IDs must be unique")

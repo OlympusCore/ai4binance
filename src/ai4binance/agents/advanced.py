@@ -427,13 +427,12 @@ class AdvancedTechnicalAgent(BaseAgent):
         vote = self._number(raw.get("directional_vote"))
         score = self._number(raw.get("score"))
         as_of = self._timestamp(raw.get("as_of"))
-        if (
-            source_count is None
-            or source_count < 1
-            or vote is None
-            or score is None
-            or as_of is None
-        ):
+        derivatives_context = self.definition.name in {"derivatives", "long_short"}
+        if source_count is None or source_count < 1 or as_of is None:
+            return self._insufficient(
+                snapshot, "EXTERNAL_EVIDENCE_MISSING_OR_UNSOURCED"
+            )
+        if not derivatives_context and (vote is None or score is None):
             return self._insufficient(
                 snapshot, "EXTERNAL_EVIDENCE_MISSING_OR_UNSOURCED"
             )
@@ -441,8 +440,13 @@ class AdvancedTechnicalAgent(BaseAgent):
         age = snapshot.created_at - as_of
         if age < timedelta(0) or age > maximum_age:
             return self._insufficient(snapshot, "EXTERNAL_EVIDENCE_STALE_OR_FUTURE")
-        bounded_vote = max(-1.0, min(1.0, vote))
-        bounded_score = max(0.0, min(100.0, score))
+        bounded_vote = max(-1.0, min(1.0, vote if vote is not None else 0.0))
+        bounded_score = max(0.0, min(100.0, score if score is not None else 50.0))
+        warning = (
+            "SUPPLEMENTARY_FUTURES_CONTEXT_ONLY"
+            if derivatives_context
+            else "SUPPLEMENTARY_SPOT_EVIDENCE_ONLY"
+        )
         return self.result(
             snapshot,
             status=AgentStatus.PARTIAL,
@@ -452,7 +456,7 @@ class AdvancedTechnicalAgent(BaseAgent):
             score=bounded_score,
             confidence=min(0.5, source_count / 10),
             evidence=("SOURCED_EXTERNAL_SNAPSHOT",),
-            warnings=("SUPPLEMENTARY_SPOT_EVIDENCE_ONLY",),
+            warnings=(warning,),
             reason_codes=("EXTERNAL_CONTEXT_EVALUATED",),
             calculation_metadata={
                 "source_count": source_count,
