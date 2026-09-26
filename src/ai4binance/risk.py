@@ -47,7 +47,7 @@ class RiskContext:
                 not getattr(self, field_name).is_finite()
                 or getattr(self, field_name) < ZERO
             ):
-                raise ValueError(f"{field_name} cannot be negative")
+                raise ValueError(f"{field_name} must be finite and non-negative")
         if self.equity_usdt is not None and (
             not self.equity_usdt.is_finite() or self.equity_usdt <= ZERO
         ):
@@ -336,11 +336,13 @@ def candidate_safety_blockers(
             else invalidation > candidate.entry_zone.upper
         ):
             blockers.append("SCENARIO_INVALIDATION_UNAVAILABLE_OR_INVALID")
-        elif (
+        elif candidate.action is Action.BUY and (
             candidate.stop_loss < invalidation
             or candidate.invalidation_level < invalidation
-            if candidate.action is Action.BUY
-            else candidate.stop_loss > invalidation
+        ):
+            blockers.append("CANDIDATE_RISK_EXTENDS_BEYOND_SCENARIO")
+        elif candidate.action is Action.SELL and (
+            candidate.stop_loss > invalidation
             or candidate.invalidation_level > invalidation
         ):
             blockers.append("CANDIDATE_RISK_EXTENDS_BEYOND_SCENARIO")

@@ -247,8 +247,10 @@ def test_agent_score_rejects_empty_name_and_invalid_value() -> None:
 
 
 def test_price_zone_rejects_negative_values() -> None:
-    with pytest.raises(ValueError, match="cannot be negative"):
+    with pytest.raises(ValueError, match="finite and non-negative"):
         PriceZone(Decimal("-1"), Decimal("1"))
+    with pytest.raises(ValueError, match="finite and non-negative"):
+        PriceZone(Decimal("NaN"), Decimal("1"))
 
 
 def test_signal_rejects_empty_identity_and_reason_codes() -> None:

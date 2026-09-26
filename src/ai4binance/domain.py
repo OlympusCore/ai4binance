@@ -175,7 +175,7 @@ class PriceZone:
             or self.lower < ZERO
             or self.upper < ZERO
         ):
-            raise ValueError("price zone values cannot be negative")
+            raise ValueError("price zone values must be finite and non-negative")
         if self.lower > self.upper:
             raise ValueError("price zone lower cannot exceed upper")
 

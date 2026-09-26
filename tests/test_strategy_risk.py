@@ -24,6 +24,7 @@ from ai4binance.risk import (
     RiskContext,
     RiskEngine,
     VirtualMarketPositionSizingPolicy,
+    candidate_safety_blockers,
 )
 from ai4binance.schemas import (
     AgentResult,
@@ -843,6 +844,53 @@ def test_risk_context_rejects_invalid_optional_values() -> None:
         RiskContext(open_risk_usdt=Decimal("-1"))
     with pytest.raises(ValueError, match="open_position_count"):
         RiskContext(open_position_count=-1)
+    with pytest.raises(ValueError, match="finite and non-negative"):
+        RiskContext(daily_loss_usdt=Decimal("NaN"))
+
+
+@pytest.mark.parametrize(
+    (
+        "action",
+        "scenario_invalidation",
+        "stop_loss",
+        "candidate_invalidation",
+        "blocked",
+    ),
+    [
+        (Action.BUY, "95", Decimal("95"), Decimal("95"), False),
+        (Action.BUY, "95", Decimal("94"), Decimal("95"), True),
+        (Action.SELL, "105", Decimal("105"), Decimal("105"), False),
+        (Action.SELL, "105", Decimal("106"), Decimal("105"), True),
+    ],
+)
+def test_candidate_safety_blockers_apply_explicit_scenario_bounds_by_action(
+    action: Action,
+    scenario_invalidation: str,
+    stop_loss: Decimal,
+    candidate_invalidation: Decimal,
+    blocked: bool,
+) -> None:
+    candidate = replace(
+        approved_candidate(),
+        action=action,
+        stop_loss=stop_loss,
+        invalidation_level=candidate_invalidation,
+        take_profit_levels=(Decimal("110"),)
+        if action is Action.BUY
+        else (Decimal("90"),),
+        trailing_stop=stop_loss,
+        inventory_action="NONE" if action is Action.BUY else "SELL",
+        scenario_id="scenario-1",
+        scenario_type="TREND",
+        scenario_state="CONFIRMED",
+        scenario_invalidation=scenario_invalidation,
+        entry_state="ENTRY_VALID",
+        entry_expiry=NOW + timedelta(hours=1),
+    )
+
+    blockers = candidate_safety_blockers(candidate, snapshot())
+
+    assert ("CANDIDATE_RISK_EXTENDS_BEYOND_SCENARIO" in blockers) is blocked
 
 
 def test_risk_assessment_rejects_invalid_approved_state() -> None:
