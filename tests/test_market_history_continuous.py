@@ -141,6 +141,36 @@ def test_collection_worker_limit_supports_bounded_archive_parallelism(
         instance.__post_init__()
 
 
+def test_live_stream_uses_current_clock_after_a_long_cycle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transport = Transport()
+    instance = collector(tmp_path, transport)
+    instance.follow_wall_clock = True
+    current = NOW + timedelta(hours=2)
+    instance.clock = lambda: current
+    seen: list[datetime] = []
+
+    def candles(
+        _market: str,
+        _symbol: str,
+        _kind: str,
+        _transport: object,
+        observed: datetime,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        seen.append(observed)
+        return {"status": "CURRENT"}
+
+    monkeypatch.setattr(instance, "_candles", candles)
+    result = instance._collect_stream(
+        "spot", "BTCUSDT", transport, NOW, kind="klines", timeframe="5m"
+    )
+    assert result["status"] == "CURRENT"
+    assert seen == [current]
+
+
 @pytest.mark.parametrize("workers", [1, 4])
 def test_staged_universe_downloads_baseline_then_enriches_candidates_before_analysis(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, workers: int
@@ -1602,8 +1632,9 @@ def test_vision_history_accepts_known_midmonth_listing_boundary(
     assert _load(progress)["next_at"] == end.isoformat()
 
 
+@pytest.mark.parametrize("archive_budget", [1, 4])
 def test_vision_history_batches_archives_without_jumping_to_dataset_tail(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, archive_budget: int
 ) -> None:
     class SourceCache:
         def verified(self, key: str, *, kind: str) -> tuple[object, bytes]:
@@ -1637,6 +1668,7 @@ def test_vision_history_batches_archives_without_jumping_to_dataset_tail(
         history,  # type: ignore[arg-type]
         Transport(),
         Transport(),
+        archives_per_stream=archive_budget,
     )
     start = datetime(2026, 1, 1, tzinfo=UTC)
     end = datetime(2026, 5, 1, tzinfo=UTC)
@@ -1684,10 +1716,40 @@ def test_vision_history_batches_archives_without_jumping_to_dataset_tail(
         now=end,
     )
 
-    assert unavailable is None
-    assert cursor == end
-    assert update_sizes == [8]
-    assert _load(progress)["next_at"] == end.isoformat()
+    expected_cursor = end if archive_budget == 4 else datetime(2026, 2, 1, tzinfo=UTC)
+    assert cursor == expected_cursor
+    assert update_sizes == [archive_budget * 2]
+    assert _load(progress)["next_at"] == expected_cursor.isoformat()
+    if archive_budget == 4:
+        assert unavailable is None
+    else:
+        assert unavailable is not None
+        assert unavailable["reason"] == "ARCHIVE_BATCH_YIELDED"
+
+
+def test_long_bootstrap_seeds_recent_native_bars_before_bounded_history(
+    tmp_path: Path,
+) -> None:
+    transport = Transport()
+    instance = collector(tmp_path, transport)
+    instance.vision_history_enabled = True
+    instance.initial_days = 730
+    result = instance._candles(
+        "usd_m_futures", "BTCUSDT", "markPriceKlines", transport, NOW
+    )
+    assert result["status"] == "BACKFILLING"
+    archive = ParquetOHLCVArchive(tmp_path / "market/usd_m_futures_mark")
+    manifest = archive.manifest("BTCUSDT", "5m")
+    assert manifest.row_count == 499
+    assert datetime.fromisoformat(manifest.last_timestamp) + timedelta(
+        minutes=5
+    ) == NOW.replace(minute=0)
+    progress = _load(
+        tmp_path / "market/usd_m_futures_mark/BTCUSDT/5m/collection-progress.json"
+    )
+    assert datetime.fromisoformat(str(progress["next_at"])) < datetime.fromisoformat(
+        manifest.first_timestamp
+    )
 
 
 @pytest.mark.parametrize(

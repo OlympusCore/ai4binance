@@ -119,13 +119,18 @@ def test_runtime_spot_backtest_sizing_is_price_normalized_and_cash_bounded() -> 
         notional_to_equity_ratio=SPOT_VALIDATION_NOTIONAL_TO_EQUITY_RATIO,
     )
 
-    maximum_open = max(candle.open for candle in candles)
-    maximum_notional = maximum_open * engine.config.quantity
+    initial_notional = candles[0].open * engine.config.quantity
     assert engine.config.quantity < Decimal("1")
-    assert maximum_notional <= (
+    assert initial_notional <= (
         engine.config.initial_cash_usdt * SPOT_VALIDATION_NOTIONAL_TO_EQUITY_RATIO
     )
-    assert maximum_notional >= engine.config.minimum_notional
+    assert initial_notional >= engine.config.minimum_notional
+    prefix_engine = runtime_spot_backtest_engine(
+        candles[:1],
+        base_engine=BacktestEngine(),
+        notional_to_equity_ratio=SPOT_VALIDATION_NOTIONAL_TO_EQUITY_RATIO,
+    )
+    assert prefix_engine.config.quantity == engine.config.quantity
 
 
 @pytest.mark.parametrize("ratio", [Decimal("0"), Decimal("1.01")])

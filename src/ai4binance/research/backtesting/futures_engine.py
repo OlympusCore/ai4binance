@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import ROUND_DOWN, ROUND_UP, Decimal
 
 from ai4binance.research.backtesting.liquidity import (
@@ -66,10 +66,13 @@ class FuturesBacktestConfig(BacktestConfig):
     maintenance_margin_ratio: Decimal = Decimal("0.005")
     liquidation_fee_ratio: Decimal = Decimal("0.005")
     require_mark_price_path: bool = False
+    allow_intrabar_funding_bounds: bool = False
     maintenance_brackets: tuple[FuturesRiskBracket, ...] = ()
 
     def __post_init__(self) -> None:
         BacktestConfig.__post_init__(self)
+        if self.allow_intrabar_funding_bounds and not self.require_mark_price_path:
+            raise ValueError("intrabar funding bounds require native mark candles")
         if self.require_mark_price_path:
             validate_futures_brackets(self.maintenance_brackets)
         if (
@@ -258,7 +261,7 @@ class FuturesBacktestEngine:
         )
         if mark_candles:
             mark_times = {c.timestamp for c in mark_candles}
-            if any(
+            if not self.config.allow_intrabar_funding_bounds and any(
                 p.timestamp not in mark_times
                 for p in dataset.derivatives.series[DerivativesMetric.FUNDING_RATE]
             ):
@@ -278,6 +281,9 @@ class FuturesBacktestEngine:
                     if mark_candles
                     else "LEGACY_CONTRACT_PRICE_APPROXIMATION",
                     "intrabar_order": "UNKNOWN_ADVERSE_FIRST_BOUND",
+                    "funding_alignment": "ADVERSE_INTRABAR_BOUND"
+                    if self.config.allow_intrabar_funding_bounds
+                    else "NATIVE_MARK_OPEN",
                     "execution_allowed": False,
                 }
             ]
@@ -351,7 +357,10 @@ class FuturesBacktestEngine:
             if open_trade is not None:
                 if mark_candles:
                     self._mark_path_funding(
-                        open_trade, funding_points, mark_candles[index]
+                        open_trade,
+                        funding_points,
+                        mark_candles[index],
+                        candles[1].timestamp - candles[0].timestamp,
                     )
                 else:
                     self._apply_funding(open_trade, funding_points, candle.timestamp)
@@ -816,17 +825,26 @@ class FuturesBacktestEngine:
         trade: _OpenFuturesTrade,
         points: tuple[MetricPoint, ...],
         mark: OHLCVCandle,
+        interval: timedelta,
     ) -> None:
-        """Settle funding at the observed mark and re-solve every bar's margin."""
+        """Settle known marks or explicit adverse bounds; never invent a tick."""
         last = trade.last_funding_timestamp or trade.entry_timestamp
         sign = ONE if trade.intent.direction is TradeDirection.LONG else -ONE
         for point in points:
-            if last < point.timestamp <= mark.timestamp:
+            if last < point.timestamp < mark.timestamp + interval:
                 if point.timestamp != mark.timestamp:
-                    raise ValueError(
-                        "funding settlement requires a finer native mark path"
-                    )
-                trade.funding_cost += trade.quantity * mark.open * point.value * sign
+                    if not self.config.allow_intrabar_funding_bounds:
+                        raise ValueError(
+                            "funding settlement requires a finer native mark path"
+                        )
+                    # Debit at the adverse observed mark. Unknown intrabar
+                    # credits cannot rescue a position which may have exited
+                    # before settlement. This is a loss bound, not an exact fill.
+                    amount = trade.quantity * mark.high * max(point.value * sign, ZERO)
+                    trade.blocker_history.append("INTRABAR_FUNDING_ADVERSE_BOUND")
+                else:
+                    amount = trade.quantity * mark.open * point.value * sign
+                trade.funding_cost += amount
                 trade.last_funding_timestamp = point.timestamp
         trade.liquidation_price = isolated_liquidation_price(
             long=sign == ONE,
@@ -891,7 +909,9 @@ class FuturesBacktestEngine:
                     min(liquidation_candle.open, open_trade.liquidation_price),
                 )
             if candle.low <= intent.stop_loss:
-                return _ExitDecision(BacktestExitReason.HARD_STOP, intent.stop_loss)
+                return _ExitDecision(
+                    BacktestExitReason.HARD_STOP, min(candle.open, intent.stop_loss)
+                )
             if candle.high >= intent.take_profit:
                 return _ExitDecision(BacktestExitReason.TARGET, intent.take_profit)
         else:
@@ -905,7 +925,9 @@ class FuturesBacktestEngine:
                     max(liquidation_candle.open, open_trade.liquidation_price),
                 )
             if candle.high >= intent.stop_loss:
-                return _ExitDecision(BacktestExitReason.HARD_STOP, intent.stop_loss)
+                return _ExitDecision(
+                    BacktestExitReason.HARD_STOP, max(candle.open, intent.stop_loss)
+                )
             if candle.low <= intent.take_profit:
                 return _ExitDecision(BacktestExitReason.TARGET, intent.take_profit)
         if (
@@ -1146,7 +1168,12 @@ class FuturesBacktestEngine:
         for index in range(rejected.entry_index, len(candles)):
             candle = candles[index]
             if mark_candles:
-                self._mark_path_funding(open_trade, funding_points, mark_candles[index])
+                self._mark_path_funding(
+                    open_trade,
+                    funding_points,
+                    mark_candles[index],
+                    candles[1].timestamp - candles[0].timestamp,
+                )
             else:
                 self._apply_funding(open_trade, funding_points, candle.timestamp)
             self._update_excursions(open_trade, candle)

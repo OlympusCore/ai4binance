@@ -11,6 +11,7 @@ from ai4binance.research.virtual_market import (
     MarketPerformanceEvidence,
     VirtualMarket,
     evaluate_market_acceptance,
+    evaluate_research_candidate,
 )
 from ai4binance.validation.overfit import (
     FrozenIsotonicCalibration,
@@ -112,7 +113,13 @@ def evaluate_calibrated_market_acceptance(
         confirmatory=True,
     )
     acceptance = evaluate_market_acceptance(performance, policy)
-    blockers = [*calibrated.blockers, *statistics.blockers, *acceptance.blockers]
+    candidate = evaluate_research_candidate(performance, policy)
+    blockers = [
+        *calibrated.blockers,
+        *statistics.blockers,
+        *candidate.blockers,
+        *acceptance.blockers,
+    ]
     if performance.market is VirtualMarket.USD_M_FUTURES and not (
         futures_path_result is not None
         and getattr(futures_path_result.assumptions, "require_mark_price_path", False)
@@ -121,6 +128,7 @@ def evaluate_calibrated_market_acceptance(
             event.get("event_type") == "FUTURES_LIQUIDATION_MODEL"
             and event.get("model") == "ISOLATED_MARK_OHLC_TIERED_V1"
             and event.get("dataset_sha256") == dataset_sha256
+            and event.get("funding_alignment") == "NATIVE_MARK_OPEN"
             for event in futures_path_result.audit_events
         )
     ):

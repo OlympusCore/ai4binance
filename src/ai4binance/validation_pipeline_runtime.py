@@ -95,15 +95,15 @@ def runtime_spot_backtest_engine(
     ):
         raise ValueError("runtime Spot notional ratio must be within (0, 1]")
     config = base_engine.config
-    maximum_entry_price = max(candle.open for candle in candles)
-    if maximum_entry_price <= 0:
-        raise ValueError("runtime Spot maximum entry price must be positive")
+    reference_price = candles[0].open
+    if reference_price <= 0:
+        raise ValueError("runtime Spot initial entry price must be positive")
     target_notional = config.initial_cash_usdt * notional_to_equity_ratio
-    quantity = (target_notional / maximum_entry_price).quantize(
+    quantity = (target_notional / reference_price).quantize(
         config.step_size,
         rounding=ROUND_DOWN,
     )
-    if quantity <= 0 or quantity * maximum_entry_price < config.minimum_notional:
+    if quantity <= 0 or quantity * reference_price < config.minimum_notional:
         raise ValueError("runtime Spot price-normalized quantity is not tradable")
     return BacktestEngine(replace(config, quantity=quantity))
 

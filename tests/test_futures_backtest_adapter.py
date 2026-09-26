@@ -258,6 +258,14 @@ def test_runtime_engine_price_normalizes_high_price_replay_quantity() -> None:
     )
 
 
+def test_replay_sizing_cannot_read_future_price_extremes() -> None:
+    prefix = _replay(("100", "101"), ("1000", "1010"))
+    suffix = _replay(("100", "101", "10000"), ("1000", "1010", "1020"))
+    assert runtime_futures_backtest_engine(prefix).config.quantity == (
+        runtime_futures_backtest_engine(suffix).config.quantity
+    )
+
+
 def test_runtime_adapter_indexed_path_avoids_prefix_rebuild(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

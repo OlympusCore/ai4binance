@@ -479,6 +479,7 @@ class ContinuousMarketHistory:
     initial_days: int = 201
     enrichment_days: int = 30
     pages_per_stream: int = 2
+    archives_per_stream: int = 4
     archive_downloaded_bytes: int = 0
     archive_request_count: int = 0
     max_workers: int = 4
@@ -489,6 +490,7 @@ class ContinuousMarketHistory:
     priority_symbols: tuple[str, ...] = ()
     refresh_request_path: Path | None = None
     vision_history_enabled: bool = True
+    follow_wall_clock: bool = False
     on_symbol_ready: SymbolReadyHandler | None = field(default=None, repr=False)
     on_symbol_screen: SymbolReadyHandler | None = field(default=None, repr=False)
     clock: Callable[[], datetime] = field(default=lambda: datetime.now(UTC), repr=False)
@@ -499,6 +501,7 @@ class ContinuousMarketHistory:
             not 1 <= self.initial_days <= 3650
             or not 1 <= self.enrichment_days <= 3650
             or not 1 <= self.pages_per_stream <= 32
+            or not 1 <= self.archives_per_stream <= 32
         ):
             raise ValueError("continuous collection bounds are invalid")
         if not 1 <= self.max_workers <= 8:
@@ -1821,6 +1824,11 @@ class ContinuousMarketHistory:
         """Collect exactly one market-data stream with fail-closed evidence."""
 
         try:
+            if self.follow_wall_clock:
+                current = self.clock()
+                if current.utcoffset() is None:
+                    raise ValueError("collector clock must be timezone-aware")
+                now = max(now, current.astimezone(UTC))
             if market == "coin_m_futures" and kind == "indexPriceKlines":
                 pair = self.coin_m_contracts[symbol][0]
                 owner = min(
@@ -2274,8 +2282,11 @@ class ContinuousMarketHistory:
 
         pending_candles: list[OHLCVCandle] = []
         pending_source_hashes: list[str] = []
-
-        while cursor < closed_history_end:
+        attempted_archives = 0
+        while (
+            cursor < closed_history_end
+            and attempted_archives < self.archives_per_stream
+        ):
             month_start = cursor.replace(
                 day=1, hour=0, minute=0, second=0, microsecond=0
             )
@@ -2302,6 +2313,7 @@ class ContinuousMarketHistory:
                 closed_history_end,
             )
             try:
+                attempted_archives += 1
                 source, payload = self.history.source_cache.verified(key, kind=kind)
                 self._record_archive_source(source)
                 candles = self._parse_vision_candles(
@@ -2401,7 +2413,15 @@ class ContinuousMarketHistory:
             next_at=cursor,
             replace_conflicts_from_sources=replace_conflicts_from_sources,
         )
-        return cursor, None
+        yielded: dict[str, object] = {
+            "status": "BACKFILLING",
+            "next_at": cursor.isoformat(),
+            "reason": "ARCHIVE_BATCH_YIELDED",
+        }
+        return cursor, yielded if (
+            cursor < closed_history_end
+            and attempted_archives >= self.archives_per_stream
+        ) else None
 
     def _candles(
         self,
@@ -2452,6 +2472,32 @@ class ContinuousMarketHistory:
             _COMPATIBLE_DERIVED_SOURCE_PREFIXES
         )
         verified_ranges: list[tuple[datetime, datetime]] = []
+        if (
+            not parquet.exists()
+            and not state.get("first_available_at")
+            and self.vision_history_enabled
+        ):
+            # Bootstrap the latest native bars before extending backwards. A
+            # multi-year bootstrap must not withhold today's market data.
+            seeded = self._refresh_current_candle_tail(
+                market=market,
+                symbol=symbol,
+                kind=kind,
+                timeframe=timeframe,
+                transport=transport,
+                archive=archive,
+                dataset_symbol=dataset_symbol,
+                directory=directory,
+                manifest=None,
+                start=max(cursor, end - interval * 499),
+                end=end,
+                interval=interval,
+                now=now,
+                replace_conflicts_from_sources=replace_conflicts_from_sources,
+            )
+            if seeded is not None:
+                state["first_available_at"] = seeded.first_timestamp
+                _save(progress_path, state)
         if parquet.exists():
             manifest = archive.manifest(dataset_symbol, timeframe)
             manifest_first = datetime.fromisoformat(manifest.first_timestamp)
@@ -2514,7 +2560,7 @@ class ContinuousMarketHistory:
                 # receiving its latest closed candles. Refresh the contiguous
                 # tail before walking backwards into an unavailable history
                 # window; collection progress continues to point at that window.
-                manifest = self._refresh_current_candle_tail(
+                refreshed = self._refresh_current_candle_tail(
                     market=market,
                     symbol=symbol,
                     kind=kind,
@@ -2530,6 +2576,8 @@ class ContinuousMarketHistory:
                     now=now,
                     replace_conflicts_from_sources=replace_conflicts_from_sources,
                 )
+                if refreshed is not None:
+                    manifest = refreshed
             last = datetime.fromisoformat(manifest.last_timestamp) + interval
             if cursor > last:
                 raise ValueError("collection progress exceeds the verified dataset")
@@ -2699,13 +2747,13 @@ class ContinuousMarketHistory:
         archive: ParquetOHLCVArchive,
         dataset_symbol: str,
         directory: Path,
-        manifest: DatasetManifest,
+        manifest: DatasetManifest | None,
         start: datetime,
         end: datetime,
         interval: timedelta,
         now: datetime,
         replace_conflicts_from_sources: tuple[str, ...],
-    ) -> DatasetManifest:
+    ) -> DatasetManifest | None:
         """Refresh a verified active segment without hiding older gaps."""
 
         cursor = start
@@ -2739,7 +2787,7 @@ class ContinuousMarketHistory:
             if len(raw) > 499:
                 raise ValueError("kline response exceeds its page limit")
             candles = self._parse_rows(raw, cursor, end, interval=interval)
-            if candles[0].timestamp > cursor:
+            if candles[0].timestamp > cursor and manifest is not None:
                 break
             raw_payload: dict[str, object] = {
                 "source": source,

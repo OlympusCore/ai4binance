@@ -183,6 +183,7 @@ def build_continuous_market_history(
         ),
         pages_per_stream=settings.market_history_pages_per_stream,
         max_workers=settings.market_history_max_workers,
+        follow_wall_clock=True,
         minimum_candles=settings.minimum_closed_candles,
         coin_m=(
             synchronizer.universe_provider.coin_m_transport if include_coin_m else None

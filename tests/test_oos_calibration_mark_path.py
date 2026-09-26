@@ -41,6 +41,40 @@ BRACKETS = (
 
 
 @pytest.mark.parametrize(
+    ("direction", "gap", "stop", "target"),
+    [
+        (TradeDirection.LONG, "85", "90", "120"),
+        (TradeDirection.SHORT, "115", "110", "80"),
+    ],
+)
+def test_stop_gap_is_filled_at_adverse_open(
+    direction: TradeDirection,
+    gap: str,
+    stop: str,
+    target: str,
+) -> None:
+    candles = (
+        _candle(0, high="102", low="98", close="100"),
+        _candle(1, high="102", low="98", close="100"),
+        _candle(
+            2, open_price=gap, high=str(D(gap) + 1), low=str(D(gap) - 1), close=gap
+        ),
+    )
+    result = FuturesBacktestEngine().run(
+        dataset=_dataset(candles, funding=((2, "0"),)),
+        signal_provider=_one_signal_provider(
+            _intent(START, direction, stop_loss=stop, take_profit=target)
+        ),
+    )
+    trade = result.trades[0]
+    assert trade.exit_reason is BacktestExitReason.HARD_STOP
+    if direction is TradeDirection.LONG:
+        assert trade.exit_price < D(gap) < D(stop)
+    else:
+        assert trade.exit_price > D(gap) > D(stop)
+
+
+@pytest.mark.parametrize(
     ("long", "margin", "expected"),
     [
         (True, "20", D(80) / D(".995")),
@@ -273,9 +307,26 @@ def test_calibrated_acceptance_preserves_market_veto_and_replay_binding() -> Non
         assess("c" * 64)
 
 
-def test_funding_uses_settlement_mark_and_moves_liquidation_boundary() -> None:
+@pytest.mark.parametrize(
+    ("offset_ms", "rate", "cost", "exit_reason"),
+    [
+        (0, ".15", "16.5", BacktestExitReason.LIQUIDATION),
+        (2, ".15", "16.8", BacktestExitReason.LIQUIDATION),
+        (5, "-.15", "0", BacktestExitReason.END_OF_DATA),
+    ],
+)
+def test_funding_uses_settlement_mark_and_moves_liquidation_boundary(
+    offset_ms: int,
+    rate: str,
+    cost: str,
+    exit_reason: BacktestExitReason,
+) -> None:
     candles = tuple(_candle(i, high="102", low="98", close="100") for i in range(3))
-    data = _dataset(candles, funding=((2, ".15"),))
+    data = _dataset(candles, funding=((2, rate),))
+    funding = tuple(
+        replace(p, timestamp=p.timestamp + timedelta(milliseconds=offset_ms))
+        for p in data.derivatives.series[DerivativesMetric.FUNDING_RATE]
+    )
     marks = tuple(
         replace(
             _point(DerivativesMetric.MARK_PRICE, c.timestamp, "100"),
@@ -294,6 +345,7 @@ def test_funding_uses_settlement_mark_and_moves_liquidation_boundary() -> None:
             series={
                 **data.derivatives.series,
                 DerivativesMetric.MARK_PRICE: marks,
+                DerivativesMetric.FUNDING_RATE: funding,
             },
         ),
     )
@@ -303,6 +355,7 @@ def test_funding_uses_settlement_mark_and_moves_liquidation_boundary() -> None:
             quantity=D(1),
             require_mark_price_path=True,
             maintenance_brackets=BRACKETS,
+            allow_intrabar_funding_bounds=offset_ms > 0,
         )
     )
     result = engine.run(
@@ -311,5 +364,13 @@ def test_funding_uses_settlement_mark_and_moves_liquidation_boundary() -> None:
             _intent(START, TradeDirection.LONG, stop_loss="90", take_profit="120"),
         ),
     )
-    assert result.trades[0].exit_reason is BacktestExitReason.LIQUIDATION
-    assert result.trades[0].funding_cost_usdt == D("16.5")
+    assert result.trades[0].exit_reason is exit_reason
+    assert result.trades[0].funding_cost_usdt == D(cost)
+    if offset_ms:
+        assert "INTRABAR_FUNDING_ADVERSE_BOUND" in result.trades[0].blocker_history
+        assert result.audit_events[0]["funding_alignment"] == "ADVERSE_INTRABAR_BOUND"
+        strict = FuturesBacktestEngine(
+            replace(engine.config, allow_intrabar_funding_bounds=False)
+        )
+        with pytest.raises(ValueError, match="finer native mark"):
+            strict.run(dataset=data, signal_provider=lambda _: None)

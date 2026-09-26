@@ -48,11 +48,13 @@ def runtime_futures_backtest_engine(
     if not isinstance(dataset, RuntimeFuturesReplayDataset):
         raise TypeError("runtime Futures sizing requires a replay dataset")
     config = base_config or FuturesBacktestConfig()
-    maximum_entry_price = max(candle.open for candle in dataset.candles)
+    # Freeze sizing at the first observable price. A future price maximum
+    # changes earlier trades when an unseen suffix is appended to the replay.
+    reference_price = dataset.candles[0].open
     target_notional = (
         config.initial_cash_usdt * RUNTIME_FUTURES_BACKTEST_NOTIONAL_TO_EQUITY_RATIO
     )
-    quantity = (target_notional / maximum_entry_price).quantize(
+    quantity = (target_notional / reference_price).quantize(
         config.step_size,
         rounding=ROUND_DOWN,
     )
