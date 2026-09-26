@@ -358,6 +358,7 @@ def test_rejected_filter_keeps_library_record_and_marker_readiness(
     )
 
     assert report.drafts_created == 0
+    assert report.blockers == ()
     assert report.admission_records[0].status == "READY_FOR_LIBRARY_PR"
     assert report.admission_records[0].approval_marker_present is True
     admission_payload = json.loads(

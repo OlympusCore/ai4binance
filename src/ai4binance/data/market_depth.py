@@ -176,6 +176,44 @@ class DepthJournal:
                         ),
                     )
 
+    def retain_streams(self, allowed: Mapping[str, tuple[str, ...]]) -> dict[str, int]:
+        """Remove journal rows that are outside the current research universe."""
+        allowed_pairs: set[tuple[str, str]] = set()
+        for market, symbols in allowed.items():
+            if market not in _URLS:
+                raise ValueError("invalid depth retention market")
+            for symbol in symbols:
+                normalized = symbol.strip().upper()
+                if normalized != symbol or not normalized.isalnum():
+                    raise ValueError("invalid depth retention symbol")
+                allowed_pairs.add((market, normalized))
+
+        with self.lock, self.connection:
+            observed = {
+                (str(row[0]), str(row[1]))
+                for row in self.connection.execute(
+                    "SELECT market,symbol FROM depth_heads UNION "
+                    "SELECT DISTINCT market,symbol FROM depth_events"
+                ).fetchall()
+            }
+            removed_streams = observed - allowed_pairs
+            removed_events = 0
+            removed_heads = 0
+            for market, symbol in sorted(removed_streams):
+                removed_events += self.connection.execute(
+                    "DELETE FROM depth_events WHERE market=? AND symbol=?",
+                    (market, symbol),
+                ).rowcount
+                removed_heads += self.connection.execute(
+                    "DELETE FROM depth_heads WHERE market=? AND symbol=?",
+                    (market, symbol),
+                ).rowcount
+        return {
+            "removed_stream_count": len(removed_streams),
+            "removed_event_count": removed_events,
+            "removed_head_count": removed_heads,
+        }
+
     def close(self) -> None:
         with self.lock:
             self.connection.close()
@@ -284,6 +322,7 @@ class MarketDepthCollector:
             self.stop_event = Event()
         self.symbols = dict(symbols)
         self.journal = DepthJournal(self.root / "depth.sqlite3")
+        retention = self.journal.retain_streams(self.symbols)
         for market, names in self.symbols.items():
             if market not in self.transports:
                 raise ValueError("depth market transport is missing")
@@ -311,6 +350,7 @@ class MarketDepthCollector:
                 "groups": self.groups,
                 "coverage": "PUBLIC_L2_SNAPSHOT_LIMITED_PLUS_DIFFS",
                 "offline_depth_backfill": "UNAVAILABLE",
+                "retention": retention,
                 "blockers": ([] if self.threads else ["NO_ELIGIBLE_DEPTH_TARGETS"]),
                 **_SAFE_STATE,
             },

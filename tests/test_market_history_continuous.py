@@ -839,6 +839,37 @@ def test_background_stream_plan_finishes_each_symbol_before_the_next(
     ]
 
 
+def test_staged_background_stream_plan_refreshes_each_timeframe_across_universe(
+    tmp_path: Path,
+) -> None:
+    instance = collector(tmp_path, Transport())
+    instance.on_symbol_screen = lambda *_args: {}
+    transport = Transport()
+
+    streams = instance._interleaved_stream_work(
+        (
+            ("spot", "AUSDT", transport),
+            ("spot", "BUSDT", transport),
+            ("usd_m_futures", "CUSDT", transport),
+        )
+    )
+    screening = [
+        (market, symbol, timeframe)
+        for market, symbol, _, kind, timeframe in streams
+        if kind == "klines" and timeframe in _SCREEN_TIMEFRAMES
+    ]
+
+    assert screening == [
+        (market, symbol, timeframe)
+        for timeframe in _SCREEN_TIMEFRAMES
+        for market, symbol in (
+            ("spot", "AUSDT"),
+            ("spot", "BUSDT"),
+            ("usd_m_futures", "CUSDT"),
+        )
+    ]
+
+
 def test_symbol_with_incomplete_stream_does_not_start_opportunity_analysis(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2054,9 +2085,9 @@ def test_direct_timeframe_bootstrap_uses_its_own_closed_candle_window(
         minimum_candles=200,
     )
 
-    assert instance._candle_initial_start(NOW, timedelta(minutes=5)) == (
-        datetime(2026, 6, 4, 0, 0, tzinfo=UTC)
-    )
+    assert instance._candle_initial_start(
+        NOW, timedelta(minutes=5), history_days=30
+    ) == (NOW.replace(hour=0, minute=0) - timedelta(days=30))
     assert instance._candle_initial_start(NOW, timedelta(days=1)) == (
         NOW.replace(hour=0, minute=0) - timedelta(days=201)
     )

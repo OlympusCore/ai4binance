@@ -58,6 +58,7 @@ def read_cached_market_universe(
     observed_at: datetime,
     *,
     max_age: timedelta = _UNIVERSE_CACHE_MAX_AGE,
+    expected_source: str | None = None,
 ) -> BinanceEligibleMarketSnapshot | None:
     """Read a bounded, safety-constrained cached market universe.
 
@@ -85,6 +86,9 @@ def read_cached_market_universe(
         if (
             payload.get("execution_allowed") is not False
             or payload.get("live_eligibility_status") != "LIVE_ORDER_BLOCKED"
+            or (
+                expected_source is not None and payload.get("source") != expected_source
+            )
         ):
             return None
         return BinanceEligibleMarketSnapshot(
@@ -97,6 +101,10 @@ def read_cached_market_universe(
                 (str(asset), tuple(reasons))
                 for asset, reasons in payload["excluded_assets"]
             ),
+            selected_assets=tuple(payload.get("selected_assets", ())),
+            wallet_assets=tuple(payload.get("wallet_assets", ())),
+            market_cap_assets=tuple(payload.get("market_cap_assets", ())),
+            source=str(payload.get("source", "BINANCE_PUBLIC_EXCHANGE_INFO")),
         )
     except (AttributeError, KeyError, OSError, TypeError, ValueError):
         return None
@@ -401,27 +409,40 @@ class MarketHistorySynchronizer:
         cadence. It prevents a current cache entry from masking a delisting
         until the next full historical backfill cycle.
         """
+        cache_filename = getattr(self.universe_provider, "cache_filename", None)
+        cache_source = getattr(self.universe_provider, "cache_source", None)
         cache_path = self.source_cache.root / (
-            "universe-v3.json"
+            str(cache_filename)
+            if cache_filename
+            else "universe-v3.json"
             if getattr(self.universe_provider, "coin_m_transport", None)
             else "universe-v2.json"
         )
         if not force_refresh:
-            cached = read_cached_market_universe(cache_path, observed_at)
+            cached = read_cached_market_universe(
+                cache_path, observed_at, expected_source=cache_source
+            )
             if cached is not None:
                 return cached
+        priority_snapshot = getattr(
+            self.universe_provider, "priority_eligible_market_snapshot", None
+        )
         top_volume_snapshot = getattr(
             self.universe_provider, "top_volume_eligible_market_snapshot", None
         )
-        snapshot = (
-            top_volume_snapshot(
+        if callable(priority_snapshot):
+            snapshot = priority_snapshot()
+        elif callable(top_volume_snapshot):
+            snapshot = top_volume_snapshot(
                 max_symbols_per_market=_COLLECTION_MAX_SYMBOLS_PER_MARKET
             )
-            if callable(top_volume_snapshot)
-            else self.universe_provider.eligible_market_snapshot()
-        )
+        else:
+            snapshot = self.universe_provider.eligible_market_snapshot()
+        snapshot = cast(BinanceEligibleMarketSnapshot, snapshot)
         if snapshot.blockers:
-            cached = read_cached_market_universe(cache_path, observed_at)
+            cached = read_cached_market_universe(
+                cache_path, observed_at, expected_source=cache_source
+            )
             if cached is not None:
                 return cached
             return snapshot
@@ -436,6 +457,10 @@ class MarketHistorySynchronizer:
                     "futures_symbols": snapshot.futures_symbols,
                     "coin_m_contracts": snapshot.coin_m_contracts,
                     "excluded_assets": snapshot.excluded_assets,
+                    "selected_assets": snapshot.selected_assets,
+                    "wallet_assets": snapshot.wallet_assets,
+                    "market_cap_assets": snapshot.market_cap_assets,
+                    "source": snapshot.source,
                     "execution_allowed": False,
                     "live_eligibility_status": "LIVE_ORDER_BLOCKED",
                 },

@@ -354,6 +354,47 @@ class MismatchedSpotHistory(SpotHistory):
         return rows
 
 
+class MultiAssetSpotWalletReader(SpotWalletReader):
+    def account(self) -> object:
+        payload = super().account()
+        assert isinstance(payload, dict)
+        payload["balances"] = [
+            {"asset": "HOT", "free": "10", "locked": "0"},
+            {"asset": "XRP", "free": "4", "locked": "0"},
+            {"asset": "USDT", "free": "100", "locked": "0"},
+        ]
+        return payload
+
+
+class MultiAssetSpotPrices:
+    def ticker_price(self, symbol: str) -> Decimal:
+        return {"HOTUSDT": Decimal("1"), "XRPUSDT": Decimal("2")}[symbol]
+
+
+class MultiAssetSpotHistory:
+    def trades(
+        self, symbol: str, *, from_id: int | None = None, limit: int = 1_000
+    ) -> object:
+        assert from_id == 0
+        assert limit == 1_000
+        quantity, quote = {
+            "HOTUSDT": ("10", "5"),
+            "XRPUSDT": ("4", "4"),
+        }[symbol]
+        return [
+            {
+                "id": 1,
+                "price": str(Decimal(quote) / Decimal(quantity)),
+                "qty": quantity,
+                "quoteQty": quote,
+                "commission": "0",
+                "commissionAsset": "USDT",
+                "isBuyer": True,
+                "time": 1,
+            }
+        ]
+
+
 def test_runtime_attaches_read_only_cost_basis_to_portfolio_analytics() -> None:
     runtime = ReadOnlyRuntimeCycle(
         symbol="HOTUSDT",
@@ -406,6 +447,29 @@ def test_runtime_does_not_use_blocked_cost_basis_for_portfolio_pnl() -> None:
     assert "PORTFOLIO_COST_BASIS_UNAVAILABLE" in report.blockers
     assert report.execution_allowed is False
     assert report.live_eligibility_status == "LIVE_ORDER_BLOCKED"
+
+
+def test_runtime_reconciles_cost_basis_for_every_valued_wallet_asset() -> None:
+    runtime = ReadOnlyRuntimeCycle(
+        symbol="HOTUSDT",
+        timeframes=("1h",),
+        spot_acquirer=RecordingAcquisition(),
+        spot_wallet_service=WalletSnapshotService(MultiAssetSpotWalletReader()),
+        futures_account_service=FuturesAccountSnapshotService(FuturesReader()),
+        futures_advisor=DerivativesCollectorStub(),
+        research_service=research_service(),
+        investment_manager=RuntimeInvestmentManager(InvestmentManagementAssistant()),
+        analytics_service=PortfolioAnalyticsService(MultiAssetSpotPrices()),
+        cost_basis_service=CostBasisService(MultiAssetSpotHistory()),
+    )
+
+    report = runtime.run(NOW)
+
+    assert report.portfolio_analytics is not None
+    valued = {item.asset: item for item in report.portfolio_analytics.valued_assets}
+    assert valued["HOT"].average_cost_usdt == Decimal("0.5")
+    assert valued["XRP"].average_cost_usdt == Decimal("1")
+    assert "PORTFOLIO_COST_BASIS_UNAVAILABLE" not in report.blockers
 
 
 def test_runtime_values_spot_wallet_even_when_market_cycle_is_blocked() -> None:

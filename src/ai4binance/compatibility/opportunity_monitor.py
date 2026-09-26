@@ -30,6 +30,9 @@ from ai4binance.domain.opportunity_observation import (
     has_complete_measurable_opportunity,
     has_complete_measurable_trade_plan,
 )
+from ai4binance.integrations.research_market_universe import (
+    RESEARCH_MARKET_UNIVERSE_SOURCE,
+)
 from ai4binance.opportunity_intelligence import (
     TIMEFRAME_DURATIONS,
     ChartPatternLifecycleState,
@@ -72,7 +75,11 @@ def market_symbols(cache: Path, market: str, now: datetime) -> tuple[str, ...]:
     """Return only the currently verified Binance market universe for the UI."""
     if market not in MARKET_TIMEFRAMES:
         raise ValueError("monitor market is invalid")
-    universe = read_cached_market_universe(cache / "universe-v3.json", now)
+    universe = read_cached_market_universe(
+        cache / "universe-v3.json",
+        now,
+        expected_source=RESEARCH_MARKET_UNIVERSE_SOURCE,
+    )
     if universe is None:
         return ()
     return universe.spot_symbols if market == "SPOT" else universe.futures_symbols

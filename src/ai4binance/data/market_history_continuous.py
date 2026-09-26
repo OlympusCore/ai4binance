@@ -29,6 +29,7 @@ from ai4binance.data.market_history_sync import (
     MarketHistorySynchronizer,
     _csv_rows,
 )
+from ai4binance.data.market_universe_retention import MarketUniverseRetention
 from ai4binance.data.timeframes import timeframe_duration
 from ai4binance.exchange.client import JsonTransport
 from ai4binance.exchange.rate_limit import (
@@ -37,10 +38,10 @@ from ai4binance.exchange.rate_limit import (
     public_request_weight,
 )
 from ai4binance.infrastructure.persistence.safe_json import (
-    DestinationVerificationError,
-    write_json_object_verified,
+    DestinationVerificationError as LegacyDestinationVerificationError,
 )
 from ai4binance.schemas import OHLCVCandle
+from ai4binance.storage import DestinationVerificationError, write_json_object_verified
 
 _DEFAULT_KLINE_INTERVAL = timedelta(minutes=5)
 _TIMEFRAME_REFRESH_SECONDS: dict[str, int] = {
@@ -263,7 +264,9 @@ def _save(path: Path, payload: Mapping[str, object]) -> None:
 def _recoverable_error_code(error: Exception) -> str:
     """Expose only repository-owned verification codes, never exception detail."""
 
-    if isinstance(error, DestinationVerificationError):
+    if isinstance(
+        error, (DestinationVerificationError, LegacyDestinationVerificationError)
+    ):
         code = str(error).strip()
         if re.fullmatch(r"[A-Z][A-Z0-9_]{2,127}", code):
             return code
@@ -474,6 +477,7 @@ class ContinuousMarketHistory:
     spot: JsonTransport
     futures: JsonTransport
     initial_days: int = 201
+    enrichment_days: int = 30
     pages_per_stream: int = 2
     archive_downloaded_bytes: int = 0
     archive_request_count: int = 0
@@ -488,9 +492,14 @@ class ContinuousMarketHistory:
     on_symbol_ready: SymbolReadyHandler | None = field(default=None, repr=False)
     on_symbol_screen: SymbolReadyHandler | None = field(default=None, repr=False)
     clock: Callable[[], datetime] = field(default=lambda: datetime.now(UTC), repr=False)
+    retention: MarketUniverseRetention | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
-        if not 1 <= self.initial_days <= 3650 or not 1 <= self.pages_per_stream <= 32:
+        if (
+            not 1 <= self.initial_days <= 3650
+            or not 1 <= self.enrichment_days <= 3650
+            or not 1 <= self.pages_per_stream <= 32
+        ):
             raise ValueError("continuous collection bounds are invalid")
         if not 1 <= self.max_workers <= 8:
             raise ValueError("collection workers must be between 1 and 8")
@@ -518,6 +527,9 @@ class ContinuousMarketHistory:
         now = observed_at.astimezone(UTC)
         before = self._network_totals()
         universe = self.history._eligible_universe(now, force_refresh=True)
+        retention_result = None
+        if self.retention is not None and not universe.blockers:
+            retention_result = self.retention.prune(universe)
         self.coin_m_contracts = {
             symbol: (pair, contract)
             for symbol, pair, contract in universe.coin_m_contracts
@@ -1046,6 +1058,7 @@ class ContinuousMarketHistory:
         publish_progress(None, force=True)
         if not universe.blockers:
             with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                enrichment_stream_keys: set[tuple[str, str, str]] = set()
 
                 def collect_stream(
                     market: str,
@@ -1054,14 +1067,29 @@ class ContinuousMarketHistory:
                     kind: str,
                     timeframe: str | None,
                 ) -> dict[str, object]:
-                    result = self._collect_stream(
+                    if (
                         market,
                         symbol,
-                        transport,
-                        now,
-                        kind=kind,
-                        timeframe=timeframe,
-                    )
+                        str(timeframe),
+                    ) in enrichment_stream_keys:
+                        result = self._collect_stream(
+                            market,
+                            symbol,
+                            transport,
+                            now,
+                            kind=kind,
+                            timeframe=timeframe,
+                            history_days=self.enrichment_days,
+                        )
+                    else:
+                        result = self._collect_stream(
+                            market,
+                            symbol,
+                            transport,
+                            now,
+                            kind=kind,
+                            timeframe=timeframe,
+                        )
                     record_coverage(
                         result,
                         market=market,
@@ -1172,6 +1200,7 @@ class ContinuousMarketHistory:
                     for tf in _ENRICHMENT_TIMEFRAMES:
                         if (*identity, "klines", tf) not in queued_keys:
                             background.append((*identity, transport, "klines", tf))
+                            enrichment_stream_keys.add((*identity, tf))
                             label = market_labels[identity[0]]
                             with coverage_lock:
                                 coverage_expected[label][tf] += 1
@@ -1410,10 +1439,15 @@ class ContinuousMarketHistory:
             ],
             "collection_plan": self._collection_plan(),
             "initial_history_days": self.initial_days,
+            "enrichment_history_days": self.enrichment_days,
             "spot_universe_count": len(universe.spot_symbols),
             "futures_universe_count": len(universe.futures_symbols),
             "coin_m_universe_count": len(universe.coin_m_symbols),
             "excluded_asset_count": len(universe.excluded_assets),
+            "selected_assets": list(universe.selected_assets),
+            "wallet_assets": list(universe.wallet_assets),
+            "market_cap_assets": list(universe.market_cap_assets),
+            "universe_retention": retention_result,
             "archive_root": str(self.history.archive_root),
             "completed_symbols": completed_symbols,
             "total_symbols": total_symbols,
@@ -1564,7 +1598,7 @@ class ContinuousMarketHistory:
         self,
         market_work: tuple[tuple[str, str, JsonTransport], ...],
     ) -> tuple[tuple[str, str, JsonTransport, str, str | None], ...]:
-        """Finish watched symbols first, then schedule fair universe backfill."""
+        """Finish watched symbols first, then keep the screen universe fresh."""
 
         streams: list[tuple[str, str, JsonTransport, str, str | None]] = []
         priority_set = frozenset(self.priority_symbols)
@@ -1578,9 +1612,25 @@ class ContinuousMarketHistory:
         for market, symbol, transport in priority_work:
             for kind, timeframe in self._collection_kinds(market):
                 streams.append((market, symbol, transport, kind, timeframe))
-        # Keep each background symbol's direct streams contiguous. Workers may
-        # fetch later symbols concurrently, while the first fully current
-        # symbol can immediately enter the bounded opportunity-analysis stage.
+        if self.on_symbol_screen is not None:
+            # A complete top-50 cycle can exceed the 15m freshness budget. Run
+            # each screening timeframe across the full background universe
+            # before moving to the next timeframe, so early symbols do not
+            # become stale while later symbols are still being collected.
+            screen_kinds = tuple(
+                ("klines", timeframe) for timeframe in _SCREEN_TIMEFRAMES
+            )
+            for kind, timeframe in screen_kinds:
+                for market, symbol, transport in background_work:
+                    if (kind, timeframe) in self._collection_kinds(market):
+                        streams.append((market, symbol, transport, kind, timeframe))
+            for market, symbol, transport in background_work:
+                for kind, timeframe in self._collection_kinds(market):
+                    if (kind, timeframe) not in screen_kinds:
+                        streams.append((market, symbol, transport, kind, timeframe))
+            return tuple(streams)
+        # Non-staged full-history runs retain symbol-contiguous streams so the
+        # first complete symbol can become available during long backfills.
         for market, symbol, transport in background_work:
             for kind, timeframe in self._collection_kinds(market):
                 streams.append((market, symbol, transport, kind, timeframe))
@@ -1637,6 +1687,8 @@ class ContinuousMarketHistory:
                 "schema_version": "2.0",
                 "status": "COLLECTING",
                 "collection_plan": self._collection_plan(),
+                "initial_history_days": self.initial_days,
+                "enrichment_history_days": self.enrichment_days,
                 "cycle_started_at": cycle_started_at.isoformat(),
                 "observed_at": datetime.now(UTC).isoformat(),
                 "active_market": active_market,
@@ -1743,6 +1795,7 @@ class ContinuousMarketHistory:
         *,
         kind: str,
         timeframe: str | None,
+        history_days: int | None = None,
     ) -> dict[str, object]:
         """Collect exactly one market-data stream with fail-closed evidence."""
 
@@ -1761,7 +1814,13 @@ class ContinuousMarketHistory:
                     }
                 else:
                     result = self._candles(
-                        market, symbol, kind, transport, now, timeframe="5m"
+                        market,
+                        symbol,
+                        kind,
+                        transport,
+                        now,
+                        timeframe="5m",
+                        history_days=history_days,
                     )
             elif kind in {"funding", "open_interest"}:
                 result = self._details(symbol, kind, now, market=market)
@@ -1769,7 +1828,13 @@ class ContinuousMarketHistory:
                 if timeframe is None:
                     raise ValueError("candle timeframe is required")
                 result = self._candles(
-                    market, symbol, kind, transport, now, timeframe=timeframe
+                    market,
+                    symbol,
+                    kind,
+                    transport,
+                    now,
+                    timeframe=timeframe,
+                    history_days=history_days,
                 )
         except (OSError, ValueError, ArithmeticError, ExchangeError) as error:
             result = {
@@ -2018,14 +2083,15 @@ class ContinuousMarketHistory:
             self.archive_downloaded_bytes += int(getattr(source, "downloaded_bytes", 0))
 
     def _candle_initial_start(
-        self, now: datetime, interval: timedelta
+        self, now: datetime, interval: timedelta, *, history_days: int | None = None
     ) -> datetime | None:
         """Keep the configured history horizon and deterministic candle floor."""
 
         interval_seconds = int(interval.total_seconds())
         anchor = now.replace(second=0, microsecond=0)
         configured_anchor = anchor.replace(hour=0, minute=0)
-        start = configured_anchor - timedelta(days=self.initial_days)
+        requested_days = self.initial_days if history_days is None else history_days
+        start = configured_anchor - timedelta(days=requested_days)
         if self.minimum_candles is not None:
             # Never narrow a requested historical horizon to the minimum
             # analysis window. Conversely, daily data retains the existing
@@ -2034,6 +2100,135 @@ class ContinuousMarketHistory:
             start = min(start, anchor - interval * (self.minimum_candles + 1))
         aligned_epoch = int(start.timestamp()) // interval_seconds * interval_seconds
         return datetime.fromtimestamp(aligned_epoch, tz=UTC)
+
+    @staticmethod
+    def _flush_vision_pending(
+        *,
+        archive: ParquetOHLCVArchive,
+        dataset_symbol: str,
+        timeframe: str,
+        pending_candles: list[OHLCVCandle],
+        pending_source_hashes: list[str],
+        generated_at: datetime,
+        state: dict[str, object],
+        progress_path: Path,
+        next_at: datetime,
+        replace_conflicts_from_sources: tuple[str, ...],
+    ) -> None:
+        if not pending_candles:
+            return
+        source_digest = (
+            pending_source_hashes[0]
+            if len(pending_source_hashes) == 1
+            else sha256("".join(pending_source_hashes).encode()).hexdigest()
+        )
+        archive.update(
+            dataset_symbol,
+            timeframe,
+            tuple(pending_candles),
+            source=f"BINANCE_VISION_DIRECT_{timeframe.upper()}_SHA256:{source_digest}",
+            generated_at=generated_at,
+            replace_conflicts_from_sources=replace_conflicts_from_sources,
+        )
+        state["next_at"] = next_at.isoformat()
+        _save(progress_path, state)
+        pending_candles.clear()
+        pending_source_hashes.clear()
+
+    @staticmethod
+    def _vision_first_available(state: Mapping[str, object]) -> datetime | None:
+        raw_first_available = state.get("first_available_at")
+        known_first_available = (
+            datetime.fromisoformat(str(raw_first_available))
+            if raw_first_available
+            else None
+        )
+        if (
+            known_first_available is not None
+            and known_first_available.utcoffset() is None
+        ):
+            raise ValueError("collection first available boundary is invalid")
+        return known_first_available
+
+    def _handle_missing_vision_archive(
+        self,
+        *,
+        archive: ParquetOHLCVArchive,
+        dataset_symbol: str,
+        timeframe: str,
+        pending_candles: list[OHLCVCandle],
+        pending_source_hashes: list[str],
+        generated_at: datetime,
+        state: dict[str, object],
+        progress_path: Path,
+        cursor: datetime,
+        archive_end: datetime,
+        replace_conflicts_from_sources: tuple[str, ...],
+    ) -> tuple[datetime, dict[str, object] | None, bool]:
+        known_first_available = self._vision_first_available(state)
+        self._flush_vision_pending(
+            archive=archive,
+            dataset_symbol=dataset_symbol,
+            timeframe=timeframe,
+            pending_candles=pending_candles,
+            pending_source_hashes=pending_source_hashes,
+            generated_at=generated_at,
+            state=state,
+            progress_path=progress_path,
+            next_at=cursor,
+            replace_conflicts_from_sources=replace_conflicts_from_sources,
+        )
+        if known_first_available is None or archive_end <= known_first_available:
+            state["next_at"] = archive_end.isoformat()
+            _save(progress_path, state)
+            return archive_end, None, True
+        return (
+            cursor,
+            {
+                "status": "UNAVAILABLE",
+                "next_at": cursor.isoformat(),
+                "reason": "BINANCE_VISION_ARCHIVE_UNAVAILABLE",
+            },
+            False,
+        )
+
+    def _validate_vision_chunk_start(
+        self,
+        *,
+        archive: ParquetOHLCVArchive,
+        dataset_symbol: str,
+        timeframe: str,
+        pending_candles: list[OHLCVCandle],
+        pending_source_hashes: list[str],
+        generated_at: datetime,
+        state: dict[str, object],
+        progress_path: Path,
+        cursor: datetime,
+        first_timestamp: datetime,
+        replace_conflicts_from_sources: tuple[str, ...],
+    ) -> tuple[datetime, dict[str, object] | None]:
+        if first_timestamp <= cursor or not state.get("first_available_at"):
+            return cursor, None
+        known_first_available = self._vision_first_available(state)
+        if first_timestamp == known_first_available:
+            return first_timestamp, None
+        self._flush_vision_pending(
+            archive=archive,
+            dataset_symbol=dataset_symbol,
+            timeframe=timeframe,
+            pending_candles=pending_candles,
+            pending_source_hashes=pending_source_hashes,
+            generated_at=generated_at,
+            state=state,
+            progress_path=progress_path,
+            next_at=cursor,
+            replace_conflicts_from_sources=replace_conflicts_from_sources,
+        )
+        return cursor, {
+            "status": "UNAVAILABLE",
+            "next_at": cursor.isoformat(),
+            "reason": "KLINE_GAP",
+        }
 
     def _vision_history(
         self,
@@ -2058,29 +2253,6 @@ class ContinuousMarketHistory:
 
         pending_candles: list[OHLCVCandle] = []
         pending_source_hashes: list[str] = []
-
-        def flush_pending() -> None:
-            if not pending_candles:
-                return
-            source_digest = (
-                pending_source_hashes[0]
-                if len(pending_source_hashes) == 1
-                else sha256("".join(pending_source_hashes).encode()).hexdigest()
-            )
-            archive.update(
-                dataset_symbol,
-                timeframe,
-                tuple(pending_candles),
-                source=(
-                    f"BINANCE_VISION_DIRECT_{timeframe.upper()}_SHA256:{source_digest}"
-                ),
-                generated_at=now,
-                replace_conflicts_from_sources=replace_conflicts_from_sources,
-            )
-            state["next_at"] = cursor.isoformat()
-            _save(progress_path, state)
-            pending_candles.clear()
-            pending_source_hashes.clear()
 
         while cursor < closed_history_end:
             month_start = cursor.replace(
@@ -2121,34 +2293,24 @@ class ContinuousMarketHistory:
                 # also applies when a retained dataset already proved a later
                 # first-available boundary and the requested history horizon
                 # is subsequently extended backwards.
-                raw_first_available = state.get("first_available_at")
-                known_first_available = (
-                    datetime.fromisoformat(str(raw_first_available))
-                    if raw_first_available
-                    else None
+                cursor, unavailable, should_continue = (
+                    self._handle_missing_vision_archive(
+                        archive=archive,
+                        dataset_symbol=dataset_symbol,
+                        timeframe=timeframe,
+                        pending_candles=pending_candles,
+                        pending_source_hashes=pending_source_hashes,
+                        generated_at=now,
+                        state=state,
+                        progress_path=progress_path,
+                        cursor=cursor,
+                        archive_end=archive_end,
+                        replace_conflicts_from_sources=replace_conflicts_from_sources,
+                    )
                 )
-                if (
-                    known_first_available is not None
-                    and known_first_available.utcoffset() is None
-                ):
-                    raise ValueError(
-                        "collection first available boundary is invalid"
-                    ) from None
-                if (
-                    known_first_available is None
-                    or archive_end <= known_first_available
-                ):
-                    flush_pending()
-                    cursor = archive_end
-                    state["next_at"] = cursor.isoformat()
-                    _save(progress_path, state)
+                if should_continue:
                     continue
-                flush_pending()
-                return cursor, {
-                    "status": "UNAVAILABLE",
-                    "next_at": cursor.isoformat(),
-                    "reason": "BINANCE_VISION_ARCHIVE_UNAVAILABLE",
-                }
+                return cursor, unavailable
             except ValueError as error:
                 if (
                     timeframe in _DASHBOARD_REFRESH_TIMEFRAMES
@@ -2156,35 +2318,68 @@ class ContinuousMarketHistory:
                 ):
                     break
                 raise
-            if candles[0].timestamp > cursor and state.get("first_available_at"):
-                known_first_available = datetime.fromisoformat(
-                    str(state["first_available_at"])
-                )
-                if known_first_available.utcoffset() is None:
-                    raise ValueError("collection first available boundary is invalid")
-                if candles[0].timestamp == known_first_available:
-                    cursor = known_first_available
-                else:
-                    flush_pending()
-                    return cursor, {
-                        "status": "UNAVAILABLE",
-                        "next_at": cursor.isoformat(),
-                        "reason": "KLINE_GAP",
-                    }
+            cursor, gap = self._validate_vision_chunk_start(
+                archive=archive,
+                dataset_symbol=dataset_symbol,
+                timeframe=timeframe,
+                pending_candles=pending_candles,
+                pending_source_hashes=pending_source_hashes,
+                generated_at=now,
+                state=state,
+                progress_path=progress_path,
+                cursor=cursor,
+                first_timestamp=candles[0].timestamp,
+                replace_conflicts_from_sources=replace_conflicts_from_sources,
+            )
+            if gap is not None:
+                return cursor, gap
             state.setdefault("first_available_at", candles[0].timestamp.isoformat())
             pending_candles.extend(candles)
             pending_source_hashes.append(str(source.sha256))
             cursor = candles[-1].timestamp + interval
             if cursor < archive_end:
-                flush_pending()
+                self._flush_vision_pending(
+                    archive=archive,
+                    dataset_symbol=dataset_symbol,
+                    timeframe=timeframe,
+                    pending_candles=pending_candles,
+                    pending_source_hashes=pending_source_hashes,
+                    generated_at=now,
+                    state=state,
+                    progress_path=progress_path,
+                    next_at=cursor,
+                    replace_conflicts_from_sources=replace_conflicts_from_sources,
+                )
                 return cursor, {
                     "status": "UNAVAILABLE",
                     "next_at": cursor.isoformat(),
                     "reason": "KLINE_GAP",
                 }
             if len(pending_source_hashes) >= _VISION_ARCHIVE_BATCH_SIZE:
-                flush_pending()
-        flush_pending()
+                self._flush_vision_pending(
+                    archive=archive,
+                    dataset_symbol=dataset_symbol,
+                    timeframe=timeframe,
+                    pending_candles=pending_candles,
+                    pending_source_hashes=pending_source_hashes,
+                    generated_at=now,
+                    state=state,
+                    progress_path=progress_path,
+                    next_at=cursor,
+                    replace_conflicts_from_sources=replace_conflicts_from_sources,
+                )
+        self._flush_vision_pending(
+            archive=archive,
+            dataset_symbol=dataset_symbol,
+            timeframe=timeframe,
+            pending_candles=pending_candles,
+            pending_source_hashes=pending_source_hashes,
+            generated_at=now,
+            state=state,
+            progress_path=progress_path,
+            next_at=cursor,
+            replace_conflicts_from_sources=replace_conflicts_from_sources,
+        )
         return cursor, None
 
     def _candles(
@@ -2196,6 +2391,7 @@ class ContinuousMarketHistory:
         now: datetime,
         *,
         timeframe: str = "5m",
+        history_days: int | None = None,
     ) -> dict[str, object]:
         if timeframe not in MARKET_HISTORY_TIMEFRAMES:
             raise ValueError("candle timeframe is invalid")
@@ -2222,7 +2418,9 @@ class ContinuousMarketHistory:
             progress_directory,
             now,
             extend_history=True,
-            initial_start=self._candle_initial_start(now, interval),
+            initial_start=self._candle_initial_start(
+                now, interval, history_days=history_days
+            ),
             maximum_cursor=end,
             cursor_tolerance=interval,
         )

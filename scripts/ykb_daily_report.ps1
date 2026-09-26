@@ -102,6 +102,7 @@ function Sync-LatestHumanReport {
             Reason         = "ykb_report_MISSING"
             ReportId       = ""
             Status         = ""
+            Blockers       = @()
             ObservedAt     = ""
             MarkdownPath   = ""
             LatestMarkdown = ""
@@ -124,6 +125,7 @@ function Sync-LatestHumanReport {
             Reason         = "YKB_HUMAN_REPORT_READY"
             ReportId       = [string]$payload.report_id
             Status         = [string]$payload.status
+            Blockers       = @($payload.blockers)
             ObservedAt     = [string]$payload.observed_at
             MarkdownPath   = $markdownPath
             LatestMarkdown = $markdownPath
@@ -135,6 +137,7 @@ function Sync-LatestHumanReport {
             Reason         = "YKB_HUMAN_REPORT_SYNC_FAILED"
             ReportId       = ""
             Status         = ""
+            Blockers       = @()
             ObservedAt     = ""
             MarkdownPath   = ""
             LatestMarkdown = ""
@@ -184,10 +187,18 @@ function Write-Health {
         [AllowEmptyCollection()][string[]]$Blockers = @(),
         [int]$RefreshExitCode = 0,
         [int]$ReportExitCode = 0,
+        [string]$ReportStatus = "NOT_EVALUATED",
+        [AllowEmptyCollection()][string[]]$ReportBlockers = @(),
         [string]$LastReportObservedAt = "",
         [string]$LatestMarkdownPath = ""
     )
     New-Item -ItemType Directory -Path $stateDirectory -Force | Out-Null
+    [string[]]$normalizedBlockers = @(
+        $Blockers | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    )
+    [string[]]$normalizedReportBlockers = @(
+        $ReportBlockers | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    )
     $payload = [ordered]@{
         service                   = "ykb-report"
         status                    = $Status
@@ -199,7 +210,9 @@ function Write-Health {
         latest_report_observed_at = $LastReportObservedAt
         refresh_exit_code         = $RefreshExitCode
         report_exit_code          = $ReportExitCode
-        blockers                  = @($Blockers)
+        report_status             = $ReportStatus
+        report_blockers           = $normalizedReportBlockers
+        blockers                  = $normalizedBlockers
         execution_allowed         = $false
         live_eligibility_status   = "LIVE_ORDER_BLOCKED"
     }
@@ -437,20 +450,26 @@ function Invoke-YkbRefreshAndReport {
     }
     $state = Read-LatestReportState
     $humanReport = Sync-LatestHumanReport
-    $blockers = [System.Collections.Generic.List[string]]::new()
+    $operationalBlockers = [System.Collections.Generic.List[string]]::new()
     if ($refreshExitCode -ne 0) {
-        $blockers.Add("RUNTIME_RESEARCH_REFRESH_WITH_BLOCKERS")
+        $operationalBlockers.Add("RUNTIME_RESEARCH_REFRESH_WITH_BLOCKERS")
     }
-    if ($reportExitCode -ne 0) {
-        $blockers.Add("ykb_report_WITH_BLOCKERS")
+    if ($reportExitCode -notin @(0, 2)) {
+        $operationalBlockers.Add("YKB_REPORT_COMMAND_FAILED")
+    }
+    if (
+        $reportExitCode -eq 2 -and
+        $humanReport.Status -ne "RUNNING_WITH_BLOCKERS"
+    ) {
+        $operationalBlockers.Add("YKB_REPORT_EXIT_STATUS_MISMATCH")
     }
     if (-not $state.Fresh) {
-        $blockers.Add([string]$state.Reason)
+        $operationalBlockers.Add([string]$state.Reason)
     }
     if (-not $humanReport.Synced) {
-        $blockers.Add([string]$humanReport.Reason)
+        $operationalBlockers.Add([string]$humanReport.Reason)
     }
-    $status = if ($state.Fresh -and $blockers.Count -eq 0) {
+    $status = if ($state.Fresh -and $operationalBlockers.Count -eq 0) {
         "READY"
     }
     elseif ($state.Fresh) {
@@ -461,9 +480,11 @@ function Invoke-YkbRefreshAndReport {
     }
     Write-Health `
         -Status $status `
-        -Blockers $blockers.ToArray() `
+        -Blockers $operationalBlockers.ToArray() `
         -RefreshExitCode $refreshExitCode `
         -ReportExitCode $reportExitCode `
+        -ReportStatus ([string]$humanReport.Status) `
+        -ReportBlockers @($humanReport.Blockers) `
         -LastReportObservedAt ([string]$state.ObservedAt) `
         -LatestMarkdownPath ([string]$humanReport.LatestMarkdown)
     if ($humanReport.Synced) {
@@ -474,7 +495,7 @@ function Invoke-YkbRefreshAndReport {
         Write-Output "markdown_path=$($humanReport.MarkdownPath)"
         Write-Output "latest_markdown_path=$($humanReport.LatestMarkdown)"
     }
-    return $(if ($state.Fresh) { 0 } else { 1 })
+    return $(if ($status -eq "READY") { 0 } else { 1 })
 }
 
 function Start-YkbLoop {
@@ -616,13 +637,17 @@ if ($Mode -eq "RunLoop") {
 $state = Read-LatestReportState
 if ($state.Fresh -and -not $Force) {
     $humanReport = Sync-LatestHumanReport
+    $status = if ($humanReport.Synced) { "READY" } else { "DEGRADED" }
+    $blockers = if ($humanReport.Synced) { @() } else { @($humanReport.Reason) }
     Write-Health `
-        -Status "READY" `
-        -Blockers @() `
+        -Status $status `
+        -Blockers $blockers `
+        -ReportStatus ([string]$humanReport.Status) `
+        -ReportBlockers @($humanReport.Blockers) `
         -LastReportObservedAt ([string]$state.ObservedAt) `
         -LatestMarkdownPath ([string]$humanReport.LatestMarkdown)
     Write-Output "ykb_report_FRESH"
-    exit 0
+    exit $(if ($humanReport.Synced) { 0 } else { 1 })
 }
 
 exit (Invoke-YkbRefreshAndReport)

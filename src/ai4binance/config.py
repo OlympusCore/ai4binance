@@ -51,14 +51,17 @@ class Settings(BaseSettings):
     market_history_state_path: Path = Path("runtime/state/market-history-latest.json")
     market_history_interval_seconds: float = 21_600.0
     market_history_live_interval_seconds: float = 300.0
-    # Keep enough native history to satisfy the governed 365-day Spot OOS
-    # observation floor, with a bounded buffer for publication lag and gaps.
-    market_history_initial_days: int = 400
+    # Baseline collection is narrower than the governed 365-day OOS promotion
+    # floor. Insufficient OOS evidence remains research-only and blocked.
+    market_history_initial_days: int = 90
+    market_history_enrichment_days: int = 30
     market_history_pages_per_stream: int = 32
     market_history_max_workers: int = 8
     market_history_opportunity_workers: int = 2
     market_history_local_candles: bool = True
-    market_history_coin_m_enabled: bool = True
+    market_history_coin_m_enabled: bool = False
+    market_history_wallet_minimum_value_usdt: Decimal = Decimal("1")
+    market_history_market_cap_asset_limit: int = 20
     market_depth_enabled: bool = True
     public_rate_limit_soft: float = 0.70
     public_rate_limit_warning: float = 0.80
@@ -421,6 +424,31 @@ class Settings(BaseSettings):
     def validate_market_history_initial_days(cls, value: int) -> int:
         if not 1 <= value <= 3650:
             raise ValueError("market history initial days must be between 1 and 3650")
+        return value
+
+    @field_validator("market_history_enrichment_days")
+    @classmethod
+    def validate_market_history_enrichment_days(cls, value: int) -> int:
+        if not 1 <= value <= 3650:
+            raise ValueError(
+                "market history enrichment days must be between 1 and 3650"
+            )
+        return value
+
+    @field_validator("market_history_market_cap_asset_limit")
+    @classmethod
+    def validate_market_history_market_cap_asset_limit(cls, value: int) -> int:
+        if not 1 <= value <= 50:
+            raise ValueError("market history market-cap limit must be between 1 and 50")
+        return value
+
+    @field_validator("market_history_wallet_minimum_value_usdt")
+    @classmethod
+    def validate_market_history_wallet_minimum_value_usdt(
+        cls, value: Decimal
+    ) -> Decimal:
+        if not value.is_finite() or value <= Decimal("0"):
+            raise ValueError("market history wallet minimum value must be positive")
         return value
 
     @field_validator("market_history_pages_per_stream")

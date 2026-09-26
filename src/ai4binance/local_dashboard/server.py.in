@@ -811,8 +811,7 @@ def market_depth_projection(data, database_path: Path):
     status = (
         "NO_ELIGIBLE_DEPTH_TARGETS"
         if declared_status == "NO_ELIGIBLE_DEPTH_TARGETS"
-        else
-        "READY"
+        else "READY"
         if fully_observed
         else (
             "COLLECTING"
@@ -877,6 +876,19 @@ def futures_research_projection(data):
         },
         "blockers": reasons(data.get("blockers")),
     }
+
+
+def futures_research_readiness_status(projection: object) -> str:
+    """Classify normal bounded research progress without hiding real blockers."""
+    status = projection.get("status") if isinstance(projection, dict) else None
+    blockers = projection.get("blockers") if isinstance(projection, dict) else None
+    if blockers:
+        return "DEGRADED"
+    if status == "CURRENT":
+        return "READY"
+    if status in {"RUNNING", "PROCESSED", "WAITING_FOR_RETRY"}:
+        return "COLLECTING"
+    return "DEGRADED"
 
 
 def virtual_simulation_projection(data):
@@ -1042,7 +1054,7 @@ def dashboard_health_findings(result):
 
     history = result.get("market_history") or {}
     history_source = (result.get("sources") or {}).get("market_history") or {}
-    if history_source.get("status") != "READY":
+    if history_source.get("status") not in {"READY", "COLLECTING"}:
         completed = history.get("completed_streams")
         total = history.get("total_streams")
         add(
@@ -1060,7 +1072,7 @@ def dashboard_health_findings(result):
 
     depth = result.get("market_depth") or {}
     depth_source = (result.get("sources") or {}).get("market_depth") or {}
-    if depth_source.get("status") != "READY":
+    if depth_source.get("status") not in {"READY", "COLLECTING"}:
         add(
             "MARKET_DEPTH_PARTIAL_COVERAGE",
             "MARKET_DATA",
@@ -1078,7 +1090,7 @@ def dashboard_health_findings(result):
 
     research = result.get("futures_research") or {}
     research_source = (result.get("sources") or {}).get("futures_research") or {}
-    if research_source.get("status") != "READY":
+    if research_source.get("status") not in {"READY", "COLLECTING"}:
         add(
             "FUTURES_RESEARCH_NOT_READY",
             "RESEARCH",
@@ -1136,6 +1148,33 @@ def dashboard_health_findings(result):
             "auto-audit artifact is unavailable, invalid, or stale",
         )
     return findings[:20]
+
+
+def operational_readiness_projection(
+    findings: list[dict[str, object]],
+    services: list[dict[str, object]],
+) -> dict[str, object]:
+    """Separate actionable readiness failures from advisory P3 observations."""
+    required_services = [
+        item
+        for item in services
+        if isinstance(item, dict) and item.get("required") is True
+    ]
+    ready_services = [
+        item for item in required_services if item.get("status") == "READY"
+    ]
+    high_priority_findings = [
+        item
+        for item in findings
+        if isinstance(item, dict) and item.get("severity") in {"P1", "P2"}
+    ]
+    return {
+        "status": "DEGRADED" if high_priority_findings else "READY",
+        "finding_count": len(findings),
+        "high_priority_finding_count": len(high_priority_findings),
+        "required_service_ready_count": len(ready_services),
+        "required_service_count": len(required_services),
+    }
 
 
 def warm_dashboard_dependencies() -> None:
@@ -1275,12 +1314,9 @@ def snapshot(config):
                 meta["status"] = result[name]["status"]
         elif name == "futures_research":
             result[name] = futures_research_projection(data)
-            if meta["status"] == "CURRENT" and result[name].get("status") == "CURRENT":
+            if meta["status"] == "CURRENT":
                 meta["freshness_status"] = "CURRENT"
-                meta["status"] = "READY"
-            elif meta["status"] == "CURRENT" and result[name].get("status") != "READY":
-                meta["freshness_status"] = "CURRENT"
-                meta["status"] = "DEGRADED"
+                meta["status"] = futures_research_readiness_status(result[name])
         elif name == "learning":
             result[name] = {
                 "lesson_count": len(data.get("lessons", [])),
@@ -1354,21 +1390,9 @@ def snapshot(config):
         source["producer_status"] = producer.get("status")
         source["producer_blockers"] = producer.get("blockers") or []
     result["health_findings"] = dashboard_health_findings(result)
-    required_services = [
-        item for item in result["services"] if item.get("required") is True
-    ]
-    ready_services = [
-        item for item in required_services if item.get("status") == "READY"
-    ]
-    result["operational_readiness"] = {
-        "status": "DEGRADED" if result["health_findings"] else "READY",
-        "finding_count": len(result["health_findings"]),
-        "high_priority_finding_count": sum(
-            item.get("severity") in {"P1", "P2"} for item in result["health_findings"]
-        ),
-        "required_service_ready_count": len(ready_services),
-        "required_service_count": len(required_services),
-    }
+    result["operational_readiness"] = operational_readiness_projection(
+        result["health_findings"], result["services"]
+    )
     return result
 
 

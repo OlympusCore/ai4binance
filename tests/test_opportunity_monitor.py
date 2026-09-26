@@ -86,7 +86,9 @@ def test_monitor_helper_boundaries_and_research_estimates(
         "Universe", (), {"spot_symbols": ("BTCUSDT",), "futures_symbols": ("ETHUSDT",)}
     )()
     monkeypatch.setattr(
-        monitor_module, "read_cached_market_universe", lambda *_args: universe
+        monitor_module,
+        "read_cached_market_universe",
+        lambda *_args, **_kwargs: universe,
     )
     assert monitor_module.market_symbols(tmp_path, "USD_M_FUTURES", NOW) == ("ETHUSDT",)
 

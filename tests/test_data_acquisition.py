@@ -113,6 +113,7 @@ def test_local_snapshot_priority_reuses_canonical_liquidity_order(
     tmp_path: Path,
 ) -> None:
     from ai4binance.cli.runtime import (
+        _canonical_resident_runtime_symbol,
         _virtual_market_priority_symbols,
         _virtual_market_ranked_symbols,
     )
@@ -142,11 +143,16 @@ def test_local_snapshot_priority_reuses_canonical_liquidity_order(
     )
     assert _virtual_market_priority_symbols(settings, (), ("BTCUSDT",), NOW) == ()
     assert _virtual_market_ranked_symbols(settings, (), NOW) == ("SOLUSDT",)
+    assert _canonical_resident_runtime_symbol(settings, NOW) == "SOLUSDT"
     assert (
         _virtual_market_priority_symbols(
             settings, (), ("SOLUSDT",), NOW + timedelta(hours=1)
         )
         == ()
+    )
+    assert (
+        _canonical_resident_runtime_symbol(settings, NOW + timedelta(hours=1))
+        == settings.symbol
     )
 
 

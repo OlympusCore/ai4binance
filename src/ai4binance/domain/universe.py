@@ -22,6 +22,14 @@ _STABLE_BASE_ASSETS = frozenset(
         "PYUSD",
         "USD1",
         "USDE",
+        "USDS",
+        "USDG",
+        "USDD",
+        "RLUSD",
+        "FRAX",
+        "LUSD",
+        "GHO",
+        "EURC",
         "U",
     }
 )

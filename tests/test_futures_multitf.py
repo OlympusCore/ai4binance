@@ -139,6 +139,7 @@ def test_current_cycle_keeps_the_local_futures_opportunity_monitor_running(
     state_path.write_text(
         json.dumps(
             {
+                "eligible_symbols": ["BTCUSDT", "ETHUSDT"],
                 "completed_windows": {
                     "BTCUSDT": current_window,
                     "ETHUSDT": current_window,
@@ -439,35 +440,88 @@ def test_runner_rejects_incomplete_timeframe_set(tmp_path: Path) -> None:
 def test_eligible_symbols_validates_and_normalizes_cached_universe(
     tmp_path: Path,
 ) -> None:
-    from ai4binance.cli.futures_multitf import _eligible_symbols
+    from ai4binance.cli.futures_multitf import (
+        _eligible_symbols,
+        _retain_current_universe_state,
+    )
+    from ai4binance.integrations.research_market_universe import (
+        RESEARCH_MARKET_UNIVERSE_SOURCE,
+    )
+
+    base = {
+        "observed_at": datetime.now(UTC).isoformat(),
+        "source": RESEARCH_MARKET_UNIVERSE_SOURCE,
+        "execution_allowed": False,
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+    }
 
     with pytest.raises(ValueError, match="UNIVERSE_UNAVAILABLE"):
         _eligible_symbols(tmp_path)
 
     path = tmp_path / "universe-v3.json"
-    path.write_text(json.dumps({"futures_symbols": "BTCUSDT"}), encoding="utf-8")
+    path.write_text(
+        json.dumps({**base, "futures_symbols": "BTCUSDT"}), encoding="utf-8"
+    )
     with pytest.raises(ValueError, match="UNIVERSE_INVALID"):
         _eligible_symbols(tmp_path)
 
-    path.write_text(json.dumps({"futures_symbols": ["../bad", 7]}), encoding="utf-8")
+    path.write_text(
+        json.dumps(
+            {
+                **base,
+                "observed_at": datetime.now().replace(microsecond=0).isoformat(),
+                "futures_symbols": ["BTCUSDT"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="UNIVERSE_INVALID"):
+        _eligible_symbols(tmp_path)
+
+    path.write_text(
+        json.dumps({**base, "futures_symbols": ["../bad", 7]}),
+        encoding="utf-8",
+    )
     with pytest.raises(ValueError, match="UNIVERSE_EMPTY"):
         _eligible_symbols(tmp_path)
 
     path.write_text(
         json.dumps(
             {
+                **base,
                 "futures_symbols": [
                     " ethusdt ",
                     "BTCUSDT",
                     "BTCUSDT",
                     "not-valid!",
                     7,
-                ]
+                ],
             }
         ),
         encoding="utf-8",
     )
     assert _eligible_symbols(tmp_path) == ("BTCUSDT", "ETHUSDT")
+
+    retained = _retain_current_universe_state(
+        {
+            "eligible_symbols": ["OLDUSDT"],
+            "attempted_windows": {"OLDUSDT": "old", "BTCUSDT": "current"},
+            "completed_windows": {"OLDUSDT": "old"},
+            "retry_after": {"OLDUSDT": "old"},
+            "unavailable_windows": {"OLDUSDT": "old"},
+            "active_symbol": "OLDUSDT",
+            "monitor_symbol": "OLDUSDT",
+            "completed_tuning_triggers": ["old-trigger"],
+        },
+        ("BTCUSDT", "ETHUSDT"),
+    )
+    assert retained["attempted_windows"] == {"BTCUSDT": "current"}
+    assert retained["completed_windows"] == {}
+    assert retained["retry_after"] == {}
+    assert retained["unavailable_windows"] == {}
+    assert retained["completed_tuning_triggers"] == []
+    assert "active_symbol" not in retained
+    assert "monitor_symbol" not in retained
 
 
 def test_learning_projection_handles_unavailable_and_bounded_collections(

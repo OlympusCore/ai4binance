@@ -128,6 +128,49 @@ def test_checkpoint_compacts_superseded_depth_events(tmp_path: Path) -> None:
     journal.close()
 
 
+def test_depth_journal_removes_streams_outside_current_universe(
+    tmp_path: Path,
+) -> None:
+    journal = DepthJournal(tmp_path / "depth.sqlite3")
+    journal.append(
+        [
+            ("spot", "BTCUSDT", "snapshot", snapshot(), NOW.timestamp()),
+            ("spot", "ETHUSDT", "snapshot", snapshot(), NOW.timestamp()),
+            (
+                "usd_m_futures",
+                "ETHUSDT",
+                "snapshot",
+                snapshot(),
+                NOW.timestamp(),
+            ),
+        ]
+    )
+
+    result = journal.retain_streams({"spot": ("BTCUSDT",)})
+
+    assert result == {
+        "removed_stream_count": 2,
+        "removed_event_count": 2,
+        "removed_head_count": 2,
+    }
+    assert journal.connection.execute(
+        "SELECT market,symbol FROM depth_heads"
+    ).fetchall() == [("spot", "BTCUSDT")]
+    assert journal.connection.execute(
+        "SELECT market,symbol FROM depth_events"
+    ).fetchall() == [("spot", "BTCUSDT")]
+    journal.close()
+
+
+def test_depth_journal_rejects_invalid_retention_identity(tmp_path: Path) -> None:
+    journal = DepthJournal(tmp_path / "depth.sqlite3")
+    with pytest.raises(ValueError, match="market"):
+        journal.retain_streams({"invalid": ("BTCUSDT",)})
+    with pytest.raises(ValueError, match="symbol"):
+        journal.retain_streams({"spot": ("btc/usdt",)})
+    journal.close()
+
+
 @pytest.mark.parametrize("market", ["spot", "usd_m_futures", "coin_m_futures"])
 def test_gap_and_unsynchronized_are_never_readable(tmp_path: Path, market: str) -> None:
     journal = DepthJournal(tmp_path / "depth.db")

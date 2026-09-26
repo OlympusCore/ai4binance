@@ -54,7 +54,7 @@ def test_service_manifest_is_shared_safe_and_complete() -> None:
     assert scheduled["futures-multitf"].useful_state_file == (
         "futures-multitf-latest.json"
     )
-    assert scheduled["futures-multitf"].enabled is False
+    assert scheduled["futures-multitf"].enabled is True
     for spec in specs:
         assert spec.startup_trigger == "AtLogOn"
         assert spec.allow_start_if_on_batteries is True
@@ -315,6 +315,22 @@ def test_ykb_daily_report_task_refreshes_stale_report_on_logon() -> None:
     assert "live_eligibility_status" in script_text
     assert "LIVE_ORDER_BLOCKED" in script_text
     assert "Invoke-PythonUtf8Command -ArgumentList @(" in script_text
+    assert "report_status" in script_text
+    assert "report_blockers" in script_text
+    assert "$reportExitCode -eq 2" in script_text
+    assert '$humanReport.Status -ne "RUNNING_WITH_BLOCKERS"' in script_text
+
+
+def test_primary_local_reasoning_publishes_resident_pid_and_lock() -> None:
+    script_text = (Path("scripts") / "primary_local_reasoning_agent.ps1").read_text(
+        encoding="utf-8"
+    )
+
+    assert "runtime\\state\\primary-local-reasoning.lock" in script_text
+    assert "pid = $PID" in script_text
+    assert "Write-PrimaryLock" in script_text
+    assert "Remove-PrimaryLock" in script_text
+    assert 'live_eligibility_status = "LIVE_ORDER_BLOCKED"' in script_text
 
 
 def test_ykb_daily_report_script_uses_utf8_redirect_helper() -> None:

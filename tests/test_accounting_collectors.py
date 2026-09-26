@@ -7,6 +7,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, cast
 
+from websockets.exceptions import WebSocketException
+
 import ai4binance.accounting.ui_reports as accounting_ui_reports
 from ai4binance.accounting import (
     AccountingFileReconciler,
@@ -31,6 +33,10 @@ from ai4binance.exchange.private import PrivateCredentials
 
 NOW = datetime(2026, 7, 18, 9, 30, tzinfo=UTC)
 MS = 1_784_367_000_000
+
+
+class ExpectedWebSocketFailure(WebSocketException):
+    """Deterministic provider transport failure for collector boundary tests."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -502,6 +508,36 @@ def test_user_stream_service_records_subscription_and_websocket_events(
     assert len(_events(tmp_path / "futures_usdm" / "order_events.jsonl")) == 1
     assert spot_ws.closed is True
     assert futures_ws.closed is True
+
+
+def test_user_stream_collector_contains_provider_websocket_failures(
+    tmp_path: Path,
+) -> None:
+    class ProviderFailureSession:
+        product_type = ProductType.SPOT
+
+        def open(self) -> None:
+            raise ExpectedWebSocketFailure("provider rejected connection")
+
+        def receive_event(self, *, timeout_seconds: float) -> dict[str, object]:
+            raise AssertionError(f"unexpected receive timeout {timeout_seconds}")
+
+        def close(self) -> None:
+            raise AssertionError("unopened session must not be closed")
+
+    service = AccountingUserStreamCollectorService(
+        ledger=BinanceAccountLedger(tmp_path, account_id="acct-a"),
+        sessions=(ProviderFailureSession(),),
+        event_limit=1,
+        collect_seconds=1.0,
+        receive_timeout_seconds=0.1,
+    )
+
+    result = service.collect_once(sync_run_id="ws-provider-failure")
+
+    assert result.status == "DEGRADED"
+    assert result.rejected_count == 1
+    assert result.blockers == ("SPOT_WEBSOCKET_OPEN_FAILED:ExpectedWebSocketFailure",)
 
 
 def test_file_reconciler_and_ui_report_use_rest_and_websocket_evidence(
