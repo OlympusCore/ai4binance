@@ -1564,7 +1564,7 @@ class ContinuousMarketHistory:
         self,
         market_work: tuple[tuple[str, str, JsonTransport], ...],
     ) -> tuple[tuple[str, str, JsonTransport, str, str | None], ...]:
-        """Finish watched symbols first, then schedule fair universe backfill."""
+        """Finish watched symbols first, then keep the screen universe fresh."""
 
         streams: list[tuple[str, str, JsonTransport, str, str | None]] = []
         priority_set = frozenset(self.priority_symbols)
@@ -1578,9 +1578,25 @@ class ContinuousMarketHistory:
         for market, symbol, transport in priority_work:
             for kind, timeframe in self._collection_kinds(market):
                 streams.append((market, symbol, transport, kind, timeframe))
-        # Keep each background symbol's direct streams contiguous. Workers may
-        # fetch later symbols concurrently, while the first fully current
-        # symbol can immediately enter the bounded opportunity-analysis stage.
+        if self.on_symbol_screen is not None:
+            # A complete top-50 cycle can exceed the 15m freshness budget. Run
+            # each screening timeframe across the full background universe
+            # before moving to the next timeframe, so early symbols do not
+            # become stale while later symbols are still being collected.
+            screen_kinds = tuple(
+                ("klines", timeframe) for timeframe in _SCREEN_TIMEFRAMES
+            )
+            for kind, timeframe in screen_kinds:
+                for market, symbol, transport in background_work:
+                    if (kind, timeframe) in self._collection_kinds(market):
+                        streams.append((market, symbol, transport, kind, timeframe))
+            for market, symbol, transport in background_work:
+                for kind, timeframe in self._collection_kinds(market):
+                    if (kind, timeframe) not in screen_kinds:
+                        streams.append((market, symbol, transport, kind, timeframe))
+            return tuple(streams)
+        # Non-staged full-history runs retain symbol-contiguous streams so the
+        # first complete symbol can become available during long backfills.
         for market, symbol, transport in background_work:
             for kind, timeframe in self._collection_kinds(market):
                 streams.append((market, symbol, transport, kind, timeframe))

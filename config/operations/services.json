@@ -103,7 +103,7 @@
       "command": "python -m ai4binance.cli.futures_multitf daemon",
       "mode": "RunFuturesMultiTf",
       "required": false,
-      "enabled": false,
+      "enabled": true,
       "health_file": "futures-multitf-health.json",
       "lock_file": "futures-multitf.lock",
       "max_health_age_seconds": 900,

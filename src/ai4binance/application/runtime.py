@@ -12,6 +12,9 @@ from typing import Any, Protocol
 
 from ai4binance.domain import Action
 
+_PORTFOLIO_COST_BASIS_ASSET_LIMIT = 50
+_PAR_USDT_ASSETS = frozenset({"USDT", "FDUSD", "USDC"})
+
 
 class RuntimeState(StrEnum):
     STARTING = "STARTING"
@@ -205,8 +208,15 @@ class ReadOnlyRuntimeCycle:
         futures_account = self._futures_account(symbol, created_at, futures_preflight)
         blockers = [*spot_preflight, *futures_preflight]
         cost_basis = self._cost_basis(symbol, spot_wallet, blockers)
+        portfolio_average_costs = self._portfolio_average_costs(
+            spot_wallet,
+            cost_basis,
+            blockers,
+        )
         portfolio_analytics = self._portfolio_analytics(
-            spot_wallet, blockers, cost_basis
+            spot_wallet,
+            blockers,
+            portfolio_average_costs,
         )
         spot_ready = spot_wallet is not None and not spot_preflight
         futures_ready = futures_account is not None and not futures_preflight
@@ -318,22 +328,14 @@ class ReadOnlyRuntimeCycle:
         self,
         wallet: Any | None,
         blockers: list[str],
-        cost_basis: Any | None,
+        average_costs_usdt: Mapping[str, Decimal] | None,
     ) -> Any | None:
         if wallet is None or self.analytics_service is None:
             return None
         try:
-            costs = (
-                {cost_basis.base_asset: cost_basis.average_cost_quote}
-                if cost_basis is not None
-                and cost_basis.average_cost_quote is not None
-                and not cost_basis.blockers
-                and cost_basis.quote_asset == "USDT"
-                else None
-            )
             analytics = self.analytics_service.evaluate(
                 wallet,
-                average_costs_usdt=costs,
+                average_costs_usdt=average_costs_usdt,
             )
         except (OSError, RuntimeError, TypeError, ValueError):
             blockers.append("PORTFOLIO_ANALYTICS_FAILED")
@@ -351,9 +353,11 @@ class ReadOnlyRuntimeCycle:
             return None
         base_asset = symbol.removesuffix("USDT") or symbol
         balance = wallet.balance(base_asset)
-        wallet_quantity = (
-            balance.free + balance.locked if balance is not None else Decimal("0")
-        )
+        if balance is None:
+            return None
+        wallet_quantity = balance.free + balance.locked
+        if wallet_quantity <= Decimal("0"):
+            return None
         try:
             report = self.cost_basis_service.evaluate(symbol, wallet_quantity)
         except (OSError, RuntimeError, TypeError, ValueError):
@@ -361,6 +365,60 @@ class ReadOnlyRuntimeCycle:
             return None
         blockers.extend(report.blockers)
         return report
+
+    def _portfolio_average_costs(
+        self,
+        wallet: Any | None,
+        selected_cost_basis: Any | None,
+        blockers: list[str],
+    ) -> Mapping[str, Decimal] | None:
+        if wallet is None or self.cost_basis_service is None:
+            return None
+        costs: dict[str, Decimal] = {}
+        evaluated_assets: set[str] = set()
+        if selected_cost_basis is not None:
+            evaluated_assets.add(selected_cost_basis.base_asset)
+            if (
+                selected_cost_basis.average_cost_quote is not None
+                and not selected_cost_basis.blockers
+                and selected_cost_basis.quote_asset == "USDT"
+            ):
+                costs[selected_cost_basis.base_asset] = (
+                    selected_cost_basis.average_cost_quote
+                )
+        balances = tuple(
+            sorted(
+                (
+                    balance
+                    for balance in wallet.balances
+                    if balance.asset not in _PAR_USDT_ASSETS
+                    and balance.free + balance.locked > Decimal("0")
+                ),
+                key=lambda balance: balance.asset,
+            )
+        )
+        if len(balances) > _PORTFOLIO_COST_BASIS_ASSET_LIMIT:
+            blockers.append("PORTFOLIO_COST_BASIS_SCOPE_EXCEEDED")
+        for balance in balances[:_PORTFOLIO_COST_BASIS_ASSET_LIMIT]:
+            if balance.asset in evaluated_assets:
+                continue
+            evaluated_assets.add(balance.asset)
+            try:
+                report = self.cost_basis_service.evaluate(
+                    f"{balance.asset}USDT",
+                    balance.free + balance.locked,
+                )
+            except (OSError, RuntimeError, TypeError, ValueError):
+                blockers.append("COST_BASIS_RECONCILIATION_FAILED")
+                continue
+            blockers.extend(report.blockers)
+            if (
+                report.average_cost_quote is not None
+                and not report.blockers
+                and report.quote_asset == "USDT"
+            ):
+                costs[report.base_asset] = report.average_cost_quote
+        return costs or None
 
     @staticmethod
     def _unavailable_advisory(market: str, blockers: list[str]) -> MarketAdvisory:

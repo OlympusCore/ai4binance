@@ -208,6 +208,11 @@ def _append_stage_review(
     review: ContinuousDiscoveryStageReview,
 ) -> None:
     stage_reviews.append(review)
+    if review.stage_id is ContinuousDiscoveryStageId.FILTER:
+        # A deterministic filter rejection is a successful safety outcome. Keep
+        # its reasons on the candidate review and admission record without
+        # degrading the discovery service or the whole-system status.
+        return
     blockers.extend(
         blocker
         for blocker in review.blockers

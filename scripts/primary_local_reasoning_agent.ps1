@@ -9,6 +9,7 @@ $ErrorActionPreference = "Stop"
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 $taskName = "AI4BINANCE-Primary-Local-Reasoning"
 $healthPath = Join-Path $root "runtime\state\primary-local-reasoning-health.json"
+$lockPath = Join-Path $root "runtime\state\primary-local-reasoning.lock"
 $serverScript = Join-Path $PSScriptRoot "start_llama_server.ps1"
 
 function Test-PrimaryListener {
@@ -32,6 +33,7 @@ function Write-PrimaryHealth {
         endpoint = "http://127.0.0.1:8080"
         status = $Status
         updated_at = [DateTimeOffset]::UtcNow.ToString("o")
+        pid = $PID
         listener_pids = @($listeners | ForEach-Object { $_.OwningProcess } | Sort-Object -Unique)
         blockers = @($Blockers)
         execution_allowed = $false
@@ -39,6 +41,31 @@ function Write-PrimaryHealth {
         live_eligibility_status = "LIVE_ORDER_BLOCKED"
         exit_code = $ExitCode
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $healthPath -Encoding UTF8
+}
+
+function Write-PrimaryLock {
+    New-Item -ItemType Directory -Path (Split-Path $lockPath -Parent) -Force | Out-Null
+    $temporary = "$lockPath.$PID.tmp"
+    [System.IO.File]::WriteAllText(
+        $temporary,
+        [string]$PID,
+        [System.Text.Encoding]::ASCII
+    )
+    Move-Item -LiteralPath $temporary -Destination $lockPath -Force
+}
+
+function Remove-PrimaryLock {
+    if (-not (Test-Path -LiteralPath $lockPath -PathType Leaf)) {
+        return
+    }
+    try {
+        $ownerPid = [int](Get-Content -LiteralPath $lockPath -Raw -Encoding ASCII)
+        if ($ownerPid -eq $PID) {
+            Remove-Item -LiteralPath $lockPath -Force
+        }
+    }
+    catch {
+    }
 }
 
 function Start-PrimaryProvider {
@@ -84,12 +111,14 @@ $hasHandle = $false
 try {
     $hasHandle = $mutex.WaitOne(0)
     if (-not $hasHandle) { exit 0 }
+    Write-PrimaryLock
     while ($true) {
         [void](Start-PrimaryProvider)
         Start-Sleep -Seconds $PollSeconds
     }
 }
 finally {
+    Remove-PrimaryLock
     if ($hasHandle) { $mutex.ReleaseMutex() }
     $mutex.Dispose()
 }

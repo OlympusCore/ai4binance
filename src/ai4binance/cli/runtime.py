@@ -317,6 +317,10 @@ class RuntimeInvestmentManager:
 def build_read_only_runtime(settings: Settings) -> ReadOnlyRuntimeCycle:
     """Build the resident wallet-first runtime without any write endpoint."""
     public_acquisition = build_public_acquisition(settings)
+    runtime_symbol = _canonical_resident_runtime_symbol(
+        settings,
+        datetime.now(UTC),
+    )
     context_loader = RuntimeResearchContextLoader(
         news_feed_path=settings.runtime_news_feed_path,
         social_feed_path=settings.runtime_social_feed_path,
@@ -378,7 +382,7 @@ def build_read_only_runtime(settings: Settings) -> ReadOnlyRuntimeCycle:
         ),
     )
     return ReadOnlyRuntimeCycle(
-        symbol=settings.symbol,
+        symbol=runtime_symbol,
         timeframes=settings.timeframes,
         spot_acquirer=RuntimeContextAcquirer(public_acquisition, context_loader),
         spot_wallet_service=spot_wallet_service,
@@ -437,6 +441,27 @@ def build_read_only_runtime(settings: Settings) -> ReadOnlyRuntimeCycle:
         ),
         account_wide_monitoring=True,
     )
+
+
+def _canonical_resident_runtime_symbol(
+    settings: Settings,
+    observed_at: datetime,
+) -> str:
+    """Select one deterministic resident symbol from the shared Spot universe."""
+
+    configured = tuple(
+        dict.fromkeys(
+            (
+                settings.symbol,
+                *settings.fixed_symbols,
+                *settings.priority_watchlist,
+            )
+        )
+    )
+    ranked = _virtual_market_ranked_symbols(settings, configured, observed_at)
+    if settings.symbol in ranked:
+        return settings.symbol
+    return ranked[0] if ranked else settings.symbol
 
 
 def run_runtime_command(

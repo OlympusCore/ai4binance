@@ -16,6 +16,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from websockets.exceptions import WebSocketException
+
 from ai4binance.accounting.collectors import (
     AccountingWebSocketCollector,
 )
@@ -323,7 +325,7 @@ class AccountingUserStreamCollectorService:
                         accepted += 1
                     else:
                         duplicates += 1
-                except (OSError, RuntimeError, ValueError) as error:
+                except (OSError, RuntimeError, ValueError, WebSocketException) as error:
                     rejected += 1
                     blockers.append(
                         f"{session.product_type.value}_WEBSOCKET_OPEN_FAILED:{type(error).__name__}"
@@ -341,7 +343,12 @@ class AccountingUserStreamCollectorService:
                         )
                     except TimeoutError:
                         continue
-                    except (OSError, RuntimeError, ValueError) as error:
+                    except (
+                        OSError,
+                        RuntimeError,
+                        ValueError,
+                        WebSocketException,
+                    ) as error:
                         blockers.append(
                             f"{session.product_type.value}_WEBSOCKET_EVENT_FAILED:{type(error).__name__}"
                         )
@@ -363,7 +370,7 @@ class AccountingUserStreamCollectorService:
             for session in reversed(opened):
                 try:
                     session.close()
-                except (OSError, RuntimeError, ValueError):
+                except (OSError, RuntimeError, ValueError, WebSocketException):
                     blockers.append(
                         f"{session.product_type.value}_WEBSOCKET_CLOSE_FAILED"
                     )

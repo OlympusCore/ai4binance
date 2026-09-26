@@ -71,6 +71,47 @@ def test_dashboard_exposes_useful_cycle_and_producer_health() -> None:
     assert "DISABLED" in views
 
 
+def test_dashboard_keeps_collection_progress_and_p3_advice_out_of_readiness() -> None:
+    module = runpy.run_path(str(SOURCE / "server.py.in"))
+    findings = module["dashboard_health_findings"](
+        {
+            "market_history": {"completed_streams": 12, "total_streams": 301},
+            "market_depth": {},
+            "futures_research": {},
+            "learning": {"lesson_count": 0, "experiment_count": 0},
+            "services": [],
+            "sources": {
+                "market_history": {"status": "COLLECTING"},
+                "market_depth": {"status": "COLLECTING"},
+                "futures_research": {"status": "READY"},
+                "auto_audit": {"status": "CURRENT"},
+            },
+        }
+    )
+    projection = module["operational_readiness_projection"](findings, [])
+
+    assert [item["finding_id"] for item in findings] == ["LEARNING_SUMMARY_EMPTY"]
+    assert projection == {
+        "status": "READY",
+        "finding_count": 1,
+        "high_priority_finding_count": 0,
+        "required_service_ready_count": 0,
+        "required_service_count": 0,
+    }
+
+
+def test_dashboard_degrades_for_high_priority_health_findings() -> None:
+    module = runpy.run_path(str(SOURCE / "server.py.in"))
+    projection = module["operational_readiness_projection"](
+        [{"severity": "P2"}],
+        [{"required": True, "status": "DEGRADED"}],
+    )
+
+    assert projection["status"] == "DEGRADED"
+    assert projection["high_priority_finding_count"] == 1
+    assert projection["required_service_ready_count"] == 0
+
+
 def test_dashboard_recognizes_completed_futures_research() -> None:
     server = (SOURCE / "server.py.in").read_text(encoding="utf-8")
 
