@@ -7,7 +7,14 @@ from decimal import Decimal
 from enum import StrEnum
 from itertools import pairwise
 
-from ai4binance.indicators import atr, closes, ema
+from ai4binance.data.timeframes import timeframe_from_duration
+from ai4binance.indicators import atr
+from ai4binance.intelligence.contracts import (
+    StructureState,
+    SwingKind,
+    TimeframeStructureEvidence,
+)
+from ai4binance.intelligence.structure import MarketStructureEngine
 from ai4binance.schemas import OHLCVCandle
 from ai4binance.strategies.registry import PlaybookRegistry, build_playbook_registry
 
@@ -144,6 +151,8 @@ class HistoricalTriggerDecision:
     regime: HistoricalRegime
     regime_strategy_reason_code: str
     blockers: tuple[str, ...] = ()
+    structural_stop: Decimal | None = None
+    structural_target: Decimal | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,18 +268,26 @@ def historical_playbook_decision(
         )
     registry = registry or build_playbook_registry()
     recent = history[-50:]
-    fast = ema(closes(recent), 8)
-    slow = ema(closes(recent), 21)
+    interval = recent[-1].timestamp - recent[-2].timestamp
+    if any(b.timestamp - a.timestamp != interval for a, b in pairwise(recent)):
+        return HistoricalTriggerDecision(
+            False,
+            HistoricalRegime.UNKNOWN,
+            REGIME_STRATEGY_CONDITIONS_REQUIRED,
+            ("STRUCTURAL_HISTORY_GAP",),
+        )
+    structure = MarketStructureEngine().analyze(
+        timeframe_from_duration(interval), recent, as_of=recent[-1].timestamp + interval
+    )
     current, previous = recent[-1], recent[-2]
     prior = recent[-12:-2]
     current_atr = atr(recent, 14)
     volatility_ratio = current_atr / current.close
-    ema_separation = abs(fast - slow) / current.close
     regime = (
         HistoricalRegime.HIGH_VOLATILITY
         if volatility_ratio >= Decimal("0.04")
         else HistoricalRegime.TREND
-        if ema_separation >= Decimal("0.01")
+        if structure.state in {StructureState.BULLISH, StructureState.BEARISH}
         else HistoricalRegime.RANGE
     )
     resolved_regime, regime_blockers, regime_reason = _resolve_regime_evidence(
@@ -329,13 +346,9 @@ def historical_playbook_decision(
             REGIME_STRATEGY_CONDITIONS_REQUIRED,
             tuple(quality_blockers),
         )
-    if playbook == "trend_continuation":
-        triggered = (
-            fast > slow and current.close > fast and current.close > previous.close
-        )
-    elif playbook == "pullback_continuation":
-        triggered = fast > slow and previous.close <= fast < current.close
-    elif playbook == "breakout_retest":
+    if playbook in {"trend_continuation", "pullback_continuation"}:
+        return _structural_continuation(playbook, recent, structure, resolved_regime)
+    if playbook == "breakout_retest":
         resistance = max(candle.high for candle in prior)
         reactions = level_reaction_statistics(history, resistance, support=False)
         if not reactions.validated:
@@ -370,6 +383,46 @@ def historical_playbook_decision(
         resolved_regime,
         REGIME_STRATEGY_ELIGIBLE if triggered else REGIME_STRATEGY_CONDITIONS_REQUIRED,
         () if triggered else ("PLAYBOOK_GEOMETRY_NOT_CONFIRMED",),
+    )
+
+
+def _structural_continuation(
+    playbook: str,
+    history: tuple[OHLCVCandle, ...],
+    structure: TimeframeStructureEvidence,
+    regime: HistoricalRegime,
+) -> HistoricalTriggerDecision:
+    """Long-only component trigger from confirmed swings and price reclaim.
+
+    This is not the multi-timeframe Futures scenario. Never substitute an
+    indicator crossover or a manufactured ATR target for missing structure.
+    """
+    current, previous = history[-1], history[-2]
+    stop = structure.invalidation_level
+    latest_high = next(
+        (s.price for s in reversed(structure.swings) if s.kind is SwingKind.HIGH), None
+    )
+    targets = (
+        (latest_high,)
+        if latest_high is not None and latest_high > current.close
+        else ()
+    )
+    confirmed = (
+        structure.method == "CONFIRMED_SWING_GRAPH"
+        and structure.state is StructureState.BULLISH
+        and stop is not None
+        and Decimal("0") < stop < current.close
+        and bool(targets)
+        and current.close > previous.high
+        and (playbook != "pullback_continuation" or current.low <= previous.low)
+    )
+    return HistoricalTriggerDecision(
+        confirmed,
+        regime,
+        REGIME_STRATEGY_ELIGIBLE if confirmed else REGIME_STRATEGY_CONDITIONS_REQUIRED,
+        () if confirmed else ("STRUCTURAL_CONTINUATION_NOT_CONFIRMED",),
+        stop if confirmed else None,
+        latest_high if confirmed else None,
     )
 
 

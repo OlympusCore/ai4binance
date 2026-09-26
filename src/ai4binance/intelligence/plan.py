@@ -6,12 +6,18 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, InvalidOperation
+from hashlib import sha256
+from itertools import pairwise
 from typing import cast
 
+from ai4binance.data.timeframes import timeframe_duration
 from ai4binance.domain import Action, CandidateStatus, PriceZone, TradeCandidate
+from ai4binance.indicators import atr
 from ai4binance.intelligence.contracts import (
+    ScenarioDirection,
     ScenarioHypothesis,
     ScenarioState,
+    SwingKind,
     TradingIntelligenceState,
 )
 from ai4binance.schemas import MarketSnapshot
@@ -69,6 +75,145 @@ class TradePlanEngine:
 
     risk_reward_engine: RiskRewardEngine = RiskRewardEngine()
 
+    def propose(
+        self, snapshot: MarketSnapshot, state: TradingIntelligenceState
+    ) -> tuple[TradeCandidate, ...]:
+        """Create structural Futures proposals without an indicator candidate seed.
+
+        ATR describes volatility only. Entry, invalidation and targets must be
+        observable prices; missing geometry never falls back to ATR multiples.
+        """
+        scenario = state.selected_scenario
+        if (
+            snapshot.market_type != "USD_M_FUTURES"
+            or (state.snapshot_id, state.symbol, state.timestamp, state.market_type)
+            != (
+                snapshot.snapshot_id,
+                snapshot.symbol,
+                snapshot.created_at,
+                snapshot.market_type,
+            )
+            or state.blockers
+            or scenario is None
+            or scenario.state is not ScenarioState.CONFIRMED
+            or scenario.blockers
+            or scenario.invalidation_level is None
+            or scenario.direction is ScenarioDirection.NEUTRAL
+        ):
+            return ()
+        structures = {item.timeframe: item for item in state.structures}
+        if any(
+            timeframe not in structures
+            or structures[timeframe].method != "CONFIRMED_SWING_GRAPH"
+            or any(
+                sum(s.kind is kind for s in structures[timeframe].swings) < 2
+                for kind in SwingKind
+            )
+            for timeframe in ("4h", "1h")
+        ):
+            return ()
+        long = scenario.direction is ScenarioDirection.LONG
+        method = "CONFIRMED_PIVOT_SUPPORT" if long else "CONFIRMED_PIVOT_RESISTANCE"
+        if not any(
+            line.source_timeframe == "4h"
+            and line.method == method
+            and not line.blockers
+            and line.break_state in {"UNBROKEN", "FALSE_BREAK"}
+            and (line.slope > ZERO if long else line.slope < ZERO)
+            for line in state.trend_geometry
+        ):
+            return ()
+        timeframes = tuple(
+            timeframe
+            for timeframe in ("15m", "5m")
+            if f"ENTRY_TRIGGER_TIMEFRAME:{timeframe}" in scenario.evidence_for
+        )
+        proposals: list[TradeCandidate] = []
+        for timeframe in timeframes:
+            rows = tuple(
+                candle
+                for candle in snapshot.ohlcv_by_timeframe.get(timeframe, ())
+                if candle.timestamp + timeframe_duration(timeframe)
+                <= snapshot.created_at
+            )
+            if (
+                len(rows) < 15
+                or any(
+                    b.timestamp - a.timestamp != timeframe_duration(timeframe)
+                    for a, b in pairwise(rows)
+                )
+                or snapshot.created_at
+                - (rows[-1].timestamp + timeframe_duration(timeframe))
+                >= timeframe_duration(timeframe)
+            ):
+                continue
+            entry, stop = rows[-1].close, scenario.invalidation_level
+            long = scenario.direction is ScenarioDirection.LONG
+            targets = self._targets(state, entry, long)
+            if not targets or not (
+                ZERO < stop < entry if long else stop > entry > ZERO
+            ):
+                continue
+            volatility = atr(rows, 14)
+            if volatility <= ZERO:
+                continue
+            digest = sha256(
+                f"{scenario.scenario_id}|{timeframe}|structural-v3".encode()
+            ).hexdigest()[:20]
+            candidate = TradeCandidate(
+                candidate_id=f"candidate:{digest}",
+                snapshot_id=snapshot.snapshot_id,
+                timestamp=snapshot.created_at,
+                symbol=snapshot.symbol,
+                timeframe=timeframe,
+                action=Action.BUY if long else Action.SELL,
+                setup_name="trend_continuation",
+                status=CandidateStatus.READY_FOR_RISK,
+                entry_zone=PriceZone(entry, entry),
+                invalidation_level=stop,
+                stop_loss=stop,
+                take_profit_levels=tuple(targets),
+                trailing_stop=stop,
+                atr=volatility,
+                risk_reward=abs(next(iter(targets)) - entry) / abs(entry - stop),
+                score=scenario.confidence * 100,
+                confidence=scenario.confidence,
+                market_type=snapshot.market_type,
+                evidence=(
+                    *scenario.evidence_for,
+                    "STRUCTURAL_ENTRY_V3",
+                    "ATR_VOLATILITY_ONLY",
+                ),
+                target_sources=tuple(targets.values()),
+            )
+            candidate = self.structural_candidate(candidate, scenario, state, snapshot)
+            proposals.append(self.bind(candidate, scenario, state))
+        return tuple(proposals)
+
+    @staticmethod
+    def _targets(
+        state: TradingIntelligenceState, entry: Decimal, long: bool
+    ) -> dict[Decimal, str]:
+        targets: dict[Decimal, str] = {}
+        for level in state.levels:
+            if level.level_type not in {"SUPPORT", "RESISTANCE"}:
+                continue
+            effective_type = (
+                ("RESISTANCE" if level.level_type == "SUPPORT" else "SUPPORT")
+                if level.role_flip
+                else level.level_type
+            )
+            if level.freshness not in {"FRESH", "AGING"} or effective_type != (
+                "RESISTANCE" if long else "SUPPORT"
+            ):
+                continue
+            price = level.price_low if long else level.price_high
+            if price > entry if long else ZERO < price < entry:
+                targets.setdefault(price, level.level_id)
+        return {
+            price: targets[price] for price in sorted(targets, reverse=not long)[:3]
+        }
+
     def structural_candidate(
         self,
         candidate: TradeCandidate,
@@ -105,20 +250,10 @@ class TradePlanEngine:
         if not (ZERO < stop < entry if long else stop > entry > ZERO):
             return self._unavailable(candidate, "STRUCTURAL_PLAN_STOP_GEOMETRY_INVALID")
         targets: dict[Decimal, str] = {}
-        for level in state.levels:
-            effective_type = (
-                ("RESISTANCE" if level.level_type == "SUPPORT" else "SUPPORT")
-                if level.role_flip
-                else level.level_type
-            )
-            if level.freshness == "STALE" or effective_type != (
-                "RESISTANCE" if long else "SUPPORT"
-            ):
-                continue
-            edge = level.price_low if long else level.price_high
+        for edge, source in self._targets(state, entry, long).items():
             price = (edge / tick).to_integral_value(rounding=target_rounding) * tick
             if price > entry if long else ZERO < price < entry:
-                targets.setdefault(price, level.level_id)
+                targets.setdefault(price, source)
         ordered = tuple(sorted(targets, reverse=not long))[:3]
         if not ordered:
             return self._unavailable(candidate, "STRUCTURAL_PLAN_TARGET_UNAVAILABLE")

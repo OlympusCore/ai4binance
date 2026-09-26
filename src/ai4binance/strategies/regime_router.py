@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 
@@ -134,28 +134,9 @@ class DeterministicRegimeRouter:
 
         unique_blockers = tuple(dict.fromkeys(blockers))
         unique_evidence = tuple(dict.fromkeys(evidence))
-        return TradeCandidate(
-            candidate_id=candidate.candidate_id,
-            snapshot_id=candidate.snapshot_id,
-            timestamp=candidate.timestamp,
-            symbol=candidate.symbol,
-            timeframe=candidate.timeframe,
-            action=candidate.action,
-            setup_name=candidate.setup_name,
+        return replace(
+            candidate,
             status=status,
-            entry_zone=candidate.entry_zone,
-            invalidation_level=candidate.invalidation_level,
-            stop_loss=candidate.stop_loss,
-            take_profit_levels=candidate.take_profit_levels,
-            trailing_stop=candidate.trailing_stop,
-            atr=candidate.atr,
-            risk_reward=candidate.risk_reward,
-            score=candidate.score,
-            confidence=candidate.confidence,
-            ranking_score=candidate.ranking_score,
-            promotion_status=candidate.promotion_status,
-            inventory_action=candidate.inventory_action,
-            market_type=candidate.market_type,
             evidence=unique_evidence,
             blockers=unique_blockers,
         )

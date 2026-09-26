@@ -13,6 +13,8 @@ from ai4binance.domain import (
     ValidationStatus,
 )
 from ai4binance.indicators import atr
+from ai4binance.intelligence.contracts import TradingIntelligenceState
+from ai4binance.intelligence.trading import ScenarioEngine
 from ai4binance.schemas import (
     AgentResult,
     MarketSnapshot,
@@ -74,11 +76,23 @@ class StrategyEngine:
         self,
         snapshot: MarketSnapshot,
         agent_results: Mapping[str, AgentResult],
+        *,
+        trading_intelligence: TradingIntelligenceState | None = None,
     ) -> tuple[TradeCandidate, ...]:
         """Generate bounded virtual-market research candidates.
 
         The output is limited to canonical families.
         """
+        if is_futures_market_type(snapshot.market_type):
+            state = trading_intelligence or ScenarioEngine().build(
+                snapshot, agent_results
+            )
+            candidates = ScenarioEngine().trade_plan_engine.propose(snapshot, state)
+            # A new entry algorithm cannot inherit validation of the former
+            # indicator-seeded strategy version.
+            return replace(self, strategy_version="structural-v3")._approved(
+                candidates, snapshot, agent_results
+            )
         price_action_candidates = PriceActionPlaybookEngine(
             atr_multiplier=self.atr_multiplier,
             target_multiplier=self.target_multiplier,

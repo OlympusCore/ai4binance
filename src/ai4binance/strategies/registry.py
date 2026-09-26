@@ -9,7 +9,6 @@ from pathlib import Path
 from types import MappingProxyType
 
 from ai4binance.domain import ValidationStatus
-from ai4binance.validation.summary import ValidationSummaryReader
 
 
 @dataclass(frozen=True, slots=True)
@@ -350,6 +349,8 @@ class GovernedStrategyRegistryEntry:
 
     @property
     def paper_ready(self) -> bool:
+        from ai4binance.validation.summary import ValidationSummaryReader
+
         if not self.evidence_complete:
             return False
         validation_root = _resolve_evidence_root(self.paper_ref)

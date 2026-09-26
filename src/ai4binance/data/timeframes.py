@@ -29,3 +29,11 @@ def timeframe_duration(timeframe: str) -> timedelta:
     except KeyError:
         raise ValueError(f"unsupported timeframe: {timeframe}") from None
     return timedelta(seconds=seconds)
+
+
+def timeframe_from_duration(duration: timedelta) -> str:
+    """Resolve a native fixed interval without guessing an unknown duration."""
+    for timeframe, seconds in _TIMEFRAME_SECONDS.items():
+        if duration == timedelta(seconds=seconds):
+            return timeframe
+    raise ValueError(f"unsupported timeframe duration: {duration}")

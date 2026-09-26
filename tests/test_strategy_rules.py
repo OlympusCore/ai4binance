@@ -3,6 +3,7 @@
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from itertools import pairwise
 
 from ai4binance.schemas import OHLCVCandle
 from ai4binance.strategies.registry import build_playbook_registry
@@ -57,8 +58,13 @@ def test_historical_decision_requires_volume_and_evaluates_all_playbooks() -> No
     trend = candles(trending=True)
     continuation = historical_playbook_decision("trend_continuation", trend)
     assert continuation.regime is HistoricalRegime.TREND
-    assert continuation.triggered is True
-    assert continuation.regime_strategy_reason_code == "REGIME_STRATEGY_ELIGIBLE"
+    assert continuation.triggered is False
+    assert continuation.blockers == ("STRUCTURAL_CONTINUATION_NOT_CONFIRMED",)
+
+    confirmed = historical_playbook_decision("trend_continuation", structural_candles())
+    assert confirmed.triggered
+    assert confirmed.structural_stop == Decimal("1019.5")
+    assert confirmed.structural_target == Decimal("1080.5")
 
     low_volume = (*trend[:-1], replace(trend[-1], volume=Decimal("100")))
     weak = historical_playbook_decision("trend_continuation", low_volume)
@@ -80,6 +86,35 @@ def test_historical_decision_requires_volume_and_evaluates_all_playbooks() -> No
     assert unknown.triggered is False
     assert unknown.blockers == ("REGIME_BLOCKED:TREND",)
     assert unknown.regime_strategy_reason_code == "REGIME_STRATEGY_INCOMPATIBLE"
+
+
+def structural_candles() -> tuple[OHLCVCandle, ...]:
+    """Two higher highs/lows followed by a closed-bar pullback recovery."""
+    anchors = (
+        (0, 130),
+        (5, 140),
+        (10, 100),
+        (20, 160),
+        (25, 110),
+        (35, 180),
+        (43, 120),
+        (48, 125),
+        (49, 129),
+    )
+    rows = list(candles(trending=False))
+    for (start, first), (end, last) in pairwise(anchors):
+        for index in range(start, end + 1):
+            price = Decimal(900 + first) + Decimal(last - first) * Decimal(
+                index - start
+            ) / Decimal(end - start)
+            rows[index] = replace(
+                rows[index],
+                open=price - Decimal(".2"),
+                high=price + Decimal(".5"),
+                low=price - Decimal(".5"),
+                close=price,
+            )
+    return tuple(rows)
 
 
 def test_strategy_registry_declares_canonical_compatible_regimes() -> None:

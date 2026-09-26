@@ -526,11 +526,15 @@ class MultiTimeframeAgent(BaseAgent):
             )
             if len(candles) < 51:
                 return _insufficient(self, snapshot)
-            values = closes(candles)
-            votes[timeframe] = _vote_from_spread(
-                ema(values, 20),
-                ema(values, 50),
-                atr(candles, 14),
+            structure = MarketStructureEngine().analyze(
+                timeframe, candles, as_of=snapshot.created_at
+            )
+            votes[timeframe] = (
+                1.0
+                if structure.state is StructureState.BULLISH
+                else -1.0
+                if structure.state is StructureState.BEARISH
+                else 0.0
             )
         diagnostic = build_multi_timeframe_diagnostic(
             snapshot,
@@ -549,7 +553,7 @@ class MultiTimeframeAgent(BaseAgent):
             directional_vote=round(vote, 6),
             score=round(score, 6),
             confidence=round(abs(vote), 6),
-            evidence=("EMA_MULTI_TIMEFRAME_ALIGNMENT",),
+            evidence=("PRICE_STRUCTURE_MULTI_TIMEFRAME_ALIGNMENT",),
             warnings=("TIMEFRAME_DIRECTION_CONFLICT",) if conflict else (),
             reason_codes=("MULTI_TIMEFRAME_EVALUATED",),
             calculation_metadata={
@@ -580,9 +584,17 @@ class MarketRegimeAgent(BaseAgent):
         if selected is None:
             return _insufficient(self, snapshot)
         timeframe, candles = selected
-        values = closes(candles)
         volatility = atr(candles, 14)
-        vote = _vote_from_spread(ema(values, 20), ema(values, 50), volatility)
+        structure = MarketStructureEngine().analyze(
+            timeframe, tuple(candles), as_of=snapshot.created_at
+        )
+        vote = (
+            1.0
+            if structure.state is StructureState.BULLISH
+            else -1.0
+            if structure.state is StructureState.BEARISH
+            else 0.0
+        )
         ratio = volatility / candles[-1].close if candles[-1].close > ZERO else ZERO
         if ratio > Decimal("0.08"):
             regime = "ABNORMAL_MARKET"
@@ -606,7 +618,7 @@ class MarketRegimeAgent(BaseAgent):
             directional_vote=round(vote, 6),
             score=80.0,
             confidence=0.75,
-            evidence=("EMA_ATR_REGIME",),
+            evidence=("PRICE_STRUCTURE_VOLATILITY_REGIME",),
             regime_compatibility=regime,
             reason_codes=("MARKET_REGIME_CLASSIFIED",),
             calculation_metadata={

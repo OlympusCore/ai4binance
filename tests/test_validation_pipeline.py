@@ -604,9 +604,9 @@ def test_historical_adapter_incremental_atr_matches_batch_wilder_atr() -> None:
 
 
 def test_historical_adapter_records_blockers_and_emits_quality_intent() -> None:
-    from tests.test_strategy_rules import candles as regime_candles
+    from tests.test_strategy_rules import structural_candles
 
-    history = regime_candles(trending=True)
+    history = structural_candles()
     adapter = HistoricalPlaybookAdapter(
         playbook="trend_continuation",
         parameters=ParameterSet(
@@ -625,7 +625,9 @@ def test_historical_adapter_records_blockers_and_emits_quality_intent() -> None:
     assert dict(adapter.blocker_counts)["INSUFFICIENT_PLAYBOOK_HISTORY"] == 21
     assert dict(adapter.blocker_counts)["REGIME_STRATEGY_CONDITIONS_REQUIRED"] == 49
     assert emitted["strategy_id"] == "trend_continuation"
-    assert emitted["strategy_version"] == "1"
+    assert emitted["strategy_version"] == "structural-v3"
+    assert emitted["stop_loss"] == Decimal("1019.5")
+    assert emitted["take_profit"] == Decimal("1080.5")
     assert emitted["strategy_config_version"] == "1"
     assert len(emitted["strategy_config_hash"]) == 64
     assert emitted["market"] == "SPOT"
@@ -638,9 +640,9 @@ def test_historical_adapter_records_blockers_and_emits_quality_intent() -> None:
 
 
 def test_historical_adapter_fails_closed_when_strategy_risk_profile_missing() -> None:
-    from tests.test_strategy_rules import candles as regime_candles
+    from tests.test_strategy_rules import structural_candles
 
-    history = regime_candles(trending=True)
+    history = structural_candles()
     adapter = HistoricalPlaybookAdapter(
         playbook="trend_continuation",
         parameters=ParameterSet(

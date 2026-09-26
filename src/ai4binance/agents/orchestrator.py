@@ -226,6 +226,7 @@ class EnterpriseOrchestrator:
         candidates = self.strategy_engine.generate(
             snapshot,
             MappingProxyType(results),
+            trading_intelligence=trading_intelligence,
         )
         candidates = self.trading_intelligence_engine.bind_candidates(
             candidates,

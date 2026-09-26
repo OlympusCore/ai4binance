@@ -821,7 +821,7 @@ class ScenarioEngine:
     @staticmethod
     def _triggers(agent_results: Mapping[str, AgentResult]) -> tuple[AgentResult, ...]:
         triggers: list[AgentResult] = []
-        for name in ("price_action", "candlestick", "breakout_retest"):
+        for name in ("price_action", "candlestick", "breakout_retest", "chart_pattern"):
             result = agent_results.get(name)
             if (
                 result is None
@@ -830,6 +830,11 @@ class ScenarioEngine:
                 or result.confidence <= 0
                 or result.calculation_metadata.get("lifecycle_state", "CONFIRMED")
                 != "CONFIRMED"
+            ):
+                continue
+            if name == "chart_pattern" and (
+                result.calculation_metadata.get("lifecycle_state") != "CONFIRMED"
+                or not result.calculation_metadata.get("pattern_id")
             ):
                 continue
             if name == "price_action":

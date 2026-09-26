@@ -667,12 +667,12 @@ def test_regime_router_rejects_invalid_metadata_values() -> None:
 
 
 def test_strategy_engine_allows_futures_short_in_trend_down() -> None:
+    from tests.test_structural_entries import structural_context
+
+    futures_snapshot, results = structural_context(short=True)
     candidate = StrategyEngine().generate(
-        snapshot(market_type="USD_M_FUTURES"),
-        {
-            **evidence(-0.8),
-            "market_regime": market_regime_result("STRONG_DOWNTREND", vote=-0.8),
-        },
+        futures_snapshot,
+        results,
     )[0]
 
     assert candidate.action is Action.SELL
@@ -948,13 +948,12 @@ def test_risk_engine_caps_spot_sell_to_inventory() -> None:
 
 
 def test_strategy_engine_uses_no_inventory_action_for_futures_sell() -> None:
-    results = {
-        **evidence(-0.8),
-        "market_regime": market_regime_result("STRONG_DOWNTREND", vote=-0.8),
-    }
+    from tests.test_structural_entries import structural_context
+
+    futures_snapshot, results = structural_context(short=True)
 
     candidate = StrategyEngine().generate(
-        snapshot(market_type="USD_M_FUTURES"),
+        futures_snapshot,
         results,
     )[0]
 

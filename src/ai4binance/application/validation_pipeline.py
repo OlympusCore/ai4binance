@@ -290,14 +290,29 @@ class HistoricalPlaybookAdapter:
         close = history[-1].close
         stop_multiplier = profile.stop_atr_multiple
         target_multiplier = profile.target_atr_multiple
-        realized_rr = target_multiplier / stop_multiplier
+        structural = self.playbook in {"trend_continuation", "pullback_continuation"}
+        stop = (
+            getattr(decision, "structural_stop", None)
+            if structural
+            else close - current_atr * stop_multiplier
+        )
+        target = (
+            getattr(decision, "structural_target", None)
+            if structural
+            else close + current_atr * target_multiplier
+        )
+        if stop is None or target is None or not 0 < stop < close < target:
+            blocker = "STRUCTURAL_PLAN_GEOMETRY_UNAVAILABLE"
+            self._blocker_counts[blocker] = self._blocker_counts.get(blocker, 0) + 1
+            return None
+        realized_rr = (target - close) / (close - stop)
         if realized_rr < profile.minimum_rr:
             blocker = "MINIMUM_RISK_REWARD_NOT_SATISFIED"
             self._blocker_counts[blocker] = self._blocker_counts.get(blocker, 0) + 1
             return None
-        if current_atr <= 0 or close <= current_atr * stop_multiplier:
+        if current_atr <= 0:
             return None
-        expected_move_ratio = current_atr * target_multiplier / close
+        expected_move_ratio = (target - close) / close
         minimum_edge_ratio = Decimal("0.009")
         if expected_move_ratio < minimum_edge_ratio:
             blocker = "EXPECTED_EDGE_BELOW_COST_BUFFER"
@@ -311,16 +326,17 @@ class HistoricalPlaybookAdapter:
         return self.intent_builder(
             signal_id=f"historical:{digest}",
             timestamp=timestamp,
-            stop_loss=close - current_atr * stop_multiplier,
-            take_profit=close + current_atr * target_multiplier,
+            stop_loss=stop,
+            take_profit=target,
             atr=current_atr,
             reason_codes=(
                 f"PLAYBOOK:{self.playbook}",
                 "CLOSED_CANDLE_SIGNAL",
                 decision.regime_strategy_reason_code,
+                "CONFIRMED_SWING_GEOMETRY" if structural else "ATR_PROFILE_GEOMETRY",
             ),
             strategy_id=self.playbook,
-            strategy_version=self.strategy_version,
+            strategy_version="structural-v3" if structural else self.strategy_version,
             strategy_config_version=profile.version,
             strategy_config_hash=profile.config_hash,
             market=self.market,
