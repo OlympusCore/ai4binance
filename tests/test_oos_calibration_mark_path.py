@@ -146,6 +146,23 @@ def test_strict_replay_never_substitutes_contract_for_missing_mark() -> None:
         )
 
 
+def test_mark_path_entry_respects_exchange_initial_leverage_tier() -> None:
+    engine = FuturesBacktestEngine(
+        FuturesBacktestConfig(
+            leverage=50,
+            require_mark_price_path=True,
+            maintenance_brackets=BRACKETS,
+        )
+    )
+    blockers = engine._entry_blockers(
+        _intent(START, TradeDirection.LONG, stop_loss="99", take_profit="120"),
+        _candle(1),
+        D(1000),
+        mark_price=D(100),
+    )
+    assert "FUTURES_EXCHANGE_INITIAL_LEVERAGE_EXCEEDED" in blockers
+
+
 def observation(
     index: int, probability: float, outcome: bool
 ) -> OosProbabilityObservation:

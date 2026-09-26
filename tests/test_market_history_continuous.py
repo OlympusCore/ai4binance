@@ -343,7 +343,7 @@ def test_futures_enrichment_uses_canonical_monitor_under_shared_lease(
         *,
         timeframes: tuple[str, ...] | None = None,
     ) -> dict[str, object]:
-        assert timeframes == VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
+        assert timeframes == MARKET_HISTORY_TIMEFRAMES
         lock = (
             root
             / "runtime/artifacts/opportunity-radar/monitor/USD_M_FUTURES"
@@ -1043,7 +1043,7 @@ def test_canonical_opportunity_pipeline_reuses_archive_without_network(
             "now": NOW,
             "minimum_candles": 200,
             "candle_limit": 250,
-            "timeframes": VIRTUAL_MARKET_COLLECTION_TIMEFRAMES,
+            "timeframes": MARKET_HISTORY_TIMEFRAMES,
         }
     ]
     assert futures["status"] == "DELEGATED"
@@ -2583,6 +2583,8 @@ def test_market_history_commands_cover_sync_status_and_invalid_inputs(
 
     class Continuous:
         def __init__(self, **kwargs: object) -> None:
+            assert kwargs["on_symbol_screen"] is None
+            assert kwargs["retention"] is None
             self.spot = kwargs["spot"]
             self.futures = kwargs["futures"]
             self.coin_m = kwargs["coin_m"]

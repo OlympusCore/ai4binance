@@ -26,6 +26,7 @@ from ai4binance.data.market_history_continuous import (
     PublicRequestBudget,
 )
 from ai4binance.data.market_history_sync import (
+    MARKET_HISTORY_TIMEFRAMES,
     BinanceVisionArchiveCache,
     MarketHistorySupervisor,
     MarketHistorySynchronizer,
@@ -202,7 +203,10 @@ def build_continuous_market_history(
             if settings.market_history_full_universe
             else _build_opportunity_screen(settings, root)
         ),
-        retention=MarketUniverseRetention(
+        # Historical membership changes must not erase OOS source evidence.
+        retention=None
+        if settings.market_history_full_universe
+        else MarketUniverseRetention(
             archive_root=_absolute(settings.dataset_directory),
             source_cache_root=_absolute(
                 getattr(
@@ -234,6 +238,11 @@ def _build_canonical_opportunity_pipeline(
 
     limiter = BoundedSemaphore(settings.market_history_opportunity_workers)
     spot_archive = ParquetOHLCVArchive(_absolute(settings.dataset_directory) / "spot")
+    analysis_timeframes = (
+        MARKET_HISTORY_TIMEFRAMES
+        if settings.market_history_full_universe
+        else VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
+    )
 
     def analyze(
         market: str, symbol: str, observed_at: datetime
@@ -261,7 +270,7 @@ def _build_canonical_opportunity_pipeline(
                             root,
                             symbol,
                             observed_at,
-                            timeframes=VIRTUAL_MARKET_COLLECTION_TIMEFRAMES,
+                            timeframes=analysis_timeframes,
                         )
                     else:
                         payload = refresh_monitor(
@@ -272,7 +281,7 @@ def _build_canonical_opportunity_pipeline(
                             now=observed_at.astimezone(UTC),
                             minimum_candles=settings.minimum_closed_candles,
                             candle_limit=settings.candle_limit,
-                            timeframes=VIRTUAL_MARKET_COLLECTION_TIMEFRAMES,
+                            timeframes=analysis_timeframes,
                         )
             except RuntimeError as error:
                 if str(error) != "runtime instance is already active":

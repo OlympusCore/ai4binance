@@ -297,7 +297,12 @@ class FuturesBacktestEngine:
 
         for index, candle in enumerate(candles):
             if pending is not None and open_trade is None:
-                entry_blockers = self._entry_blockers(pending, candle, available_cash)
+                entry_blockers = self._entry_blockers(
+                    pending,
+                    candle,
+                    available_cash,
+                    mark_price=mark_candles[index].open if mark_candles else None,
+                )
                 if entry_blockers:
                     self._reject(
                         pending,
@@ -615,6 +620,8 @@ class FuturesBacktestEngine:
         intent: FuturesBacktestIntent,
         candle: OHLCVCandle,
         available_cash: Decimal,
+        *,
+        mark_price: Decimal | None = None,
     ) -> tuple[str, ...]:
         fill = self._entry_fill(candle.volume)
         entry = self._entry_price(intent.direction, candle.open, fill)
@@ -634,6 +641,16 @@ class FuturesBacktestEngine:
             blockers.append("INSUFFICIENT_BACKTEST_MARGIN")
         if notional < self.config.minimum_notional:
             blockers.append("MIN_NOTIONAL_NOT_REACHED")
+        if self.config.require_mark_price_path:
+            blockers.extend(
+                self._mark_entry_bracket_blockers(
+                    entry,
+                    mark_price or entry,
+                    fill.filled_quantity,
+                )
+            )
+            if blockers:
+                return tuple(dict.fromkeys(blockers))
         if fill.filled_quantity > ZERO:
             liquidation = self._liquidation_price(
                 intent.direction,
@@ -651,6 +668,33 @@ class FuturesBacktestEngine:
             ):
                 blockers.append("STOP_BEYOND_LIQUIDATION")
         return tuple(dict.fromkeys(blockers))
+
+    def _mark_entry_bracket_blockers(
+        self,
+        entry: Decimal,
+        mark: Decimal,
+        quantity: Decimal,
+    ) -> tuple[str, ...]:
+        tiers = tuple(
+            next(
+                (
+                    b
+                    for b in self.config.maintenance_brackets
+                    if b.notional_floor <= price * quantity < b.notional_cap
+                ),
+                None,
+            )
+            for price in (entry, mark)
+        )
+        if any(tier is None for tier in tiers):
+            return ("FUTURES_NOTIONAL_OUTSIDE_BRACKETS",)
+        if any(
+            self.config.leverage > tier.initial_leverage
+            for tier in tiers
+            if tier is not None
+        ):
+            return ("FUTURES_EXCHANGE_INITIAL_LEVERAGE_EXCEEDED",)
+        return ()
 
     def _open_trade(
         self,
@@ -1091,6 +1135,9 @@ class FuturesBacktestEngine:
                 rejected.intent,
                 entry_candle,
                 self.config.initial_cash_usdt,
+                mark_price=mark_candles[rejected.entry_index].open
+                if mark_candles
+                else None,
             )
         )
         if entry_blockers - {"STOP_BEYOND_LIQUIDATION"}:
