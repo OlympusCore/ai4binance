@@ -122,7 +122,12 @@ class ConfirmedSwing:
         _require_aware("confirmed swing available_at", self.available_at)
         if self.available_at < self.occurred_at:
             raise ValueError("confirmed swing cannot be available before occurrence")
-        if self.price <= ZERO or self.atr_significance < ZERO:
+        if (
+            not self.price.is_finite()
+            or not self.atr_significance.is_finite()
+            or self.price <= ZERO
+            or self.atr_significance < ZERO
+        ):
             raise ValueError("confirmed swing price/significance is invalid")
 
 
@@ -139,7 +144,7 @@ class StructureEvent:
     def __post_init__(self) -> None:
         if not self.event_type.strip() or not self.evidence_ref.strip():
             raise ValueError("structure event identity cannot be empty")
-        if self.level <= ZERO:
+        if not self.level.is_finite() or self.level <= ZERO:
             raise ValueError("structure event level must be positive")
         _require_aware("structure event occurred_at", self.occurred_at)
 
@@ -163,9 +168,16 @@ class TimeframeStructureEvidence:
     def __post_init__(self) -> None:
         if not self.timeframe.strip() or not self.method.strip():
             raise ValueError("timeframe structure identity cannot be empty")
-        if self.range_low <= ZERO or self.range_high < self.range_low:
+        if (
+            not self.range_low.is_finite()
+            or not self.range_high.is_finite()
+            or self.range_low <= ZERO
+            or self.range_high < self.range_low
+        ):
             raise ValueError("timeframe structure range is invalid")
-        if self.invalidation_level is not None and self.invalidation_level <= ZERO:
+        if self.invalidation_level is not None and (
+            not self.invalidation_level.is_finite() or self.invalidation_level <= ZERO
+        ):
             raise ValueError("structure invalidation must be positive")
         _require_confidence("structure confidence", self.confidence)
         _require_nonblank("structure reason codes", self.reason_codes)
@@ -410,7 +422,9 @@ class ScenarioHypothesis:
             raise ValueError("scenario identity cannot be empty")
         if not self.regime.strip():
             raise ValueError("scenario regime cannot be empty")
-        if self.invalidation_level is not None and self.invalidation_level <= ZERO:
+        if self.invalidation_level is not None and (
+            not self.invalidation_level.is_finite() or self.invalidation_level <= ZERO
+        ):
             raise ValueError("scenario invalidation must be positive")
         _require_confidence("scenario confidence", self.confidence)
         if not self.confidence_components:
@@ -450,11 +464,14 @@ class TradingIntelligenceState:
     promotion_status: str = "RESEARCH_ONLY"
     execution_allowed: bool = False
     live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
+    market_type: str = "SPOT"
 
     def __post_init__(self) -> None:
         if not self.snapshot_id.strip() or not self.symbol.strip():
             raise ValueError("trading intelligence identity cannot be empty")
         _require_aware("trading intelligence timestamp", self.timestamp)
+        if self.market_type not in {"SPOT", "USD_M_FUTURES"}:
+            raise ValueError("trading intelligence market type is invalid")
         _require_nonblank("trading intelligence blockers", self.blockers)
         _require_nonblank("trading intelligence warnings", self.warnings)
         _require_nonblank("trading intelligence cost blockers", self.cost_blockers)
@@ -464,6 +481,25 @@ class TradingIntelligenceState:
         ):
             raise ValueError("trading intelligence cost ratio is invalid")
         scenario_ids = tuple(item.scenario_id for item in self.scenarios)
+        if any(item.snapshot_id != self.snapshot_id for item in self.scenarios):
+            raise ValueError("scenario snapshot identity must match shared state")
+        if any(
+            swing.available_at > self.timestamp
+            for structure in self.structures
+            for swing in structure.swings
+        ) or any(
+            event.occurred_at > self.timestamp
+            for structure in self.structures
+            for event in structure.events
+        ):
+            raise ValueError("structure evidence cannot be available after snapshot")
+        if self.selected_scenario_id is not None and self.blockers:
+            raise ValueError("blocked intelligence cannot select a scenario")
+        if self.selected_scenario is not None and self.selected_scenario.state not in {
+            ScenarioState.FORMING,
+            ScenarioState.CONFIRMED,
+        }:
+            raise ValueError("selected scenario must be forming or confirmed")
         if len(scenario_ids) != len(set(scenario_ids)):
             raise ValueError("trading intelligence scenario IDs must be unique")
         if (

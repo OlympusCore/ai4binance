@@ -7,6 +7,7 @@ from decimal import Decimal
 import pytest
 
 from ai4binance.agents.orchestrator import EnterpriseOrchestrator
+from ai4binance.agents.validation_gate import ValidationGate
 from ai4binance.domain import (
     Action,
     CandidateStatus,
@@ -25,15 +26,22 @@ from ai4binance.intelligence.derivatives import FuturesContextEngine
 from ai4binance.intelligence.patterns import PatternHypothesisFabric
 from ai4binance.intelligence.structure import MarketStructureEngine
 from ai4binance.intelligence.trading import TradingIntelligenceEngine
+from ai4binance.intelligence.trend import TrendGeometryEngine
 from ai4binance.research.virtual_runtime_risk import (
     SimulatedLeverageState,
     VirtualPortfolioRiskGovernor,
 )
-from ai4binance.risk import RiskContext, RiskEngine
+from ai4binance.risk import (
+    RiskAssessment,
+    RiskContext,
+    RiskEngine,
+    candidate_risk_distance,
+)
 from ai4binance.schemas import (
     AgentResult,
     AgentStatus,
     DataQuality,
+    MarketSnapshot,
     OHLCVCandle,
 )
 from tests.test_strategy_risk import symbol_filters
@@ -155,9 +163,21 @@ def _candidate() -> TradeCandidate:
     )
 
 
+def _costed_snapshot() -> MarketSnapshot:
+    snapshot = technical_snapshot()
+    return replace(
+        snapshot,
+        market_metadata={
+            **snapshot.market_metadata,
+            "estimated_fee_ratio": "0.001",
+            "estimated_slippage_ratio": "0.001",
+        },
+    )
+
+
 def test_confirmed_scenario_uses_weakest_confidence_and_binds_candidate() -> None:
     engine = TradingIntelligenceEngine()
-    state = engine.build(technical_snapshot(), _evidence_results())
+    state = engine.build(_costed_snapshot(), _evidence_results())
 
     assert state.selected_scenario is not None
     assert state.selected_scenario.scenario_type is ScenarioType.LONG_CONTINUATION
@@ -177,14 +197,14 @@ def test_confirmed_scenario_uses_weakest_confidence_and_binds_candidate() -> Non
     assert candidate.scenario_state == ScenarioState.CONFIRMED.value
     assert candidate.scenario_invalidation == "0.95"
     assert candidate.gross_risk_reward == Decimal("1.7")
-    assert candidate.structural_risk_reward == Decimal("1.7")
-    assert candidate.net_risk_reward is None
+    assert candidate.structural_risk_reward == Decimal("1.1875")
+    assert candidate.net_risk_reward is not None
     assert candidate.expected_r is None
     assert candidate.probability_calibration_state == "PROBABILITY_NOT_CALIBRATED"
     assert candidate.entry_trigger == "BULLISH_ENGULFING:15m"
     assert candidate.entry_state == "ENTRY_VALID"
     assert candidate.entry_expiry == candidate.timestamp + timedelta(minutes=15)
-    assert candidate.target_sources == ("STRATEGY_ENGINE_STRUCTURAL_TARGET",)
+    assert candidate.target_sources == ()
 
 
 def test_macro_conflict_and_missing_trigger_fail_closed() -> None:
@@ -197,7 +217,7 @@ def test_macro_conflict_and_missing_trigger_fail_closed() -> None:
     assert "MACRO_STRUCTURE_CONFLICT" in conflicted.blockers
 
     forming = engine.build(
-        technical_snapshot(),
+        _costed_snapshot(),
         _evidence_results(include_trigger=False),
     )
     assert forming.selected_scenario is not None
@@ -352,7 +372,7 @@ def test_cost_model_produces_net_rr_without_overwriting_structural_rr() -> None:
 
     assert state.estimated_round_trip_cost_ratio is not None
     assert state.cost_blockers == ()
-    assert candidate.structural_risk_reward == Decimal("1.7")
+    assert candidate.structural_risk_reward == Decimal("1.1875")
     assert candidate.net_risk_reward is not None
     assert candidate.net_risk_reward < candidate.gross_risk_reward
     assert candidate.estimated_round_trip_cost_ratio == (
@@ -468,3 +488,218 @@ def test_orchestrator_projects_one_shared_intelligence_state() -> None:
     assert selected is not None
     assert selected.direction is ScenarioDirection.LONG
     assert selected.state is ScenarioState.FORMING
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("snapshot_id", "foreign"),
+        ("symbol", "BTCUSDT"),
+        ("timestamp", NOW - timedelta(minutes=1)),
+        ("market_type", "USD_M_FUTURES"),
+    ],
+)
+def test_candidate_binding_rejects_cross_context_identity(
+    field: str, value: object
+) -> None:
+    engine = TradingIntelligenceEngine()
+    state = engine.build(_costed_snapshot(), _evidence_results())
+    (candidate,) = engine.bind_candidates(
+        (replace(_candidate(), **{field: value}),), state
+    )
+    assert candidate.status is CandidateStatus.RESEARCH_ONLY
+    assert "SCENARIO_CANDIDATE_IDENTITY_MISMATCH" in candidate.blockers
+    assert candidate.scenario_id is None
+
+
+def test_identity_failure_exits_before_interpreting_foreign_evidence() -> None:
+    results = _evidence_results()
+    results["market_structure"] = replace(
+        results["market_structure"], snapshot_id="foreign"
+    )
+    state = TradingIntelligenceEngine().build(technical_snapshot(), results)
+    assert state.selected_scenario is None
+    assert state.structures == ()
+    assert "TRADING_INTELLIGENCE_IDENTITY_MISMATCH:market_structure" in state.blockers
+
+
+def test_failed_data_quality_cannot_fall_back_to_snapshot_quality() -> None:
+    results = _evidence_results()
+    results["data_quality"] = replace(_result("data_quality"), blockers=("STALE_DATA",))
+    state = TradingIntelligenceEngine().build(technical_snapshot(), results)
+    assert state.selected_scenario is None
+    assert "SCENARIO_DATA_QUALITY_UNAVAILABLE" in state.blockers
+
+
+@pytest.mark.parametrize("evidence", [("BULLISH_ENGULFING:1d",), ("UNKNOWN_TRIGGER",)])
+def test_non_execution_timeframe_cannot_confirm_entry(
+    evidence: tuple[str, ...],
+) -> None:
+    results = _evidence_results()
+    results["price_action"] = _result("price_action", evidence=evidence)
+    state = TradingIntelligenceEngine().build(_costed_snapshot(), results)
+    assert state.selected_scenario is not None
+    assert state.selected_scenario.state is ScenarioState.FORMING
+
+
+def test_conflicting_entry_timeframes_cannot_be_averaged_away() -> None:
+    results = _evidence_results()
+    results["price_action"] = _result(
+        "price_action",
+        vote=0,
+        evidence=("BULLISH_ENGULFING:15m", "BEARISH_ENGULFING:5m"),
+    )
+    state = TradingIntelligenceEngine().build(_costed_snapshot(), results)
+    assert state.selected_scenario is None
+    assert "ENTRY_TRIGGER_CONFLICT" in state.blockers
+
+
+@pytest.mark.parametrize("lifecycle", ["FAILED", "INVALIDATED", "FORMING", "UNKNOWN"])
+def test_unconfirmed_trigger_lifecycle_cannot_confirm_scenario(lifecycle: str) -> None:
+    results = _evidence_results()
+    results["price_action"] = replace(
+        results["price_action"], calculation_metadata={"lifecycle_state": lifecycle}
+    )
+    state = TradingIntelligenceEngine().build(_costed_snapshot(), results)
+    assert state.selected_scenario is not None
+    assert state.selected_scenario.state is ScenarioState.FORMING
+    assert not any(
+        item.startswith("pattern:") for item in state.selected_scenario.evidence_for
+    )
+
+
+def test_missing_costs_deny_spot_candidate_and_preserve_missing_provenance() -> None:
+    engine = TradingIntelligenceEngine()
+    state = engine.build(technical_snapshot(), _evidence_results())
+    (candidate,) = engine.bind_candidates((_candidate(),), state)
+    assert candidate.status is CandidateStatus.RESEARCH_ONLY
+    assert candidate.entry_state == "ENTRY_NOT_READY"
+    assert "NET_RISK_REWARD_UNAVAILABLE" in candidate.blockers
+    assert candidate.target_sources == ()
+
+
+def test_zero_fee_is_valid_and_net_rr_includes_loss_side_costs() -> None:
+    snapshot = replace(
+        _costed_snapshot(),
+        market_metadata={
+            "estimated_fee_ratio": 0,
+            "fee_ratio": "0.05",
+            "estimated_slippage_ratio": 0,
+        },
+    )
+    engine = TradingIntelligenceEngine()
+    state = engine.build(snapshot, _evidence_results())
+    assert (
+        state.estimated_round_trip_cost_ratio == snapshot.spread / snapshot.latest_price
+    )
+    (candidate,) = engine.bind_candidates((_candidate(),), state)
+    assert candidate.net_risk_reward == (
+        Decimal("0.19") - candidate.entry_price * state.estimated_round_trip_cost_ratio
+    ) / candidate_risk_distance(candidate)
+
+
+def test_validation_rechecks_candidate_and_requires_sizing_evidence() -> None:
+    engine = TradingIntelligenceEngine()
+    snapshot = _costed_snapshot()
+    (candidate,) = engine.bind_candidates(
+        (_candidate(),), engine.build(snapshot, _evidence_results())
+    )
+    candidate = replace(
+        candidate, status=CandidateStatus.RESEARCH_ONLY, blockers=("REVOKED_EVIDENCE",)
+    )
+    results = {
+        "risk": _result(
+            "risk",
+            metadata={
+                "candidate_id": candidate.candidate_id,
+                "scenario_id": candidate.scenario_id,
+                "approved": True,
+            },
+        )
+    }
+    signal = ValidationGate().validate(snapshot, results, candidates=(candidate,))
+    assert "REVOKED_EVIDENCE" in signal.blockers
+    assert "RISK_SIZING_EVIDENCE_INVALID" in signal.blockers
+    assert "RISK_APPROVAL_MISSING" in signal.blockers
+    assert signal.execution_allowed is False
+
+
+def test_risk_rejects_forged_scenario_net_rr() -> None:
+    engine = TradingIntelligenceEngine()
+    snapshot = _costed_snapshot()
+    (candidate,) = engine.bind_candidates(
+        (_candidate(),), engine.build(snapshot, _evidence_results())
+    )
+    assessment = RiskEngine().evaluate(
+        replace(candidate, net_risk_reward=Decimal("99")),
+        snapshot,
+        RiskContext(equity_usdt=Decimal("1000")),
+        symbol_filters(),
+    )
+    assert assessment.approved is False
+    assert "NET_RISK_REWARD_INCONSISTENT" in assessment.blockers
+
+
+def test_shared_state_rejects_cross_snapshot_scenarios() -> None:
+    state = TradingIntelligenceEngine().build(_costed_snapshot(), _evidence_results())
+    with pytest.raises(ValueError, match="snapshot identity"):
+        replace(state, scenarios=(replace(state.scenarios[0], snapshot_id="foreign"),))
+    with pytest.raises(ValueError, match="blocked intelligence"):
+        replace(state, blockers=("REVOKED",))
+
+
+@pytest.mark.parametrize(
+    "invalid", [Decimal("NaN"), Decimal("Infinity"), Decimal("-Infinity")]
+)
+def test_nonfinite_risk_contracts_fail_closed(invalid: Decimal) -> None:
+    with pytest.raises(ValueError, match="equity_usdt"):
+        RiskContext(equity_usdt=invalid)
+    with pytest.raises(ValueError, match="risk assessment"):
+        RiskAssessment("candidate", False, invalid)
+    with pytest.raises(ValueError, match="stop_loss"):
+        replace(_candidate(), stop_loss=invalid)
+    assessment = VirtualPortfolioRiskGovernor().assess_simulated_leverage(
+        requested_leverage=3,
+        position_notional_usdt=invalid,
+        available_margin_usdt=Decimal("1000"),
+        margin_utilization_ratio=Decimal("0"),
+        strategy_oos_approved=True,
+    )
+    assert assessment.state is SimulatedLeverageState.BLOCKED
+
+
+def test_risk_assessment_retains_positional_compatibility() -> None:
+    assessment = RiskAssessment(
+        "candidate", True, Decimal("100"), Decimal("1"), Decimal("5")
+    )
+    assert assessment.size_usdt == Decimal("100")
+    assert assessment.scenario_id is None
+
+
+def test_trend_break_is_evaluated_outside_its_fitted_window() -> None:
+    snapshot = technical_snapshot()
+    candles = tuple(snapshot.ohlcv_by_timeframe["1d"])
+    last = replace(candles[-1], close=Decimal("2"), high=Decimal("2.1"))
+    snapshot = replace(
+        snapshot,
+        ohlcv_by_timeframe={**snapshot.ohlcv_by_timeframe, "1d": (*candles[:-1], last)},
+    )
+    (geometry,) = TrendGeometryEngine().build(
+        snapshot, (), _result("trend_channel", metadata={"source_timeframe": "1d"})
+    )
+    assert geometry.state == "TRENDLINE_BREAK"
+    assert geometry.break_state == "BROKEN"
+    assert geometry.anchor_points[-1][0] == candles[-3].timestamp
+    assert geometry.anchor_points[-1][1] == geometry.intercept + geometry.slope * 27
+
+
+def test_entry_expiry_overflow_returns_unavailable() -> None:
+    assert TradingIntelligenceEngine._entry_expiry(NOW, "999999999999999999d") is None
+
+
+def test_futures_context_rejects_foreign_agent_identity() -> None:
+    context = FuturesContextEngine().build(
+        replace(technical_snapshot(), market_type="USD_M_FUTURES"),
+        replace(_result("derivatives"), snapshot_id="foreign"),
+    )
+    assert context.blockers == ("FUTURES_DERIVATIVES_IDENTITY_MISMATCH",)

@@ -40,6 +40,13 @@ class FuturesContextEngine:
             )
         if result is None or not is_usable_agent_result(result) or result.blockers:
             return self._blocked("FUTURES_DERIVATIVES_CONTEXT_UNAVAILABLE")
+        if (
+            result.agent_name != "derivatives"
+            or result.snapshot_id != snapshot.snapshot_id
+            or result.timestamp != snapshot.created_at
+            or result.symbol != snapshot.symbol
+        ):
+            return self._blocked("FUTURES_DERIVATIVES_IDENTITY_MISMATCH")
         raw = snapshot.derivatives_snapshot
         source_count = self._integer(raw.get("source_count"))
         as_of = self._datetime(raw.get("as_of"))
@@ -87,7 +94,7 @@ class FuturesContextEngine:
             age_seconds=int(age.total_seconds()),
             mark_index_divergence=divergence,
             crowding_state=crowding,
-            confidence=min(1.0, source_count / 10.0),
+            confidence=min(result.confidence, min(source_count, 10) / 10.0),
             funding_rate=metrics["funding_rate"],
             open_interest=metrics["open_interest"],
             basis=metrics["basis"],
@@ -133,6 +140,9 @@ class FuturesContextEngine:
             value = metrics[name]
             if value is not None and value <= ZERO:
                 blockers.append(f"FUTURES_METRIC_INVALID:{name.upper()}")
+        taker = metrics["taker_buy_sell_ratio"]
+        if taker is not None and taker < ZERO:
+            blockers.append("FUTURES_METRIC_INVALID:TAKER_BUY_SELL_RATIO")
         return tuple(dict.fromkeys(blockers))
 
     @staticmethod
@@ -158,6 +168,8 @@ class FuturesContextEngine:
         *names: str,
     ) -> Decimal | None:
         for name in names:
+            if name not in raw:
+                continue
             value = raw.get(name)
             if isinstance(value, (str, int, float, Decimal)) and not isinstance(
                 value, bool
@@ -165,9 +177,10 @@ class FuturesContextEngine:
                 try:
                     parsed = Decimal(str(value))
                 except InvalidOperation:
-                    continue
+                    return None
                 if parsed.is_finite():
                     return parsed
+            return None
         return None
 
     @staticmethod

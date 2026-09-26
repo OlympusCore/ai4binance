@@ -12,6 +12,11 @@ from ai4binance.domain import (
     TradeCandidate,
     ValidationStatus,
 )
+from ai4binance.risk import (
+    RiskAssessment,
+    candidate_risk_distance,
+    candidate_safety_blockers,
+)
 from ai4binance.schemas import AgentResult, AgentStatus, MarketSnapshot
 from ai4binance.scoring import calculate_final_signal_score
 from ai4binance.validation.oos_maturity import (
@@ -101,6 +106,26 @@ class ValidationGate:
         )
         if scenario_binding_required and not scenario_binding_valid:
             blockers.append("RISK_SCENARIO_BINDING_MISMATCH")
+        candidate_blockers = (
+            candidate_safety_blockers(selected[0], snapshot)
+            if len(selected) == 1
+            else ()
+        )
+        blockers.extend(candidate_blockers)
+        assessment = RiskAssessment.from_agent_result(risk)
+        sizing_valid = assessment is not None and assessment.approved
+        if sizing_valid and len(selected) == 1 and assessment is not None:
+            sizing_valid = (
+                assessment.size_usdt == assessment.quantity * selected[0].entry_price
+                and assessment.risk_amount_usdt
+                >= assessment.quantity * candidate_risk_distance(selected[0])
+            )
+        if (
+            risk is not None
+            and risk.calculation_metadata.get("approved") is True
+            and not sizing_valid
+        ):
+            blockers.append("RISK_SIZING_EVIDENCE_INVALID")
         risk_approved = (
             len(selected) == 1
             and risk is not None
@@ -110,6 +135,8 @@ class ValidationGate:
             and not risk.blockers
             and risk.calculation_metadata.get("approved") is True
             and scenario_binding_valid
+            and not candidate_blockers
+            and sizing_valid
         )
         required_gates_passed = all(
             (gate_result := agent_results.get(name)) is not None

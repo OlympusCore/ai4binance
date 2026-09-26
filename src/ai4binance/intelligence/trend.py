@@ -38,7 +38,14 @@ class TrendGeometryEngine:
         structures: tuple[TimeframeStructureEvidence, ...],
         result: AgentResult | None,
     ) -> tuple[TrendGeometryEvidence, ...]:
-        if result is None or not is_usable_agent_result(result):
+        if result is None or not is_usable_agent_result(result) or result.blockers:
+            return ()
+        if (
+            result.snapshot_id != snapshot.snapshot_id
+            or result.timestamp != snapshot.created_at
+            or result.symbol != snapshot.symbol
+            or result.agent_name != "trend_channel"
+        ):
             return ()
         timeframe = self._source_timeframe(snapshot, result.calculation_metadata)
         if timeframe is None:
@@ -47,16 +54,17 @@ class TrendGeometryEngine:
         if len(candles) < self.window_bars:
             return ()
         recent = candles[-self.window_bars :]
-        slope = self._decimal(result.calculation_metadata.get("slope"))
-        if slope is None:
-            slope = (recent[-1].close - recent[0].close) / Decimal(len(recent) - 1)
-        volatility = atr(recent, 14)
-        width = self._decimal(result.calculation_metadata.get("channel_width"))
-        width = width if width is not None and width > ZERO else volatility
+        # Hold out both lifecycle bars so a break cannot refit its own baseline.
+        training = recent[:-2]
+        slope = (training[-1].close - training[0].close) / Decimal(len(training) - 1)
+        volatility = atr(training, 14)
+        width = volatility
+        if width <= ZERO:
+            return ()
         intercept = recent[0].close
         errors = tuple(
             abs(candle.close - (intercept + slope * Decimal(index)))
-            for index, candle in enumerate(recent)
+            for index, candle in enumerate(training)
         )
         mean_error = sum(errors, ZERO) / Decimal(len(errors))
         normalized_error = mean_error / volatility if volatility > ZERO else ZERO
@@ -69,11 +77,7 @@ class TrendGeometryEngine:
             width,
             slope,
         )
-        structure = next(
-            (item for item in structures if item.timeframe == timeframe),
-            None,
-        )
-        anchors = self._anchors(recent, structure)
+        anchors = self._anchors(training, None)
         confidence = min(result.confidence, self._fit_confidence(normalized_error))
         return (
             TrendGeometryEvidence(
@@ -81,7 +85,7 @@ class TrendGeometryEngine:
                 slope=slope,
                 channel_width=width,
                 state=state.value,
-                touch_quality=self._touch_quality(touch_count, len(recent)),
+                touch_quality=self._touch_quality(touch_count, len(training)),
                 evidence_ref="trend_channel:DYNAMIC_ZONE",
                 confidence=confidence,
                 anchor_points=anchors,

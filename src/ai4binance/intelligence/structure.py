@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from decimal import Decimal
+from itertools import pairwise
 
 from ai4binance.indicators import atr
 from ai4binance.intelligence.contracts import (
@@ -41,8 +42,12 @@ class MarketStructureEngine:
             raise ValueError("structure timeframe cannot be empty")
         if len(candles) < self.minimum_candles:
             raise ValueError("market structure history is insufficient")
-        volatility = atr(candles, 14)
-        swings = self._confirmed_swings(timeframe, candles, volatility)
+        if any(
+            current.timestamp <= previous.timestamp
+            for previous, current in pairwise(candles)
+        ):
+            raise ValueError("market structure candles must be strictly chronological")
+        swings = self._confirmed_swings(timeframe, candles)
         state, method, warnings = self._state(candles, swings)
         events = self._events(timeframe, candles, swings, state)
         invalidation = self._invalidation(swings, state)
@@ -66,7 +71,6 @@ class MarketStructureEngine:
         self,
         timeframe: str,
         candles: tuple[OHLCVCandle, ...],
-        volatility: Decimal,
     ) -> tuple[ConfirmedSwing, ...]:
         raw: list[tuple[int, SwingKind, Decimal]] = []
         stop = len(candles) - self.pivot_right
@@ -86,6 +90,9 @@ class MarketStructureEngine:
         swings: list[ConfirmedSwing] = []
         ordered = sorted(raw, key=lambda item: (item[0], item[1].value))
         for index, kind, price in ordered:
+            confirmation = index + self.pivot_right
+            history = candles[max(0, confirmation - 14) : confirmation + 1]
+            volatility = atr(history, min(14, len(history) - 1))
             prior = previous.get(kind)
             label = self._label(kind, price, prior)
             significance = (

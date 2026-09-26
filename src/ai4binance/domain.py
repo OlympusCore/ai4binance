@@ -169,7 +169,12 @@ class PriceZone:
 
     def __post_init__(self) -> None:
         """Reject negative or inverted zones."""
-        if self.lower < ZERO or self.upper < ZERO:
+        if (
+            not self.lower.is_finite()
+            or not self.upper.is_finite()
+            or self.lower < ZERO
+            or self.upper < ZERO
+        ):
             raise ValueError("price zone values cannot be negative")
         if self.lower > self.upper:
             raise ValueError("price zone lower cannot exceed upper")
@@ -235,10 +240,14 @@ class TradeCandidate:
             "atr",
             "risk_reward",
         ):
-            if getattr(self, field_name) <= ZERO:
+            if (
+                not getattr(self, field_name).is_finite()
+                or getattr(self, field_name) <= ZERO
+            ):
                 raise ValueError(f"{field_name} must be positive")
         if not self.take_profit_levels or any(
-            target <= ZERO for target in self.take_profit_levels
+            not target.is_finite() or target <= ZERO
+            for target in self.take_profit_levels
         ):
             raise ValueError("take_profit_levels must contain positive values")
         _validate_score("score", self.score)

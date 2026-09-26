@@ -61,14 +61,21 @@ class PatternHypothesisFabric:
         name: str,
         result: AgentResult,
     ) -> PatternHypothesisEvidence | None:
-        if not is_usable_agent_result(result):
+        if not is_usable_agent_result(result) or result.blockers:
+            return None
+        if (
+            result.agent_name != name
+            or result.snapshot_id != snapshot.snapshot_id
+            or result.symbol != snapshot.symbol
+            or result.timestamp != snapshot.created_at
+        ):
             return None
         direction = self._direction(result.directional_vote)
         lifecycle = self._lifecycle(name, result.calculation_metadata)
         source_timeframe = self._source_timeframe(snapshot, result)
         attributes = self._attributes(result.calculation_metadata)
         identity = result.calculation_metadata.get("pattern_id")
-        digest_source = (
+        digest_source = f"{snapshot.snapshot_id}|{name}|" + (
             identity
             if isinstance(identity, str) and identity.strip()
             else (
@@ -99,7 +106,7 @@ class PatternHypothesisFabric:
             ),
             invalidation=invalidation,
             source_timeframe=source_timeframe,
-            geometry_quality=result.confidence,
+            geometry_quality=0.0,
             completion_quality=completion,
             attributes=attributes,
         )
@@ -114,7 +121,7 @@ class PatternHypothesisFabric:
             try:
                 return PatternLifecycleState(explicit)
             except ValueError:
-                pass
+                return PatternLifecycleState.INVALIDATED
         return {
             "fibonacci": PatternLifecycleState.CONTEXT_ONLY,
             "elliott_wave": PatternLifecycleState.ALTERNATIVE_UNRESOLVED,
@@ -132,15 +139,16 @@ class PatternHypothesisFabric:
         explicit = result.calculation_metadata.get("source_timeframe")
         if isinstance(explicit, str) and explicit in snapshot.timeframes:
             return explicit
-        return next(
-            (
-                timeframe
-                for timeframe in TIMEFRAME_PRIORITY
-                if timeframe in result.timeframes
-                and timeframe in snapshot.timeframes
-                and len(snapshot.ohlcv_by_timeframe.get(timeframe, ())) >= 2
-            ),
-            "UNKNOWN",
+        evidence_timeframes = {
+            item.rsplit(":", 1)[-1] for item in result.evidence
+        } & set(snapshot.timeframes)
+        if len(evidence_timeframes) == 1:
+            return next(iter(evidence_timeframes))
+        return (
+            result.timeframes[0]
+            if len(result.timeframes) == 1
+            and result.timeframes[0] in snapshot.timeframes
+            else "UNKNOWN"
         )
 
     @staticmethod

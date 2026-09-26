@@ -114,7 +114,15 @@ class AdvancedTechnicalAgent(BaseAgent):
             detected_setups=feature.setups,
             warnings=("RESEARCH_ONLY_UNVALIDATED",),
             reason_codes=("ADVANCED_RULE_EVALUATED",),
-            calculation_metadata=feature.metadata,
+            calculation_metadata={
+                **(feature.metadata or {}),
+                "source_timeframe": next(
+                    timeframe
+                    for timeframe in ("1d", "4h", "1h", "15m")
+                    if timeframe in self.definition.supported_timeframes
+                    and len(snapshot.ohlcv_by_timeframe.get(timeframe, ())) >= 55
+                ),
+            },
         )
 
     def _candles(self, snapshot: MarketSnapshot) -> tuple[OHLCVCandle, ...] | None:

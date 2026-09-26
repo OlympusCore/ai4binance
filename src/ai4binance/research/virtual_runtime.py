@@ -1298,17 +1298,59 @@ class VirtualMarketRuntime:
         ):
             blockers.append("VIRTUAL_MAX_CONCURRENT_POSITIONS_EXCEEDED")
         if request.portfolio.market == "USD_M_FUTURES":
-            current_margin_utilization = (
-                request.portfolio.margin_utilization_ratio or ZERO
+            blockers.extend(
+                VirtualMarketRuntime._futures_margin_blockers(request, fill_preview)
             )
-            if current_margin_utilization > governor.maximum_margin_utilization_ratio:
-                blockers.append("FUTURES_MARGIN_UTILIZATION_LIMIT_EXCEEDED")
-            if (
-                request.leverage is not None
-                and request.leverage > governor.maximum_futures_leverage
-            ):
-                blockers.append("FUTURES_LEVERAGE_LIMIT_EXCEEDED")
         return tuple(dict.fromkeys(blockers))
+
+    @staticmethod
+    def _futures_margin_blockers(
+        request: VirtualRuntimeRequest, fill_preview: VirtualFillPreview
+    ) -> tuple[str, ...]:
+        portfolio = request.portfolio
+        current = portfolio.margin_utilization_ratio
+        if (
+            current is None
+            and portfolio.open_position_count == 0
+            and not portfolio.isolated_margin_usdt
+        ):
+            current = ZERO
+        projected = None
+        if (
+            request.isolated_margin_usdt is not None
+            and request.funding_rate is not None
+            and request.mark_price is not None
+        ):
+            funding_cost = (
+                abs(request.funding_rate) * fill_preview.gross_notional_usdt
+                if request.funding_payment_due
+                else ZERO
+            )
+            mark_loss = (
+                max(
+                    ZERO,
+                    (fill_preview.execution_price - request.mark_price)
+                    * (
+                        ONE
+                        if request.position_side is VirtualPositionSide.LONG
+                        else -ONE
+                    ),
+                )
+                * fill_preview.filled_quantity
+            )
+            equity_after_costs = (
+                portfolio.equity_usdt - fill_preview.fee_usdt - funding_cost - mark_loss
+            )
+            if equity_after_costs > ZERO:
+                committed = (
+                    portfolio.isolated_margin_usdt or ZERO
+                ) + request.isolated_margin_usdt
+                projected = committed / equity_after_costs
+        return request.portfolio_governor.futures_entry_blockers(
+            requested_leverage=request.leverage,
+            current_margin_utilization=current,
+            projected_margin_utilization=projected,
+        )
 
     def process_position(
         self,

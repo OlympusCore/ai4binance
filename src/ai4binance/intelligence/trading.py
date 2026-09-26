@@ -70,6 +70,8 @@ class TradingIntelligenceEngine:
     ) -> TradingIntelligenceState:
         """Build one snapshot-bound state without recalculating indicators."""
         identity_blockers = self._identity_blockers(snapshot, agent_results)
+        if identity_blockers:
+            return self.blocked(snapshot, identity_blockers)
         structures = self._structures(snapshot, agent_results)
         levels = self._levels(snapshot, agent_results, structures)
         trend_geometry = self._trend_geometry(snapshot, agent_results, structures)
@@ -111,6 +113,7 @@ class TradingIntelligenceEngine:
             cost_blockers=cost_blockers,
             blockers=blockers,
             warnings=warnings,
+            market_type=snapshot.market_type.upper(),
         )
 
     def blocked(
@@ -138,6 +141,7 @@ class TradingIntelligenceEngine:
             scenarios=(scenario,),
             selected_scenario_id=None,
             blockers=unique,
+            market_type=snapshot.market_type.upper(),
         )
 
     def bind_candidates(
@@ -147,7 +151,7 @@ class TradingIntelligenceEngine:
     ) -> tuple[TradeCandidate, ...]:
         """Bind candidates to one selected scenario before risk arbitration."""
         primary = state.selected_scenario
-        if primary is None:
+        if primary is None or state.blockers:
             blockers = tuple(
                 dict.fromkeys(
                     (
@@ -166,6 +170,27 @@ class TradingIntelligenceEngine:
             )
         bound: list[TradeCandidate] = []
         for candidate in candidates:
+            if (
+                candidate.snapshot_id != state.snapshot_id
+                or candidate.symbol != state.symbol
+                or candidate.timestamp != state.timestamp
+                or candidate.market_type != state.market_type
+            ):
+                bound.append(
+                    replace(
+                        candidate,
+                        status=CandidateStatus.RESEARCH_ONLY,
+                        blockers=tuple(
+                            dict.fromkeys(
+                                (
+                                    *candidate.blockers,
+                                    "SCENARIO_CANDIDATE_IDENTITY_MISMATCH",
+                                )
+                            )
+                        ),
+                    )
+                )
+                continue
             direction = (
                 ScenarioDirection.LONG
                 if candidate.action is Action.BUY
@@ -189,6 +214,13 @@ class TradingIntelligenceEngine:
                 continue
             status = candidate.status
             candidate_blockers = list(candidate.blockers)
+            if (
+                primary.state is ScenarioState.CONFIRMED
+                and f"ENTRY_TRIGGER_TIMEFRAME:{candidate.timeframe}"
+                not in primary.evidence_for
+            ):
+                status = CandidateStatus.RESEARCH_ONLY
+                candidate_blockers.append("ENTRY_TRIGGER_TIMEFRAME_MISMATCH")
             if primary.state is ScenarioState.FORMING:
                 if status is CandidateStatus.READY_FOR_RISK:
                     status = CandidateStatus.WAIT_FOR_RETEST
@@ -200,9 +232,37 @@ class TradingIntelligenceEngine:
                 candidate,
                 state.estimated_round_trip_cost_ratio,
             )
-            if candidate.market_type == "USD_M_FUTURES" and net_risk_reward is None:
+            if net_risk_reward is None:
                 status = CandidateStatus.RESEARCH_ONLY
-                candidate_blockers.extend(state.cost_blockers)
+                candidate_blockers.extend(
+                    (*state.cost_blockers, "NET_RISK_REWARD_UNAVAILABLE")
+                )
+            invalidation = primary.invalidation_level
+            valid_invalidation = invalidation is not None and (
+                ZERO < invalidation < candidate.entry_zone.lower
+                if candidate.action is Action.BUY
+                else invalidation > candidate.entry_zone.upper
+            )
+            structural_rr = None
+            if valid_invalidation and invalidation is not None:
+                structural_rr = abs(
+                    candidate.take_profit_levels[0] - candidate.entry_price
+                ) / abs(candidate.entry_price - invalidation)
+            else:
+                status = CandidateStatus.RESEARCH_ONLY
+                candidate_blockers.append(
+                    "SCENARIO_INVALIDATION_UNAVAILABLE_OR_INVALID"
+                )
+            if primary.blockers and primary.state is ScenarioState.CONFIRMED:
+                status = CandidateStatus.RESEARCH_ONLY
+                candidate_blockers.extend(primary.blockers)
+            if primary.state is ScenarioState.CONFIRMED and primary.confidence <= 0:
+                status = CandidateStatus.RESEARCH_ONLY
+                candidate_blockers.append("SCENARIO_CONFIDENCE_UNAVAILABLE")
+            expiry = self._entry_expiry(candidate.timestamp, candidate.timeframe)
+            if expiry is None:
+                status = CandidateStatus.RESEARCH_ONLY
+                candidate_blockers.append("ENTRY_EXPIRY_UNAVAILABLE")
             bound.append(
                 replace(
                     candidate,
@@ -215,7 +275,7 @@ class TradingIntelligenceEngine:
                         if primary.invalidation_level is not None
                         else None
                     ),
-                    structural_risk_reward=candidate.risk_reward,
+                    structural_risk_reward=structural_rr,
                     net_risk_reward=net_risk_reward,
                     estimated_round_trip_cost_ratio=(
                         state.estimated_round_trip_cost_ratio
@@ -225,14 +285,12 @@ class TradingIntelligenceEngine:
                     entry_trigger=self._entry_trigger(primary),
                     entry_state=(
                         "ENTRY_VALID"
-                        if primary.state is ScenarioState.CONFIRMED
+                        if status is CandidateStatus.READY_FOR_RISK
+                        and not candidate_blockers
                         else "ENTRY_NOT_READY"
                     ),
-                    entry_expiry=self._entry_expiry(
-                        candidate.timestamp,
-                        candidate.timeframe,
-                    ),
-                    target_sources=("STRATEGY_ENGINE_STRUCTURAL_TARGET",),
+                    entry_expiry=expiry,
+                    target_sources=candidate.target_sources,
                     evidence=tuple(
                         dict.fromkeys(
                             (
@@ -261,8 +319,9 @@ class TradingIntelligenceEngine:
         else:
             spread_ratio = snapshot.spread / latest_price
         fee_ratio = cls._decimal(
-            snapshot.market_metadata.get("estimated_fee_ratio")
-            or snapshot.market_metadata.get("fee_ratio")
+            snapshot.market_metadata.get(
+                "estimated_fee_ratio", snapshot.market_metadata.get("fee_ratio")
+            )
         )
         slippage_ratio = cls._decimal(
             snapshot.market_metadata.get("estimated_slippage_ratio")
@@ -276,7 +335,13 @@ class TradingIntelligenceEngine:
             if derivatives.funding_rate is None:
                 blockers.append("COST_FUNDING_EVIDENCE_UNAVAILABLE")
             else:
-                funding_ratio = abs(derivatives.funding_rate)
+                periods = cls._integer(
+                    snapshot.market_metadata.get("estimated_funding_periods")
+                )
+                if periods is None or periods < 0:
+                    blockers.append("COST_FUNDING_HORIZON_UNAVAILABLE")
+                else:
+                    funding_ratio = abs(derivatives.funding_rate) * periods
         if blockers:
             return None, tuple(dict.fromkeys(blockers))
         assert spread_ratio is not None
@@ -293,7 +358,13 @@ class TradingIntelligenceEngine:
         if cost_ratio is None:
             return None
         entry = candidate.entry_price
-        risk = abs(entry - candidate.invalidation_level)
+        risk = (
+            max(
+                abs(entry - candidate.invalidation_level),
+                abs(entry - candidate.stop_loss),
+            )
+            + entry * cost_ratio
+        )
         gross_reward = abs(candidate.take_profit_levels[0] - entry)
         net_reward = gross_reward - (entry * cost_ratio)
         if risk <= ZERO or net_reward <= ZERO:
@@ -311,6 +382,7 @@ class TradingIntelligenceEngine:
             if result.snapshot_id != snapshot.snapshot_id
             or result.symbol != snapshot.symbol
             or result.timestamp != snapshot.created_at
+            or result.agent_name != name
         )
 
     def _structures(
@@ -334,10 +406,29 @@ class TradingIntelligenceEngine:
                 state = self._legacy_structure_state(raw.get("structure"))
             low = self._decimal(raw.get("range_low") or raw.get("recent_low"))
             high = self._decimal(raw.get("range_high") or raw.get("recent_high"))
-            if state is None or low is None or high is None or high < low:
+            if (
+                state is None
+                or low is None
+                or high is None
+                or low <= ZERO
+                or high < low
+            ):
                 continue
             invalidation = self._decimal(raw.get("invalidation_level"))
             confidence = self._float(raw.get("structure_confidence"))
+            if confidence is not None and not 0.0 <= confidence <= 1.0:
+                continue
+            swings = self._swings(raw.get("swings"), timeframe)
+            events = self._events(raw.get("events"))
+            if any(swing.available_at > snapshot.created_at for swing in swings) or any(
+                event.occurred_at > snapshot.created_at for event in events
+            ):
+                continue
+            raw_swings = raw.get("swings")
+            if isinstance(raw_swings, (tuple, list)) and len(swings) != len(raw_swings):
+                continue
+            if invalidation is not None and invalidation <= ZERO:
+                continue
             structures.append(
                 TimeframeStructureEvidence(
                     timeframe=timeframe,
@@ -351,8 +442,8 @@ class TradingIntelligenceEngine:
                         if confidence is not None
                         else result.confidence
                     ),
-                    swings=self._swings(raw.get("swings"), timeframe),
-                    events=self._events(raw.get("events")),
+                    swings=swings,
+                    events=events,
                     reason_codes=("MARKET_STRUCTURE_AGENT_PROJECTION",),
                     warnings=self._string_tuple(raw.get("structure_warnings")),
                 )
@@ -409,12 +500,20 @@ class TradingIntelligenceEngine:
     ]:
         by_timeframe = {item.timeframe: item for item in structures}
         macro = by_timeframe.get("1d")
-        directional = by_timeframe.get("4h") or by_timeframe.get("1h")
-        setup = by_timeframe.get("1h") or directional
+        directional = by_timeframe.get("4h")
+        setup = by_timeframe.get("1h")
         mtf = agent_results.get("multi_timeframe")
         data_quality = agent_results.get("data_quality")
         regime_result = agent_results.get("market_regime")
         regime = self._regime(regime_result)
+        if self._data_confidence(snapshot, data_quality) <= 0:
+            unavailable = ("SCENARIO_DATA_QUALITY_UNAVAILABLE",)
+            return (
+                (self._no_valid_scenario(snapshot, unavailable, regime),),
+                None,
+                unavailable,
+                (),
+            )
         if directional is None:
             unavailable = ("DIRECTION_STRUCTURE_UNAVAILABLE",)
             scenario = self._no_valid_scenario(snapshot, unavailable, regime)
@@ -429,8 +528,22 @@ class TradingIntelligenceEngine:
                 data_quality,
                 derivatives,
             )
-            return (scenario,), scenario.scenario_id, (), ()
+            return (scenario,), None, scenario.blockers, ()
         blockers = list(self._hierarchy_blockers(direction, macro, setup, mtf))
+        if self._data_confidence(snapshot, data_quality) <= 0:
+            blockers.append("SCENARIO_DATA_QUALITY_UNAVAILABLE")
+        if regime == "UNKNOWN":
+            blockers.append("SCENARIO_REGIME_UNAVAILABLE")
+        if (
+            len(
+                {
+                    self._direction(item.directional_vote)
+                    for item in self._triggers(agent_results)
+                }
+            )
+            > 1
+        ):
+            blockers.append("ENTRY_TRIGGER_CONFLICT")
         trigger = self._trigger(agent_results)
         trigger_direction = (
             self._direction(trigger.directional_vote)
@@ -443,6 +556,13 @@ class TradingIntelligenceEngine:
             derivatives,
         )
         blockers.extend(trigger_blockers)
+        if scenario_state is ScenarioState.CONFIRMED and (
+            directional.invalidation_level is None or directional.confidence <= 0
+        ):
+            blockers.append("SCENARIO_STRUCTURAL_EVIDENCE_INCOMPLETE")
+        if blockers:
+            scenario_state = ScenarioState.BLOCKED
+            scenario_blockers = tuple(dict.fromkeys((*scenario_blockers, *blockers)))
         continuation_type = (
             ScenarioType.LONG_CONTINUATION
             if direction is ScenarioDirection.LONG
@@ -555,6 +675,10 @@ class TradingIntelligenceEngine:
             else StructureState.BULLISH
         )
         blockers: list[str] = []
+        if macro is None or macro.state is StructureState.UNCERTAIN:
+            blockers.append("MACRO_STRUCTURE_UNAVAILABLE")
+        if setup is None or setup.state is StructureState.UNCERTAIN:
+            blockers.append("SETUP_STRUCTURE_UNAVAILABLE")
         if macro is not None and macro.state is opposite:
             blockers.append("MACRO_STRUCTURE_CONFLICT")
         if setup is not None and setup.state is opposite:
@@ -627,9 +751,14 @@ class TradingIntelligenceEngine:
             item.hypothesis_id
             for item in patterns
             if item.direction in {direction, ScenarioDirection.NEUTRAL}
+            and item.lifecycle_state in {"CONFIRMED", "CONTEXT_ONLY"}
         )
         if trigger is not None and trigger_direction is direction:
             evidence.extend(trigger.evidence or ("ENTRY_TRIGGER_ALIGNED",))
+            evidence.extend(
+                f"ENTRY_TRIGGER_TIMEFRAME:{timeframe}"
+                for timeframe in trigger.timeframes
+            )
         return tuple(dict.fromkeys(evidence))
 
     def _reversal_scenario(
@@ -747,16 +876,52 @@ class TradingIntelligenceEngine:
     def _trigger(
         agent_results: Mapping[str, AgentResult],
     ) -> AgentResult | None:
-        return next(
-            (
-                result
-                for name in ("price_action", "candlestick", "breakout_retest")
-                if (result := agent_results.get(name)) is not None
-                and is_usable_agent_result(result)
-                and abs(result.directional_vote) > 0.0
-            ),
-            None,
-        )
+        return next(iter(TradingIntelligenceEngine._triggers(agent_results)), None)
+
+    @staticmethod
+    def _triggers(agent_results: Mapping[str, AgentResult]) -> tuple[AgentResult, ...]:
+        triggers: list[AgentResult] = []
+        for name in ("price_action", "candlestick", "breakout_retest"):
+            result = agent_results.get(name)
+            if (
+                result is None
+                or not is_usable_agent_result(result)
+                or result.blockers
+                or result.confidence <= 0
+                or result.calculation_metadata.get("lifecycle_state", "CONFIRMED")
+                != "CONFIRMED"
+            ):
+                continue
+            if name == "price_action":
+                for evidence in result.evidence:
+                    pattern, _, timeframe = evidence.partition(":")
+                    if timeframe in {"15m", "5m"} and pattern in {
+                        "BULLISH_ENGULFING",
+                        "BEARISH_ENGULFING",
+                    }:
+                        triggers.append(
+                            replace(
+                                result,
+                                timeframes=(timeframe,),
+                                directional_vote=1.0
+                                if pattern == "BULLISH_ENGULFING"
+                                else -1.0,
+                                evidence=(evidence,),
+                            )
+                        )
+            elif (
+                result.calculation_metadata.get("source_timeframe") in {"15m", "5m"}
+                and abs(result.directional_vote) > 0
+            ):
+                triggers.append(
+                    replace(
+                        result,
+                        timeframes=(
+                            str(result.calculation_metadata["source_timeframe"]),
+                        ),
+                    )
+                )
+        return tuple(triggers)
 
     @staticmethod
     def _regime(result: AgentResult | None) -> str:
@@ -770,8 +935,12 @@ class TradingIntelligenceEngine:
         snapshot: MarketSnapshot,
         result: AgentResult | None,
     ) -> float:
-        if result is not None and is_usable_agent_result(result):
-            return result.confidence
+        if result is not None:
+            return (
+                result.confidence
+                if is_usable_agent_result(result) and not result.blockers
+                else 0.0
+            )
         if snapshot.data_quality is DataQuality.DATA_VALID:
             return 1.0
         if snapshot.data_quality is DataQuality.DATA_DEGRADED:
@@ -798,15 +967,16 @@ class TradingIntelligenceEngine:
         raw_value = timeframe[:-1]
         if not raw_value.isdigit():
             return None
+        if len(raw_value) > 6:
+            return None
         value = int(raw_value)
         if value < 1:
             return None
-        delta = {
-            "m": timedelta(minutes=value),
-            "h": timedelta(hours=value),
-            "d": timedelta(days=value),
-        }.get(unit)
-        return timestamp + delta if delta is not None else None
+        scale = {"m": 60, "h": 3600, "d": 86400}.get(unit)
+        try:
+            return timestamp + timedelta(seconds=value * scale) if scale else None
+        except OverflowError:
+            return None
 
     @staticmethod
     def _structure_direction(state: StructureState) -> ScenarioDirection:
