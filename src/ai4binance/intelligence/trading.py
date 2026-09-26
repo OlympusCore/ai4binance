@@ -5,7 +5,6 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from hashlib import sha256
-from typing import cast
 
 from ai4binance.domain import Action, CandidateStatus, TradeCandidate
 from ai4binance.intelligence.contracts import (
@@ -29,6 +28,7 @@ from ai4binance.intelligence.contracts import (
 from ai4binance.intelligence.derivatives import FuturesContextEngine
 from ai4binance.intelligence.levels import StructuralLevelMapEngine
 from ai4binance.intelligence.patterns import PatternHypothesisFabric
+from ai4binance.intelligence.plan import TradePlanEngine
 from ai4binance.intelligence.trend import TrendGeometryEngine
 from ai4binance.schemas import (
     AgentResult,
@@ -42,7 +42,7 @@ STRUCTURE_PRIORITY = ("1d", "4h", "1h", "15m", "5m")
 
 
 @dataclass(frozen=True, slots=True)
-class TradingIntelligenceEngine:
+class ScenarioEngine:
     """Normalize canonical observations and form hierarchical scenarios."""
 
     level_map_engine: StructuralLevelMapEngine = field(
@@ -57,6 +57,7 @@ class TradingIntelligenceEngine:
     futures_context_engine: FuturesContextEngine = field(
         default_factory=FuturesContextEngine
     )
+    trade_plan_engine: TradePlanEngine = field(default_factory=TradePlanEngine)
     minimum_scenario_separation: float = 0.10
 
     def __post_init__(self) -> None:
@@ -212,7 +213,7 @@ class TradingIntelligenceEngine:
                     )
                 )
                 continue
-            bound.append(self._bind_scenario(candidate, primary, state))
+            bound.append(self.trade_plan_engine.bind(candidate, primary, state))
         return tuple(bound)
 
     def _bind_scenario(
@@ -221,91 +222,8 @@ class TradingIntelligenceEngine:
         primary: ScenarioHypothesis,
         state: TradingIntelligenceState,
     ) -> TradeCandidate:
-        """Bind scenario economics without changing strategy-owned target geometry."""
-        status = candidate.status
-        candidate_blockers = list(candidate.blockers)
-        if (
-            primary.state is ScenarioState.CONFIRMED
-            and f"ENTRY_TRIGGER_TIMEFRAME:{candidate.timeframe}"
-            not in primary.evidence_for
-        ):
-            status = CandidateStatus.RESEARCH_ONLY
-            candidate_blockers.append("ENTRY_TRIGGER_TIMEFRAME_MISMATCH")
-        if primary.state is ScenarioState.FORMING:
-            if status is CandidateStatus.READY_FOR_RISK:
-                status = CandidateStatus.WAIT_FOR_RETEST
-            candidate_blockers.append("SCENARIO_CONFIRMATION_PENDING")
-        elif primary.state is not ScenarioState.CONFIRMED:
-            status = CandidateStatus.RESEARCH_ONLY
-            candidate_blockers.extend(("SCENARIO_NOT_CONFIRMED", *primary.blockers))
-        net_risk_reward = self._net_risk_reward(
-            candidate,
-            state.estimated_round_trip_cost_ratio,
-        )
-        if net_risk_reward is None:
-            status = CandidateStatus.RESEARCH_ONLY
-            candidate_blockers.extend(
-                (*state.cost_blockers, "NET_RISK_REWARD_UNAVAILABLE")
-            )
-        invalidation = primary.invalidation_level
-        valid_invalidation = invalidation is not None and (
-            ZERO < invalidation < candidate.entry_zone.lower
-            if candidate.action is Action.BUY
-            else invalidation > candidate.entry_zone.upper
-        )
-        structural_rr = None
-        if valid_invalidation and invalidation is not None:
-            structural_rr = abs(
-                candidate.take_profit_levels[0] - candidate.entry_price
-            ) / abs(candidate.entry_price - invalidation)
-        else:
-            status = CandidateStatus.RESEARCH_ONLY
-            candidate_blockers.append("SCENARIO_INVALIDATION_UNAVAILABLE_OR_INVALID")
-        if primary.blockers and primary.state is ScenarioState.CONFIRMED:
-            status = CandidateStatus.RESEARCH_ONLY
-            candidate_blockers.extend(primary.blockers)
-        if primary.state is ScenarioState.CONFIRMED and primary.confidence <= 0:
-            status = CandidateStatus.RESEARCH_ONLY
-            candidate_blockers.append("SCENARIO_CONFIDENCE_UNAVAILABLE")
-        expiry = self._entry_expiry(candidate.timestamp, candidate.timeframe)
-        if expiry is None:
-            status = CandidateStatus.RESEARCH_ONLY
-            candidate_blockers.append("ENTRY_EXPIRY_UNAVAILABLE")
-        return replace(
-            candidate,
-            status=status,
-            scenario_id=primary.scenario_id,
-            scenario_type=primary.scenario_type.value,
-            scenario_state=primary.state.value,
-            scenario_invalidation=(
-                str(primary.invalidation_level)
-                if primary.invalidation_level is not None
-                else None
-            ),
-            structural_risk_reward=structural_rr,
-            net_risk_reward=net_risk_reward,
-            estimated_round_trip_cost_ratio=(state.estimated_round_trip_cost_ratio),
-            expected_r=None,
-            probability_calibration_state=primary.calibration_state.value,
-            entry_trigger=self._entry_trigger(primary),
-            entry_state=(
-                "ENTRY_VALID"
-                if status is CandidateStatus.READY_FOR_RISK and not candidate_blockers
-                else "ENTRY_NOT_READY"
-            ),
-            entry_expiry=expiry,
-            target_sources=candidate.target_sources,
-            evidence=tuple(
-                dict.fromkeys(
-                    (
-                        *candidate.evidence,
-                        f"SCENARIO_ID:{primary.scenario_id}",
-                        f"SCENARIO_TYPE:{primary.scenario_type.value}",
-                    )
-                )
-            ),
-            blockers=tuple(dict.fromkeys(candidate_blockers)),
-        )
+        """Compatibility delegate for callers that used the former private method."""
+        return self.trade_plan_engine.bind(candidate, primary, state)
 
     @classmethod
     def _cost_model(
@@ -356,21 +274,7 @@ class TradingIntelligenceEngine:
         candidate: TradeCandidate,
         cost_ratio: Decimal | None,
     ) -> Decimal | None:
-        if cost_ratio is None:
-            return None
-        entry = candidate.entry_price
-        risk = (
-            max(
-                abs(entry - candidate.invalidation_level),
-                abs(entry - candidate.stop_loss),
-            )
-            + entry * cost_ratio
-        )
-        gross_reward = abs(candidate.take_profit_levels[0] - entry)
-        net_reward = gross_reward - (entry * cost_ratio)
-        if risk <= ZERO or net_reward <= ZERO:
-            return None
-        return cast(Decimal, net_reward / risk)
+        return TradePlanEngine().risk_reward_engine.net(candidate, cost_ratio)
 
     @staticmethod
     def _identity_blockers(
@@ -1162,3 +1066,7 @@ class TradingIntelligenceEngine:
         if not isinstance(value, (tuple, list)):
             return ()
         return tuple(item for item in value if isinstance(item, str) and item.strip())
+
+
+# Compatibility name retained for existing consumers; ScenarioEngine is the owner.
+TradingIntelligenceEngine = ScenarioEngine

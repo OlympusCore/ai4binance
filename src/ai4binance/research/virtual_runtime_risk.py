@@ -47,60 +47,25 @@ class SimulatedLeverageAssessment:
 
 
 @dataclass(frozen=True, slots=True)
-class VirtualPortfolioRiskGovernor:
-    """Deterministic portfolio-level veto policy for virtual-market entries."""
+class FuturesLeverageGovernor:
+    """Deterministic OOS- and margin-bound governor for virtual Futures leverage."""
 
-    exposure_policy: PortfolioRiskPolicy = field(
-        default_factory=lambda: PortfolioRiskPolicy(
-            maximum_gross_usdt=Decimal("5000"),
-            maximum_symbol_usdt=Decimal("2500"),
-            maximum_correlation_group_usdt=Decimal("3000"),
-            maximum_strategy_usdt=Decimal("2500"),
-        )
-    )
-    maximum_risk_per_trade_usdt: Decimal = Decimal("250")
-    maximum_open_risk_usdt: Decimal = Decimal("500")
-    maximum_drawdown_ratio: Decimal = Decimal("0.15")
-    maximum_consecutive_losses: int = 3
     maximum_margin_utilization_ratio: Decimal = Decimal("0.60")
     maximum_futures_leverage: int = 5
 
     def __post_init__(self) -> None:
         if any(
-            not value.is_finite()
-            for value in (
-                self.maximum_risk_per_trade_usdt,
-                self.maximum_open_risk_usdt,
-                self.maximum_drawdown_ratio,
-                self.maximum_margin_utilization_ratio,
-            )
+            not value.is_finite() for value in (self.maximum_margin_utilization_ratio,)
         ):
             raise ValueError("virtual portfolio governor limits must be finite")
         if not isinstance(self.maximum_futures_leverage, int) or isinstance(
             self.maximum_futures_leverage, bool
         ):
             raise ValueError("virtual portfolio leverage limit must be an integer")
-        if (
-            min(
-                self.maximum_risk_per_trade_usdt,
-                self.maximum_open_risk_usdt,
-                self.maximum_margin_utilization_ratio,
-            )
-            <= ZERO
-        ):
-            raise ValueError("virtual portfolio governor limits must be positive")
-        if not ZERO < self.maximum_drawdown_ratio <= ONE:
-            raise ValueError(
-                "virtual portfolio drawdown limit must stay within zero and one"
-            )
         if not ZERO < self.maximum_margin_utilization_ratio <= ONE:
             raise ValueError(
                 "virtual portfolio margin utilization limit must stay within "
                 "zero and one"
-            )
-        if self.maximum_consecutive_losses < 0:
-            raise ValueError(
-                "virtual portfolio consecutive loss limit cannot be negative"
             )
         if self.maximum_futures_leverage < 1:
             raise ValueError(
@@ -150,10 +115,10 @@ class VirtualPortfolioRiskGovernor:
             blockers.append("SIMULATED_LEVERAGE_OOS_APPROVAL_MISSING")
         if blockers:
             return SimulatedLeverageAssessment(
-                state=SimulatedLeverageState.BLOCKED,
-                requested_leverage=requested_leverage if valid_requested else None,
-                permitted_leverage=None,
-                blockers=tuple(dict.fromkeys(blockers)),
+                SimulatedLeverageState.BLOCKED,
+                requested_leverage if valid_requested else None,
+                None,
+                tuple(dict.fromkeys(blockers)),
             )
         position_notional = cast(Decimal, position_notional_usdt)
         available_margin = cast(Decimal, available_margin_usdt)
@@ -165,28 +130,25 @@ class VirtualPortfolioRiskGovernor:
         )
         if required > self.maximum_futures_leverage:
             return SimulatedLeverageAssessment(
-                state=SimulatedLeverageState.BLOCKED,
-                requested_leverage=requested_leverage,
-                permitted_leverage=None,
-                blockers=("SIMULATED_LEVERAGE_FEASIBILITY_EXCEEDED",),
+                SimulatedLeverageState.BLOCKED,
+                requested,
+                None,
+                ("SIMULATED_LEVERAGE_FEASIBILITY_EXCEEDED",),
             )
         permitted = min(requested, self.maximum_futures_leverage)
         if permitted < required:
             return SimulatedLeverageAssessment(
-                state=SimulatedLeverageState.BLOCKED,
-                requested_leverage=requested_leverage,
-                permitted_leverage=None,
-                blockers=("SIMULATED_LEVERAGE_INSUFFICIENT_FOR_NOTIONAL",),
+                SimulatedLeverageState.BLOCKED,
+                requested,
+                None,
+                ("SIMULATED_LEVERAGE_INSUFFICIENT_FOR_NOTIONAL",),
             )
-        state = (
+        return SimulatedLeverageAssessment(
             SimulatedLeverageState.REDUCED
             if requested > self.maximum_futures_leverage
-            else SimulatedLeverageState.ELIGIBLE
-        )
-        return SimulatedLeverageAssessment(
-            state=state,
-            requested_leverage=requested,
-            permitted_leverage=permitted,
+            else SimulatedLeverageState.ELIGIBLE,
+            requested,
+            permitted,
         )
 
     def futures_entry_blockers(
@@ -215,3 +177,49 @@ class VirtualPortfolioRiskGovernor:
             elif utilization > self.maximum_margin_utilization_ratio:
                 blockers.append("FUTURES_MARGIN_UTILIZATION_LIMIT_EXCEEDED")
         return tuple(dict.fromkeys(blockers))
+
+
+@dataclass(frozen=True, slots=True)
+class VirtualPortfolioRiskGovernor(FuturesLeverageGovernor):
+    """Deterministic portfolio-level veto policy for virtual-market entries."""
+
+    exposure_policy: PortfolioRiskPolicy = field(
+        default_factory=lambda: PortfolioRiskPolicy(
+            maximum_gross_usdt=Decimal("5000"),
+            maximum_symbol_usdt=Decimal("2500"),
+            maximum_correlation_group_usdt=Decimal("3000"),
+            maximum_strategy_usdt=Decimal("2500"),
+        )
+    )
+    maximum_risk_per_trade_usdt: Decimal = Decimal("250")
+    maximum_open_risk_usdt: Decimal = Decimal("500")
+    maximum_drawdown_ratio: Decimal = Decimal("0.15")
+    maximum_consecutive_losses: int = 3
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if any(
+            not value.is_finite()
+            for value in (
+                self.maximum_risk_per_trade_usdt,
+                self.maximum_open_risk_usdt,
+                self.maximum_drawdown_ratio,
+            )
+        ):
+            raise ValueError("virtual portfolio governor limits must be finite")
+        if (
+            min(
+                self.maximum_risk_per_trade_usdt,
+                self.maximum_open_risk_usdt,
+            )
+            <= ZERO
+        ):
+            raise ValueError("virtual portfolio governor limits must be positive")
+        if not ZERO < self.maximum_drawdown_ratio <= ONE:
+            raise ValueError(
+                "virtual portfolio drawdown limit must stay within zero and one"
+            )
+        if self.maximum_consecutive_losses < 0:
+            raise ValueError(
+                "virtual portfolio consecutive loss limit cannot be negative"
+            )

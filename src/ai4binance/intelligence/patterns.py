@@ -49,11 +49,29 @@ class PatternHypothesisFabric:
             hypothesis
             for name in PATTERN_AGENTS
             if (result := agent_results.get(name)) is not None
-            if (hypothesis := self._normalize(snapshot, name, result)) is not None
+            for hypothesis in self._hypotheses(snapshot, name, result)
         )
         return tuple(
             sorted(hypotheses, key=lambda item: (item.family, item.hypothesis_id))
         )
+
+    def _hypotheses(
+        self,
+        snapshot: MarketSnapshot,
+        name: str,
+        result: AgentResult,
+    ) -> tuple[PatternHypothesisEvidence, ...]:
+        """Route specialized pattern families through their canonical engines."""
+        base = self._normalize(snapshot, name, result)
+        if base is None:
+            return ()
+        if name == "fibonacci":
+            return (FibonacciConfluenceEngine().build(base),)
+        if name == "harmonic_pattern":
+            return (HarmonicPatternEngine().build(base),)
+        if name == "elliott_wave":
+            return ElliottWaveHypothesisEngine().build(base)
+        return (base,)
 
     def _normalize(
         self,
@@ -190,3 +208,139 @@ class PatternHypothesisFabric:
     @staticmethod
     def _string(value: object) -> str | None:
         return value if isinstance(value, str) and value.strip() else None
+
+
+@dataclass(frozen=True, slots=True)
+class FibonacciConfluenceEngine:
+    """Keep Fibonacci as structural confluence, never a directional signal."""
+
+    def build(self, evidence: PatternHypothesisEvidence) -> PatternHypothesisEvidence:
+        if evidence.family != "FIBONACCI":
+            raise ValueError("Fibonacci confluence requires Fibonacci evidence")
+        attributes = tuple(
+            dict.fromkeys(
+                (
+                    *evidence.attributes,
+                    ("role", "CONFLUENCE_ONLY"),
+                    ("direction_policy", "NEUTRAL_ONLY"),
+                )
+            )
+        )
+        return PatternHypothesisEvidence(
+            hypothesis_id=evidence.hypothesis_id,
+            family=evidence.family,
+            direction=ScenarioDirection.NEUTRAL,
+            lifecycle_state=PatternLifecycleState.CONTEXT_ONLY.value,
+            confidence=evidence.confidence,
+            evidence_for=evidence.evidence_for,
+            evidence_against=evidence.evidence_against,
+            invalidation=evidence.invalidation,
+            source_timeframe=evidence.source_timeframe,
+            geometry_quality=evidence.geometry_quality,
+            completion_quality=evidence.completion_quality,
+            attributes=attributes,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class HarmonicPatternEngine:
+    """Bound harmonic geometry to a detector result without entry authority."""
+
+    minimum_ab_cd: Decimal = Decimal("0.8")
+    maximum_ab_cd: Decimal = Decimal("1.2")
+
+    def build(self, evidence: PatternHypothesisEvidence) -> PatternHypothesisEvidence:
+        if evidence.family != "HARMONIC_PATTERN":
+            raise ValueError("Harmonic engine requires harmonic evidence")
+        raw_ratio = dict(evidence.attributes).get("ab_cd")
+        try:
+            ratio = Decimal(raw_ratio) if raw_ratio is not None else None
+        except InvalidOperation:
+            ratio = None
+        valid = (
+            ratio is not None
+            and ratio.is_finite()
+            and self.minimum_ab_cd <= ratio <= self.maximum_ab_cd
+        )
+        geometry_quality = (
+            1.0 - float(abs(ratio - Decimal("1")))
+            if valid and ratio is not None
+            else 0.0
+        )
+        attributes = tuple(
+            dict.fromkeys(
+                (
+                    *evidence.attributes,
+                    ("geometry_source", "CONFIRMED_DETECTOR_OUTPUT"),
+                    ("pattern_quality", "BOUNDED" if valid else "INVALID"),
+                )
+            )
+        )
+        return PatternHypothesisEvidence(
+            hypothesis_id=evidence.hypothesis_id,
+            family=evidence.family,
+            direction=evidence.direction if valid else ScenarioDirection.NEUTRAL,
+            lifecycle_state=(
+                evidence.lifecycle_state
+                if valid
+                else PatternLifecycleState.INVALIDATED.value
+            ),
+            confidence=evidence.confidence if valid else 0.0,
+            evidence_for=evidence.evidence_for,
+            evidence_against=(
+                evidence.evidence_against
+                if valid
+                else (*evidence.evidence_against, "HARMONIC_GEOMETRY_INVALID")
+            ),
+            invalidation=evidence.invalidation,
+            source_timeframe=evidence.source_timeframe,
+            geometry_quality=max(0.0, min(1.0, geometry_quality)),
+            completion_quality=evidence.completion_quality,
+            attributes=attributes,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ElliottWaveHypothesisEngine:
+    """Project bounded A/B/C alternatives instead of a single wave prediction."""
+
+    def build(
+        self, evidence: PatternHypothesisEvidence
+    ) -> tuple[PatternHypothesisEvidence, ...]:
+        if evidence.family != "ELLIOTT_WAVE":
+            raise ValueError("Elliott engine requires Elliott evidence")
+        directions = (
+            evidence.direction,
+            ScenarioDirection.SHORT
+            if evidence.direction is ScenarioDirection.LONG
+            else ScenarioDirection.LONG
+            if evidence.direction is ScenarioDirection.SHORT
+            else ScenarioDirection.NEUTRAL,
+            ScenarioDirection.NEUTRAL,
+        )
+        labels = ("A", "B", "C")
+        return tuple(
+            PatternHypothesisEvidence(
+                hypothesis_id=f"{evidence.hypothesis_id}:{label}",
+                family=evidence.family,
+                direction=direction,
+                lifecycle_state=PatternLifecycleState.ALTERNATIVE_UNRESOLVED.value,
+                confidence=max(0.0, evidence.confidence - index * 0.1),
+                evidence_for=evidence.evidence_for,
+                evidence_against=tuple(
+                    dict.fromkeys(
+                        (*evidence.evidence_against, "ELLIOTT_ALTERNATIVE_UNRESOLVED")
+                    )
+                ),
+                invalidation=evidence.invalidation,
+                source_timeframe=evidence.source_timeframe,
+                geometry_quality=evidence.geometry_quality,
+                completion_quality=evidence.completion_quality,
+                attributes=tuple(
+                    dict.fromkeys((*evidence.attributes, ("alternative", label)))
+                ),
+            )
+            for index, (label, direction) in enumerate(
+                zip(labels, directions, strict=True)
+            )
+        )
