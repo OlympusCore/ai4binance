@@ -1,13 +1,15 @@
 """Deterministic core technical agents backed by transparent indicators."""
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from math import fsum
 
 from ai4binance.agents.base import BaseAgent
 from ai4binance.agents.registry import AgentDefinition
 from ai4binance.indicators import atr, clamp, closes, ema, relative_volume, rsi
+from ai4binance.intelligence.contracts import StructureState
+from ai4binance.intelligence.structure import MarketStructureEngine
 from ai4binance.opportunity_intelligence import (
     CandlestickPattern,
     MultiTimeframeAlignmentState,
@@ -286,7 +288,11 @@ class VolumeAgent(BaseAgent):
 
 @dataclass(frozen=True, slots=True)
 class MarketStructureAgent(BaseAgent):
-    """Classify deterministic HH/HL or LH/LL structure over two windows."""
+    """Project confirmed-swing structure while retaining legacy metadata."""
+
+    structure_engine: MarketStructureEngine = field(
+        default_factory=MarketStructureEngine
+    )
 
     def analyze(
         self,
@@ -298,6 +304,7 @@ class MarketStructureAgent(BaseAgent):
         if not available:
             return _insufficient(self, snapshot)
         votes: list[float] = []
+        confidences: list[float] = []
         metrics: dict[str, object] = {}
         for timeframe, candles in available:
             sample = candles[-20:]
@@ -306,21 +313,57 @@ class MarketStructureAgent(BaseAgent):
             previous_low = min(item.low for item in previous)
             recent_high = max(item.high for item in recent)
             recent_low = min(item.low for item in recent)
-            if recent_high > previous_high and recent_low > previous_low:
+            structure = self.structure_engine.analyze(timeframe, candles)
+            if structure.state is StructureState.BULLISH:
                 state, vote = "HH_HL", 1.0
-            elif recent_high < previous_high and recent_low < previous_low:
+            elif structure.state is StructureState.BEARISH:
                 state, vote = "LH_LL", -1.0
             else:
                 state, vote = "MIXED", 0.0
             votes.append(vote)
+            confidences.append(structure.confidence)
             metrics[timeframe] = {
                 "structure": state,
                 "previous_high": str(previous_high),
                 "previous_low": str(previous_low),
                 "recent_high": str(recent_high),
                 "recent_low": str(recent_low),
+                "structure_state": structure.state.value,
+                "structure_method": structure.method,
+                "range_low": str(structure.range_low),
+                "range_high": str(structure.range_high),
+                "invalidation_level": (
+                    str(structure.invalidation_level)
+                    if structure.invalidation_level is not None
+                    else None
+                ),
+                "structure_confidence": structure.confidence,
+                "structure_warnings": structure.warnings,
+                "swings": tuple(
+                    {
+                        "kind": swing.kind.value,
+                        "candle_index": swing.candle_index,
+                        "occurred_at": swing.occurred_at.isoformat(),
+                        "available_at": swing.available_at.isoformat(),
+                        "price": str(swing.price),
+                        "label": swing.label,
+                        "atr_significance": str(swing.atr_significance),
+                    }
+                    for swing in structure.swings
+                ),
+                "events": tuple(
+                    {
+                        "event_type": event.event_type,
+                        "direction": event.direction.value,
+                        "level": str(event.level),
+                        "occurred_at": event.occurred_at.isoformat(),
+                        "evidence_ref": event.evidence_ref,
+                    }
+                    for event in structure.events
+                ),
             }
         vote = fsum(votes) / len(votes)
+        confidence = fsum(confidences) / len(confidences)
         return self.result(
             snapshot,
             status=AgentStatus.SUCCESS,
@@ -328,8 +371,8 @@ class MarketStructureAgent(BaseAgent):
             applicable=True,
             directional_vote=round(vote, 6),
             score=75.0 if vote else 50.0,
-            confidence=round(abs(vote), 6),
-            evidence=("WINDOWED_SWING_STRUCTURE",),
+            confidence=round(confidence, 6),
+            evidence=("CONFIRMED_OR_FALLBACK_MARKET_STRUCTURE",),
             reason_codes=("MARKET_STRUCTURE_EVALUATED",),
             calculation_metadata={"timeframes": metrics},
         )

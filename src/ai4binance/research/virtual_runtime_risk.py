@@ -3,12 +3,47 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from decimal import Decimal
+from decimal import ROUND_CEILING, Decimal
+from enum import StrEnum
+from typing import cast
 
 from ai4binance.portfolio.risk_budget import PortfolioRiskPolicy
 
 ZERO = Decimal("0")
 ONE = Decimal("1")
+
+
+class SimulatedLeverageState(StrEnum):
+    """Research-only leverage suitability outcomes."""
+
+    ELIGIBLE = "SIMULATED_LEVERAGE_ELIGIBLE"
+    REDUCED = "SIMULATED_LEVERAGE_REDUCED"
+    BLOCKED = "SIMULATED_LEVERAGE_BLOCKED"
+
+
+@dataclass(frozen=True, slots=True)
+class SimulatedLeverageAssessment:
+    """Non-executable leverage assessment without signal authority."""
+
+    state: SimulatedLeverageState
+    requested_leverage: int | None
+    permitted_leverage: int | None
+    blockers: tuple[str, ...] = ()
+    execution_allowed: bool = False
+
+    def __post_init__(self) -> None:
+        for field_name in ("requested_leverage", "permitted_leverage"):
+            value = getattr(self, field_name)
+            if value is not None and (
+                not isinstance(value, int) or isinstance(value, bool) or value < 1
+            ):
+                raise ValueError(f"{field_name} must be a positive integer")
+        if self.state is SimulatedLeverageState.BLOCKED and not self.blockers:
+            raise ValueError("blocked leverage assessment requires blockers")
+        if self.state is not SimulatedLeverageState.BLOCKED and self.blockers:
+            raise ValueError("eligible leverage assessment cannot contain blockers")
+        if self.execution_allowed:
+            raise ValueError("simulated leverage cannot authorize execution")
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,6 +66,20 @@ class VirtualPortfolioRiskGovernor:
     maximum_futures_leverage: int = 5
 
     def __post_init__(self) -> None:
+        if any(
+            not value.is_finite()
+            for value in (
+                self.maximum_risk_per_trade_usdt,
+                self.maximum_open_risk_usdt,
+                self.maximum_drawdown_ratio,
+                self.maximum_margin_utilization_ratio,
+            )
+        ):
+            raise ValueError("virtual portfolio governor limits must be finite")
+        if not isinstance(self.maximum_futures_leverage, int) or isinstance(
+            self.maximum_futures_leverage, bool
+        ):
+            raise ValueError("virtual portfolio leverage limit must be an integer")
         if (
             min(
                 self.maximum_risk_per_trade_usdt,
@@ -57,3 +106,112 @@ class VirtualPortfolioRiskGovernor:
             raise ValueError(
                 "virtual portfolio futures leverage limit must be positive"
             )
+
+    def assess_simulated_leverage(
+        self,
+        *,
+        requested_leverage: int | None,
+        position_notional_usdt: Decimal | None,
+        available_margin_usdt: Decimal | None,
+        margin_utilization_ratio: Decimal | None,
+        strategy_oos_approved: bool,
+        upstream_blockers: tuple[str, ...] = (),
+    ) -> SimulatedLeverageAssessment:
+        """Assess bounded simulation suitability; confidence is never an input."""
+        blockers = list(upstream_blockers)
+        valid_requested = (
+            isinstance(requested_leverage, int)
+            and not isinstance(requested_leverage, bool)
+            and requested_leverage >= 1
+        )
+        if not valid_requested:
+            blockers.append("SIMULATED_LEVERAGE_REQUEST_INVALID")
+        if (
+            position_notional_usdt is None
+            or not position_notional_usdt.is_finite()
+            or position_notional_usdt <= ZERO
+        ):
+            blockers.append("SIMULATED_POSITION_NOTIONAL_INVALID")
+        if (
+            available_margin_usdt is None
+            or not available_margin_usdt.is_finite()
+            or available_margin_usdt <= ZERO
+        ):
+            blockers.append("SIMULATED_AVAILABLE_MARGIN_INVALID")
+        if (
+            margin_utilization_ratio is None
+            or not margin_utilization_ratio.is_finite()
+            or not (ZERO <= margin_utilization_ratio <= ONE)
+        ):
+            blockers.append("SIMULATED_MARGIN_UTILIZATION_INVALID")
+        elif margin_utilization_ratio > self.maximum_margin_utilization_ratio:
+            blockers.append("FUTURES_MARGIN_UTILIZATION_LIMIT_EXCEEDED")
+        if strategy_oos_approved is not True:
+            blockers.append("SIMULATED_LEVERAGE_OOS_APPROVAL_MISSING")
+        if blockers:
+            return SimulatedLeverageAssessment(
+                state=SimulatedLeverageState.BLOCKED,
+                requested_leverage=requested_leverage if valid_requested else None,
+                permitted_leverage=None,
+                blockers=tuple(dict.fromkeys(blockers)),
+            )
+        position_notional = cast(Decimal, position_notional_usdt)
+        available_margin = cast(Decimal, available_margin_usdt)
+        requested = cast(int, requested_leverage)
+        required = int(
+            (position_notional / available_margin).to_integral_value(
+                rounding=ROUND_CEILING
+            )
+        )
+        if required > self.maximum_futures_leverage:
+            return SimulatedLeverageAssessment(
+                state=SimulatedLeverageState.BLOCKED,
+                requested_leverage=requested_leverage,
+                permitted_leverage=None,
+                blockers=("SIMULATED_LEVERAGE_FEASIBILITY_EXCEEDED",),
+            )
+        permitted = min(requested, self.maximum_futures_leverage)
+        if permitted < required:
+            return SimulatedLeverageAssessment(
+                state=SimulatedLeverageState.BLOCKED,
+                requested_leverage=requested_leverage,
+                permitted_leverage=None,
+                blockers=("SIMULATED_LEVERAGE_INSUFFICIENT_FOR_NOTIONAL",),
+            )
+        state = (
+            SimulatedLeverageState.REDUCED
+            if requested > self.maximum_futures_leverage
+            else SimulatedLeverageState.ELIGIBLE
+        )
+        return SimulatedLeverageAssessment(
+            state=state,
+            requested_leverage=requested,
+            permitted_leverage=permitted,
+        )
+
+    def futures_entry_blockers(
+        self,
+        *,
+        requested_leverage: int | None,
+        current_margin_utilization: Decimal | None,
+        projected_margin_utilization: Decimal | None,
+    ) -> tuple[str, ...]:
+        """Enforce simulation limits without claiming OOS or execution authority."""
+        blockers: list[str] = []
+        if (
+            not isinstance(requested_leverage, int)
+            or isinstance(requested_leverage, bool)
+            or requested_leverage < 1
+        ):
+            blockers.append("FUTURES_LEVERAGE_UNAVAILABLE")
+        elif requested_leverage > self.maximum_futures_leverage:
+            blockers.append("FUTURES_LEVERAGE_LIMIT_EXCEEDED")
+        for name, utilization in (
+            ("CURRENT", current_margin_utilization),
+            ("PROJECTED", projected_margin_utilization),
+        ):
+            if utilization is None or not utilization.is_finite() or utilization < ZERO:
+                blockers.append(f"FUTURES_{name}_MARGIN_UTILIZATION_UNAVAILABLE")
+            elif utilization > self.maximum_margin_utilization_ratio:
+                blockers.append("FUTURES_MARGIN_UTILIZATION_LIMIT_EXCEEDED")
+        return tuple(dict.fromkeys(blockers))

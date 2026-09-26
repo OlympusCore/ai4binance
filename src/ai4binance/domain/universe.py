@@ -5,6 +5,7 @@ from decimal import Decimal
 from enum import StrEnum
 
 ZERO = Decimal("0")
+RESEARCH_MARKET_UNIVERSE_SOURCE = "BINANCE_WALLET_AND_COINGECKO_MARKET_CAP"
 
 _STABLE_BASE_ASSETS = frozenset(
     {

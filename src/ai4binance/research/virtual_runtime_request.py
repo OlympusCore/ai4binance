@@ -81,6 +81,7 @@ class VirtualRuntimeRequest:
     entry_reason: tuple[str, ...] = ("VIRTUAL_MARKET_ENTRY",)
 
     def __post_init__(self) -> None:
+        self._validate_numeric_inputs()
         if not self.opportunity_id.strip():
             object.__setattr__(
                 self,
@@ -194,6 +195,30 @@ class VirtualRuntimeRequest:
                 "dge_blockers",
                 tuple(dict.fromkeys((*self.dge_blockers, DGE_SIMULATION_NOT_APPROVED))),
             )
+
+    def _validate_numeric_inputs(self) -> None:
+        """Reject nonfinite values before arithmetic or comparisons."""
+        numeric_values = (
+            self.quantity,
+            self.entry_price,
+            self.stop_loss,
+            *self.take_profit_levels,
+            self.fee_ratio,
+            self.slippage_ratio,
+            self.half_spread_ratio,
+            self.tick_size,
+            self.step_size,
+            self.minimum_notional,
+            self.mark_price,
+            self.isolated_margin_usdt,
+            self.maintenance_margin_ratio,
+        )
+        if any(value is not None and not value.is_finite() for value in numeric_values):
+            raise ValueError("virtual runtime request numeric values must be finite")
+        if self.leverage is not None and (
+            not isinstance(self.leverage, int) or isinstance(self.leverage, bool)
+        ):
+            raise ValueError("virtual runtime leverage must be an integer")
 
 
 def _require_unique_nonblank(name: str, values: tuple[str, ...]) -> None:

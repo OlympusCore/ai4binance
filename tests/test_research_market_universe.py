@@ -9,8 +9,12 @@ from types import SimpleNamespace
 import pytest
 
 from ai4binance.data.market_universe_retention import MarketUniverseRetention
+from ai4binance.domain.universe import (
+    RESEARCH_MARKET_UNIVERSE_SOURCE as CANONICAL_SOURCE,
+)
 from ai4binance.integrations.binance import BinanceEligibleMarketSnapshot
 from ai4binance.integrations.research_market_universe import (
+    RESEARCH_MARKET_UNIVERSE_SOURCE,
     ResearchMarketUniverseProvider,
     read_wallet_assets_above_value,
 )
@@ -38,6 +42,10 @@ MARKET_CAP_ASSETS = (
     "XLM",
     "HBAR",
 )
+
+
+def test_research_universe_source_uses_canonical_domain_contract() -> None:
+    assert RESEARCH_MARKET_UNIVERSE_SOURCE == CANONICAL_SOURCE
 
 
 class _MarketCapTransport:
@@ -218,6 +226,7 @@ def test_retention_removes_only_out_of_scope_symbol_directories(
     validation = tmp_path / "validation"
     keep = archive / "spot" / "BTCUSDT"
     drop = archive / "spot" / "OLDUSDT"
+    non_ascii_drop = archive / "usd_m_futures" / "币安人生USDT"
     metadata = archive / "spot" / "metadata"
     coin_m_archive = archive / "coin_m_futures" / "metadata"
     source_keep = sources / "data/spot/daily/klines/BTCUSDT"
@@ -235,6 +244,7 @@ def test_retention_removes_only_out_of_scope_symbol_directories(
     for directory in (
         keep,
         drop,
+        non_ascii_drop,
         metadata,
         coin_m_archive,
         source_keep,
@@ -269,6 +279,7 @@ def test_retention_removes_only_out_of_scope_symbol_directories(
     assert replay_keep.is_file()
     assert validation_keep.is_dir()
     assert not drop.exists()
+    assert not non_ascii_drop.exists()
     assert not source_drop.exists()
     assert not coin_m.exists()
     assert not monitor_drop.exists()

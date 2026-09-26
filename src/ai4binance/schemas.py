@@ -11,6 +11,7 @@ from typing import ClassVar, cast
 
 from ai4binance.core.contracts.memory import CompiledCycleContext
 from ai4binance.domain import Signal, TradeCandidate
+from ai4binance.intelligence.contracts import TradingIntelligenceState
 
 
 class AgentStatus(StrEnum):
@@ -280,6 +281,7 @@ class AnalysisState:
     candidate_setups: tuple[TradeCandidate, ...] = field(default_factory=tuple)
     final_decision: Signal | None = None
     compiled_cycle_context: CompiledCycleContext | None = None
+    trading_intelligence: TradingIntelligenceState | None = None
 
     def __post_init__(self) -> None:
         """Block mixed-snapshot or mixed-symbol analysis state."""
@@ -314,6 +316,19 @@ class AnalysisState:
             if self.compiled_cycle_context.symbol != normalized_symbol:
                 raise ValueError(
                     "compiled cycle context must reference the shared symbol"
+                )
+        if self.trading_intelligence is not None:
+            if self.trading_intelligence.snapshot_id != self.snapshot_id:
+                raise ValueError(
+                    "trading intelligence must reference the shared snapshot"
+                )
+            if self.trading_intelligence.symbol != normalized_symbol:
+                raise ValueError(
+                    "trading intelligence must reference the shared symbol"
+                )
+            if self.trading_intelligence.timestamp != self.timestamp:
+                raise ValueError(
+                    "trading intelligence must reference the shared timestamp"
                 )
         object.__setattr__(self, "symbol", normalized_symbol)
         object.__setattr__(self, "agent_results", _freeze_mapping(self.agent_results))

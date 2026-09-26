@@ -169,8 +169,13 @@ class PriceZone:
 
     def __post_init__(self) -> None:
         """Reject negative or inverted zones."""
-        if self.lower < ZERO or self.upper < ZERO:
-            raise ValueError("price zone values cannot be negative")
+        if (
+            not self.lower.is_finite()
+            or not self.upper.is_finite()
+            or self.lower < ZERO
+            or self.upper < ZERO
+        ):
+            raise ValueError("price zone values must be finite and non-negative")
         if self.lower > self.upper:
             raise ValueError("price zone lower cannot exceed upper")
 
@@ -202,23 +207,24 @@ class TradeCandidate:
     evidence: tuple[str, ...] = field(default_factory=tuple)
     blockers: tuple[str, ...] = field(default_factory=tuple)
     market_type: str = "SPOT"
+    scenario_id: str | None = None
+    scenario_type: str | None = None
+    scenario_state: str | None = None
+    scenario_invalidation: str | None = None
+    structural_risk_reward: Decimal | None = None
+    net_risk_reward: Decimal | None = None
+    estimated_round_trip_cost_ratio: Decimal | None = None
+    expected_r: Decimal | None = None
+    probability_calibration_state: str = "PROBABILITY_NOT_CALIBRATED"
+    entry_trigger: str = "NOT_SPECIFIED"
+    entry_state: str = "ENTRY_NOT_READY"
+    entry_expiry: datetime | None = None
+    target_sources: tuple[str, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         """Validate identity, geometry and market semantics."""
-        for field_name in (
-            "candidate_id",
-            "snapshot_id",
-            "symbol",
-            "timeframe",
-            "setup_name",
-        ):
-            if not getattr(self, field_name).strip():
-                raise ValueError(f"{field_name} cannot be empty")
-        if self.timestamp.tzinfo is None or self.timestamp.utcoffset() is None:
-            raise ValueError("candidate timestamp must be timezone-aware")
+        self._validate_identity()
         object.__setattr__(self, "symbol", self.symbol.strip().upper())
-        if self.action not in {Action.BUY, Action.SELL}:
-            raise ValueError("trade candidate action must be BUY or SELL")
         normalized_market_type = _normalize_market_type(self.market_type)
         object.__setattr__(self, "market_type", normalized_market_type)
         if (
@@ -234,10 +240,14 @@ class TradeCandidate:
             "atr",
             "risk_reward",
         ):
-            if getattr(self, field_name) <= ZERO:
+            if (
+                not getattr(self, field_name).is_finite()
+                or getattr(self, field_name) <= ZERO
+            ):
                 raise ValueError(f"{field_name} must be positive")
         if not self.take_profit_levels or any(
-            target <= ZERO for target in self.take_profit_levels
+            not target.is_finite() or target <= ZERO
+            for target in self.take_profit_levels
         ):
             raise ValueError("take_profit_levels must contain positive values")
         _validate_score("score", self.score)
@@ -245,6 +255,74 @@ class TradeCandidate:
             raise ValueError("confidence must be finite and between 0 and 1")
         if self.ranking_score is not None:
             _validate_score("ranking_score", self.ranking_score)
+        self._validate_plan_metrics()
+        self._validate_entry_contract()
+        self._validate_scenario_contract()
+        self._validate_geometry()
+        if self.status is CandidateStatus.READY_FOR_RISK and self.blockers:
+            raise ValueError("READY_FOR_RISK candidate cannot contain blockers")
+
+    def _validate_identity(self) -> None:
+        """Validate stable candidate identity and action semantics."""
+        for field_name in (
+            "candidate_id",
+            "snapshot_id",
+            "symbol",
+            "timeframe",
+            "setup_name",
+        ):
+            if not getattr(self, field_name).strip():
+                raise ValueError(f"{field_name} cannot be empty")
+        if self.timestamp.tzinfo is None or self.timestamp.utcoffset() is None:
+            raise ValueError("candidate timestamp must be timezone-aware")
+        if self.action not in {Action.BUY, Action.SELL}:
+            raise ValueError("trade candidate action must be BUY or SELL")
+
+    def _validate_entry_contract(self) -> None:
+        """Validate entry lifecycle, expiry, and target provenance."""
+        if self.entry_expiry is not None:
+            if (
+                self.entry_expiry.tzinfo is None
+                or self.entry_expiry.utcoffset() is None
+            ):
+                raise ValueError("entry_expiry must be timezone-aware")
+            if self.entry_expiry <= self.timestamp:
+                raise ValueError("entry_expiry must be after candidate timestamp")
+        if not self.entry_trigger.strip() or self.entry_state not in {
+            "ENTRY_NOT_READY",
+            "ENTRY_VALID",
+            "ENTRY_MISSED",
+            "ENTRY_INVALIDATED",
+        }:
+            raise ValueError("entry trigger/state is invalid")
+        if any(not source.strip() for source in self.target_sources):
+            raise ValueError("target_sources cannot contain blank values")
+
+    def _validate_scenario_contract(self) -> None:
+        """Require complete scenario provenance when a candidate is bound."""
+        scenario_fields = (
+            self.scenario_type,
+            self.scenario_state,
+            self.scenario_invalidation,
+        )
+        if self.scenario_id is None:
+            if any(value is not None for value in scenario_fields):
+                raise ValueError("scenario metadata requires scenario_id")
+        else:
+            if not self.scenario_id.strip():
+                raise ValueError("scenario_id cannot be blank")
+            if self.scenario_type is None or not self.scenario_type.strip():
+                raise ValueError("scenario_type is required for a bound scenario")
+            if self.scenario_state is None or not self.scenario_state.strip():
+                raise ValueError("scenario_state is required for a bound scenario")
+            if (
+                self.scenario_invalidation is not None
+                and not self.scenario_invalidation.strip()
+            ):
+                raise ValueError("scenario_invalidation cannot be blank")
+
+    def _validate_geometry(self) -> None:
+        """Validate direction-specific entry, stop, and target geometry."""
         entry = self.entry_price
         if self.action is Action.BUY:
             if self.stop_loss >= entry or any(
@@ -255,13 +333,40 @@ class TradeCandidate:
             target >= entry for target in self.take_profit_levels
         ):
             raise ValueError("SELL candidate geometry is invalid")
-        if self.status is CandidateStatus.READY_FOR_RISK and self.blockers:
-            raise ValueError("READY_FOR_RISK candidate cannot contain blockers")
+
+    def _validate_plan_metrics(self) -> None:
+        """Validate explicit structural, net, and calibrated R metrics."""
+        for field_name in ("structural_risk_reward", "net_risk_reward"):
+            value = getattr(self, field_name)
+            if value is not None and (not value.is_finite() or value <= ZERO):
+                raise ValueError(f"{field_name} must be finite and positive")
+        if self.estimated_round_trip_cost_ratio is not None and (
+            not self.estimated_round_trip_cost_ratio.is_finite()
+            or self.estimated_round_trip_cost_ratio < ZERO
+        ):
+            raise ValueError("estimated round-trip cost ratio is invalid")
+        if self.expected_r is not None and not self.expected_r.is_finite():
+            raise ValueError("expected_r must be finite when available")
+        if self.probability_calibration_state not in {
+            "PROBABILITY_NOT_CALIBRATED",
+            "OOS_CALIBRATED",
+        }:
+            raise ValueError("probability calibration state is invalid")
+        if (
+            self.expected_r is not None
+            and self.probability_calibration_state != "OOS_CALIBRATED"
+        ):
+            raise ValueError("expected_r requires OOS-calibrated probability")
 
     @property
     def entry_price(self) -> Decimal:
         """Return the deterministic midpoint used for risk calculations."""
         return (self.entry_zone.lower + self.entry_zone.upper) / Decimal("2")
+
+    @property
+    def gross_risk_reward(self) -> Decimal:
+        """Retain the existing projected R/R as the gross metric."""
+        return self.risk_reward
 
 
 @dataclass(frozen=True, slots=True)

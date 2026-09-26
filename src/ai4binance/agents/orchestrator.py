@@ -44,6 +44,8 @@ from ai4binance.agents.universe_liquidity_gate import UniverseLiquidityGate
 from ai4binance.agents.validation_gate import ValidationGate
 from ai4binance.core.contracts.memory import CompiledCycleContext
 from ai4binance.domain import TradeCandidate
+from ai4binance.intelligence.contracts import TradingIntelligenceState
+from ai4binance.intelligence.trading import TradingIntelligenceEngine
 from ai4binance.schemas import AgentResult, AgentStatus, AnalysisState, MarketSnapshot
 from ai4binance.strategies import StrategyEngine
 from ai4binance.strategies.arbitration import CandidateArbitrator
@@ -68,6 +70,9 @@ class EnterpriseOrchestrator:
     strategy_engine: StrategyEngine = field(default_factory=StrategyEngine)
     candidate_arbitrator: CandidateArbitrator = field(
         default_factory=CandidateArbitrator
+    )
+    trading_intelligence_engine: TradingIntelligenceEngine = field(
+        default_factory=TradingIntelligenceEngine
     )
     telemetry_sink: AgentTelemetrySink | None = None
     agent_latency_budget_ms: float = 1_000.0
@@ -214,9 +219,17 @@ class EnterpriseOrchestrator:
             snapshot,
             MappingProxyType(results),
         )
+        trading_intelligence = self.trading_intelligence_engine.build(
+            snapshot,
+            MappingProxyType(results),
+        )
         candidates = self.strategy_engine.generate(
             snapshot,
             MappingProxyType(results),
+        )
+        candidates = self.trading_intelligence_engine.bind_candidates(
+            candidates,
+            trading_intelligence,
         )
         selection = self.candidate_arbitrator.select(candidates)
         risk_candidates = selection.ranked[:5] if selection.selected is not None else ()
@@ -227,9 +240,12 @@ class EnterpriseOrchestrator:
         return self._finalize_cycle(
             snapshot,
             results,
-            extra_blockers=selection.blockers,
+            extra_blockers=tuple(
+                dict.fromkeys((*selection.blockers, *trading_intelligence.blockers))
+            ),
             candidates=candidates,
             compiled_cycle_context=compiled_cycle_context,
+            trading_intelligence=trading_intelligence,
             cycle_started_ns=cycle_started_ns,
             specialist_wall_ms=specialist_wall_ms,
             scheduler_overhead_ms=scheduler_overhead_ms,
@@ -521,6 +537,7 @@ class EnterpriseOrchestrator:
         extra_blockers: tuple[str, ...] = (),
         candidates: tuple[TradeCandidate, ...] = (),
         compiled_cycle_context: CompiledCycleContext | None = None,
+        trading_intelligence: TradingIntelligenceState | None = None,
         *,
         cycle_started_ns: int,
         specialist_wall_ms: float,
@@ -538,6 +555,7 @@ class EnterpriseOrchestrator:
             extra_blockers=extra_blockers,
             candidates=candidates,
             compiled_cycle_context=compiled_cycle_context,
+            trading_intelligence=trading_intelligence,
         )
         self._record_cycle_metric(
             snapshot,
@@ -593,8 +611,21 @@ class EnterpriseOrchestrator:
         extra_blockers: tuple[str, ...] = (),
         candidates: tuple[TradeCandidate, ...] = (),
         compiled_cycle_context: CompiledCycleContext | None = None,
+        trading_intelligence: TradingIntelligenceState | None = None,
     ) -> AnalysisState:
         """Build the immutable state and final fail-closed decision."""
+        if trading_intelligence is None:
+            trading_intelligence = self.trading_intelligence_engine.blocked(
+                snapshot,
+                tuple(
+                    dict.fromkeys(
+                        (
+                            "TRADING_INTELLIGENCE_NOT_EVALUATED",
+                            *extra_blockers,
+                        )
+                    )
+                ),
+            )
         validation_blockers = tuple(
             dict.fromkeys(
                 (
@@ -622,6 +653,7 @@ class EnterpriseOrchestrator:
             candidate_setups=candidates,
             final_decision=decision,
             compiled_cycle_context=compiled_cycle_context,
+            trading_intelligence=trading_intelligence,
         )
 
 

@@ -503,6 +503,7 @@ def _legacy_package_migration_rule(
         "allocation": "domain/portfolio/allocation",
         "comparison": "domain/intelligence/comparison",
         "funding": "domain/portfolio/funding",
+        "intelligence": "domain/intelligence",
         "observability": "infrastructure/observability",
         "outlook": "domain/intelligence/outlook",
         "runtime_artifacts": "infrastructure/filesystem/runtime_artifacts",

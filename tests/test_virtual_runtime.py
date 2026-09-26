@@ -4324,6 +4324,49 @@ def test_virtual_market_runtime_opens_futures_long_with_margin_and_funding_evide
     assert decision.portfolio_after.liquidation_price == Decimal("77")
 
 
+@pytest.mark.parametrize(
+    ("margin", "fee", "expected_block"),
+    [("600", "0", False), ("601", "0", True), ("600", "0.001", True)],
+)
+def test_futures_entry_checks_projected_margin_after_costs(
+    margin: str, fee: str, expected_block: bool
+) -> None:
+    request = approved_virtual_runtime_request(
+        snapshot_id="snapshot:projected-margin",
+        decision_id="dge:projected-margin",
+        candidate_id="candidate:projected-margin",
+        symbol="BTCUSDT",
+        market="USD_M_FUTURES",
+        action=Action.BUY,
+        quantity=Decimal("2"),
+        entry_price=Decimal("100"),
+        stop_loss=Decimal("95"),
+        take_profit_levels=(Decimal("110"),),
+        position_side=VirtualPositionSide.LONG,
+        mark_price=Decimal("100"),
+        funding_rate=Decimal("0"),
+        leverage=5,
+        isolated_margin_usdt=Decimal(margin),
+        maintenance_margin_ratio=Decimal("0.02"),
+        fee_ratio=Decimal(fee),
+        portfolio=VirtualPortfolioState(
+            portfolio_id="virtual:projected-margin",
+            market="USD_M_FUTURES",
+            cash_usdt=Decimal("1000"),
+            equity_usdt=Decimal("1000"),
+        ),
+    )
+    decision = VirtualMarketRuntime().evaluate(request)
+    assert (
+        "FUTURES_MARGIN_UTILIZATION_LIMIT_EXCEEDED" in decision.eligibility.blockers
+    ) is expected_block
+    if expected_block:
+        assert decision.trade_intent is None
+        assert decision.portfolio_after == request.portfolio
+    else:
+        assert decision.status is VirtualRuntimeDecisionStatus.ORDER_READY
+
+
 def test_virtual_market_runtime_opens_futures_short_with_mirrored_geometry() -> None:
     runtime = VirtualMarketRuntime()
     decision = runtime.evaluate(
