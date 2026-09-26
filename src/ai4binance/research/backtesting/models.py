@@ -12,6 +12,7 @@ from ai4binance.domain.research.virtual_runtime_attribution import (
 from ai4binance.domain.research.virtual_runtime_attribution import (
     ClosedTradeAttribution as ClosedTradeAttribution,
 )
+from ai4binance.domain.research.virtual_runtime_attribution import TradeDecisionEvidence, TradeParameterMethods
 from ai4binance.domain.research.virtual_runtime_attribution import (
     TradeDirection as TradeDirection,
 )
@@ -213,6 +214,9 @@ class BacktestIntent:
     snapshot_id: str = ""
     decision_id: str = ""
     opportunity_id: str = ""
+    decision_evidence: TradeDecisionEvidence = field(
+        default_factory=TradeDecisionEvidence
+    )
     breakeven_trigger_r: Decimal | None = None
     trailing_atr_multiple: Decimal | None = None
     maximum_holding_bars: int | None = None
@@ -300,6 +304,7 @@ class BacktestIntent:
             snapshot_id=self.snapshot_id.strip() or self.signal_id,
             decision_id=self.decision_id.strip() or f"decision:{self.signal_id}",
             opportunity_id=self.opportunity_id,
+            decision_evidence=self.decision_evidence,
         )
 
 
@@ -379,7 +384,7 @@ class TradeOutcome:
     entry_price: Decimal
     exit_price: Decimal
     risk_at_entry: Decimal
-    planned_rr: Decimal
+    planned_rr: Decimal | None
     realized_rr: Decimal
     gross_pnl: Decimal
     fee_cost: Decimal
@@ -393,7 +398,15 @@ class TradeOutcome:
     dge_status: str = "UNKNOWN"
     entry_reason: tuple[str, ...] = ("BACKTEST_SIGNAL",)
     exit_reason: BacktestExitReason = BacktestExitReason.END_OF_DATA
+    decision_evidence: TradeDecisionEvidence = field(
+        default_factory=TradeDecisionEvidence
+    )
     blocker_history: tuple[str, ...] = ()
+    quantity: Decimal | None = None
+    leverage: int | None = None
+    initial_stop_loss: Decimal | None = None
+    initial_take_profit_levels: tuple[Decimal, ...] = ()
+    parameter_methods: TradeParameterMethods = field(default_factory=TradeParameterMethods)
 
 
 @dataclass(frozen=True, slots=True)
@@ -416,6 +429,12 @@ class TradeRecord:
     entry_reason: tuple[str, ...] = ("BACKTEST_SIGNAL",)
     staged_exits: tuple[StagedExitRecord, ...] = ()
     attribution: ClosedTradeAttribution = field(default_factory=ClosedTradeAttribution)
+    initial_stop_loss: Decimal | None = None
+    initial_take_profit_levels: tuple[Decimal, ...] = ()
+    entry_reference_price: Decimal | None = None
+    excursion_observation: str = "CANDLE_EXTREMA_INTRABAR_ORDER_UNKNOWN"
+    leverage: int | None = None
+    parameter_methods: TradeParameterMethods = field(default_factory=TradeParameterMethods)
     gross_pnl_usdt: Decimal = ZERO
     fee_cost_usdt: Decimal = ZERO
     slippage_cost_usdt: Decimal = ZERO
@@ -470,6 +489,12 @@ class TradeRecord:
             dge_status=self.dge_status,
             entry_reason=self.entry_reason,
             exit_reason=self.exit_reason,
+            decision_evidence=self.attribution.decision_evidence,
+            quantity=self.quantity,
+            leverage=self.leverage,
+            initial_stop_loss=self.initial_stop_loss,
+            initial_take_profit_levels=self.initial_take_profit_levels,
+            parameter_methods=self.parameter_methods,
             blocker_history=self.blocker_history,
         )
 
@@ -495,6 +520,11 @@ class MissedOpportunityRecord:
     forward_realized_r: Decimal | None = None
     forward_net_pnl: Decimal | None = None
     improvement_candidate_id: str | None = None
+    decision_evidence: TradeDecisionEvidence = field(default_factory=TradeDecisionEvidence)
+    proposed_quantity: Decimal | None = None
+    proposed_leverage: int | None = None
+    proposed_stop_loss: Decimal | None = None
+    proposed_take_profit_levels: tuple[Decimal, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.pre_veto_observation_id.strip():

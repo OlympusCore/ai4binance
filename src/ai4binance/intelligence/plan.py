@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
@@ -12,6 +13,7 @@ from typing import cast
 
 from ai4binance.data.timeframes import timeframe_duration
 from ai4binance.domain import Action, CandidateStatus, PriceZone, TradeCandidate
+from ai4binance.domain.research.virtual_runtime_attribution import TradeDecisionEvidence
 from ai4binance.indicators import atr
 from ai4binance.intelligence.contracts import (
     ScenarioDirection,
@@ -20,6 +22,7 @@ from ai4binance.intelligence.contracts import (
     SwingKind,
     TradingIntelligenceState,
 )
+from ai4binance.reporting import to_primitive
 from ai4binance.schemas import MarketSnapshot
 
 ZERO = Decimal("0")
@@ -187,7 +190,41 @@ class TradePlanEngine:
                 target_sources=tuple(targets.values()),
             )
             candidate = self.structural_candidate(candidate, scenario, state, snapshot)
-            proposals.append(self.bind(candidate, scenario, state))
+            candidate = self.bind(candidate, scenario, state)
+            evidence = TradeDecisionEvidence(
+                status="RECORDED_AT_DECISION",
+                as_of=snapshot.created_at,
+                direction_method="CONFIRMED_SWING_GRAPH_AND_4H_TREND_GEOMETRY",
+                entry_method="CONFIRMED_SCENARIO_CLOSED_CANDLE_TRIGGER",
+                factors_json=json.dumps(
+                    to_primitive(
+                        {
+                            "state": state,
+                            "entry_candles": rows[-50:],
+                            "entry": candidate.entry_price,
+                            "initial_stop": candidate.stop_loss,
+                            "targets": candidate.take_profit_levels,
+                            "target_sources": candidate.target_sources,
+                            "direction": "LONG" if long else "SHORT",
+                            "timeframe": timeframe,
+                            "entry_trigger": candidate.entry_trigger,
+                            "entry_state": candidate.entry_state,
+                            "entry_expiry": candidate.entry_expiry,
+                            "gross_rr": candidate.risk_reward,
+                            "net_rr": candidate.net_risk_reward,
+                            "expected_r": candidate.expected_r,
+                            "probability_calibration_state": (
+                                candidate.probability_calibration_state
+                            ),
+                            "atr_role": "VOLATILITY_ONLY",
+                            "ema_role": "NOT_USED",
+                            "leverage_authority": "DOWNSTREAM_DETERMINISTIC_RISK_GATE",
+                        }
+                    ),
+                    sort_keys=True,
+                ),
+            )
+            proposals.append(replace(candidate, decision_evidence=evidence))
         return tuple(proposals)
 
     @staticmethod

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from decimal import ROUND_DOWN, ROUND_UP, Decimal
 from enum import StrEnum
@@ -31,6 +31,7 @@ from ai4binance.domain import Action, ValidationStatus
 from ai4binance.domain.research.virtual_runtime_attribution import (
     BacktestExitReason,
     ClosedTradeAttribution,
+    TradeDecisionEvidence,
     TradeDirection,
     VirtualClosedTradeRecord,
     VirtualTradeAttributionAggregate,
@@ -904,6 +905,9 @@ class VirtualManagedPosition:
     risk_policy_version: str = "unknown"
     validation_version: str = "unknown"
     entry_reason: tuple[str, ...] = ("VIRTUAL_MARKET_ENTRY",)
+    decision_evidence: TradeDecisionEvidence = field(
+        default_factory=TradeDecisionEvidence
+    )
     entry_slippage_cost_usdt: Decimal = ZERO
     funding_cost_usdt: Decimal = ZERO
     isolated_margin_usdt: Decimal | None = None
@@ -2328,6 +2332,7 @@ class VirtualMarketRuntime:
             risk_policy_version=request.risk_policy_version,
             validation_version=request.validation_version,
             entry_reason=request.entry_reason,
+            decision_evidence=request.decision_evidence,
             entry_slippage_cost_usdt=entry_slippage,
             funding_cost_usdt=funding_cost,
             realized_pnl_usdt=-funding_cost,
@@ -2622,6 +2627,7 @@ class VirtualMarketRuntime:
                 snapshot_id=position_before.snapshot_id,
                 decision_id=position_before.decision_id,
                 opportunity_id=position_before.opportunity_id,
+                decision_evidence=position_before.decision_evidence,
             ),
             direction=TradeDirection(position_before.position_side.value),
             entry_time=position_before.opened_at,

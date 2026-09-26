@@ -11,6 +11,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import cast
 
+from ai4binance.domain.research.virtual_runtime_attribution import TradeDecisionEvidence
 from ai4binance.research.backtesting.models import (
     BacktestExitReason,
     ClosedTradeAttribution,
@@ -712,6 +713,9 @@ def _position_from_payload(payload: Mapping[str, object]) -> VirtualManagedPosit
             for item in _sequence(payload, "entry_reason")
         ),
         entry_slippage_cost_usdt=_decimal(payload, "entry_slippage_cost_usdt"),
+        decision_evidence=TradeDecisionEvidence.from_payload(
+            payload.get("decision_evidence")
+        ),
         funding_cost_usdt=_decimal(payload, "funding_cost_usdt"),
         isolated_margin_usdt=_optional_decimal(payload, "isolated_margin_usdt"),
         initial_margin_usdt=_optional_decimal(payload, "initial_margin_usdt"),
@@ -775,6 +779,9 @@ def _closed_trade_from_payload(
             opportunity_id=(
                 _optional_text(attribution, "opportunity_id")
                 or f"opportunity:{_text(attribution, 'decision_id')}"
+            ),
+            decision_evidence=TradeDecisionEvidence.from_payload(
+                attribution.get("decision_evidence")
             ),
         ),
         direction=TradeDirection(_text(payload, "direction")),

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import json
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
+from hashlib import sha256
 
 ZERO = Decimal("0")
 
@@ -33,6 +35,114 @@ class TradeDirection(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class TradeParameterMethods:
+    """Sources of parameter decisions, separate from values and execution authority."""
+
+    quantity: str = "NOT_RECORDED"
+    leverage: str = "NOT_RECORDED"
+    stop_loss: str = "NOT_RECORDED"
+    entry: str = "NOT_RECORDED"
+    take_profit: str = "NOT_RECORDED"
+    risk_reward: str = "NOT_RECORDED"
+    pnl: str = "NOT_RECORDED"
+
+    def __post_init__(self) -> None:
+        if any(not getattr(self, key).strip() for key in self.__dataclass_fields__):
+            raise ValueError("trade parameter methods cannot be blank")
+
+    @classmethod
+    def from_payload(cls, payload: object) -> TradeParameterMethods:
+        if payload is None:
+            return cls()
+        if not isinstance(payload, Mapping):
+            raise ValueError("trade parameter methods must be a mapping")
+        return cls(**{key: str(payload.get(key, "NOT_RECORDED")) for key in cls.__dataclass_fields__})
+
+
+@dataclass(frozen=True, slots=True)
+class TradeDecisionEvidence:
+    """Immutable decision-time inputs; legacy absence is explicitly unknown.
+
+    The digest detects accidental changes, not authenticity. Existing audit
+    storage provides durable event provenance. Reconstruction never becomes a
+    decision-time observation merely because it contains the same inputs.
+    """
+
+    status: str = "NOT_RECORDED"
+    as_of: datetime | None = None
+    direction_method: str = "NOT_RECORDED"
+    entry_method: str = "NOT_RECORDED"
+    factors_json: str = "{}"
+    sha256: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        if self.status not in {
+            "NOT_RECORDED",
+            "RECORDED_AT_DECISION",
+            "RECONSTRUCTED_FROM_ARCHIVE",
+        }:
+            raise ValueError("unsupported decision evidence status")
+        if len(self.factors_json.encode("utf-8")) > 1_000_000:
+            raise ValueError("decision evidence exceeds the payload bound")
+        factors = json.loads(self.factors_json)
+        if not isinstance(factors, dict):
+            raise ValueError("decision factors must be a JSON object")
+        canonical = json.dumps(
+            factors, sort_keys=True, separators=(",", ":"), allow_nan=False
+        )
+        if self.status == "NOT_RECORDED":
+            if (
+                factors
+                or self.as_of is not None
+                or (self.direction_method, self.entry_method)
+                != ("NOT_RECORDED", "NOT_RECORDED")
+            ):
+                raise ValueError("unrecorded evidence cannot claim observed factors")
+        elif (
+            self.as_of is None
+            or self.as_of.utcoffset() is None
+            or not factors
+            or not self.direction_method.strip()
+            or not self.entry_method.strip()
+            or "NOT_RECORDED" in (self.direction_method, self.entry_method)
+        ):
+            raise ValueError(
+                "recorded evidence requires aware time, methods and factors"
+            )
+        object.__setattr__(self, "factors_json", canonical)
+        payload = json.dumps(
+            [
+                self.status,
+                self.as_of.isoformat() if self.as_of else None,
+                self.direction_method,
+                self.entry_method,
+                canonical,
+            ],
+            separators=(",", ":"),
+        )
+        object.__setattr__(self, "sha256", sha256(payload.encode()).hexdigest())
+
+    @classmethod
+    def from_payload(cls, payload: object) -> TradeDecisionEvidence:
+        """Restore evidence with digest verification; accept legacy absence."""
+        if payload is None:
+            return cls()
+        if not isinstance(payload, Mapping):
+            raise ValueError("decision evidence payload must be a mapping")
+        stamp = payload.get("as_of")
+        evidence = cls(
+            status=str(payload["status"]),
+            as_of=datetime.fromisoformat(str(stamp)) if stamp is not None else None,
+            direction_method=str(payload["direction_method"]),
+            entry_method=str(payload["entry_method"]),
+            factors_json=str(payload["factors_json"]),
+        )
+        if payload.get("sha256") != evidence.sha256:
+            raise ValueError("decision evidence digest mismatch")
+        return evidence
+
+
+@dataclass(frozen=True, slots=True)
 class ClosedTradeAttribution:
     """Required deterministic lineage attached to each closed virtual trade."""
 
@@ -47,6 +157,9 @@ class ClosedTradeAttribution:
     snapshot_id: str = "UNKNOWN_SNAPSHOT"
     decision_id: str = "UNKNOWN_DECISION"
     opportunity_id: str = "UNKNOWN_OPPORTUNITY"
+    decision_evidence: TradeDecisionEvidence = field(
+        default_factory=TradeDecisionEvidence
+    )
 
     def __post_init__(self) -> None:
         for field_name, value in (
@@ -128,6 +241,11 @@ class VirtualClosedTradeRecord:
     maximum_favorable_excursion: Decimal
     maximum_adverse_excursion: Decimal
     false_breakout: bool = False
+    leverage: int | None = None
+    initial_stop_loss: Decimal | None = None
+    initial_take_profit_levels: tuple[Decimal, ...] = ()
+    planned_rr: Decimal | None = None
+    parameter_methods: TradeParameterMethods = field(default_factory=TradeParameterMethods)
 
     def __post_init__(self) -> None:
         if not self.trade_id.strip():

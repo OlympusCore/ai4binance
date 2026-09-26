@@ -7,6 +7,8 @@ from enum import StrEnum
 from math import isfinite
 from typing import ClassVar
 
+from ai4binance.domain.research.virtual_runtime_attribution import TradeDecisionEvidence
+
 
 class Action(StrEnum):
     """Spot actions emitted by the deterministic decision layer."""
@@ -220,6 +222,9 @@ class TradeCandidate:
     entry_state: str = "ENTRY_NOT_READY"
     entry_expiry: datetime | None = None
     target_sources: tuple[str, ...] = field(default_factory=tuple)
+    decision_evidence: TradeDecisionEvidence = field(
+        default_factory=TradeDecisionEvidence
+    )
 
     def __post_init__(self) -> None:
         """Validate identity, geometry and market semantics."""

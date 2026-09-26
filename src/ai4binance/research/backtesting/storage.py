@@ -4,10 +4,12 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from hashlib import sha256
+from typing import cast
 
 from ai4binance.reporting import to_primitive
 from ai4binance.research.backtesting.models import BacktestResult
 from ai4binance.research.backtesting.robustness import BacktestRobustnessReport
+from ai4binance.storage.destination_verification import write_json_object_verified
 from ai4binance.storage.jsonl import AuditEvent, JsonlAuditStore
 
 
@@ -79,16 +81,37 @@ class BacktestAuditWriter:
                 allow_nan=False,
             ).encode("utf-8")
         )
-        persisted_result = (
-            full_result
-            if full_payload_size <= self.store.max_event_bytes * 3 // 4
-            else to_primitive(
-                _bounded_backtest_payload(
-                    result,
-                    full_result=full_result,
-                )
+        persisted_result = full_result
+        if full_payload_size > self.store.max_event_bytes * 3 // 4:
+            # Bounded event summaries must not discard per-trade learning inputs.
+            details = cast(
+                dict[str, object],
+                self.store.redactor.redact(
+                    to_primitive(
+                        {
+                            "trades": result.trades,
+                            "trade_outcomes": result.trade_outcomes,
+                        }
+                    )
+                ),
             )
-        )
+            digest = _canonical_sha256(details)
+            detail_path = self.store.path.with_name(
+                f"{self.store.path.stem}.trades.{digest}.json"
+            )
+            write_json_object_verified(
+                detail_path,
+                details,
+                blocker="BACKTEST_TRADE_DETAILS_DESTINATION_VERIFY_FAILED",
+                subject_id=f"{result.symbol}:{result.timeframe}:{digest}",
+            )
+            persisted_result = to_primitive(
+                {
+                    **_bounded_backtest_payload(result, full_result=full_result),
+                    "trade_records_artifact": detail_path.name,
+                    "trade_records_sha256": digest,
+                }
+            )
         self.store.append_verified(
             AuditEvent(
                 event_type="BACKTEST_RESULT",

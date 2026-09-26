@@ -25,6 +25,8 @@ from ai4binance.core.contracts.memory import (
     MemoryWriteIntent,
 )
 from ai4binance.domain.memory import GovernedMemoryFabric
+from ai4binance.domain.research.virtual_runtime_attribution import TradeDecisionEvidence
+from ai4binance.reporting import to_primitive
 from ai4binance.research.backtesting import (
     BacktestConfig,
     BacktestEngine,
@@ -769,6 +771,7 @@ def test_backtest_result_persists_as_redacted_jsonl(tmp_path: Path) -> None:
     assert payload["payload"]["result"]["trades"][0]["signal_id"] == "signal-1"
     assert payload["payload"]["result"]["missed_opportunity_ledger"] == {"records": []}
     assert payload["payload"]["result"]["trades"][0]["attribution"] == {
+        "decision_evidence": to_primitive(TradeDecisionEvidence()),
         "decision_id": "decision:signal-1",
         "market": "SPOT",
         "opportunity_id": "opportunity:signal-1",
@@ -810,6 +813,7 @@ def test_backtest_result_persists_as_redacted_jsonl(tmp_path: Path) -> None:
     assert payload["payload"]["result"]["trades"][0]["dge_status"] == "DGE_PASS"
     assert payload["payload"]["result"]["trades"][0]["blocker_history"] == []
     assert payload["payload"]["result"]["trade_outcomes"][0] == {
+        "decision_evidence": to_primitive(TradeDecisionEvidence()),
         "blocker_history": [],
         "dge_status": "DGE_PASS",
         "direction": "LONG",
@@ -891,6 +895,12 @@ def test_backtest_result_persists_as_redacted_jsonl(tmp_path: Path) -> None:
     assert len(bounded["collection_sha256"]["audit_events"]) == 64
     assert len(bounded["full_result_sha256"]) == 64
     assert "audit_events" not in bounded
+    details = json.loads((tmp_path / bounded["trade_records_artifact"]).read_text())
+    assert details["trades"][0]["trade_id"] == result.trades[0].trade_id
+    assert (
+        details["trades"][0]["attribution"]["decision_evidence"]["status"]
+        == "NOT_RECORDED"
+    )
 
 
 @pytest.mark.parametrize(

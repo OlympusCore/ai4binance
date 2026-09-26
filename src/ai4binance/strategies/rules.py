@@ -1,6 +1,7 @@
 """Shared deterministic playbook identifiers and historical trigger rules."""
 # ruff: noqa: E501
 
+import json
 import re
 from dataclasses import dataclass
 from decimal import Decimal
@@ -15,6 +16,7 @@ from ai4binance.intelligence.contracts import (
     TimeframeStructureEvidence,
 )
 from ai4binance.intelligence.structure import MarketStructureEngine
+from ai4binance.reporting import to_primitive
 from ai4binance.schemas import OHLCVCandle
 from ai4binance.strategies.registry import PlaybookRegistry, build_playbook_registry
 
@@ -153,6 +155,7 @@ class HistoricalTriggerDecision:
     blockers: tuple[str, ...] = ()
     structural_stop: Decimal | None = None
     structural_target: Decimal | None = None
+    decision_factors_json: str = "{}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -423,6 +426,35 @@ def _structural_continuation(
         () if confirmed else ("STRUCTURAL_CONTINUATION_NOT_CONFIRMED",),
         stop if confirmed else None,
         latest_high if confirmed else None,
+        json.dumps(
+            to_primitive(
+                {
+                    "structure": structure,
+                    "closed_candles": history,
+                    "direction": "LONG",
+                    "direction_rule": "CONFIRMED_SWING_GRAPH:BULLISH",
+                    "entry_rule": "CLOSE_ABOVE_PREVIOUS_HIGH",
+                    "pullback_required": playbook == "pullback_continuation",
+                    "previous_high": previous.high,
+                    "previous_low": previous.low,
+                    "relative_volume": current.volume
+                    / (sum((c.volume for c in history[-21:-1]), Decimal("0")) / 20),
+                    "relative_volume_minimum": "1.05",
+                    "stop_source": "STRUCTURE_INVALIDATION",
+                    "target_source": "LATEST_CONFIRMED_SWING_HIGH",
+                    "unused_methods": (
+                        "EMA_CROSSOVER",
+                        "MULTI_TIMEFRAME_SCENARIO",
+                        "TREND_GEOMETRY",
+                        "PATTERN_LIFECYCLE",
+                        "ELLIOTT_WAVES",
+                        "FIBONACCI",
+                        "HARMONIC_PATTERNS",
+                    ),
+                }
+            ),
+            sort_keys=True,
+        ),
     )
 
 

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import datetime
@@ -14,6 +15,8 @@ from time import perf_counter_ns
 from typing import Any, Protocol, cast
 
 from ai4binance.domain import ValidationStatus
+from ai4binance.domain.research.virtual_runtime_attribution import TradeDecisionEvidence
+from ai4binance.reporting import to_primitive
 
 VALIDATED_PLAYBOOKS = (
     "trend_continuation",
@@ -319,10 +322,57 @@ class HistoricalPlaybookAdapter:
             self._blocker_counts[blocker] = self._blocker_counts.get(blocker, 0) + 1
             return None
         timestamp = history[-1].timestamp
+        strategy_version = "structural-v3" if structural else self.strategy_version
         digest = sha256(
-            f"{self.playbook}|{self.parameters.name}|{timestamp.isoformat()}".encode()
+            f"{self.market}|{self.symbol}|{self.timeframe}|{self.playbook}|"
+            f"{strategy_version}|{self.parameters.name}|{profile.config_hash}|"
+            f"{timestamp.isoformat()}".encode()
         ).hexdigest()[:16]
         lineage_suffix = f"{profile.version}:{profile.config_hash[:12]}"
+        factors = json.loads(getattr(decision, "decision_factors_json", "{}"))
+        factors.update(
+            to_primitive(
+                {
+                    "symbol": self.symbol,
+                    "market": self.market,
+                    "timeframe": self.timeframe,
+                    "playbook": self.playbook,
+                    "strategy_version": strategy_version,
+                    "risk_profile_hash": profile.config_hash,
+                    "parameters": self.parameters.values,
+                    "closed_signal_candle": history[-1],
+                    "history_length": len(history),
+                    "reference_entry": close,
+                    "initial_stop": stop,
+                    "initial_target": target,
+                    "gross_rr": realized_rr,
+                    "minimum_rr": profile.minimum_rr,
+                    "expected_target_move_ratio": expected_move_ratio,
+                    "minimum_target_move_ratio": minimum_edge_ratio,
+                    "entry_execution_rule": "NEXT_CANDLE_OPEN_WITH_COSTS",
+                    "net_rr_at_decision": "NOT_EVALUATED_BY_COMPONENT_ADAPTER",
+                    "regime": decision.regime,
+                    "attribution_regime": regime,
+                    "passed_gate": decision.regime_strategy_reason_code,
+                    "atr_at_entry": current_atr,
+                    "trailing_atr_multiple": profile.trailing_atr_multiple,
+                    "breakeven_trigger_r": profile.breakeven_trigger_r,
+                    "maximum_holding_bars": profile.maximum_holding_bars,
+                    "leverage": "NOT_APPLICABLE_SPOT"
+                    if self.market == "SPOT"
+                    else "NOT_DETERMINED_HERE",
+                }
+            )
+        )
+        decision_evidence = TradeDecisionEvidence(
+            status="RECORDED_AT_DECISION",
+            as_of=timestamp + (timestamp - history[-2].timestamp),
+            direction_method="CONFIRMED_SWING_GRAPH"
+            if structural
+            else "HISTORICAL_PLAYBOOK_RULES",
+            entry_method=f"{self.playbook}:CLOSED_CANDLE_RULES",
+            factors_json=json.dumps(factors, sort_keys=True),
+        )
         return self.intent_builder(
             signal_id=f"historical:{digest}",
             timestamp=timestamp,
@@ -336,7 +386,8 @@ class HistoricalPlaybookAdapter:
                 "CONFIRMED_SWING_GEOMETRY" if structural else "ATR_PROFILE_GEOMETRY",
             ),
             strategy_id=self.playbook,
-            strategy_version="structural-v3" if structural else self.strategy_version,
+            strategy_version=strategy_version,
+            decision_evidence=decision_evidence,
             strategy_config_version=profile.version,
             strategy_config_hash=profile.config_hash,
             market=self.market,

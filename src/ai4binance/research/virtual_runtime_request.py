@@ -12,6 +12,7 @@ from ai4binance.core.contracts.virtual_governance import (
     DGE_SIMULATION_NOT_APPROVED,
 )
 from ai4binance.domain import Action
+from ai4binance.domain.research.virtual_runtime_attribution import TradeDecisionEvidence, TradeParameterMethods
 from ai4binance.governance.execution_authority import ExecutionSurface
 from ai4binance.portfolio.risk_budget import PositionExposure
 from ai4binance.research.backtesting.liquidity import LiquidityStressConfig
@@ -81,6 +82,10 @@ class VirtualRuntimeRequest:
     risk_policy_version: str = "unknown"
     validation_version: str = "unknown"
     entry_reason: tuple[str, ...] = ("VIRTUAL_MARKET_ENTRY",)
+    parameter_methods: TradeParameterMethods = field(default_factory=TradeParameterMethods)
+    decision_evidence: TradeDecisionEvidence = field(
+        default_factory=TradeDecisionEvidence
+    )
     require_structural_margin_proof: bool = False
     structural_margin_context: Mapping[str, object] | None = None
     structural_risk_budget_usdt: Decimal | None = None

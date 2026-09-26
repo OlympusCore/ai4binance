@@ -52,6 +52,21 @@ class ControlledLearningEngine:
             trade_count = int(getattr(metrics, "trade_count", 0))
             self._add(counts, "REJECTED_SIGNALS", len(rejected_signals))
             self._add(counts, "LOW_TRADE_COUNT", int(trade_count < 5))
+            for trade in getattr(result, "trades", ()):
+                evidence = getattr(trade.attribution, "decision_evidence", None)
+                if getattr(evidence, "status", None) != "RECORDED_AT_DECISION":
+                    self._add(counts, "DECISION_TIME_EVIDENCE_MISSING", 1)
+                if trade.net_pnl_usdt < 0:
+                    if getattr(trade, "entry_timestamp", None) is not None and (
+                        trade.entry_timestamp == trade.exit_timestamp
+                    ):
+                        self._add(counts, "LOSS_ON_ENTRY_CANDLE", 1)
+                    if (
+                        getattr(trade, "risk_at_entry", 0) > 0
+                        and (trade.fee_cost_usdt + trade.slippage_cost_usdt)
+                        >= trade.risk_at_entry
+                    ):
+                        self._add(counts, "REALIZED_COST_EXCEEDS_INITIAL_PRICE_RISK", 1)
             missed_opportunity_ledger = getattr(
                 result,
                 "missed_opportunity_ledger",
@@ -664,12 +679,15 @@ class ControlledLearningEngine:
         if classification == "EXIT_MANAGEMENT_GIVEBACK":
             return (
                 f"Review exit management for {strategy_id} in {regime}; "
-                f"{sample_size} losing trades reached strong MFE "
-                "before closing negative."
+                f"{sample_size} losing trades have strong candle-extrema MFE bounds. "
+                "Intrabar order and whether the extrema preceded exit are unknown; "
+                "this is a review hypothesis, not a proven management error."
             )
         return (
             f"Review entry and filter quality for {strategy_id} in {regime}; "
-            f"{sample_size} losing trades moved to MAE before showing meaningful MFE."
+            f"{sample_size} losing trades have large MAE and limited MFE bounds. "
+            "Intrabar order is unknown; causal entry weakness requires "
+            "independent validation."
         )
 
     @classmethod

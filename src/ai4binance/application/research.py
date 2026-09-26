@@ -47,6 +47,7 @@ from ai4binance.core.contracts.virtual_governance import (
     DGE_SIMULATION_NOT_APPROVED,
     VirtualGovernanceResult,
 )
+from ai4binance.domain.research.virtual_runtime_attribution import TradeDecisionEvidence, TradeParameterMethods
 
 
 class StatusValueLike(Protocol):
@@ -958,6 +959,19 @@ class ResearchApplicationService:
             portfolio=portfolio,
             strategy_id=candidate.setup_name,
             timeframe=candidate.timeframe,
+            entry_reason=tuple(dict.fromkeys(candidate.evidence)) or ("VIRTUAL_MARKET_ENTRY",),
+            parameter_methods=TradeParameterMethods(
+                quantity="DETERMINISTIC_RISK_ASSESSMENT_WITH_PORTFOLIO_VETO",
+                leverage="FUTURES_STRUCTURAL_MARGIN_GOVERNOR" if market == "USD_M_FUTURES" else "NOT_APPLICABLE_SPOT",
+                stop_loss="CANDIDATE_INVALIDATION_AND_PRICE_FILTERS",
+                entry="CANDIDATE_ENTRY_ZONE_AND_VIRTUAL_FILL_MODEL",
+                take_profit="CANDIDATE_TARGET_SOURCES",
+                risk_reward="FIRST_TARGET_DISTANCE_DIVIDED_BY_INITIAL_STOP_DISTANCE",
+                pnl="DIRECTIONAL_FILLS_MINUS_FEES_SLIPPAGE_FUNDING",
+            ),
+            decision_evidence=getattr(
+                candidate, "decision_evidence", TradeDecisionEvidence()
+            ),
             analysis_blockers=tuple(analysis.blockers),
             candidate_blockers=tuple(candidate.blockers),
             risk_blockers=self._risk_blockers(analysis),

@@ -7,6 +7,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from decimal import ROUND_DOWN, ROUND_UP, Decimal
 
+from ai4binance.domain.research.virtual_runtime_attribution import TradeDecisionEvidence
 from ai4binance.research.backtesting.liquidity import (
     LiquidityFillDecision,
     assess_liquidity_fill,
@@ -115,6 +116,9 @@ class FuturesBacktestIntent:
     snapshot_id: str = ""
     decision_id: str = ""
     opportunity_id: str = ""
+    decision_evidence: TradeDecisionEvidence = field(
+        default_factory=TradeDecisionEvidence
+    )
     entry_score: Decimal = ZERO
     evidence_score: Decimal = ZERO
     dge_status: str = "UNKNOWN"
@@ -196,6 +200,7 @@ class FuturesBacktestIntent:
             snapshot_id=self.snapshot_id,
             decision_id=self.decision_id,
             opportunity_id=self.opportunity_id,
+            decision_evidence=self.decision_evidence,
         )
 
 
@@ -1007,6 +1012,9 @@ class FuturesBacktestEngine:
             ),
             entry_reason=open_trade.intent.reason_codes,
             attribution=open_trade.intent.closed_trade_attribution,
+            initial_stop_loss=open_trade.intent.stop_loss,
+            initial_take_profit_levels=(open_trade.intent.take_profit,),
+            entry_reference_price=open_trade.entry_reference_price,
             gross_pnl_usdt=gross_pnl,
             fee_cost_usdt=fee_cost,
             slippage_cost_usdt=slippage_cost,
