@@ -346,9 +346,8 @@ class TradingIntelligenceEngine:
                     funding_ratio = abs(derivatives.funding_rate) * periods
         if blockers:
             return None, tuple(dict.fromkeys(blockers))
-        assert spread_ratio is not None
-        assert fee_ratio is not None
-        assert slippage_ratio is not None
+        if spread_ratio is None or fee_ratio is None or slippage_ratio is None:
+            return None, ("COST_MODEL_INPUT_REVALIDATION_FAILED",)
         round_trip = spread_ratio + (fee_ratio * 2) + (slippage_ratio * 2)
         return round_trip + funding_ratio, ()
 

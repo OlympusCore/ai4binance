@@ -774,8 +774,7 @@ def test_architecture_migration_ledger_classifies_every_repository_module() -> N
         by_path["src/ai4binance/core/contracts/memory.py"]["classification"] == "KEEP"
     )
     assert (
-        by_path["src/ai4binance/intelligence/contracts.py"]["classification"]
-        == "MOVE"
+        by_path["src/ai4binance/intelligence/contracts.py"]["classification"] == "MOVE"
     )
     assert by_path["src/ai4binance/intelligence/contracts.py"]["target_paths"] == [
         "src/ai4binance/domain/intelligence/contracts.py"

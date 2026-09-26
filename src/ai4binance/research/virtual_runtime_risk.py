@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from decimal import ROUND_CEILING, Decimal
 from enum import StrEnum
+from typing import cast
 
 from ai4binance.portfolio.risk_budget import PortfolioRiskPolicy
 
@@ -154,11 +155,11 @@ class VirtualPortfolioRiskGovernor:
                 permitted_leverage=None,
                 blockers=tuple(dict.fromkeys(blockers)),
             )
-        assert position_notional_usdt is not None
-        assert available_margin_usdt is not None
-        assert requested_leverage is not None
+        position_notional = cast(Decimal, position_notional_usdt)
+        available_margin = cast(Decimal, available_margin_usdt)
+        requested = cast(int, requested_leverage)
         required = int(
-            (position_notional_usdt / available_margin_usdt).to_integral_value(
+            (position_notional / available_margin).to_integral_value(
                 rounding=ROUND_CEILING
             )
         )
@@ -169,7 +170,7 @@ class VirtualPortfolioRiskGovernor:
                 permitted_leverage=None,
                 blockers=("SIMULATED_LEVERAGE_FEASIBILITY_EXCEEDED",),
             )
-        permitted = min(requested_leverage, self.maximum_futures_leverage)
+        permitted = min(requested, self.maximum_futures_leverage)
         if permitted < required:
             return SimulatedLeverageAssessment(
                 state=SimulatedLeverageState.BLOCKED,
@@ -179,12 +180,12 @@ class VirtualPortfolioRiskGovernor:
             )
         state = (
             SimulatedLeverageState.REDUCED
-            if requested_leverage > self.maximum_futures_leverage
+            if requested > self.maximum_futures_leverage
             else SimulatedLeverageState.ELIGIBLE
         )
         return SimulatedLeverageAssessment(
             state=state,
-            requested_leverage=requested_leverage,
+            requested_leverage=requested,
             permitted_leverage=permitted,
         )
 

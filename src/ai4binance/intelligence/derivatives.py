@@ -74,11 +74,12 @@ class FuturesContextEngine:
             )
         index_price = metrics["index_price"]
         mark_price = metrics["mark_price"]
-        assert isinstance(index_price, Decimal)
-        assert isinstance(mark_price, Decimal)
+        if not isinstance(index_price, Decimal) or not isinstance(mark_price, Decimal):
+            return self._blocked("FUTURES_DERIVATIVES_METRICS_INVALID")
         divergence = abs(mark_price - index_price) / index_price
         funding_rate = metrics["funding_rate"]
-        assert isinstance(funding_rate, Decimal)
+        if not isinstance(funding_rate, Decimal):
+            return self._blocked("FUTURES_DERIVATIVES_METRICS_INVALID")
         crowding = (
             "POSITIVE_FUNDING"
             if funding_rate > ZERO
