@@ -83,7 +83,7 @@ def test_dashboard_keeps_collection_progress_and_p3_advice_out_of_readiness() ->
             "sources": {
                 "market_history": {"status": "COLLECTING"},
                 "market_depth": {"status": "COLLECTING"},
-                "futures_research": {"status": "READY"},
+                "futures_research": {"status": "COLLECTING"},
                 "auto_audit": {"status": "CURRENT"},
             },
         }
@@ -112,12 +112,18 @@ def test_dashboard_degrades_for_high_priority_health_findings() -> None:
     assert projection["required_service_ready_count"] == 0
 
 
-def test_dashboard_recognizes_completed_futures_research() -> None:
-    server = (SOURCE / "server.py.in").read_text(encoding="utf-8")
+def test_dashboard_classifies_futures_research_progress_and_failures() -> None:
+    module = runpy.run_path(str(SOURCE / "server.py.in"))
+    classify = module["futures_research_readiness_status"]
 
-    assert 'result[name].get("status") == "CURRENT"' in server
-    assert 'meta["status"] = "READY"' in server
-    assert '"unavailable_symbol_count"' in server
+    assert classify({"status": "CURRENT", "blockers": []}) == "READY"
+    assert classify({"status": "RUNNING", "blockers": []}) == "COLLECTING"
+    assert classify({"status": "PROCESSED", "blockers": []}) == "COLLECTING"
+    assert classify({"status": "WAITING_FOR_RETRY", "blockers": []}) == "COLLECTING"
+    assert (
+        classify({"status": "CURRENT_WITH_SOURCE_GAPS", "blockers": []}) == "DEGRADED"
+    )
+    assert classify({"status": "CURRENT", "blockers": ["SOURCE_GAP"]}) == "DEGRADED"
 
 
 def test_virtual_market_separates_trade_records_from_potential_opportunities() -> None:

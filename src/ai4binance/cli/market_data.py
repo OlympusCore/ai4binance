@@ -30,6 +30,7 @@ from ai4binance.data.market_history_sync import (
     MarketHistorySupervisor,
     MarketHistorySynchronizer,
 )
+from ai4binance.data.market_universe_retention import MarketUniverseRetention
 from ai4binance.domain.opportunity_observation import (
     has_complete_measurable_opportunity,
 )
@@ -37,6 +38,10 @@ from ai4binance.exchange.rate_limit import RateLimitBands, WeightedRateLimitGove
 from ai4binance.integrations.binance import (
     BinanceMarketUniverseProvider,
     ReadOnlyBinanceJsonTransport,
+)
+from ai4binance.integrations.research_market_universe import (
+    ReadOnlyCoinGeckoJsonTransport,
+    ResearchMarketUniverseProvider,
 )
 from ai4binance.ops.runtime import SingleInstanceLease
 
@@ -170,6 +175,11 @@ def build_continuous_market_history(
         spot=synchronizer.universe_provider.spot_transport,
         futures=synchronizer.universe_provider.futures_transport,
         initial_days=settings.market_history_initial_days,
+        enrichment_days=getattr(
+            settings,
+            "market_history_enrichment_days",
+            settings.market_history_initial_days,
+        ),
         pages_per_stream=settings.market_history_pages_per_stream,
         max_workers=settings.market_history_max_workers,
         minimum_candles=settings.minimum_closed_candles,
@@ -188,6 +198,28 @@ def build_continuous_market_history(
             settings, root, include_futures=True
         ),
         on_symbol_screen=_build_opportunity_screen(settings, root),
+        retention=MarketUniverseRetention(
+            archive_root=_absolute(settings.dataset_directory),
+            source_cache_root=_absolute(
+                getattr(
+                    settings,
+                    "market_history_source_cache_directory",
+                    settings.dataset_directory.parent / "market_sources",
+                )
+            ),
+            opportunity_monitor_root=(
+                root / "runtime/artifacts/opportunity-radar/monitor"
+            ).resolve(),
+            futures_replay_root=(
+                root / "runtime/data/datasets/futures/multitf"
+            ).resolve(),
+            futures_artifact_roots=(
+                (root / "runtime/artifacts/validation/futures_multitf").resolve(),
+                (
+                    root / "runtime/artifacts/validation/futures_failure_tuning"
+                ).resolve(),
+            ),
+        ),
     )
 
 
@@ -394,7 +426,7 @@ def run_market_history_command(
         settings,
         synchronizer,
         root=Path.cwd(),
-        include_coin_m=True,
+        include_coin_m=getattr(settings, "market_history_coin_m_enabled", False),
     )
     if command == "market-history-sync" and as_of is None:
         with SingleInstanceLease(synchronizer.state_path.with_suffix(".lock")):
@@ -503,48 +535,64 @@ def build_market_history_synchronizer(settings: Settings) -> MarketHistorySynchr
     futures_budget = PublicRequestBudget(
         governor=WeightedRateLimitGovernor(bands=bands)
     )
-    return MarketHistorySynchronizer(
-        universe_provider=BinanceMarketUniverseProvider(
-            spot_transport=MeteredPublicTransport(
-                ReadOnlyBinanceJsonTransport(
-                    base_url="https://api.binance.com",
-                    allowed_prefixes=("/api/v3/",),
-                    timeout_seconds=settings.request_timeout_seconds,
-                    max_attempts=1,
-                    backoff_seconds=settings.request_backoff_seconds,
-                    response_headers_observer=spot_budget.observe_headers,
-                ),
-                _absolute(settings.dataset_directory) / "spot" / "metadata",
-                budget=spot_budget,
+    binance_provider = BinanceMarketUniverseProvider(
+        spot_transport=MeteredPublicTransport(
+            ReadOnlyBinanceJsonTransport(
+                base_url="https://api.binance.com",
+                allowed_prefixes=("/api/v3/",),
+                timeout_seconds=settings.request_timeout_seconds,
+                max_attempts=1,
+                backoff_seconds=settings.request_backoff_seconds,
+                response_headers_observer=spot_budget.observe_headers,
             ),
-            futures_transport=MeteredPublicTransport(
-                ReadOnlyBinanceJsonTransport(
-                    base_url="https://fapi.binance.com",
-                    allowed_prefixes=("/fapi/v1/", "/futures/data/"),
-                    timeout_seconds=settings.request_timeout_seconds,
-                    max_attempts=1,
-                    backoff_seconds=settings.request_backoff_seconds,
-                    response_headers_observer=futures_budget.observe_headers,
-                ),
-                _absolute(settings.dataset_directory) / "usd_m_futures" / "metadata",
-                budget=futures_budget,
-            ),
-            coin_m_transport=MeteredPublicTransport(
-                ReadOnlyBinanceJsonTransport(
-                    base_url="https://dapi.binance.com",
-                    allowed_prefixes=("/dapi/v1/", "/futures/data/"),
-                    timeout_seconds=settings.request_timeout_seconds,
-                    max_attempts=1,
-                    response_headers_observer=futures_budget.observe_headers,
-                ),
-                _absolute(settings.dataset_directory) / "coin_m_futures" / "metadata",
-                budget=futures_budget,
-            )
-            if settings.market_history_coin_m_enabled
-            else None,
-            quote_assets=settings.preferred_quote_assets,
-            futures_symbol_exclusions=settings.futures_symbol_exclusions,
+            _absolute(settings.dataset_directory) / "spot" / "metadata",
+            budget=spot_budget,
         ),
+        futures_transport=MeteredPublicTransport(
+            ReadOnlyBinanceJsonTransport(
+                base_url="https://fapi.binance.com",
+                allowed_prefixes=("/fapi/v1/", "/futures/data/"),
+                timeout_seconds=settings.request_timeout_seconds,
+                max_attempts=1,
+                backoff_seconds=settings.request_backoff_seconds,
+                response_headers_observer=futures_budget.observe_headers,
+            ),
+            _absolute(settings.dataset_directory) / "usd_m_futures" / "metadata",
+            budget=futures_budget,
+        ),
+        coin_m_transport=MeteredPublicTransport(
+            ReadOnlyBinanceJsonTransport(
+                base_url="https://dapi.binance.com",
+                allowed_prefixes=("/dapi/v1/", "/futures/data/"),
+                timeout_seconds=settings.request_timeout_seconds,
+                max_attempts=1,
+                response_headers_observer=futures_budget.observe_headers,
+            ),
+            _absolute(settings.dataset_directory) / "coin_m_futures" / "metadata",
+            budget=futures_budget,
+        )
+        if settings.market_history_coin_m_enabled
+        else None,
+        quote_assets=settings.preferred_quote_assets,
+        futures_symbol_exclusions=settings.futures_symbol_exclusions,
+    )
+    universe_provider = ResearchMarketUniverseProvider(
+        binance=binance_provider,
+        market_cap_transport=ReadOnlyCoinGeckoJsonTransport(
+            timeout_seconds=settings.request_timeout_seconds,
+            max_attempts=min(settings.request_max_attempts, 3),
+        ),
+        wallet_balance_path=(
+            _absolute(settings.binance_accounting_directory)
+            / "spot"
+            / "balance_snapshots.jsonl"
+        ),
+        wallet_minimum_value_usdt=(settings.market_history_wallet_minimum_value_usdt),
+        wallet_maximum_age=timedelta(minutes=settings.accounting_freshness_minutes),
+        market_cap_asset_limit=settings.market_history_market_cap_asset_limit,
+    )
+    return MarketHistorySynchronizer(
+        universe_provider=universe_provider,  # type: ignore[arg-type]
         archive_root=_absolute(settings.dataset_directory),
         source_cache=BinanceVisionArchiveCache.with_network(
             _absolute(settings.market_history_source_cache_directory),

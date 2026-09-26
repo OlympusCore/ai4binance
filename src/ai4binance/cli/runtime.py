@@ -592,11 +592,15 @@ def run_virtual_market_daemon(
                     from ai4binance.data.market_history_sync import (
                         read_cached_market_universe,
                     )
+                    from ai4binance.integrations.research_market_universe import (
+                        RESEARCH_MARKET_UNIVERSE_SOURCE,
+                    )
 
                     universe = read_cached_market_universe(
                         settings.market_history_source_cache_directory
                         / "universe-v3.json",
                         clock(),
+                        expected_source=RESEARCH_MARKET_UNIVERSE_SOURCE,
                     )
                     configured = tuple(
                         dict.fromkeys(

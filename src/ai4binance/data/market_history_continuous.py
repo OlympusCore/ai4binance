@@ -29,6 +29,7 @@ from ai4binance.data.market_history_sync import (
     MarketHistorySynchronizer,
     _csv_rows,
 )
+from ai4binance.data.market_universe_retention import MarketUniverseRetention
 from ai4binance.data.timeframes import timeframe_duration
 from ai4binance.exchange.client import JsonTransport
 from ai4binance.exchange.rate_limit import (
@@ -37,10 +38,10 @@ from ai4binance.exchange.rate_limit import (
     public_request_weight,
 )
 from ai4binance.infrastructure.persistence.safe_json import (
-    DestinationVerificationError,
-    write_json_object_verified,
+    DestinationVerificationError as LegacyDestinationVerificationError,
 )
 from ai4binance.schemas import OHLCVCandle
+from ai4binance.storage import DestinationVerificationError, write_json_object_verified
 
 _DEFAULT_KLINE_INTERVAL = timedelta(minutes=5)
 _TIMEFRAME_REFRESH_SECONDS: dict[str, int] = {
@@ -263,7 +264,9 @@ def _save(path: Path, payload: Mapping[str, object]) -> None:
 def _recoverable_error_code(error: Exception) -> str:
     """Expose only repository-owned verification codes, never exception detail."""
 
-    if isinstance(error, DestinationVerificationError):
+    if isinstance(
+        error, (DestinationVerificationError, LegacyDestinationVerificationError)
+    ):
         code = str(error).strip()
         if re.fullmatch(r"[A-Z][A-Z0-9_]{2,127}", code):
             return code
@@ -474,6 +477,7 @@ class ContinuousMarketHistory:
     spot: JsonTransport
     futures: JsonTransport
     initial_days: int = 201
+    enrichment_days: int = 30
     pages_per_stream: int = 2
     archive_downloaded_bytes: int = 0
     archive_request_count: int = 0
@@ -488,9 +492,14 @@ class ContinuousMarketHistory:
     on_symbol_ready: SymbolReadyHandler | None = field(default=None, repr=False)
     on_symbol_screen: SymbolReadyHandler | None = field(default=None, repr=False)
     clock: Callable[[], datetime] = field(default=lambda: datetime.now(UTC), repr=False)
+    retention: MarketUniverseRetention | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
-        if not 1 <= self.initial_days <= 3650 or not 1 <= self.pages_per_stream <= 32:
+        if (
+            not 1 <= self.initial_days <= 3650
+            or not 1 <= self.enrichment_days <= 3650
+            or not 1 <= self.pages_per_stream <= 32
+        ):
             raise ValueError("continuous collection bounds are invalid")
         if not 1 <= self.max_workers <= 8:
             raise ValueError("collection workers must be between 1 and 8")
@@ -518,6 +527,9 @@ class ContinuousMarketHistory:
         now = observed_at.astimezone(UTC)
         before = self._network_totals()
         universe = self.history._eligible_universe(now, force_refresh=True)
+        retention_result = None
+        if self.retention is not None and not universe.blockers:
+            retention_result = self.retention.prune(universe)
         self.coin_m_contracts = {
             symbol: (pair, contract)
             for symbol, pair, contract in universe.coin_m_contracts
@@ -1046,6 +1058,7 @@ class ContinuousMarketHistory:
         publish_progress(None, force=True)
         if not universe.blockers:
             with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                enrichment_stream_keys: set[tuple[str, str, str]] = set()
 
                 def collect_stream(
                     market: str,
@@ -1054,14 +1067,29 @@ class ContinuousMarketHistory:
                     kind: str,
                     timeframe: str | None,
                 ) -> dict[str, object]:
-                    result = self._collect_stream(
+                    if (
                         market,
                         symbol,
-                        transport,
-                        now,
-                        kind=kind,
-                        timeframe=timeframe,
-                    )
+                        str(timeframe),
+                    ) in enrichment_stream_keys:
+                        result = self._collect_stream(
+                            market,
+                            symbol,
+                            transport,
+                            now,
+                            kind=kind,
+                            timeframe=timeframe,
+                            history_days=self.enrichment_days,
+                        )
+                    else:
+                        result = self._collect_stream(
+                            market,
+                            symbol,
+                            transport,
+                            now,
+                            kind=kind,
+                            timeframe=timeframe,
+                        )
                     record_coverage(
                         result,
                         market=market,
@@ -1172,6 +1200,7 @@ class ContinuousMarketHistory:
                     for tf in _ENRICHMENT_TIMEFRAMES:
                         if (*identity, "klines", tf) not in queued_keys:
                             background.append((*identity, transport, "klines", tf))
+                            enrichment_stream_keys.add((*identity, tf))
                             label = market_labels[identity[0]]
                             with coverage_lock:
                                 coverage_expected[label][tf] += 1
@@ -1410,10 +1439,15 @@ class ContinuousMarketHistory:
             ],
             "collection_plan": self._collection_plan(),
             "initial_history_days": self.initial_days,
+            "enrichment_history_days": self.enrichment_days,
             "spot_universe_count": len(universe.spot_symbols),
             "futures_universe_count": len(universe.futures_symbols),
             "coin_m_universe_count": len(universe.coin_m_symbols),
             "excluded_asset_count": len(universe.excluded_assets),
+            "selected_assets": list(universe.selected_assets),
+            "wallet_assets": list(universe.wallet_assets),
+            "market_cap_assets": list(universe.market_cap_assets),
+            "universe_retention": retention_result,
             "archive_root": str(self.history.archive_root),
             "completed_symbols": completed_symbols,
             "total_symbols": total_symbols,
@@ -1653,6 +1687,8 @@ class ContinuousMarketHistory:
                 "schema_version": "2.0",
                 "status": "COLLECTING",
                 "collection_plan": self._collection_plan(),
+                "initial_history_days": self.initial_days,
+                "enrichment_history_days": self.enrichment_days,
                 "cycle_started_at": cycle_started_at.isoformat(),
                 "observed_at": datetime.now(UTC).isoformat(),
                 "active_market": active_market,
@@ -1759,6 +1795,7 @@ class ContinuousMarketHistory:
         *,
         kind: str,
         timeframe: str | None,
+        history_days: int | None = None,
     ) -> dict[str, object]:
         """Collect exactly one market-data stream with fail-closed evidence."""
 
@@ -1777,7 +1814,13 @@ class ContinuousMarketHistory:
                     }
                 else:
                     result = self._candles(
-                        market, symbol, kind, transport, now, timeframe="5m"
+                        market,
+                        symbol,
+                        kind,
+                        transport,
+                        now,
+                        timeframe="5m",
+                        history_days=history_days,
                     )
             elif kind in {"funding", "open_interest"}:
                 result = self._details(symbol, kind, now, market=market)
@@ -1785,7 +1828,13 @@ class ContinuousMarketHistory:
                 if timeframe is None:
                     raise ValueError("candle timeframe is required")
                 result = self._candles(
-                    market, symbol, kind, transport, now, timeframe=timeframe
+                    market,
+                    symbol,
+                    kind,
+                    transport,
+                    now,
+                    timeframe=timeframe,
+                    history_days=history_days,
                 )
         except (OSError, ValueError, ArithmeticError, ExchangeError) as error:
             result = {
@@ -2034,14 +2083,15 @@ class ContinuousMarketHistory:
             self.archive_downloaded_bytes += int(getattr(source, "downloaded_bytes", 0))
 
     def _candle_initial_start(
-        self, now: datetime, interval: timedelta
+        self, now: datetime, interval: timedelta, *, history_days: int | None = None
     ) -> datetime | None:
         """Keep the configured history horizon and deterministic candle floor."""
 
         interval_seconds = int(interval.total_seconds())
         anchor = now.replace(second=0, microsecond=0)
         configured_anchor = anchor.replace(hour=0, minute=0)
-        start = configured_anchor - timedelta(days=self.initial_days)
+        requested_days = self.initial_days if history_days is None else history_days
+        start = configured_anchor - timedelta(days=requested_days)
         if self.minimum_candles is not None:
             # Never narrow a requested historical horizon to the minimum
             # analysis window. Conversely, daily data retains the existing
@@ -2212,6 +2262,7 @@ class ContinuousMarketHistory:
         now: datetime,
         *,
         timeframe: str = "5m",
+        history_days: int | None = None,
     ) -> dict[str, object]:
         if timeframe not in MARKET_HISTORY_TIMEFRAMES:
             raise ValueError("candle timeframe is invalid")
@@ -2238,7 +2289,9 @@ class ContinuousMarketHistory:
             progress_directory,
             now,
             extend_history=True,
-            initial_start=self._candle_initial_start(now, interval),
+            initial_start=self._candle_initial_start(
+                now, interval, history_days=history_days
+            ),
             maximum_cursor=end,
             cursor_tolerance=interval,
         )

@@ -50,6 +50,8 @@ temp/
 # Market and analytical data
 # ------------------------------------------------------------
 data/
+!/src/ai4binance/data/
+!/src/ai4binance/data/**
 datasets/
 market_data/
 historical_data/

@@ -142,9 +142,13 @@ def test_settings_reject_minimum_history_above_request_limit() -> None:
         Settings(candle_limit=100, minimum_closed_candles=200)
 
 
-def test_settings_defaults_to_governed_spot_oos_history_horizon() -> None:
+def test_settings_defaults_to_bounded_research_history_horizons() -> None:
     settings = Settings()
-    assert settings.market_history_initial_days == 400
+    assert settings.market_history_initial_days == 90
+    assert settings.market_history_enrichment_days == 30
+    assert settings.market_history_coin_m_enabled is False
+    assert settings.market_history_market_cap_asset_limit == 20
+    assert settings.market_history_wallet_minimum_value_usdt == Decimal("1")
     assert settings.max_data_workers == 4
     assert settings.market_history_max_workers == 8
     assert settings.market_history_opportunity_workers == 2

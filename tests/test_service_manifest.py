@@ -317,7 +317,7 @@ def test_ykb_daily_report_task_refreshes_stale_report_on_logon() -> None:
     assert "Invoke-PythonUtf8Command -ArgumentList @(" in script_text
     assert "report_status" in script_text
     assert "report_blockers" in script_text
-    assert '$reportExitCode -eq 2' in script_text
+    assert "$reportExitCode -eq 2" in script_text
     assert '$humanReport.Status -ne "RUNNING_WITH_BLOCKERS"' in script_text
 
 

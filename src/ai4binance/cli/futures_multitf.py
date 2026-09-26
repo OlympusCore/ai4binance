@@ -27,6 +27,9 @@ from ai4binance.domain.opportunity_observation import (
     estimate_measurable_trade_plan,
 )
 from ai4binance.indicators import atr
+from ai4binance.integrations.research_market_universe import (
+    RESEARCH_MARKET_UNIVERSE_SOURCE,
+)
 from ai4binance.ops import SingleInstanceLease
 from ai4binance.reporting import to_primitive
 from ai4binance.research.futures_multitf import (
@@ -57,6 +60,7 @@ _SAFE_STATE = {
 _ADVERSE_OUTCOMES = frozenset({"INVALIDATED_FIRST", "ADVERSE"})
 _TUNING_TRIGGER_STREAK = 3
 _MAX_COMPLETED_TUNING_TRIGGERS = 200
+_UNIVERSE_MAX_AGE = timedelta(minutes=5)
 
 
 def _absolute(path: Path) -> Path:
@@ -127,6 +131,19 @@ def _eligible_symbols(cache_root: Path) -> tuple[str, ...]:
     if path.is_symlink() or not path.is_file() or path.stat().st_size > 2_000_000:
         raise ValueError("FUTURES_MULTITF_UNIVERSE_UNAVAILABLE")
     payload = _load_mapping(path)
+    try:
+        observed_at = datetime.fromisoformat(str(payload["observed_at"]))
+    except (KeyError, TypeError, ValueError):
+        raise ValueError("FUTURES_MULTITF_UNIVERSE_INVALID") from None
+    age = datetime.now(UTC) - observed_at
+    if (
+        observed_at.utcoffset() is None
+        or not timedelta(0) <= age <= _UNIVERSE_MAX_AGE
+        or payload.get("source") != RESEARCH_MARKET_UNIVERSE_SOURCE
+        or payload.get("execution_allowed") is not False
+        or payload.get("live_eligibility_status") != "LIVE_ORDER_BLOCKED"
+    ):
+        raise ValueError("FUTURES_MULTITF_UNIVERSE_INVALID")
     raw = payload.get("futures_symbols")
     if not isinstance(raw, list) or not raw or len(raw) > 5_000:
         raise ValueError("FUTURES_MULTITF_UNIVERSE_INVALID")
@@ -145,6 +162,41 @@ def _eligible_symbols(cache_root: Path) -> tuple[str, ...]:
     if not symbols:
         raise ValueError("FUTURES_MULTITF_UNIVERSE_EMPTY")
     return symbols
+
+
+def _retain_current_universe_state(
+    state: Mapping[str, object], symbols: tuple[str, ...]
+) -> dict[str, object]:
+    """Drop state projections and cursors that refer to an older universe."""
+    allowed = frozenset(symbols)
+    previous = state.get("eligible_symbols")
+    same_universe = isinstance(previous, list) and tuple(previous) == symbols
+    retained = dict(state) if same_universe else {}
+    for field in (
+        "attempted_windows",
+        "completed_windows",
+        "retry_after",
+        "unavailable_windows",
+    ):
+        raw = state.get(field)
+        retained[field] = (
+            {
+                str(symbol): value
+                for symbol, value in raw.items()
+                if isinstance(symbol, str) and symbol in allowed
+            }
+            if isinstance(raw, Mapping)
+            else {}
+        )
+    for field in ("active_symbol", "monitor_symbol"):
+        if retained.get(field) not in allowed:
+            retained.pop(field, None)
+    retained["eligible_symbols"] = list(symbols)
+    retained["universe_source"] = RESEARCH_MARKET_UNIVERSE_SOURCE
+    if not same_universe:
+        retained["completed_tuning_triggers"] = []
+    retained.update(_SAFE_STATE)
+    return retained
 
 
 def _next_symbol(symbols: tuple[str, ...], cursor: object) -> str:
@@ -581,13 +633,14 @@ def run_cycle(settings: Settings, *, observed_at: datetime) -> dict[str, object]
     start_day = end_day - timedelta(days=27)
     window = f"{start_day.isoformat()}_to_{end_day.isoformat()}"
     state = _load_mapping(state_path)
+    symbols = _eligible_symbols(cache_root)
+    state = _retain_current_universe_state(state, symbols)
     raw_attempted = state.get("attempted_windows", {})
     attempted = (
         {str(key): str(value) for key, value in raw_attempted.items()}
         if isinstance(raw_attempted, Mapping)
         else {}
     )
-    symbols = _eligible_symbols(cache_root)
     raw_completed = state.get("completed_windows", {})
     completed = dict(raw_completed) if isinstance(raw_completed, Mapping) else {}
     raw_retry = state.get("retry_after", {})
@@ -677,6 +730,8 @@ def run_cycle(settings: Settings, *, observed_at: datetime) -> dict[str, object]
             "observed_at": now.isoformat(),
             "window": window,
             "eligible_symbol_count": len(symbols),
+            "eligible_symbols": list(symbols),
+            "universe_source": RESEARCH_MARKET_UNIVERSE_SOURCE,
             "attempted_symbol_count": sum(
                 attempted.get(item) == window for item in symbols
             ),
@@ -826,6 +881,8 @@ def run_cycle(settings: Settings, *, observed_at: datetime) -> dict[str, object]
         "active_timeframe": active_timeframe,
         "phase": phase,
         "eligible_symbol_count": len(symbols),
+        "eligible_symbols": list(symbols),
+        "universe_source": RESEARCH_MARKET_UNIVERSE_SOURCE,
         "attempted_symbol_count": sum(
             attempted.get(item) == window for item in symbols
         ),

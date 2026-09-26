@@ -537,9 +537,7 @@ def test_user_stream_collector_contains_provider_websocket_failures(
 
     assert result.status == "DEGRADED"
     assert result.rejected_count == 1
-    assert result.blockers == (
-        "SPOT_WEBSOCKET_OPEN_FAILED:ExpectedWebSocketFailure",
-    )
+    assert result.blockers == ("SPOT_WEBSOCKET_OPEN_FAILED:ExpectedWebSocketFailure",)
 
 
 def test_file_reconciler_and_ui_report_use_rest_and_websocket_evidence(

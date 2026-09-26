@@ -2085,9 +2085,9 @@ def test_direct_timeframe_bootstrap_uses_its_own_closed_candle_window(
         minimum_candles=200,
     )
 
-    assert instance._candle_initial_start(NOW, timedelta(minutes=5)) == (
-        datetime(2026, 6, 4, 0, 0, tzinfo=UTC)
-    )
+    assert instance._candle_initial_start(
+        NOW, timedelta(minutes=5), history_days=30
+    ) == (NOW.replace(hour=0, minute=0) - timedelta(days=30))
     assert instance._candle_initial_start(NOW, timedelta(days=1)) == (
         NOW.replace(hour=0, minute=0) - timedelta(days=201)
     )

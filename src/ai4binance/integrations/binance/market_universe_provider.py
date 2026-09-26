@@ -72,25 +72,17 @@ class BinanceEligibleMarketSnapshot:
     execution_allowed: bool = False
     live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
     coin_m_contracts: tuple[tuple[str, str, str], ...] = ()
+    selected_assets: tuple[str, ...] = ()
+    wallet_assets: tuple[str, ...] = ()
+    market_cap_assets: tuple[str, ...] = ()
 
     @property
     def coin_m_symbols(self) -> tuple[str, ...]:
         return tuple(item[0] for item in self.coin_m_contracts)
 
     def __post_init__(self) -> None:
-        if self.coin_m_symbols != tuple(sorted(set(self.coin_m_symbols))):
-            raise ValueError("COIN-M identities must be sorted and unique")
-        for symbol, pair, contract in self.coin_m_contracts:
-            if (
-                not re.fullmatch(r"[A-Z0-9]{2,24}_(?:PERP|[0-9]{6})", symbol)
-                or not pair.isalnum()
-                or not symbol.startswith(pair + "_")
-                or contract not in {"PERPETUAL", "CURRENT_QUARTER", "NEXT_QUARTER"}
-            ):
-                raise ValueError("COIN-M contract identity is invalid")
-        for symbol in (*self.spot_symbols, *self.futures_symbols):
-            if not _PUBLIC_SYMBOL_PATTERN.fullmatch(symbol) or symbol != symbol.upper():
-                raise ValueError("eligible market symbol identity is invalid")
+        _validate_coin_m_contracts(self.coin_m_contracts)
+        _validate_market_symbols(self.spot_symbols, self.futures_symbols)
         if self.spot_symbols != tuple(
             sorted(set(self.spot_symbols))
         ) or self.futures_symbols != tuple(sorted(set(self.futures_symbols))):
@@ -104,11 +96,48 @@ class BinanceEligibleMarketSnapshot:
             raise ValueError("eligible market exclusions are invalid")
         if any(not blocker.strip() for blocker in self.blockers):
             raise ValueError("eligible market blockers cannot contain blanks")
+        _validate_market_assets(
+            self.selected_assets,
+            self.wallet_assets,
+            self.market_cap_assets,
+        )
         if (
             self.execution_allowed
             or self.live_eligibility_status != "LIVE_ORDER_BLOCKED"
         ):
             raise ValueError("eligible market snapshot cannot grant execution")
+
+
+def _validate_coin_m_contracts(
+    contracts: tuple[tuple[str, str, str], ...],
+) -> None:
+    symbols = tuple(item[0] for item in contracts)
+    if symbols != tuple(sorted(set(symbols))):
+        raise ValueError("COIN-M identities must be sorted and unique")
+    for symbol, pair, contract in contracts:
+        if (
+            not re.fullmatch(r"[A-Z0-9]{2,24}_(?:PERP|[0-9]{6})", symbol)
+            or not pair.isalnum()
+            or not symbol.startswith(pair + "_")
+            or contract not in {"PERPETUAL", "CURRENT_QUARTER", "NEXT_QUARTER"}
+        ):
+            raise ValueError("COIN-M contract identity is invalid")
+
+
+def _validate_market_symbols(
+    spot_symbols: tuple[str, ...], futures_symbols: tuple[str, ...]
+) -> None:
+    for symbol in (*spot_symbols, *futures_symbols):
+        if not _PUBLIC_SYMBOL_PATTERN.fullmatch(symbol) or symbol != symbol.upper():
+            raise ValueError("eligible market symbol identity is invalid")
+
+
+def _validate_market_assets(*groups: tuple[str, ...]) -> None:
+    for assets in groups:
+        if assets != tuple(dict.fromkeys(assets)) or any(
+            not asset.isalnum() or asset != asset.upper() for asset in assets
+        ):
+            raise ValueError("eligible market asset identities are invalid")
 
 
 @dataclass(frozen=True, slots=True)
