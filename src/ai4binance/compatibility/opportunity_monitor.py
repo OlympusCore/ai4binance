@@ -30,9 +30,7 @@ from ai4binance.domain.opportunity_observation import (
     has_complete_measurable_opportunity,
     has_complete_measurable_trade_plan,
 )
-from ai4binance.integrations.research_market_universe import (
-    RESEARCH_MARKET_UNIVERSE_SOURCE,
-)
+from ai4binance.domain.universe import RESEARCH_MARKET_UNIVERSE_SOURCE
 from ai4binance.opportunity_intelligence import (
     TIMEFRAME_DURATIONS,
     ChartPatternLifecycleState,

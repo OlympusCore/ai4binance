@@ -35,6 +35,7 @@ from ai4binance.config import Settings
 from ai4binance.data.archive import ParquetOHLCVArchive
 from ai4binance.data.market_history_sync import read_cached_market_universe
 from ai4binance.domain.opportunity_observation import estimate_measurable_trade_plan
+from ai4binance.domain.universe import RESEARCH_MARKET_UNIVERSE_SOURCE
 from ai4binance.exchange.client import BinancePublicClient
 from ai4binance.exchange.models import MarketKline
 from ai4binance.opportunity_intelligence import TIMEFRAME_DURATIONS
@@ -85,12 +86,15 @@ def test_monitor_helper_boundaries_and_research_estimates(
     universe = type(
         "Universe", (), {"spot_symbols": ("BTCUSDT",), "futures_symbols": ("ETHUSDT",)}
     )()
-    monkeypatch.setattr(
-        monitor_module,
-        "read_cached_market_universe",
-        lambda *_args, **_kwargs: universe,
-    )
+    observed_sources: list[str] = []
+
+    def _read_cached(*_args: object, **kwargs: object) -> object:
+        observed_sources.append(str(kwargs["expected_source"]))
+        return universe
+
+    monkeypatch.setattr(monitor_module, "read_cached_market_universe", _read_cached)
     assert monitor_module.market_symbols(tmp_path, "USD_M_FUTURES", NOW) == ("ETHUSDT",)
+    assert observed_sources == [RESEARCH_MARKET_UNIVERSE_SOURCE]
 
     monitor_path = monitor_directory(tmp_path, "SPOT", "BTCUSDT")
     monitor_path.mkdir(parents=True)

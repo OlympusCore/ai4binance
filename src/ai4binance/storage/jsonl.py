@@ -12,6 +12,9 @@ from pathlib import Path
 from threading import Lock
 from typing import Any, BinaryIO, cast
 
+from ai4binance.core import (
+    read_bounded_jsonl_tail as _read_bounded_jsonl_tail,
+)
 from ai4binance.reporting import to_primitive
 from ai4binance.storage.destination_verification import (
     VerifiedWriteResult,
@@ -22,7 +25,6 @@ from ai4binance.storage.destination_verification import (
 _EVENT_TYPE_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]{1,63}$")
 _TAIL_READ_CHUNK_BYTES = 64 * 1024
 _DEFAULT_MAX_EVENT_BYTES = 8 * 1024 * 1024
-_DEFAULT_MAX_TAIL_BYTES = 16 * 1024 * 1024
 _GENESIS_RECORD_HASH = "GENESIS"
 _SENSITIVE_KEY_FRAGMENTS = (
     "api_key",
@@ -672,42 +674,6 @@ class JsonlAuditStore:
         return payload
 
 
-def read_bounded_jsonl_tail(
-    path: Path,
-    *,
-    max_lines: int = 200,
-    max_bytes: int = _DEFAULT_MAX_TAIL_BYTES,
-) -> tuple[bytes, ...]:
-    """Read recent non-empty records without loading an entire JSONL file."""
-    if max_lines < 1 or max_bytes < 1:
-        raise ValueError("JSONL tail limits must be positive")
-    with path.open("rb") as stream:
-        stream.seek(0, os.SEEK_END)
-        end = JsonlAuditStore._trim_trailing_whitespace(stream, stream.tell())
-        cursor = end
-        buffer = b""
-        while cursor > 0:
-            start = max(0, cursor - _TAIL_READ_CHUNK_BYTES)
-            starts_at_record_boundary = start == 0
-            if start > 0:
-                stream.seek(start - 1)
-                previous = stream.read(1)
-                stream.seek(start)
-                current = stream.read(1)
-                starts_at_record_boundary = previous in b"\r\n" or current in b"\r\n"
-            stream.seek(start)
-            buffer = stream.read(cursor - start) + buffer
-            if len(buffer) > max_bytes:
-                raise OSError("JSONL tail exceeds bounded read limit")
-            lines = tuple(line for line in buffer.splitlines() if line.strip())
-            if lines and not starts_at_record_boundary:
-                lines = lines[1:]
-            if len(lines) >= max_lines or start == 0:
-                return lines[-max_lines:]
-            cursor = start
-    return ()
-
-
 def _canonical_json_sha256(value: object) -> str:
     encoded = json.dumps(
         value,
@@ -716,6 +682,20 @@ def _canonical_json_sha256(value: object) -> str:
         sort_keys=True,
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def read_bounded_jsonl_tail(
+    path: Path,
+    *,
+    max_lines: int = 200,
+    max_bytes: int = 16 * 1024 * 1024,
+) -> tuple[bytes, ...]:
+    """Compatibility export for the canonical bounded JSONL reader."""
+    return _read_bounded_jsonl_tail(
+        path,
+        max_lines=max_lines,
+        max_bytes=max_bytes,
+    )
 
 
 def _text_field(payload: Mapping[str, object], name: str, *, label: str) -> str:

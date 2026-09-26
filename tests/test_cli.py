@@ -1832,7 +1832,9 @@ def test_virtual_market_scan_cursor_persists_and_reports_business_blockers(
     from ai4binance.data import market_history_sync
 
     monkeypatch.setattr(
-        market_history_sync, "read_cached_market_universe", lambda *_args: None
+        market_history_sync,
+        "read_cached_market_universe",
+        lambda *_args, **_kwargs: None,
     )
     settings = Settings(
         symbol="BTCUSDT",
@@ -1887,7 +1889,9 @@ def test_virtual_market_daemon_prioritizes_and_acknowledges_manual_refresh(
     from ai4binance.data import market_history_sync
 
     monkeypatch.setattr(
-        market_history_sync, "read_cached_market_universe", lambda *_: None
+        market_history_sync,
+        "read_cached_market_universe",
+        lambda *_args, **_kwargs: None,
     )
     settings = Settings(
         symbol="BTCUSDT",
@@ -1965,7 +1969,9 @@ def test_virtual_market_daemon_requests_canonical_refresh_for_stale_data(
     )
 
     monkeypatch.setattr(
-        market_history_sync, "read_cached_market_universe", lambda *_args: None
+        market_history_sync,
+        "read_cached_market_universe",
+        lambda *_args, **_kwargs: None,
     )
     settings = Settings(
         symbol="BTCUSDT",
@@ -2065,7 +2071,9 @@ def test_virtual_market_priority_revisits_preserve_discovery_and_restart_cursor(
         excluded_assets=(),
     )
     monkeypatch.setattr(
-        market_history_sync, "read_cached_market_universe", lambda *_: universe
+        market_history_sync,
+        "read_cached_market_universe",
+        lambda *_args, **_kwargs: universe,
     )
     monkeypatch.setattr(
         runtime_cli,

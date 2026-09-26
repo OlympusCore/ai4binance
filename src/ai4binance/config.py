@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     market_history_max_workers: int = 8
     market_history_opportunity_workers: int = 2
     market_history_local_candles: bool = True
-    market_history_coin_m_enabled: bool = False
+    market_history_coin_m_enabled: bool = True
     market_history_wallet_minimum_value_usdt: Decimal = Decimal("1")
     market_history_market_cap_asset_limit: int = 20
     market_depth_enabled: bool = True

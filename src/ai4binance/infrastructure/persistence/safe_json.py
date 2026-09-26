@@ -17,10 +17,13 @@ from threading import Lock
 from typing import Any, BinaryIO, cast
 from uuid import uuid4
 
+from ai4binance.core import (
+    read_bounded_jsonl_tail as _read_bounded_jsonl_tail,
+)
+
 _EVENT_TYPE_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]{1,63}$")
 _TAIL_READ_CHUNK_BYTES = 64 * 1024
 _DEFAULT_MAX_EVENT_BYTES = 8 * 1024 * 1024
-_DEFAULT_MAX_TAIL_BYTES = 16 * 1024 * 1024
 _GENESIS_RECORD_HASH = "GENESIS"
 _SENSITIVE_KEY_FRAGMENTS = (
     "api_key",
@@ -402,33 +405,6 @@ def write_json_object_verified(
     )
 
 
-def read_bounded_jsonl_tail(
-    path: Path,
-    *,
-    max_lines: int = 200,
-    max_bytes: int = _DEFAULT_MAX_TAIL_BYTES,
-) -> tuple[bytes, ...]:
-    """Read recent non-empty records without loading an entire JSONL file."""
-    if max_lines < 1 or max_bytes < 1:
-        raise ValueError("JSONL tail limits must be positive")
-    with path.open("rb") as stream:
-        stream.seek(0, os.SEEK_END)
-        end = _trim_trailing_whitespace(stream, stream.tell())
-        cursor = end
-        buffer = b""
-        while cursor > 0:
-            start = max(0, cursor - _TAIL_READ_CHUNK_BYTES)
-            stream.seek(start)
-            buffer = stream.read(cursor - start) + buffer
-            if len(buffer) > max_bytes:
-                raise OSError("JSONL tail exceeds bounded read limit")
-            lines = tuple(line for line in buffer.splitlines() if line.strip())
-            if len(lines) >= max_lines or start == 0:
-                return lines[-max_lines:]
-            cursor = start
-    return ()
-
-
 def to_primitive(value: object) -> object:
     if is_dataclass(value) and not isinstance(value, type):
         return {
@@ -451,6 +427,20 @@ def to_primitive(value: object) -> object:
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     raise TypeError(f"{type(value).__name__} is not JSON serializable")
+
+
+def read_bounded_jsonl_tail(
+    path: Path,
+    *,
+    max_lines: int = 200,
+    max_bytes: int = 16 * 1024 * 1024,
+) -> tuple[bytes, ...]:
+    """Compatibility export for the canonical bounded JSONL reader."""
+    return _read_bounded_jsonl_tail(
+        path,
+        max_lines=max_lines,
+        max_bytes=max_bytes,
+    )
 
 
 def verified(

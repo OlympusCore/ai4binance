@@ -210,7 +210,6 @@ class VirtualRuntimeRequest:
             self.step_size,
             self.minimum_notional,
             self.mark_price,
-            self.funding_rate,
             self.isolated_margin_usdt,
             self.maintenance_margin_ratio,
         )

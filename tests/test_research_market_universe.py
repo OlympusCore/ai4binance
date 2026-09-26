@@ -9,8 +9,12 @@ from types import SimpleNamespace
 import pytest
 
 from ai4binance.data.market_universe_retention import MarketUniverseRetention
+from ai4binance.domain.universe import (
+    RESEARCH_MARKET_UNIVERSE_SOURCE as CANONICAL_SOURCE,
+)
 from ai4binance.integrations.binance import BinanceEligibleMarketSnapshot
 from ai4binance.integrations.research_market_universe import (
+    RESEARCH_MARKET_UNIVERSE_SOURCE,
     ResearchMarketUniverseProvider,
     read_wallet_assets_above_value,
 )
@@ -38,6 +42,10 @@ MARKET_CAP_ASSETS = (
     "XLM",
     "HBAR",
 )
+
+
+def test_research_universe_source_uses_canonical_domain_contract() -> None:
+    assert RESEARCH_MARKET_UNIVERSE_SOURCE == CANONICAL_SOURCE
 
 
 class _MarketCapTransport:

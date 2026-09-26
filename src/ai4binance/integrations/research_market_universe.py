@@ -14,21 +14,23 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from ai4binance.core import read_bounded_jsonl_tail
 from ai4binance.core.errors import (
     ExchangeHttpError,
     ExchangePayloadError,
     ExchangeRateLimitError,
     ExchangeTransportError,
 )
-from ai4binance.domain.universe import classify_asset_eligibility
+from ai4binance.domain.universe import (
+    RESEARCH_MARKET_UNIVERSE_SOURCE,
+    classify_asset_eligibility,
+)
 from ai4binance.integrations.binance.market_universe_provider import (
     BinanceEligibleMarketSnapshot,
     BinanceMarketUniverseProvider,
 )
-from ai4binance.storage import read_bounded_jsonl_tail
 
 _ZERO = Decimal("0")
-RESEARCH_MARKET_UNIVERSE_SOURCE = "BINANCE_WALLET_AND_COINGECKO_MARKET_CAP"
 
 
 class _RetryableMarketCapError(Exception):
@@ -263,8 +265,8 @@ class ResearchMarketUniverseProvider:
         return self.binance.futures_transport
 
     @property
-    def coin_m_transport(self) -> None:
-        return None
+    def coin_m_transport(self) -> object | None:
+        return self.binance.coin_m_transport
 
     def eligible_market_snapshot(self) -> BinanceEligibleMarketSnapshot:
         return self.binance.eligible_market_snapshot()
