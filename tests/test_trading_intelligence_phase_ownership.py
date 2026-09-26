@@ -64,13 +64,11 @@ def test_p5_harmonic_geometry_invalidates_without_trade_authority() -> None:
     assert result.primary_direction_signal is False
 
 
-def test_p6_elliott_returns_three_unresolved_alternatives() -> None:
+def test_p6_elliott_does_not_invent_unobserved_alternatives() -> None:
     alternatives = ElliottWaveHypothesisEngine().build(_evidence("ELLIOTT_WAVE"))
 
     assert tuple(item.attributes[-1] for item in alternatives) == (
-        ("alternative", "A"),
-        ("alternative", "B"),
-        ("alternative", "C"),
+        ("alternative", "OBSERVED_COUNT"),
     )
     assert all(
         item.lifecycle_state == PatternLifecycleState.ALTERNATIVE_UNRESOLVED.value

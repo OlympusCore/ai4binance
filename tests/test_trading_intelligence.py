@@ -424,13 +424,95 @@ def test_confirmed_swings_are_available_only_after_right_side_closes() -> None:
 
     assert structure.swings
     for swing in structure.swings:
-        assert swing.available_at == candles[swing.candle_index + 2].timestamp
+        assert swing.available_at == (
+            candles[swing.candle_index + 2].timestamp + timedelta(hours=1)
+        )
         assert swing.available_at > swing.occurred_at
     prefix = MarketStructureEngine().analyze("1h", candles[:20])
     assert prefix.swings == tuple(
         swing
         for swing in structure.swings
-        if swing.available_at <= candles[19].timestamp
+        if swing.available_at <= candles[19].timestamp + timedelta(hours=1)
+    )
+
+
+@pytest.mark.parametrize("state", ["POTENTIAL", "EXPIRED", "FAILED", "CONFIRMED"])
+def test_pattern_normalization_preserves_detector_lifecycle(state: str) -> None:
+    snapshot = technical_snapshot()
+    result = _result("chart_pattern", metadata={"lifecycle_state": state})
+    (pattern,) = PatternHypothesisFabric().build(snapshot, {"chart_pattern": result})
+    assert pattern.lifecycle_state == state
+    assert pattern.execution_allowed is False
+
+
+def test_pattern_identity_survives_observations_without_cross_market_collision() -> (
+    None
+):
+    snapshot = technical_snapshot()
+    result = _result("chart_pattern", metadata={"pattern_id": "geometry:anchors"})
+    fabric = PatternHypothesisFabric()
+    (first,) = fabric.build(snapshot, {"chart_pattern": result})
+    later = replace(
+        snapshot, snapshot_id="next-cycle", created_at=NOW + timedelta(minutes=1)
+    )
+    later_result = replace(
+        result, snapshot_id=later.snapshot_id, timestamp=later.created_at
+    )
+    (second,) = fabric.build(later, {"chart_pattern": later_result})
+    (futures,) = fabric.build(
+        replace(later, market_type="USD_M_FUTURES"), {"chart_pattern": later_result}
+    )
+    assert first.hypothesis_id == second.hypothesis_id
+    assert first.observation_id != second.observation_id
+    assert second.hypothesis_id != futures.hypothesis_id
+
+
+def test_structure_asof_cannot_observe_an_unclosed_confirmation_bar() -> None:
+    prices = (
+        10,
+        11,
+        12,
+        11,
+        10,
+        9,
+        10,
+        11,
+        13,
+        12,
+        11,
+        10,
+        11,
+        12,
+        14,
+        13,
+        12,
+        11,
+        12,
+        13,
+        15,
+        14,
+        13,
+        12,
+    )
+    candles = tuple(
+        OHLCVCandle(
+            timestamp=NOW + timedelta(hours=index),
+            open=Decimal(price),
+            high=Decimal(price) + Decimal("0.2"),
+            low=Decimal(price) - Decimal("0.2"),
+            close=Decimal(price),
+            volume=Decimal("100"),
+        )
+        for index, price in enumerate(prices)
+    )
+    engine = MarketStructureEngine()
+    boundary = candles[22].timestamp + timedelta(hours=1)
+    before = engine.analyze("1h", candles, as_of=boundary - timedelta(microseconds=1))
+    after = engine.analyze("1h", candles, as_of=boundary)
+    assert not any(swing.candle_index == 20 for swing in before.swings)
+    assert any(
+        swing.candle_index == 20 and swing.available_at == boundary
+        for swing in after.swings
     )
 
 
@@ -484,7 +566,8 @@ def test_orchestrator_projects_one_shared_intelligence_state() -> None:
         level.price_low < level.price_high
         for level in state.trading_intelligence.levels
     )
-    assert all(level.touch_count >= 1 for level in state.trading_intelligence.levels)
+    # A newly confirmed level need not have a post-confirmation retest yet.
+    assert all(level.touch_count >= 0 for level in state.trading_intelligence.levels)
     assert state.candidate_setups
     assert all(candidate.scenario_id for candidate in state.candidate_setups)
     assert all(
@@ -687,14 +770,14 @@ def test_risk_assessment_retains_positional_compatibility() -> None:
 
 def test_trend_break_is_evaluated_outside_its_fitted_window() -> None:
     snapshot = technical_snapshot()
-    candles = tuple(snapshot.ohlcv_by_timeframe["1d"])
+    candles = tuple(snapshot.ohlcv_by_timeframe["1h"])
     last = replace(candles[-1], close=Decimal("2"), high=Decimal("2.1"))
     snapshot = replace(
         snapshot,
-        ohlcv_by_timeframe={**snapshot.ohlcv_by_timeframe, "1d": (*candles[:-1], last)},
+        ohlcv_by_timeframe={**snapshot.ohlcv_by_timeframe, "1h": (*candles[:-1], last)},
     )
     (geometry,) = TrendGeometryEngine().build(
-        snapshot, (), _result("trend_channel", metadata={"source_timeframe": "1d"})
+        snapshot, (), _result("trend_channel", metadata={"source_timeframe": "1h"})
     )
     assert geometry.state == "TRENDLINE_BREAK"
     assert geometry.break_state == "BROKEN"

@@ -16,6 +16,12 @@ from itertools import pairwise
 
 from ai4binance.domain.opportunity_observation import OpportunityLifecycleState
 from ai4binance.indicators import atr, relative_volume
+from ai4binance.intelligence.contracts import (
+    ConfirmedSwing,
+    SwingKind,
+    TimeframeStructureEvidence,
+)
+from ai4binance.intelligence.structure import MarketStructureEngine
 from ai4binance.schemas import MarketSnapshot, OHLCVCandle
 
 ZERO = Decimal("0")
@@ -259,6 +265,7 @@ class ChartPatternObservation:
     state: ChartPatternLifecycleState
     evidence_refs: tuple[str, ...]
     version: str = "chart-pattern:v1"
+    observation_id: str = ""
 
     def __post_init__(self) -> None:
         text = (
@@ -607,6 +614,9 @@ def detect_chart_pattern(
     decision_time: datetime,
     pivot_confirmation_bars: int = 3,
     expiry_bars: int = 20,
+    symbol: str = "UNKNOWN",
+    market: str = "UNKNOWN",
+    structure: TimeframeStructureEvidence | None = None,
 ) -> ChartPatternObservation | None:
     """Detect a small double-top/bottom family without future pivot leakage."""
     _require_aware(decision_time, "pattern decision time")
@@ -618,8 +628,44 @@ def detect_chart_pattern(
     rows = tuple(
         candle for candle in candles if candle.timestamp + duration <= decision_time
     )
+    if structure is not None:
+        return _confirmed_chart_pattern(
+            rows,
+            structure,
+            timeframe=timeframe,
+            snapshot_id=snapshot_id,
+            decision_time=decision_time,
+            expiry_bars=expiry_bars,
+            symbol=symbol,
+            market=market,
+        )
     if len(rows) < 12:
         return None
+    return _legacy_chart_pattern(
+        rows,
+        timeframe=timeframe,
+        snapshot_id=snapshot_id,
+        decision_time=decision_time,
+        pivot_confirmation_bars=pivot_confirmation_bars,
+        expiry_bars=expiry_bars,
+        symbol=symbol,
+        market=market,
+    )
+
+
+def _legacy_chart_pattern(
+    rows: tuple[OHLCVCandle, ...],
+    *,
+    timeframe: str,
+    snapshot_id: str,
+    decision_time: datetime,
+    pivot_confirmation_bars: int,
+    expiry_bars: int,
+    symbol: str,
+    market: str,
+) -> ChartPatternObservation | None:
+    """Preserve the legacy rolling-window detector for compatibility consumers."""
+    duration = TIMEFRAME_DURATIONS[timeframe]
     midpoint = len(rows) // 2
     first_half = rows[:midpoint]
     second_half = rows[midpoint:]
@@ -686,14 +732,18 @@ def detect_chart_pattern(
     )
     payload = "|".join(
         (
-            snapshot_id,
+            "chart-pattern:v2",
+            market,
+            symbol,
             timeframe,
             pattern_type,
-            *(item[1].isoformat() for item in anchor_points),
+            *(f"{item[1].isoformat()}:{item[2]}" for item in anchor_points),
         )
     )
     return ChartPatternObservation(
         pattern_id=f"pattern:{sha256(payload.encode('utf-8')).hexdigest()[:16]}",
+        observation_id="pattern-observation:"
+        + sha256(f"{snapshot_id}|{payload}".encode()).hexdigest()[:20],
         pattern_type=pattern_type,
         directional_bias=bias,
         timeframe=timeframe,
@@ -709,6 +759,211 @@ def detect_chart_pattern(
         invalidation_condition=invalidation,
         state=state,
         evidence_refs=(f"snapshot:{snapshot_id}", "CLOSED_CANDLE_GEOMETRY"),
+        version="chart-pattern:v2",
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class _ChartBoundaries:
+    kind: str
+    bias: CandleDirection
+    points: tuple[ConfirmedSwing, ...]
+    upper: Decimal
+    lower: Decimal
+    upper_slope: Decimal = ZERO
+    lower_slope: Decimal = ZERO
+
+
+def _reversal_boundaries(
+    points: tuple[ConfirmedSwing, ...],
+    tolerance: Decimal,
+) -> _ChartBoundaries | None:
+    if len(points) == 5 and points[0].kind is points[2].kind is points[4].kind:
+        sign = ONE if points[0].kind is SwingKind.HIGH else -ONE
+        left, head, right = (points[i].price * sign for i in (0, 2, 4))
+        if abs(left - right) <= tolerance and head > max(left, right) + tolerance:
+            neck = (min if sign > ZERO else max)(points[1].price, points[3].price)
+            upper, lower = (
+                (points[2].price + tolerance, neck)
+                if sign > ZERO
+                else (neck, points[2].price - tolerance)
+            )
+            return _ChartBoundaries(
+                "HEAD_AND_SHOULDERS" if sign > ZERO else "INVERSE_HEAD_AND_SHOULDERS",
+                CandleDirection.BEARISH if sign > ZERO else CandleDirection.BULLISH,
+                points,
+                upper,
+                lower,
+            )
+    a, b, c = points[-3:]
+    if a.kind is not c.kind or abs(a.price - c.price) > tolerance:
+        return None
+    top = a.kind is SwingKind.HIGH
+    upper, lower = (
+        (max(a.price, c.price) + tolerance, b.price)
+        if top
+        else (b.price, min(a.price, c.price) - tolerance)
+    )
+    return _ChartBoundaries(
+        "DOUBLE_TOP" if top else "DOUBLE_BOTTOM",
+        CandleDirection.BEARISH if top else CandleDirection.BULLISH,
+        (a, b, c),
+        upper,
+        lower,
+    )
+
+
+def _converging_boundaries(
+    points: tuple[ConfirmedSwing, ...],
+    duration: timedelta,
+) -> _ChartBoundaries | None:
+    if len(points) < 4:
+        return None
+    points = points[-4:]
+    highs = tuple(p for p in points if p.kind is SwingKind.HIGH)
+    lows = tuple(p for p in points if p.kind is SwingKind.LOW)
+    if len(highs) != 2 or len(lows) != 2:
+        return None
+    origin = points[0].occurred_at
+    upper_slope = (highs[1].price - highs[0].price) / Decimal(
+        str((highs[1].occurred_at - highs[0].occurred_at) / duration)
+    )
+    lower_slope = (lows[1].price - lows[0].price) / Decimal(
+        str((lows[1].occurred_at - lows[0].occurred_at) / duration)
+    )
+    upper = highs[0].price - upper_slope * Decimal(
+        str((highs[0].occurred_at - origin) / duration)
+    )
+    lower = lows[0].price - lower_slope * Decimal(
+        str((lows[0].occurred_at - origin) / duration)
+    )
+    if upper_slope >= lower_slope or upper <= lower:
+        return None
+    if upper_slope > ZERO and lower_slope > ZERO:
+        kind, bias = "RISING_WEDGE", CandleDirection.BEARISH
+    elif upper_slope < ZERO and lower_slope < ZERO:
+        kind, bias = "FALLING_WEDGE", CandleDirection.BULLISH
+    else:
+        kind, bias = "CONVERGING_TRIANGLE", CandleDirection.NEUTRAL
+    return _ChartBoundaries(kind, bias, points, upper, lower, upper_slope, lower_slope)
+
+
+def _chart_lifecycle(
+    geometry: _ChartBoundaries,
+    rows: tuple[OHLCVCandle, ...],
+    duration: timedelta,
+    available: datetime,
+    expiry_bars: int,
+) -> tuple[ChartPatternLifecycleState, CandleDirection]:
+    """Replay first confirmation and terminal failure on frozen boundaries."""
+    state = ChartPatternLifecycleState.POTENTIAL
+    bias = geometry.bias
+    elapsed = 0
+    for candle in rows:
+        if candle.timestamp < available:
+            continue
+        elapsed += 1
+        offset = Decimal(
+            str((candle.timestamp - geometry.points[0].occurred_at) / duration)
+        )
+        hi = geometry.upper + geometry.upper_slope * offset
+        lo = geometry.lower + geometry.lower_slope * offset
+        if hi <= lo or elapsed > expiry_bars:
+            return ChartPatternLifecycleState.EXPIRED, bias
+        breakout = (
+            CandleDirection.BULLISH
+            if candle.close > hi
+            else CandleDirection.BEARISH
+            if candle.close < lo
+            else CandleDirection.NEUTRAL
+        )
+        if breakout is CandleDirection.NEUTRAL:
+            if state is ChartPatternLifecycleState.CONFIRMED:
+                return ChartPatternLifecycleState.FAILED, bias
+            continue
+        if bias is CandleDirection.NEUTRAL:
+            bias = breakout
+        if breakout is not bias:
+            return (
+                ChartPatternLifecycleState.FAILED
+                if state is ChartPatternLifecycleState.CONFIRMED
+                else ChartPatternLifecycleState.INVALIDATED
+            ), bias
+        state = ChartPatternLifecycleState.CONFIRMED
+    return state, bias
+
+
+def _confirmed_chart_pattern(
+    rows: tuple[OHLCVCandle, ...],
+    structure: TimeframeStructureEvidence,
+    *,
+    timeframe: str,
+    snapshot_id: str,
+    decision_time: datetime,
+    expiry_bars: int,
+    symbol: str,
+    market: str,
+) -> ChartPatternObservation | None:
+    """Reuse confirmed pivots; terminal failures cannot reconfirm the same anchors."""
+    if structure.timeframe != timeframe or len(rows) < 15:
+        return None
+    swings = MarketStructureEngine.alternating_swings(
+        tuple(s for s in structure.swings if s.available_at <= decision_time)
+    )
+    if len(swings) < 3:
+        return None
+    points = swings[-5:]
+    anchor_history = tuple(c for c in rows if c.timestamp < points[-1].available_at)
+    if len(anchor_history) < 15:
+        return None
+    tolerance = atr(anchor_history, 14) * Decimal(".35")
+    if tolerance <= ZERO:
+        return None
+    duration = TIMEFRAME_DURATIONS[timeframe]
+    geometry = _reversal_boundaries(points, tolerance) or _converging_boundaries(
+        points, duration
+    )
+    if geometry is None:
+        return None
+    points = geometry.points
+    available = max(p.available_at for p in points)
+    state, bias = _chart_lifecycle(geometry, rows, duration, available, expiry_bars)
+    anchors = tuple(
+        (f"anchor_{i}", p.occurred_at, p.price) for i, p in enumerate(points)
+    )
+    identity = "|".join(
+        (
+            "confirmed-chart:v1",
+            market,
+            symbol,
+            timeframe,
+            geometry.kind,
+            *(f"{p.occurred_at.isoformat()}:{p.price}" for p in points),
+        )
+    )
+    return ChartPatternObservation(
+        pattern_id="pattern:" + sha256(identity.encode()).hexdigest()[:20],
+        observation_id="pattern-observation:"
+        + sha256(f"{snapshot_id}|{identity}".encode()).hexdigest()[:20],
+        pattern_type=geometry.kind,
+        directional_bias=bias,
+        timeframe=timeframe,
+        start_time=points[0].occurred_at,
+        last_observation_time=decision_time,
+        pivot_available_time=available,
+        anchor_points=anchors,
+        boundary_model=(
+            ("upper_intercept", str(geometry.upper)),
+            ("lower_intercept", str(geometry.lower)),
+            ("upper_slope", str(geometry.upper_slope)),
+            ("lower_slope", str(geometry.lower_slope)),
+        ),
+        formation_progress=ONE,
+        confirmation_condition="CLOSE_OUTSIDE_BOUNDARY",
+        invalidation_condition="OPPOSITE_BREAK_OR_RETURN_AFTER_CONFIRMATION",
+        state=state,
+        evidence_refs=(f"snapshot:{snapshot_id}", "CONFIRMED_SWING_GRAPH"),
+        version="confirmed-chart:v1",
     )
 
 

@@ -1,7 +1,6 @@
 """Deterministic evidence, separation, and refresh tests for market monitoring."""
 
 import json
-from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -1102,20 +1101,23 @@ def test_opportunity_monitor_cli_uses_canonical_local_dependencies(
     )
 
     def refresh(*_args: object, **kwargs: object) -> None:
-        builder = cast(
-            Callable[[object, str], dict[str, object]], kwargs["futures_builder"]
-        )
-        observed["builder_result"] = builder(Mock(), "5m")
+        observed["route"] = "SPOT"
+        assert kwargs["market"] == "SPOT"
+        assert "futures_builder" not in kwargs
+
+    def futures_refresh(*args: object) -> None:
+        observed["route"] = "USD_M_FUTURES"
+        assert args[0] is settings
+        assert args[2] == "BTCUSDT"
 
     monkeypatch.setattr(cli, "refresh_monitor", refresh)
+    monkeypatch.setattr(cli, "_refresh_futures_monitor", futures_refresh)
     argv = ["opportunity-monitor", "--market", market, "--symbol", "BTCUSDT"]
     monkeypatch.setattr(sys, "argv", argv)
     monkeypatch.chdir(tmp_path)
 
     assert cli.main() == 0
-    result = observed["builder_result"]
-    assert isinstance(result, dict)
-    assert result["status"] == "DATA_BLOCKED"
+    assert observed["route"] == market
 
 
 def test_opportunity_monitor_cli_rejects_symbol_outside_current_universe(

@@ -4,9 +4,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
+from hashlib import sha256
 
+from ai4binance.data.timeframes import timeframe_duration
 from ai4binance.indicators import atr
 from ai4binance.intelligence.contracts import (
+    SwingKind,
     TimeframeStructureEvidence,
     TrendGeometryEvidence,
     TrendGeometryState,
@@ -47,10 +50,22 @@ class TrendGeometryEngine:
             or result.agent_name != "trend_channel"
         ):
             return ()
+        pivot_lines = tuple(
+            line
+            for structure in structures
+            for kind in (SwingKind.LOW, SwingKind.HIGH)
+            if (line := self._pivot_line(snapshot, structure, kind)) is not None
+        )
+        if pivot_lines:
+            return pivot_lines
         timeframe = self._source_timeframe(snapshot, result.calculation_metadata)
         if timeframe is None:
             return ()
-        candles = tuple(snapshot.ohlcv_by_timeframe.get(timeframe, ()))
+        candles = tuple(
+            c
+            for c in snapshot.ohlcv_by_timeframe.get(timeframe, ())
+            if c.timestamp + timeframe_duration(timeframe) <= snapshot.created_at
+        )
         if len(candles) < self.window_bars:
             return ()
         recent = candles[-self.window_bars :]
@@ -92,12 +107,140 @@ class TrendGeometryEngine:
                 intercept=intercept,
                 touch_count=touch_count,
                 atr_normalized_error=normalized_error,
-                age_bars=0,
+                age_bars=len(recent) - 1,
                 break_state=break_state,
                 retest_state=retest_state,
                 compression_state=self._compression_state(recent),
                 acceleration_state=self._acceleration_state(recent),
+                atr_normalized_slope=slope / volatility,
+                blockers=("CONFIRMED_TREND_ANCHORS_UNAVAILABLE",),
             ),
+        )
+
+    def _pivot_line(
+        self,
+        snapshot: MarketSnapshot,
+        structure: TimeframeStructureEvidence,
+        kind: SwingKind,
+    ) -> TrendGeometryEvidence | None:
+        duration = timeframe_duration(structure.timeframe)
+        candles = tuple(
+            c
+            for c in snapshot.ohlcv_by_timeframe.get(structure.timeframe, ())
+            if c.timestamp + duration <= snapshot.created_at
+        )
+        if len(candles) < self.window_bars:
+            return None
+        pivots = tuple(
+            s
+            for s in structure.swings
+            if s.kind is kind and s.available_at <= candles[-2].timestamp
+        )
+        if len(pivots) < 2:
+            return None
+        first, second = pivots[-2:]
+        span = Decimal(str((second.occurred_at - first.occurred_at) / duration))
+        if span <= ZERO:
+            return None
+        slope = (second.price - first.price) / span
+        training = tuple(
+            c for c in candles if c.timestamp + duration <= second.available_at
+        )
+        if len(training) < 15:
+            return None
+        width = atr(training[-self.window_bars :], 14)
+        if width <= ZERO:
+            return None
+        observed = tuple(c for c in candles if c.timestamp >= first.occurred_at)
+        centers = tuple(
+            first.price
+            + slope * Decimal(str((c.timestamp - first.occurred_at) / duration))
+            for c in observed
+        )
+        sign = Decimal("1") if kind is SwingKind.LOW else Decimal("-1")
+        distances = tuple(
+            sign * (c.close - center)
+            for c, center in zip(observed, centers, strict=True)
+        )
+        broken = tuple(
+            i
+            for i, (c, distance) in enumerate(zip(observed, distances, strict=True))
+            if c.timestamp >= second.available_at and distance < -width
+        )
+        current = distances[-1]
+        if broken and current < -width:
+            state, break_state, retest = (
+                TrendGeometryState.BREAK,
+                "BROKEN",
+                "NOT_RETESTED",
+            )
+        elif broken and abs(current) <= width:
+            state, break_state, retest = (
+                TrendGeometryState.RETEST,
+                "BROKEN",
+                "RETEST_PENDING",
+            )
+        elif broken:
+            state, break_state, retest = (
+                TrendGeometryState.FALSE_BREAK,
+                "FALSE_BREAK",
+                "RECLAIMED",
+            )
+        else:
+            state, break_state, retest = (
+                TrendGeometryState.VALID,
+                "UNBROKEN",
+                "NOT_RETESTED",
+            )
+        contacts = tuple(
+            c.low <= center + width and c.high >= center - width
+            for c, center in zip(observed, centers, strict=True)
+        )
+        touches = sum(
+            touch and (i == 0 or not contacts[i - 1])
+            for i, touch in enumerate(contacts)
+        )
+        errors = tuple(
+            abs((c.low if kind is SwingKind.LOW else c.high) - center)
+            for c, center in zip(observed, centers, strict=True)
+        )
+        error = sum(errors, ZERO) / Decimal(len(errors)) / width
+        identity = (
+            f"{snapshot.market_type}|{snapshot.symbol}|{structure.timeframe}|{kind}|"
+            f"{first.occurred_at.isoformat()}:{first.price}|"
+            f"{second.occurred_at.isoformat()}:{second.price}"
+        )
+        geometry_id = "trend:" + sha256(identity.encode()).hexdigest()[:20]
+        return TrendGeometryEvidence(
+            source_timeframe=structure.timeframe,
+            slope=slope,
+            channel_width=width,
+            state=state.value,
+            touch_quality=self._touch_quality(touches, len(observed)),
+            evidence_ref=geometry_id,
+            confidence=structure.confidence,
+            anchor_points=(
+                (first.occurred_at, first.price),
+                (second.occurred_at, second.price),
+            ),
+            intercept=first.price,
+            touch_count=touches,
+            atr_normalized_error=error,
+            age_bars=max(
+                0,
+                int(
+                    (candles[-1].timestamp + duration - second.available_at) / duration
+                ),
+            ),
+            break_state=break_state,
+            retest_state=retest,
+            compression_state=self._compression_state(candles[-self.window_bars :]),
+            acceleration_state=self._acceleration_state(candles[-self.window_bars :]),
+            geometry_id=geometry_id,
+            method="CONFIRMED_PIVOT_SUPPORT"
+            if kind is SwingKind.LOW
+            else "CONFIRMED_PIVOT_RESISTANCE",
+            atr_normalized_slope=slope / width,
         )
 
     @staticmethod

@@ -1,7 +1,7 @@
 """Deterministic research-only advanced technical and context agents."""
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from itertools import pairwise
@@ -10,6 +10,12 @@ from math import sqrt
 from ai4binance.agents.base import BaseAgent
 from ai4binance.agents.registry import AgentDefinition
 from ai4binance.indicators import atr, closes, relative_volume, rsi
+from ai4binance.intelligence.patterns import (
+    ElliottWaveHypothesisEngine,
+    FibonacciConfluenceEngine,
+    HarmonicPatternEngine,
+)
+from ai4binance.intelligence.trading import ScenarioEngine
 from ai4binance.opportunity_intelligence import (
     CandleDirection,
     CandlestickPattern,
@@ -82,7 +88,6 @@ class AdvancedTechnicalAgent(BaseAgent):
         snapshot: MarketSnapshot,
         prior_results: Mapping[str, AgentResult],
     ) -> AgentResult:
-        del prior_results
         name = self.definition.name
         if name in EXTERNAL_SNAPSHOT_FIELDS:
             return self._external(snapshot, EXTERNAL_SNAPSHOT_FIELDS[name])
@@ -91,7 +96,12 @@ class AdvancedTechnicalAgent(BaseAgent):
         candles = self._candles(snapshot)
         if candles is None:
             return self._insufficient(snapshot, "ADVANCED_OHLCV_INSUFFICIENT")
-        feature = self._calculate(name, candles, snapshot)
+        feature = (
+            self._structural_pattern(name, snapshot, prior_results)
+            if name
+            in {"chart_pattern", "fibonacci", "harmonic_pattern", "elliott_wave"}
+            else self._calculate(name, candles, snapshot)
+        )
         if feature is None:
             return self.result(
                 snapshot,
@@ -123,6 +133,70 @@ class AdvancedTechnicalAgent(BaseAgent):
                     and len(snapshot.ohlcv_by_timeframe.get(timeframe, ())) >= 55
                 ),
             },
+        )
+
+    def _structural_pattern(
+        self,
+        name: str,
+        snapshot: MarketSnapshot,
+        prior_results: Mapping[str, AgentResult],
+    ) -> _Feature | None:
+        """Reuse canonical confirmed structure; legacy close proxies are not inputs."""
+        structures = ScenarioEngine()._structures(snapshot, prior_results)
+        timeframe = next(
+            (
+                tf
+                for tf in ("1d", "4h", "1h", "15m")
+                if tf in self.definition.supported_timeframes
+                and len(snapshot.ohlcv_by_timeframe.get(tf, ())) >= 55
+            ),
+            None,
+        )
+        structure = next((s for s in structures if s.timeframe == timeframe), None)
+        if structure is None:
+            return None
+        if name == "chart_pattern":
+            pattern = detect_chart_pattern(
+                snapshot.ohlcv_by_timeframe[structure.timeframe],
+                timeframe=structure.timeframe,
+                snapshot_id=snapshot.snapshot_id,
+                decision_time=snapshot.created_at,
+                symbol=snapshot.symbol,
+                market=snapshot.market_type,
+                structure=structure,
+            )
+            if pattern is None:
+                return None
+            vote = (
+                0.5
+                if pattern.directional_bias is CandleDirection.BULLISH
+                else -0.5
+                if pattern.directional_bias is CandleDirection.BEARISH
+                else 0.0
+            )
+            return self._feature(
+                vote,
+                f"RULE_BASED_{pattern.pattern_type}",
+                setups=(pattern.pattern_type,),
+                pattern_id=pattern.pattern_id,
+                lifecycle_state=pattern.state.value,
+                formation_progress=str(pattern.formation_progress),
+                confirmation_condition=pattern.confirmation_condition,
+                invalidation_condition=pattern.invalidation_condition,
+                method="CONFIRMED_SWING_GRAPH",
+            )
+        detectors = {
+            "fibonacci": FibonacciConfluenceEngine.detect,
+            "harmonic_pattern": HarmonicPatternEngine.detect,
+            "elliott_wave": ElliottWaveHypothesisEngine.detect,
+        }
+        metadata = detectors[name](structure)
+        if metadata is None:
+            return None
+        raw_vote = metadata.pop("directional_vote", 0.0)
+        return replace(
+            self._feature(float(str(raw_vote)), str(metadata["method"])),
+            metadata=metadata,
         )
 
     def _candles(self, snapshot: MarketSnapshot) -> tuple[OHLCVCandle, ...] | None:
@@ -216,6 +290,8 @@ class AdvancedTechnicalAgent(BaseAgent):
             timeframe=timeframe,
             snapshot_id=snapshot.snapshot_id,
             decision_time=snapshot.created_at,
+            symbol=snapshot.symbol,
+            market=snapshot.market_type,
         )
         if pattern is None:
             return None

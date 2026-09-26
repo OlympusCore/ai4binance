@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
-from decimal import Decimal
+from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, InvalidOperation
 from typing import cast
 
-from ai4binance.domain import Action, CandidateStatus, TradeCandidate
+from ai4binance.domain import Action, CandidateStatus, PriceZone, TradeCandidate
 from ai4binance.intelligence.contracts import (
     ScenarioHypothesis,
     ScenarioState,
     TradingIntelligenceState,
 )
+from ai4binance.schemas import MarketSnapshot
 
 ZERO = Decimal("0")
 
@@ -66,6 +68,79 @@ class TradePlanEngine:
     """Bind a strategy proposal to one selected scenario in deterministic order."""
 
     risk_reward_engine: RiskRewardEngine = RiskRewardEngine()
+
+    def structural_candidate(
+        self,
+        candidate: TradeCandidate,
+        scenario: ScenarioHypothesis,
+        state: TradingIntelligenceState,
+        snapshot: MarketSnapshot,
+    ) -> TradeCandidate:
+        """Derive Futures targets from observed zones before risk evaluation.
+
+        Keep the existing invalidation boundary: rounding may tighten the stop,
+        never extend risk beyond the scenario. Missing geometry is a veto.
+        """
+        raw = snapshot.exchange_filters.get("PRICE_FILTER", {})
+        try:
+            tick = (
+                Decimal(str(raw.get("tickSize"))) if isinstance(raw, Mapping) else ZERO
+            )
+        except InvalidOperation:
+            tick = ZERO
+        if not tick.is_finite() or tick <= ZERO:
+            return self._unavailable(candidate, "STRUCTURAL_PLAN_TICK_SIZE_UNAVAILABLE")
+        invalidation = scenario.invalidation_level
+        if invalidation is None:
+            return self._unavailable(
+                candidate, "STRUCTURAL_PLAN_INVALIDATION_UNAVAILABLE"
+            )
+        long = candidate.action is Action.BUY
+        entry_rounding = ROUND_CEILING if long else ROUND_FLOOR
+        target_rounding = ROUND_FLOOR if long else ROUND_CEILING
+        entry = (candidate.entry_price / tick).to_integral_value(
+            rounding=entry_rounding
+        ) * tick
+        stop = (invalidation / tick).to_integral_value(rounding=entry_rounding) * tick
+        if not (ZERO < stop < entry if long else stop > entry > ZERO):
+            return self._unavailable(candidate, "STRUCTURAL_PLAN_STOP_GEOMETRY_INVALID")
+        targets: dict[Decimal, str] = {}
+        for level in state.levels:
+            effective_type = (
+                ("RESISTANCE" if level.level_type == "SUPPORT" else "SUPPORT")
+                if level.role_flip
+                else level.level_type
+            )
+            if level.freshness == "STALE" or effective_type != (
+                "RESISTANCE" if long else "SUPPORT"
+            ):
+                continue
+            edge = level.price_low if long else level.price_high
+            price = (edge / tick).to_integral_value(rounding=target_rounding) * tick
+            if price > entry if long else ZERO < price < entry:
+                targets.setdefault(price, level.level_id)
+        ordered = tuple(sorted(targets, reverse=not long))[:3]
+        if not ordered:
+            return self._unavailable(candidate, "STRUCTURAL_PLAN_TARGET_UNAVAILABLE")
+        return replace(
+            candidate,
+            entry_zone=PriceZone(entry, entry),
+            stop_loss=stop,
+            invalidation_level=stop,
+            trailing_stop=stop,
+            take_profit_levels=ordered,
+            risk_reward=abs(ordered[0] - entry) / abs(entry - stop),
+            target_sources=tuple(targets[target] for target in ordered),
+            evidence=tuple(dict.fromkeys((*candidate.evidence, "STRUCTURAL_PLAN_V2"))),
+        )
+
+    @staticmethod
+    def _unavailable(candidate: TradeCandidate, blocker: str) -> TradeCandidate:
+        return replace(
+            candidate,
+            status=CandidateStatus.RESEARCH_ONLY,
+            blockers=tuple(dict.fromkeys((*candidate.blockers, blocker))),
+        )
 
     def bind(
         self,

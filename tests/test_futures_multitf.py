@@ -727,41 +727,40 @@ def test_triggered_tuning_handles_invalid_completed_and_cached_triggers(
     assert completed == {"futures-tuning:one"}
 
 
-def test_monitor_futures_symbol_maps_empty_invalid_and_valid_radar(
+def test_monitor_futures_symbol_uses_one_shared_analysis(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from ai4binance.cli import futures_multitf
     from ai4binance.config import Settings
+    from ai4binance.data.acquisition import LocalMarketSnapshotTransport
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(
-        futures_multitf, "FuturesOosEvidenceReader", lambda path: str(path)
-    )
     monkeypatch.setattr(futures_multitf, "ParquetOHLCVArchive", lambda path: path)
+    calls: list[object] = []
+    sentinel = object()
 
-    class Advisor:
-        def __init__(
-            self, _collector: object, *, timeframe: str, **_kwargs: object
-        ) -> None:
-            self.timeframe = timeframe
+    def analyze(snapshot: object) -> object:
+        calls.append(snapshot)
+        return sentinel
 
-        def build(self, _snapshot: object) -> SimpleNamespace:
-            radar: tuple[object, ...]
-            if self.timeframe == "5m":
-                radar = ()
-            elif self.timeframe == "15m":
-                radar = (object(),)
-            else:
-                radar = ({"status": "VALID", "direction": "BULLISH"},)
-            return SimpleNamespace(opportunity_radar=radar)
-
-    monkeypatch.setattr(futures_multitf, "RuntimeFuturesAdvisor", Advisor)
+    monkeypatch.setattr(futures_multitf, "analyze_futures_snapshot", analyze)
     monkeypatch.setattr(
-        futures_multitf,
-        "to_primitive",
-        lambda value: value if isinstance(value, dict) else "invalid",
+        LocalMarketSnapshotTransport,
+        "attach_futures_context",
+        lambda _self, snapshot: snapshot,
     )
+
+    def project(state: object, timeframe: str) -> dict[str, object]:
+        assert state is sentinel
+        return {
+            "status": "DATA_BLOCKED",
+            "timeframe": timeframe,
+            "blockers": ["MISSING_CANONICAL_EVIDENCE"],
+            "execution_allowed": False,
+        }
+
+    monkeypatch.setattr(futures_multitf, "project_futures_opportunity", project)
 
     built: list[object] = []
 
@@ -799,15 +798,8 @@ def test_monitor_futures_symbol_maps_empty_invalid_and_valid_radar(
     )
 
     assert result["candidate_count"] == 3
-    assert isinstance(built[2], dict)
-    assert {
-        "entry",
-        "stop_loss",
-        "tp1",
-        "tp2",
-        "tp3",
-        "target_risk_reward",
-    } <= set(built[2])
+    assert len(calls) == 1
+    assert all(isinstance(item, dict) and "entry" not in item for item in built)
 
 
 def test_successful_cycle_persists_datasets_learning_and_safe_tuning_failure(

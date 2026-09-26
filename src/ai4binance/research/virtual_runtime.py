@@ -117,7 +117,12 @@ from ai4binance.research.virtual_runtime_portfolios import (
     IndependentVirtualPortfolios,
 )
 from ai4binance.research.virtual_runtime_request import VirtualRuntimeRequest
-from ai4binance.research.virtual_runtime_risk import VirtualPortfolioRiskGovernor
+from ai4binance.research.virtual_runtime_risk import (
+    FuturesRiskBracket,
+    VirtualPortfolioRiskGovernor,
+    isolated_liquidation_price,
+    validate_futures_brackets,
+)
 from ai4binance.research.virtual_runtime_trade_intent import VirtualTradeIntent
 from ai4binance.research_governance import (
     VirtualImprovementCandidateCycleExecutiveSummary,
@@ -1119,6 +1124,9 @@ class VirtualFuturesPositionContext:
     mark_price: Decimal
     funding_rate: Decimal
     funding_payment_due: bool = False
+    mark_candle: OHLCVCandle | None = None
+    maintenance_brackets: tuple[FuturesRiskBracket, ...] = ()
+    isolated_wallet_margin: Decimal | None = None
 
     def __post_init__(self) -> None:
         if self.observed_at.tzinfo is None or self.observed_at.utcoffset() is None:
@@ -1131,6 +1139,20 @@ class VirtualFuturesPositionContext:
             raise ValueError("Futures position context funding rate must be finite")
         if not isinstance(self.funding_payment_due, bool):
             raise ValueError("Futures position funding payment due must be boolean")
+        if self.mark_candle is not None:
+            validate_futures_brackets(self.maintenance_brackets)
+            if (
+                self.mark_candle.timestamp != self.observed_at
+                or self.mark_candle.close != self.mark_price
+                or self.mark_candle.low <= ZERO
+                or self.isolated_wallet_margin is None
+                or not self.isolated_wallet_margin.is_finite()
+            ):
+                raise ValueError(
+                    "native mark path requires aligned isolated margin evidence"
+                )
+        elif self.maintenance_brackets or self.isolated_wallet_margin is not None:
+            raise ValueError("isolated path context requires native mark OHLC")
 
 
 @dataclass(frozen=True, slots=True)
@@ -1346,11 +1368,40 @@ class VirtualMarketRuntime:
                     portfolio.isolated_margin_usdt or ZERO
                 ) + request.isolated_margin_usdt
                 projected = committed / equity_after_costs
-        return request.portfolio_governor.futures_entry_blockers(
+        blockers = request.portfolio_governor.futures_entry_blockers(
             requested_leverage=request.leverage,
             current_margin_utilization=current,
             projected_margin_utilization=projected,
         )
+        if request.require_structural_margin_proof:
+            blockers = (
+                *blockers,
+                *request.portfolio_governor.structural_margin_blockers(
+                    context=request.structural_margin_context,
+                    requested_leverage=request.leverage,
+                    snapshot_id=request.snapshot_id,
+                    symbol=request.symbol,
+                    entry=fill_preview.execution_price,
+                    stop=request.stop_loss,
+                    quantity=fill_preview.filled_quantity,
+                    mark_price=request.mark_price,
+                    available_margin=request.isolated_margin_usdt,
+                    round_trip_cost_ratio=(
+                        2
+                        * (
+                            request.fee_ratio
+                            + request.slippage_ratio
+                            + request.half_spread_ratio
+                        )
+                        + request.liquidation_fee_ratio
+                    ),
+                    risk_budget=min(
+                        request.structural_risk_budget_usdt or ZERO,
+                        request.portfolio_governor.maximum_risk_per_trade_usdt,
+                    ),
+                ),
+            )
+        return tuple(dict.fromkeys(blockers))
 
     def process_position(
         self,
@@ -1519,7 +1570,11 @@ class VirtualMarketRuntime:
                 ONE if position.position_side is VirtualPositionSide.LONG else -ONE
             )
             funding_delta = (
-                position.entry_price
+                (
+                    futures_context.mark_candle.open
+                    if futures_context.mark_candle
+                    else position.entry_price
+                )
                 * position.remaining_quantity
                 * futures_context.funding_rate
                 * direction_sign
@@ -1548,6 +1603,17 @@ class VirtualMarketRuntime:
         protective_reason, protective_price = self._futures_protective_exit(
             position,
             candle,
+            futures_context.mark_candle,
+            isolated_liquidation_price(
+                long=position.position_side is VirtualPositionSide.LONG,
+                entry=position.entry_price,
+                quantity=position.remaining_quantity,
+                wallet_margin=cast(Decimal, futures_context.isolated_wallet_margin)
+                - funding_delta,
+                brackets=futures_context.maintenance_brackets,
+            )
+            if futures_context.mark_candle is not None
+            else None,
         )
         forced_reason = self._forced_exit_reason(context)
         if protective_reason is not None:
@@ -1700,11 +1766,20 @@ class VirtualMarketRuntime:
     def _futures_protective_exit(
         position: VirtualManagedPosition,
         candle: OHLCVCandle,
+        mark_candle: OHLCVCandle | None = None,
+        solved_liquidation_price: Decimal | None = None,
     ) -> tuple[BacktestExitReason | None, Decimal | None]:
-        liquidation_price = cast(Decimal, position.liquidation_price)
+        liquidation_price = (
+            solved_liquidation_price
+            if solved_liquidation_price is not None
+            else cast(Decimal, position.liquidation_price)
+        )
+        liquidation_candle = mark_candle or candle
         if position.position_side is VirtualPositionSide.LONG:
-            if candle.low <= liquidation_price:
-                return BacktestExitReason.LIQUIDATION, liquidation_price
+            if liquidation_candle.low <= liquidation_price:
+                return BacktestExitReason.LIQUIDATION, min(
+                    liquidation_candle.open, liquidation_price
+                )
             protective_stop = max(position.stop_loss, position.trailing_stop)
             if candle.low <= protective_stop:
                 reason = (
@@ -1714,8 +1789,10 @@ class VirtualMarketRuntime:
                 )
                 return reason, protective_stop
         else:
-            if candle.high >= liquidation_price:
-                return BacktestExitReason.LIQUIDATION, liquidation_price
+            if liquidation_candle.high >= liquidation_price:
+                return BacktestExitReason.LIQUIDATION, max(
+                    liquidation_candle.open, liquidation_price
+                )
             protective_stop = min(position.stop_loss, position.trailing_stop)
             if candle.high >= protective_stop:
                 reason = (

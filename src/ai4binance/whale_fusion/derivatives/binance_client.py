@@ -314,6 +314,11 @@ class BinanceUsdMClient:
                     DerivativesMetric.MARK_PRICE.value,
                 ),
                 provenance("/fapi/v1/markPriceKlines"),
+                attributes={
+                    "mark_open": str(self._sequence(row, "markPriceKlines")[1]),
+                    "mark_high": str(self._sequence(row, "markPriceKlines")[2]),
+                    "mark_low": str(self._sequence(row, "markPriceKlines")[3]),
+                },
             )
             for row in mark_rows
         )

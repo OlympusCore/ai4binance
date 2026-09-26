@@ -144,7 +144,8 @@ def test_settings_reject_minimum_history_above_request_limit() -> None:
 
 def test_settings_defaults_to_bounded_research_history_horizons() -> None:
     settings = Settings()
-    assert settings.market_history_initial_days == 90
+    assert settings.market_history_initial_days == 730
+    assert settings.market_history_full_universe is True
     assert settings.market_history_enrichment_days == 30
     assert settings.market_history_coin_m_enabled is True
     assert settings.market_history_market_cap_asset_limit == 20

@@ -313,7 +313,9 @@ class MarketStructureAgent(BaseAgent):
             previous_low = min(item.low for item in previous)
             recent_high = max(item.high for item in recent)
             recent_low = min(item.low for item in recent)
-            structure = self.structure_engine.analyze(timeframe, candles)
+            structure = self.structure_engine.analyze(
+                timeframe, candles, as_of=snapshot.created_at
+            )
             if structure.state is StructureState.BULLISH:
                 state, vote = "HH_HL", 1.0
             elif structure.state is StructureState.BEARISH:

@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import os
 import threading
-from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -15,11 +14,12 @@ from ai4binance.application.opportunity_monitor import (
     monitor_directory,
     refresh_monitor,
 )
+from ai4binance.cli.futures_multitf import _refresh_futures_monitor
 from ai4binance.config import Settings
 from ai4binance.data.archive import ParquetOHLCVArchive
 from ai4binance.opportunity_intelligence import TIMEFRAME_DURATIONS
 from ai4binance.ops.runtime import SingleInstanceLease
-from ai4binance.schemas import MarketSnapshot, OHLCVCandle
+from ai4binance.schemas import OHLCVCandle
 
 
 def refresh_candle_windows(
@@ -81,19 +81,10 @@ def main() -> int:
     directory = monitor_directory(root, args.market, args.symbol)
     directory.mkdir(parents=True, exist_ok=True)
 
-    def canonical_futures(
-        _snapshot: MarketSnapshot, _timeframe: str
-    ) -> dict[str, object]:
-        return {
-            "status": "DATA_BLOCKED",
-            "blockers": ["FUTURES_DERIVATIVES_CONTEXT_UNAVAILABLE"],
-        }
-
-    futures_builder: Callable[[MarketSnapshot, str], dict[str, object]] = (
-        canonical_futures
-    )
-
     with SingleInstanceLease(directory / "refresh.lock"):
+        if args.market == "USD_M_FUTURES":
+            _refresh_futures_monitor(settings, root, args.symbol, now)
+            return 0
         archive = refresh_candle_windows(
             settings,
             args.market,
@@ -109,7 +100,6 @@ def main() -> int:
             now=now,
             minimum_candles=settings.minimum_closed_candles,
             candle_limit=settings.candle_limit,
-            futures_builder=futures_builder,
         )
     return 0
 

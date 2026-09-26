@@ -606,12 +606,12 @@ def test_sync_finishes_symbol_streams_and_publishes_durable_progress(
 
     assert markets[:1] == ["spot"]
     assert markets.count("spot") == len(MARKET_HISTORY_TIMEFRAMES)
-    assert markets.count("usd_m_futures") == (len(MARKET_HISTORY_TIMEFRAMES) + 4)
+    assert markets.count("usd_m_futures") == (3 * len(MARKET_HISTORY_TIMEFRAMES) + 2)
     expected_snapshot_passes = 2 if long_backfill else 1
     assert snapshot_markets == ["spot", "usd_m_futures"] * expected_snapshot_passes
     assert report["completed_symbols"] == 2
     assert report["total_symbols"] == 2
-    expected_streams = (2 * len(MARKET_HISTORY_TIMEFRAMES)) + 4
+    expected_streams = (4 * len(MARKET_HISTORY_TIMEFRAMES)) + 2
     assert report["completed_streams"] == expected_streams
     assert report["total_streams"] == expected_streams
     assert report["completion_ratio"] == "1.000000"
@@ -683,7 +683,12 @@ def test_stream_plan_uses_each_native_price_candle_feed() -> None:
     )
     assert futures_streams[: len(spot_streams)] == spot_streams
     assert len(spot_streams) == len(MARKET_HISTORY_TIMEFRAMES)
-    assert len(futures_streams) == len(MARKET_HISTORY_TIMEFRAMES) + 4
+    assert len(futures_streams) == 3 * len(MARKET_HISTORY_TIMEFRAMES) + 2
+    for kind in ("markPriceKlines", "indexPriceKlines"):
+        assert (
+            tuple(tf for feed, tf in futures_streams if feed == kind)
+            == MARKET_HISTORY_TIMEFRAMES
+        )
 
 
 def test_priority_symbols_precede_background_backfill(tmp_path: Path) -> None:
@@ -716,7 +721,7 @@ def test_priority_symbols_precede_background_backfill(tmp_path: Path) -> None:
         ("spot", "HOTUSDT", "klines", "1d"),
         ("usd_m_futures", "BTCUSDT", "klines", "5m"),
     ]
-    assert len(streams) == 19
+    assert len(streams) == 27
 
 
 def test_priority_depth_scope_covers_the_bounded_active_universe() -> None:
@@ -835,7 +840,7 @@ def test_background_stream_plan_finishes_each_symbol_before_the_next(
     assert [(market, symbol) for market, symbol, *_ in streams] == [
         *(("spot", "AUSDT"),) * len(MARKET_HISTORY_TIMEFRAMES),
         *(("spot", "BUSDT"),) * len(MARKET_HISTORY_TIMEFRAMES),
-        *(("usd_m_futures", "CUSDT"),) * (len(MARKET_HISTORY_TIMEFRAMES) + 4),
+        *(("usd_m_futures", "CUSDT"),) * (3 * len(MARKET_HISTORY_TIMEFRAMES) + 2),
     ]
 
 
@@ -2534,6 +2539,7 @@ def _market_data_cli_settings(tmp_path: Path) -> Settings:
         Settings,
         SimpleNamespace(
             market_history_initial_days=30,
+            market_history_full_universe=True,
             market_history_pages_per_stream=1,
             market_history_max_workers=1,
             minimum_closed_candles=21,

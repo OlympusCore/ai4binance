@@ -31,6 +31,11 @@ from ai4binance.research.backtesting.models import (
     VirtualMarketFunnelStage,
     VirtualMarketFunnelTelemetry,
 )
+from ai4binance.research.virtual_runtime_risk import (
+    FuturesRiskBracket,
+    isolated_liquidation_price,
+    validate_futures_brackets,
+)
 from ai4binance.schemas import OHLCVCandle
 from ai4binance.validation.futures_replay import RuntimeFuturesReplayDataset
 from ai4binance.whale_fusion.models import (
@@ -60,9 +65,13 @@ class FuturesBacktestConfig(BacktestConfig):
     leverage: int = 2
     maintenance_margin_ratio: Decimal = Decimal("0.005")
     liquidation_fee_ratio: Decimal = Decimal("0.005")
+    require_mark_price_path: bool = False
+    maintenance_brackets: tuple[FuturesRiskBracket, ...] = ()
 
     def __post_init__(self) -> None:
         BacktestConfig.__post_init__(self)
+        if self.require_mark_price_path:
+            validate_futures_brackets(self.maintenance_brackets)
         if (
             isinstance(self.leverage, bool)
             or not isinstance(self.leverage, int)
@@ -244,13 +253,37 @@ class FuturesBacktestEngine:
 
         self._validate_dataset(dataset)
         candles = dataset.candles
+        mark_candles = (
+            dataset.mark_candles if self.config.require_mark_price_path else ()
+        )
+        if mark_candles:
+            mark_times = {c.timestamp for c in mark_candles}
+            if any(
+                p.timestamp not in mark_times
+                for p in dataset.derivatives.series[DerivativesMetric.FUNDING_RATE]
+            ):
+                raise ValueError("funding settlement requires a finer native mark path")
         dataset_sha256 = dataset.dataset_sha256
         funding_points = dataset.derivatives.series[DerivativesMetric.FUNDING_RATE]
         trades: list[TradeRecord] = []
         rejected: list[RejectedSignal] = []
         rejected_candidates: list[_RejectedFuturesCandidate] = []
         pre_veto_observations: list[PreVetoOpportunityRecord] = []
-        audit: list[dict[str, object]] = []
+        audit: list[dict[str, object]] = (
+            [
+                {
+                    "event_type": "FUTURES_LIQUIDATION_MODEL",
+                    "dataset_sha256": dataset_sha256,
+                    "model": "ISOLATED_MARK_OHLC_TIERED_V1"
+                    if mark_candles
+                    else "LEGACY_CONTRACT_PRICE_APPROXIMATION",
+                    "intrabar_order": "UNKNOWN_ADVERSE_FIRST_BOUND",
+                    "execution_allowed": False,
+                }
+            ]
+            if mark_candles
+            else []
+        )
         equity_curve: list[EquityPoint] = []
         stage_counts = {stage.value: 0 for stage in VirtualMarketFunnelStage}
         reason_counts: dict[str, int] = {}
@@ -311,10 +344,17 @@ class FuturesBacktestEngine:
                 pending_observation_id = None
 
             if open_trade is not None:
-                self._apply_funding(open_trade, funding_points, candle.timestamp)
+                if mark_candles:
+                    self._mark_path_funding(
+                        open_trade, funding_points, mark_candles[index]
+                    )
+                else:
+                    self._apply_funding(open_trade, funding_points, candle.timestamp)
                 self._update_excursions(open_trade, candle)
                 open_trade.bars_held += 1
-                exit_decision = self._exit_decision(open_trade, candle)
+                exit_decision = self._exit_decision(
+                    open_trade, candle, mark_candles[index] if mark_candles else None
+                )
                 if exit_decision is not None:
                     trade = self._close_trade(
                         open_trade,
@@ -340,7 +380,13 @@ class FuturesBacktestEngine:
                     audit.append(close_event)
                     open_trade = None
 
-            equity_curve.append(self._equity_point(candle, available_cash, open_trade))
+            equity_curve.append(
+                self._equity_point(
+                    mark_candles[index] if mark_candles else candle,
+                    available_cash,
+                    open_trade,
+                )
+            )
 
             if callable(indexed_provider):
                 intent = indexed_provider(dataset, index)
@@ -427,6 +473,7 @@ class FuturesBacktestEngine:
             tuple(rejected_candidates),
             candles,
             funding_points,
+            mark_candles,
         )
         for record in missed_opportunity_ledger.records:
             review_event = self._event(
@@ -699,18 +746,51 @@ class FuturesBacktestEngine:
             rounding = ROUND_DOWN
         return price.quantize(self.config.tick_size, rounding=rounding)
 
-    @staticmethod
     def _liquidation_price(
+        self,
         direction: TradeDirection,
         entry_price: Decimal,
         quantity: Decimal,
         isolated_margin: Decimal,
         maintenance_margin: Decimal,
     ) -> Decimal:
+        if self.config.require_mark_price_path:
+            return isolated_liquidation_price(
+                long=direction is TradeDirection.LONG,
+                entry=entry_price,
+                quantity=quantity,
+                wallet_margin=isolated_margin,
+                brackets=self.config.maintenance_brackets,
+            )
         buffer_per_unit = (isolated_margin - maintenance_margin) / quantity
         if direction is TradeDirection.LONG:
             return entry_price - buffer_per_unit
         return entry_price + buffer_per_unit
+
+    def _mark_path_funding(
+        self,
+        trade: _OpenFuturesTrade,
+        points: tuple[MetricPoint, ...],
+        mark: OHLCVCandle,
+    ) -> None:
+        """Settle funding at the observed mark and re-solve every bar's margin."""
+        last = trade.last_funding_timestamp or trade.entry_timestamp
+        sign = ONE if trade.intent.direction is TradeDirection.LONG else -ONE
+        for point in points:
+            if last < point.timestamp <= mark.timestamp:
+                if point.timestamp != mark.timestamp:
+                    raise ValueError(
+                        "funding settlement requires a finer native mark path"
+                    )
+                trade.funding_cost += trade.quantity * mark.open * point.value * sign
+                trade.last_funding_timestamp = point.timestamp
+        trade.liquidation_price = isolated_liquidation_price(
+            long=sign == ONE,
+            entry=trade.entry_price,
+            quantity=trade.quantity,
+            wallet_margin=trade.initial_margin - trade.funding_cost,
+            brackets=self.config.maintenance_brackets,
+        )
 
     @staticmethod
     def _apply_funding(
@@ -752,23 +832,33 @@ class FuturesBacktestEngine:
     def _exit_decision(
         open_trade: _OpenFuturesTrade,
         candle: OHLCVCandle,
+        mark_candle: OHLCVCandle | None = None,
     ) -> _ExitDecision | None:
         intent = open_trade.intent
+        liquidation_candle = mark_candle or candle
         if intent.direction is TradeDirection.LONG:
-            if candle.low <= open_trade.liquidation_price:
+            if liquidation_candle.low <= open_trade.liquidation_price:
+                if mark_candle is not None:
+                    open_trade.blocker_history.append(
+                        "MARK_OHLC_INTRABAR_ORDER_UNKNOWN"
+                    )
                 return _ExitDecision(
                     BacktestExitReason.LIQUIDATION,
-                    open_trade.liquidation_price,
+                    min(liquidation_candle.open, open_trade.liquidation_price),
                 )
             if candle.low <= intent.stop_loss:
                 return _ExitDecision(BacktestExitReason.HARD_STOP, intent.stop_loss)
             if candle.high >= intent.take_profit:
                 return _ExitDecision(BacktestExitReason.TARGET, intent.take_profit)
         else:
-            if candle.high >= open_trade.liquidation_price:
+            if liquidation_candle.high >= open_trade.liquidation_price:
+                if mark_candle is not None:
+                    open_trade.blocker_history.append(
+                        "MARK_OHLC_INTRABAR_ORDER_UNKNOWN"
+                    )
                 return _ExitDecision(
                     BacktestExitReason.LIQUIDATION,
-                    open_trade.liquidation_price,
+                    max(liquidation_candle.open, open_trade.liquidation_price),
                 )
             if candle.high >= intent.stop_loss:
                 return _ExitDecision(BacktestExitReason.HARD_STOP, intent.stop_loss)
@@ -930,6 +1020,7 @@ class FuturesBacktestEngine:
         rejected_candidates: tuple[_RejectedFuturesCandidate, ...],
         candles: tuple[OHLCVCandle, ...],
         funding_points: tuple[MetricPoint, ...],
+        mark_candles: tuple[OHLCVCandle, ...] = (),
     ) -> MissedOpportunityLedger:
         return MissedOpportunityLedger(
             records=tuple(
@@ -937,6 +1028,7 @@ class FuturesBacktestEngine:
                     candidate,
                     candles,
                     funding_points,
+                    mark_candles,
                 )
                 for candidate in rejected_candidates
             )
@@ -947,11 +1039,13 @@ class FuturesBacktestEngine:
         rejected: _RejectedFuturesCandidate,
         candles: tuple[OHLCVCandle, ...],
         funding_points: tuple[MetricPoint, ...],
+        mark_candles: tuple[OHLCVCandle, ...] = (),
     ) -> MissedOpportunityRecord:
         trade = self._simulate_counterfactual_trade(
             rejected,
             candles,
             funding_points,
+            mark_candles,
         )
         if trade is None:
             return self._insufficient_evidence_record(rejected)
@@ -987,6 +1081,7 @@ class FuturesBacktestEngine:
         rejected: _RejectedFuturesCandidate,
         candles: tuple[OHLCVCandle, ...],
         funding_points: tuple[MetricPoint, ...],
+        mark_candles: tuple[OHLCVCandle, ...] = (),
     ) -> TradeRecord | None:
         if rejected.entry_index >= len(candles):
             return None
@@ -1001,11 +1096,17 @@ class FuturesBacktestEngine:
         if entry_blockers - {"STOP_BEYOND_LIQUIDATION"}:
             return None
         open_trade = self._open_trade(rejected.intent, entry_candle)
-        for candle in candles[rejected.entry_index :]:
-            self._apply_funding(open_trade, funding_points, candle.timestamp)
+        for index in range(rejected.entry_index, len(candles)):
+            candle = candles[index]
+            if mark_candles:
+                self._mark_path_funding(open_trade, funding_points, mark_candles[index])
+            else:
+                self._apply_funding(open_trade, funding_points, candle.timestamp)
             self._update_excursions(open_trade, candle)
             open_trade.bars_held += 1
-            decision = self._exit_decision(open_trade, candle)
+            decision = self._exit_decision(
+                open_trade, candle, mark_candles[index] if mark_candles else None
+            )
             if decision is not None:
                 return self._close_trade(open_trade, candle.timestamp, decision)
         last = candles[-1]

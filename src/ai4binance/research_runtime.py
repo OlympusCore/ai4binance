@@ -40,6 +40,8 @@ from ai4binance.research.virtual_runtime import (
 )
 from ai4binance.schemas import MarketSnapshot, OHLCVCandle
 from ai4binance.storage import AuditEvent
+from ai4binance.validation.futures_replay import RuntimeFuturesReplayDataset
+from ai4binance.whale_fusion.models import DerivativesMetric
 
 
 def build_research_application_service(**kwargs: object) -> ResearchApplicationService:
@@ -161,6 +163,7 @@ class HistoricalReplaySnapshot:
     execution_allowed: bool = False
     promotion_status: str = "RESEARCH_ONLY"
     live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
+    historical_derivatives: RuntimeFuturesReplayDataset | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -216,6 +219,32 @@ class HistoricalReplaySnapshot:
             )
         expected_market = self.snapshot.market_type
         expected_symbol = self.snapshot.symbol
+        if self.historical_derivatives is not None:
+            history = self.historical_derivatives
+            if (
+                expected_market != history.market
+                or expected_symbol != history.symbol
+                or history.timeframe not in self.snapshot.timeframes
+            ):
+                raise ValueError(
+                    "historical derivatives identity must match the snapshot"
+                )
+            if not any(
+                b.timeframe == history.timeframe
+                and b.dataset_sha256 == history.dataset_sha256
+                for b in ordered
+            ):
+                raise ValueError(
+                    "historical derivatives require an exact dataset binding"
+                )
+            history_candles = {c.timestamp: c for c in history.candles}
+            if any(
+                history_candles.get(c.timestamp) != c
+                for c in self.snapshot.ohlcv_by_timeframe[history.timeframe]
+            ):
+                raise ValueError(
+                    "historical derivatives must bind the exact OHLCV prefix"
+                )
         if any(
             binding.market.value != expected_market or binding.symbol != expected_symbol
             for binding in ordered
@@ -296,6 +325,11 @@ class HistoricalReplaySnapshot:
             lambda value: value,
             {
                 "snapshot": to_primitive(self.snapshot),
+                "historical_derivatives_sha256": (
+                    self.historical_derivatives.dataset_sha256
+                    if self.historical_derivatives is not None
+                    else None
+                ),
                 "execution_context": (
                     self.execution_context.to_payload()
                     if self.execution_context is not None
@@ -315,6 +349,11 @@ class HistoricalReplaySnapshot:
                 "snapshot": {
                     key: value for key, value in payload.items() if key != "snapshot_id"
                 },
+                "historical_derivatives_sha256": (
+                    self.historical_derivatives.dataset_sha256
+                    if self.historical_derivatives is not None
+                    else None
+                ),
                 "execution_context": (
                     self.execution_context.to_payload()
                     if self.execution_context is not None
@@ -327,14 +366,47 @@ class HistoricalReplaySnapshot:
     def pipeline_snapshot(self) -> MarketSnapshot:
         """Return the canonical snapshot with only typed replay context attached."""
 
-        if self.execution_context is None:
+        if self.execution_context is None and self.historical_derivatives is None:
             return self.snapshot
-        payload = self.execution_context.to_payload()
         metadata = dict(self.snapshot.market_metadata)
-        metadata["historical_virtual_execution"] = payload
-        derivatives = (
-            payload if self.execution_context.market.value == "USD_M_FUTURES" else {}
-        )
+        if self.execution_context is not None:
+            metadata["historical_virtual_execution"] = (
+                self.execution_context.to_payload()
+            )
+        derivatives: dict[str, object] = {}
+        if self.historical_derivatives is not None:
+            history = self.historical_derivatives
+            points = []
+            for metric, name in (
+                (DerivativesMetric.OPEN_INTEREST, "open_interest"),
+                (DerivativesMetric.MARK_PRICE, "mark_price"),
+                (DerivativesMetric.INDEX_PRICE, "index_price"),
+                (DerivativesMetric.FUNDING_RATE, "funding_rate"),
+            ):
+                visible = tuple(
+                    p
+                    for p in history.derivatives.series.get(metric, ())
+                    if p.timestamp
+                    + (
+                        timedelta(0)
+                        if metric is DerivativesMetric.FUNDING_RATE
+                        else timeframe_duration(history.timeframe)
+                    )
+                    <= self.created_at
+                )
+                if visible:
+                    point = max(visible, key=lambda p: p.timestamp)
+                    derivatives[name] = str(point.value)
+                    points.append(point)
+            if points:
+                derivatives.update(
+                    symbol=self.symbol,
+                    market=self.market,
+                    as_of=min(p.timestamp for p in points).isoformat(),
+                    source_count=len({p.provenance.source_id for p in points}),
+                    dataset_sha256=history.dataset_sha256,
+                    source="VERIFIED_HISTORICAL_DERIVATIVES",
+                )
         return replace(
             self.snapshot,
             market_metadata=metadata,
@@ -347,6 +419,11 @@ class HistoricalReplaySnapshot:
         return {
             "snapshot_id": self.snapshot.snapshot_id,
             "snapshot_sha256": self.audit_snapshot_sha256,
+            "historical_derivatives_sha256": (
+                self.historical_derivatives.dataset_sha256
+                if self.historical_derivatives is not None
+                else None
+            ),
             "created_at": self.created_at.isoformat(),
             "market": self.market,
             "symbol": self.symbol,
@@ -369,6 +446,11 @@ class HistoricalReplaySnapshot:
 
         return {
             "snapshot_sha256": self.semantic_snapshot_sha256,
+            "historical_derivatives_sha256": (
+                self.historical_derivatives.dataset_sha256
+                if self.historical_derivatives is not None
+                else None
+            ),
             "created_at": self.created_at.isoformat(),
             "market": self.market,
             "symbol": self.symbol,

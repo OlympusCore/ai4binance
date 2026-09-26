@@ -493,6 +493,8 @@ def _candidate_from_snapshot(
         timeframe=timeframe,
         snapshot_id=snapshot.snapshot_id,
         decision_time=decision_time,
+        symbol=snapshot.symbol,
+        market=snapshot.market_type,
     )
     extension_blockers = (
         ("EXTENDED_CANDLE_WAIT_FOR_RETEST",)

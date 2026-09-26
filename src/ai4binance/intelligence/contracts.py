@@ -67,9 +67,11 @@ class PatternLifecycleState(StrEnum):
     """Normalized research lifecycle for every pattern family."""
 
     FORMING = "FORMING"
+    POTENTIAL = "POTENTIAL"
     CONFIRMED = "CONFIRMED"
     FAILED = "FAILED"
     INVALIDATED = "INVALIDATED"
+    EXPIRED = "EXPIRED"
     CONTEXT_ONLY = "CONTEXT_ONLY"
     ALTERNATIVE_UNRESOLVED = "ALTERNATIVE_UNRESOLVED"
 
@@ -249,6 +251,9 @@ class TrendGeometryEvidence:
     compression_state: str = "NOT_MEASURED"
     acceleration_state: str = "NOT_MEASURED"
     blockers: tuple[str, ...] = field(default_factory=tuple)
+    geometry_id: str = ""
+    method: str = "ENDPOINT_CHANNEL_FALLBACK"
+    atr_normalized_slope: Decimal = ZERO
 
     def __post_init__(self) -> None:
         required = (
@@ -301,6 +306,7 @@ class PatternHypothesisEvidence:
     attributes: tuple[tuple[str, str], ...] = field(default_factory=tuple)
     primary_direction_signal: bool = False
     execution_allowed: bool = False
+    observation_id: str = ""
 
     def __post_init__(self) -> None:
         required = (self.hypothesis_id, self.family, self.lifecycle_state)

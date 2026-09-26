@@ -140,7 +140,11 @@ def universe_monitor_summary(
                     datetime.fromisoformat(manifest.last_timestamp)
                     + (TIMEFRAME_DURATIONS[timeframe])
                 )
-                if manifest.row_count < minimum_candles or manifest.gap_count:
+                if (
+                    last_close > now
+                    or manifest.row_count < minimum_candles
+                    or manifest.gap_count
+                ):
                     status = "INVALID"
                 elif now.astimezone(UTC) - last_close.astimezone(UTC) > (
                     TIMEFRAME_DURATIONS[timeframe] * 2
@@ -367,6 +371,8 @@ def screen_market_opportunities(
                 timeframe=timeframe,
                 snapshot_id=snapshot.snapshot_id,
                 decision_time=now,
+                symbol=snapshot.symbol,
+                market=snapshot.market_type,
             )
             active_pattern = pattern is not None and pattern.state not in {
                 ChartPatternLifecycleState.EXPIRED,

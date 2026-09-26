@@ -4,7 +4,7 @@ import json
 import sqlite3
 from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from hashlib import sha256
@@ -62,10 +62,15 @@ class LocalMarketSnapshotTransport:
             "/fapi/v1/exchangeInfo": "exchange-info.json",
             "/fapi/v1/ticker/24hr": "ticker-24hr.json",
             "/fapi/v1/ticker/bookTicker": "ticker-bookTicker.json",
-            "/fapi/v1/premiumIndex": "premium-index.json",
+            "/fapi/v1/premiumIndex": "premiumIndex.json",
         }
         if path not in filenames:
             raise ExchangePayloadError("shared collector owns market-data acquisition")
+        if (
+            path.endswith("premiumIndex")
+            and not (self.directory / filenames[path]).exists()
+        ):
+            filenames[path] = "premium-index.json"
         try:
             if (self.directory / filenames[path]).stat().st_size > 8_000_000:
                 raise ValueError("shared snapshot exceeds its size limit")
@@ -102,6 +107,120 @@ class LocalMarketSnapshotTransport:
             raise ExchangePayloadError(
                 "canonical local market snapshot is unavailable"
             ) from error
+
+    def attach_futures_context(self, snapshot: MarketSnapshot) -> MarketSnapshot:
+        """Attach collector-owned public evidence without network acquisition.
+
+        Missing, future, stale, and wrong-symbol evidence stays unavailable.
+        This current-observation reader must never enrich historical replay.
+        """
+        if snapshot.market_type != "USD_M_FUTURES":
+            raise ValueError("local Futures context requires a USD-M snapshot")
+        ParquetOHLCVArchive._validate_identity(snapshot.symbol, "5m", "local_read")
+        if abs((self.clock() - snapshot.created_at).total_seconds()) > 1:
+            raise ValueError(
+                "local Futures context cannot enrich a historical snapshot"
+            )
+        try:
+            premium = self.get_json(
+                "/fapi/v1/premiumIndex", {"symbol": snapshot.symbol}
+            )
+            book = self.get_json(
+                "/fapi/v1/ticker/bookTicker", {"symbol": snapshot.symbol}
+            )
+            exchange = self.get_json(
+                "/fapi/v1/exchangeInfo", {"symbol": snapshot.symbol}
+            )
+            if not isinstance(premium, Mapping) or not isinstance(book, Mapping):
+                raise ValueError("local Futures market evidence is invalid")
+            if not isinstance(exchange, Mapping):
+                raise ValueError("local Futures exchange evidence is invalid")
+            symbol_info = exchange["symbols"][0]
+            filters = {item["filterType"]: item for item in symbol_info["filters"]}
+            as_of = datetime.fromtimestamp(int(str(premium["time"])) / 1000, tz=UTC)
+            if (
+                not 0
+                <= (snapshot.created_at - as_of).total_seconds()
+                <= self.maximum_age_seconds
+            ):
+                raise ValueError("local Futures mark-price evidence is stale")
+            oi, oi_time = self._latest_open_interest(snapshot)
+            bid, ask = Decimal(str(book["bidPrice"])), Decimal(str(book["askPrice"]))
+            if not bid.is_finite() or not ask.is_finite() or not 0 < bid <= ask:
+                raise ValueError("local Futures spread is invalid")
+            return replace(
+                snapshot,
+                bid=bid,
+                ask=ask,
+                spread=ask - bid,
+                exchange_filters=filters,
+                market_metadata={
+                    **snapshot.market_metadata,
+                    "trading_status": symbol_info["status"],
+                },
+                derivatives_snapshot={
+                    "symbol": snapshot.symbol,
+                    "market": "USD_M_FUTURES",
+                    "as_of": min(as_of, oi_time).isoformat(),
+                    "source_count": 2,
+                    "funding_rate": premium["lastFundingRate"],
+                    "mark_price": premium["markPrice"],
+                    "index_price": premium["indexPrice"],
+                    "open_interest": str(oi),
+                    "source": "CANONICAL_LOCAL_COLLECTOR",
+                },
+            )
+        except (
+            ExchangePayloadError,
+            OSError,
+            ValueError,
+            KeyError,
+            TypeError,
+            AttributeError,
+            IndexError,
+            ArithmeticError,
+        ):
+            return replace(snapshot, derivatives_snapshot={})
+
+    def _latest_open_interest(
+        self, snapshot: MarketSnapshot
+    ) -> tuple[Decimal, datetime]:
+        directory = (
+            self.directory.parent / snapshot.symbol / "details" / "open_interest"
+        )
+        pages = sorted(
+            (p for p in directory.glob("*.json") if p.stem.isdigit()),
+            key=lambda p: int(p.stem),
+            reverse=True,
+        )[:4]
+        points: list[tuple[datetime, Decimal]] = []
+        for page in pages:
+            if page.stat().st_size > 8_000_000:
+                raise ValueError("local open-interest page exceeds size limit")
+            payload = json.loads(page.read_text(encoding="utf-8"))
+            if payload.get("source") != "/futures/data/openInterestHist":
+                continue
+            for row in payload["rows"]:
+                if row.get("symbol") != snapshot.symbol:
+                    raise ValueError("local open-interest symbol mismatch")
+                stamp = datetime.fromtimestamp(
+                    int(str(row["timestamp"])) / 1000, tz=UTC
+                )
+                value = Decimal(str(row["sumOpenInterest"]))
+                if not value.is_finite() or value <= 0:
+                    raise ValueError("local open interest is invalid")
+                if (
+                    0
+                    <= (snapshot.created_at - stamp).total_seconds()
+                    <= self.maximum_age_seconds
+                ):
+                    points.append((stamp, value))
+        if not points:
+            raise ValueError("current local open interest is unavailable")
+        if any(len({v for t, v in points if t == stamp}) != 1 for stamp, _ in points):
+            raise ValueError("local open-interest timestamps conflict")
+        stamp, value = max(points, key=lambda point: point[0])
+        return value, stamp
 
 
 @dataclass(frozen=True, slots=True)

@@ -299,7 +299,9 @@ class ResearchMarketUniverseProvider:
                     "include_rehypothecated": "false",
                 },
             )
-            ranked_assets = self._ranked_assets(rows, metadata)
+            spot_ranked = self._ranked_assets(rows, metadata, market="SPOT")
+            futures_ranked = self._ranked_assets(rows, metadata, market="USD_M_FUTURES")
+            ranked_assets = tuple(dict.fromkeys((*spot_ranked, *futures_ranked)))
         except (
             ExchangeHttpError,
             ExchangePayloadError,
@@ -309,7 +311,7 @@ class ResearchMarketUniverseProvider:
             ValueError,
         ):
             return self._blocked(metadata, "PUBLIC_MARKET_CAP_UNIVERSE_UNAVAILABLE")
-        if len(ranked_assets) < self.market_cap_asset_limit:
+        if min(len(spot_ranked), len(futures_ranked)) < self.market_cap_asset_limit:
             return self._blocked(metadata, "PUBLIC_MARKET_CAP_UNIVERSE_INCOMPLETE")
 
         spot_by_asset = self._symbols_by_asset(metadata.spot_symbols)
@@ -331,6 +333,7 @@ class ResearchMarketUniverseProvider:
             sorted(
                 symbol
                 for asset in selected
+                if asset in wallet.assets or asset in spot_ranked
                 if (symbol := self._preferred_symbol(spot_by_asset.get(asset, ())))
             )
         )
@@ -338,6 +341,7 @@ class ResearchMarketUniverseProvider:
             sorted(
                 symbol
                 for asset in selected
+                if asset in wallet.assets or asset in futures_ranked
                 if (symbol := self._preferred_symbol(futures_by_asset.get(asset, ())))
             )
         )
@@ -358,12 +362,13 @@ class ResearchMarketUniverseProvider:
         )
 
     def _ranked_assets(
-        self, rows: object, metadata: BinanceEligibleMarketSnapshot
+        self, rows: object, metadata: BinanceEligibleMarketSnapshot, *, market: str
     ) -> tuple[str, ...]:
         if not isinstance(rows, Sequence) or isinstance(rows, (str, bytes)):
             raise ValueError("market-cap rows must be an array")
         spot_by_asset = self._symbols_by_asset(metadata.spot_symbols)
         futures_by_asset = self._symbols_by_asset(metadata.futures_symbols)
+        listed = spot_by_asset if market == "SPOT" else futures_by_asset
         accepted: list[tuple[int, str]] = []
         seen: set[str] = set()
         for raw in rows:
@@ -375,6 +380,7 @@ class ResearchMarketUniverseProvider:
             cap = raw.get("market_cap")
             if (
                 not asset.isalnum()
+                or asset not in listed
                 or asset in seen
                 or not isinstance(rank, int)
                 or rank < 1
@@ -392,6 +398,13 @@ class ResearchMarketUniverseProvider:
             )
             if not classification.eligible:
                 continue
+            updated_at = datetime.fromisoformat(str(raw.get("last_updated", "")))
+            if updated_at.utcoffset() is None or not timedelta(
+                minutes=-1
+            ) <= self._now() - updated_at <= timedelta(hours=1):
+                raise ValueError(
+                    "market-cap observation is missing, stale, or future-dated"
+                )
             accepted.append((rank, asset))
             seen.add(asset)
         accepted.sort()

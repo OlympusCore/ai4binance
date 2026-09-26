@@ -51,9 +51,10 @@ class Settings(BaseSettings):
     market_history_state_path: Path = Path("runtime/state/market-history-latest.json")
     market_history_interval_seconds: float = 21_600.0
     market_history_live_interval_seconds: float = 300.0
-    # Baseline collection is narrower than the governed 365-day OOS promotion
-    # floor. Insufficient OOS evidence remains research-only and blocked.
-    market_history_initial_days: int = 90
+    # Include daily feature warm-up before the governed 365-day OOS floor.
+    # Actual listing availability and acceptance remain independently verified.
+    market_history_initial_days: int = 730
+    market_history_full_universe: bool = True
     market_history_enrichment_days: int = 30
     market_history_pages_per_stream: int = 32
     market_history_max_workers: int = 8

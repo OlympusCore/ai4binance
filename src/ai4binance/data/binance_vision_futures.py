@@ -560,7 +560,12 @@ class BinanceVisionFuturesReplayIngestor:
                 row["close"],
                 sources["mark_price"],
                 observed_at,
-                common_attributes,
+                {
+                    **common_attributes,
+                    "mark_open": row["open"],
+                    "mark_high": row["high"],
+                    "mark_low": row["low"],
+                },
             )
             for timestamp, row in zip(mark_timestamps, mark_rows, strict=True)
         )
@@ -695,6 +700,7 @@ class BinanceVisionFuturesReplayIngestor:
                     value=point.value,
                     provenance=point.provenance,
                     attributes={
+                        **point.attributes,
                         **attributes,
                         "alignment": f"CLOSED_{timeframe.upper()}_EXACT_PUBLIC_REST",
                     },

@@ -183,6 +183,7 @@ class _RiskAssessmentSnapshot:
     candidate_id: str
     approved: bool
     quantity: Decimal
+    risk_amount_usdt: Decimal = Decimal("0")
 
 
 class OrchestratorLike(Protocol):
@@ -964,6 +965,10 @@ class ResearchApplicationService:
             dge_blockers=dge_blockers,
             dge_decision=dge_status,
             dge_simulation_allowed=dge_simulation_allowed,
+            require_structural_margin_proof=(
+                market == "USD_M_FUTURES" and "STRUCTURAL_PLAN_V2" in candidate.evidence
+            ),
+            structural_risk_budget_usdt=risk_assessment.risk_amount_usdt,
             **execution_inputs,
         )
         decision = run_virtual_market_cycle(
@@ -1138,6 +1143,9 @@ class ResearchApplicationService:
                 "isolated_margin_usdt": isolated_margin,
                 "maintenance_margin_ratio": maintenance_ratio,
                 "liquidation_fee_ratio": liquidation_fee_ratio,
+                "structural_margin_context": raw_context.get(
+                    "structural_margin_context"
+                ),
             },
             (),
         )
@@ -1260,6 +1268,7 @@ class ResearchApplicationService:
                 candidate_id=candidate_id,
                 approved=approved,
                 quantity=Decimal(str(quantity)),
+                risk_amount_usdt=Decimal(str(risk_amount_usdt)),
             )
         except (ArithmeticError, ValueError, TypeError):
             return None

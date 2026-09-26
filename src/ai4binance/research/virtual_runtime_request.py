@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
+from types import MappingProxyType
 
 from ai4binance.core.contracts.virtual_governance import (
     DGE_APPROVED_PAPER_ONLY,
@@ -79,9 +81,27 @@ class VirtualRuntimeRequest:
     risk_policy_version: str = "unknown"
     validation_version: str = "unknown"
     entry_reason: tuple[str, ...] = ("VIRTUAL_MARKET_ENTRY",)
+    require_structural_margin_proof: bool = False
+    structural_margin_context: Mapping[str, object] | None = None
+    structural_risk_budget_usdt: Decimal | None = None
 
     def __post_init__(self) -> None:
         self._validate_numeric_inputs()
+        if not isinstance(self.require_structural_margin_proof, bool):
+            raise ValueError("structural margin requirement must be boolean")
+        if self.structural_risk_budget_usdt is not None and (
+            not self.structural_risk_budget_usdt.is_finite()
+            or self.structural_risk_budget_usdt < ZERO
+        ):
+            raise ValueError("structural risk budget must be finite and nonnegative")
+        if self.structural_margin_context is not None:
+            if not isinstance(self.structural_margin_context, Mapping):
+                raise ValueError("structural margin context must be a mapping")
+            object.__setattr__(
+                self,
+                "structural_margin_context",
+                MappingProxyType(dict(self.structural_margin_context)),
+            )
         if not self.opportunity_id.strip():
             object.__setattr__(
                 self,

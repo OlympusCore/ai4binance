@@ -149,6 +149,7 @@ class ScenarioEngine:
         self,
         candidates: tuple[TradeCandidate, ...],
         state: TradingIntelligenceState,
+        snapshot: MarketSnapshot | None = None,
     ) -> tuple[TradeCandidate, ...]:
         """Bind candidates to one selected scenario before risk arbitration."""
         primary = state.selected_scenario
@@ -213,6 +214,27 @@ class ScenarioEngine:
                     )
                 )
                 continue
+            if snapshot is not None and state.market_type == "USD_M_FUTURES":
+                if (
+                    snapshot.snapshot_id != state.snapshot_id
+                    or snapshot.symbol != state.symbol
+                    or snapshot.created_at != state.timestamp
+                    or snapshot.market_type != state.market_type
+                ):
+                    bound.append(
+                        replace(
+                            candidate,
+                            status=CandidateStatus.RESEARCH_ONLY,
+                            blockers=(
+                                *candidate.blockers,
+                                "PLAN_SNAPSHOT_IDENTITY_MISMATCH",
+                            ),
+                        )
+                    )
+                    continue
+                candidate = self.trade_plan_engine.structural_candidate(
+                    candidate, primary, state, snapshot
+                )
             bound.append(self.trade_plan_engine.bind(candidate, primary, state))
         return tuple(bound)
 

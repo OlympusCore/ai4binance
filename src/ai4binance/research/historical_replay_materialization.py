@@ -22,6 +22,7 @@ from ai4binance.research.historical_replay import (
 )
 from ai4binance.research.virtual_market import VirtualMarket
 from ai4binance.schemas import DataQuality, MarketSnapshot, OHLCVCandle
+from ai4binance.validation.futures_replay import RuntimeFuturesReplayDataset
 from ai4binance.whale_fusion.models import DerivativesMetric, MetricPoint
 
 if TYPE_CHECKING:
@@ -89,6 +90,7 @@ class HistoricalFuturesReplayDatasetSeries(HistoricalReplayDatasetSeries):
 
     mark_prices: tuple[MetricPoint, ...]
     funding_rates: tuple[MetricPoint, ...]
+    replay_dataset: RuntimeFuturesReplayDataset | None = None
     _candle_timestamps: tuple[datetime, ...] = field(
         init=False,
         repr=False,
@@ -102,6 +104,13 @@ class HistoricalFuturesReplayDatasetSeries(HistoricalReplayDatasetSeries):
 
     def __post_init__(self) -> None:
         HistoricalReplayDatasetSeries.__post_init__(self)
+        if self.replay_dataset is not None and (
+            self.replay_dataset.dataset_sha256 != self.binding.dataset_sha256
+            or self.replay_dataset.candles != self.candles
+            or self.replay_dataset.symbol != self.binding.symbol
+            or self.replay_dataset.timeframe != self.binding.timeframe
+        ):
+            raise ValueError("historical Futures dataset must match its exact binding")
         if self.binding.market is not VirtualMarket.USD_M_FUTURES:
             raise ValueError("Futures replay series requires a Futures binding")
         candle_timestamps = tuple(candle.timestamp for candle in self.candles)
@@ -422,6 +431,7 @@ class HistoricalFuturesReplaySeriesLoader:
             candles=dataset.candles,
             mark_prices=mark_prices,
             funding_rates=funding_rates,
+            replay_dataset=dataset,
         )
 
 
@@ -620,7 +630,20 @@ class HistoricalReplaySnapshotMaterializer:
                     "dataset_revision_id": event_series.binding.dataset_revision_id,
                 },
             )
-            output.append(HistoricalReplaySnapshot(snapshot, bindings, context))
+            event_series = pair_series[event_timeframe]
+            history = (
+                event_series.replay_dataset
+                if isinstance(event_series, HistoricalFuturesReplayDatasetSeries)
+                else None
+            )
+            output.append(
+                HistoricalReplaySnapshot(
+                    snapshot,
+                    bindings,
+                    context,
+                    historical_derivatives=history,
+                )
+            )
         return tuple(output)
 
     @staticmethod

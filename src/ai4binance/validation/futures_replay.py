@@ -145,6 +145,45 @@ class RuntimeFuturesReplayDataset:
         """Return the exactly aligned open-interest values."""
         return self.derivatives.values(DerivativesMetric.OPEN_INTEREST)
 
+    @property
+    def mark_candles(self) -> tuple[OHLCVCandle, ...]:
+        """Return checksum-bound native mark OHLC; never substitute trade prices."""
+        points = self.derivatives.series.get(DerivativesMetric.MARK_PRICE, ())
+        if tuple(p.timestamp for p in points) != tuple(
+            c.timestamp for c in self.candles
+        ):
+            raise ValueError("complete aligned mark-price OHLC history is required")
+        if self.derivatives.as_of < self.candles[-1].timestamp + timeframe_duration(
+            self.timeframe
+        ):
+            raise ValueError("mark-price history contains an unclosed candle")
+        try:
+            if any(
+                not value.is_finite() or value <= Decimal("0")
+                for point in points
+                for value in (
+                    point.value,
+                    *(
+                        Decimal(point.attributes[key])
+                        for key in ("mark_open", "mark_high", "mark_low")
+                    ),
+                )
+            ):
+                raise ValueError("mark-price OHLC must be finite and positive")
+            return tuple(
+                OHLCVCandle(
+                    timestamp=p.timestamp,
+                    open=Decimal(p.attributes["mark_open"]),
+                    high=Decimal(p.attributes["mark_high"]),
+                    low=Decimal(p.attributes["mark_low"]),
+                    close=p.value,
+                    volume=Decimal("0"),
+                )
+                for p in points
+            )
+        except (KeyError, InvalidOperation) as error:
+            raise ValueError("native mark-price OHLC history is unavailable") from error
+
     def to_artifact_payload(self) -> dict[str, object]:
         """Return the canonical checksum-bound local replay representation."""
 

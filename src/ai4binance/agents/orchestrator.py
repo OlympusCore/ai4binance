@@ -230,6 +230,7 @@ class EnterpriseOrchestrator:
         candidates = self.trading_intelligence_engine.bind_candidates(
             candidates,
             trading_intelligence,
+            snapshot,
         )
         selection = self.candidate_arbitrator.select(candidates)
         risk_candidates = selection.ranked[:5] if selection.selected is not None else ()

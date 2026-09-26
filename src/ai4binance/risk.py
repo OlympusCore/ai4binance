@@ -220,6 +220,20 @@ class RiskEngine:
 
         entry = candidate.entry_price
         stop_distance = candidate_risk_distance(candidate)
+        if (
+            candidate.market_type == "USD_M_FUTURES"
+            and "STRUCTURAL_PLAN_V2" in candidate.evidence
+        ):
+            stressed_distance = _structural_sizing_distance(candidate, snapshot)
+            if stressed_distance is None:
+                blockers.append("STRUCTURAL_RISK_SIZING_EVIDENCE_UNAVAILABLE")
+                stop_distance = ZERO
+            else:
+                stop_distance = max(stop_distance, stressed_distance)
+                reserve = stop_distance - abs(entry - candidate.stop_loss)
+                stressed_reward = abs(candidate.take_profit_levels[0] - entry) - reserve
+                if stressed_reward / stop_distance < self.config.minimum_risk_reward:
+                    blockers.append("STRESSED_NET_RISK_REWARD_BELOW_MINIMUM")
         if stop_distance <= ZERO:
             blockers.append("STOP_DISTANCE_INVALID")
         if (
@@ -287,6 +301,68 @@ class RiskEngine:
             risk_amount_usdt=risk_amount,
             blockers=unique_blockers,
         )
+
+
+def structural_margin_loss_per_unit(
+    entry: Decimal,
+    stop: Decimal,
+    mark_price: Decimal,
+    cost_and_funding_ratio: Decimal,
+    mark_stress_ratio: Decimal,
+) -> tuple[Decimal, Decimal]:
+    """Share the same conservative loss geometry between sizing and margin veto."""
+    sign = Decimal("1") if stop < entry else Decimal("-1")
+    stressed_stop = stop - sign * (abs(mark_price - entry) + entry * mark_stress_ratio)
+    loss = abs(entry - stressed_stop) + entry * cost_and_funding_ratio
+    return stressed_stop, loss
+
+
+def _structural_sizing_distance(
+    candidate: TradeCandidate,
+    snapshot: MarketSnapshot,
+) -> Decimal | None:
+    raw = snapshot.market_metadata.get(
+        "historical_virtual_execution", snapshot.derivatives_snapshot
+    )
+    if not isinstance(raw, Mapping):
+        return None
+    proof = raw.get("structural_margin_context")
+    if not isinstance(proof, Mapping) or any(
+        proof.get(k) != v
+        for k, v in (
+            ("snapshot_id", snapshot.snapshot_id),
+            ("symbol", snapshot.symbol),
+            ("margin_mode", "ISOLATED"),
+        )
+    ):
+        return None
+    values = tuple(
+        _metadata_decimal(v)
+        for v in (
+            raw.get("mark_price"),
+            raw.get("fee_ratio"),
+            raw.get("slippage_ratio"),
+            raw.get("half_spread_ratio"),
+            raw.get("liquidation_fee_ratio"),
+            proof.get("adverse_funding_ratio"),
+            proof.get("mark_stress_ratio"),
+        )
+    )
+    if any(v is None for v in values):
+        return None
+    mark, fee, slippage, spread, liquidation, funding, stress = cast(
+        tuple[Decimal, ...], values
+    )
+    if mark <= ZERO or min(fee, slippage, spread, liquidation, funding, stress) < ZERO:
+        return None
+    costs = max(
+        candidate.estimated_round_trip_cost_ratio or ZERO,
+        2 * (fee + slippage + spread) + liquidation + funding,
+    )
+    stressed_stop, loss = structural_margin_loss_per_unit(
+        candidate.entry_price, candidate.stop_loss, mark, costs, stress
+    )
+    return loss if stressed_stop > ZERO else None
 
 
 def candidate_risk_distance(candidate: TradeCandidate) -> Decimal:

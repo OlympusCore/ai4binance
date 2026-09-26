@@ -1,9 +1,12 @@
 """Confirmed-swing market-structure analysis with no look-ahead authority."""
 
+from collections import Counter
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 from itertools import pairwise
 
+from ai4binance.data.timeframes import timeframe_duration
 from ai4binance.indicators import atr
 from ai4binance.intelligence.contracts import (
     ConfirmedSwing,
@@ -26,6 +29,29 @@ class MarketStructureEngine:
     pivot_right: int = 2
     minimum_candles: int = 20
 
+    @staticmethod
+    def alternating_swings(
+        swings: tuple[ConfirmedSwing, ...],
+    ) -> tuple[ConfirmedSwing, ...]:
+        """Collapse same-side pivots without inventing intrabar ordering."""
+        result: list[ConfirmedSwing] = []
+        timestamps = Counter(s.occurred_at for s in swings)
+        ambiguous = {stamp for stamp, count in timestamps.items() if count > 1}
+        for swing in swings:
+            if swing.occurred_at in ambiguous:
+                continue
+            if result and swing.kind is result[-1].kind:
+                more_extreme = (
+                    swing.price > result[-1].price
+                    if swing.kind is SwingKind.HIGH
+                    else swing.price < result[-1].price
+                )
+                if more_extreme:
+                    result[-1] = swing
+            else:
+                result.append(swing)
+        return tuple(result)
+
     def __post_init__(self) -> None:
         if self.pivot_left < 1 or self.pivot_right < 1:
             raise ValueError("pivot confirmation windows must be positive")
@@ -36,10 +62,17 @@ class MarketStructureEngine:
         self,
         timeframe: str,
         candles: tuple[OHLCVCandle, ...],
+        *,
+        as_of: datetime | None = None,
     ) -> TimeframeStructureEvidence:
         """Return confirmed structure or an explicit windowed fallback."""
         if not timeframe.strip():
             raise ValueError("structure timeframe cannot be empty")
+        duration = timeframe_duration(timeframe)
+        if as_of is not None:
+            if as_of.utcoffset() is None:
+                raise ValueError("structure as_of must be timezone-aware")
+            candles = tuple(c for c in candles if c.timestamp + duration <= as_of)
         if len(candles) < self.minimum_candles:
             raise ValueError("market structure history is insufficient")
         if any(
@@ -106,7 +139,8 @@ class MarketStructureEngine:
                     kind=kind,
                     candle_index=index,
                     occurred_at=candles[index].timestamp,
-                    available_at=candles[index + self.pivot_right].timestamp,
+                    available_at=candles[index + self.pivot_right].timestamp
+                    + timeframe_duration(timeframe),
                     price=price,
                     label=label,
                     atr_significance=significance,
@@ -147,39 +181,52 @@ class MarketStructureEngine:
             return StructureState.RANGE, "WINDOWED_STRUCTURE_FALLBACK", warning
         return StructureState.TRANSITION, "WINDOWED_STRUCTURE_FALLBACK", warning
 
-    @staticmethod
     def _events(
+        self,
         timeframe: str,
         candles: tuple[OHLCVCandle, ...],
         swings: tuple[ConfirmedSwing, ...],
         state: StructureState,
     ) -> tuple[StructureEvent, ...]:
-        latest = candles[-1]
-        highs = tuple(item for item in swings if item.kind is SwingKind.HIGH)
-        lows = tuple(item for item in swings if item.kind is SwingKind.LOW)
+        del state
         events: list[StructureEvent] = []
-        if highs and latest.close > highs[-1].price:
-            event_type = "BOS_UP" if state is StructureState.BULLISH else "CHOCH_UP"
-            events.append(
-                StructureEvent(
-                    event_type=event_type,
-                    direction=ScenarioDirection.LONG,
-                    level=highs[-1].price,
-                    occurred_at=latest.timestamp,
-                    evidence_ref=f"market_structure:{timeframe}:{event_type}",
+        consumed: set[tuple[SwingKind, datetime]] = set()
+        duration = timeframe_duration(timeframe)
+        for index in range(self.minimum_candles, len(candles)):
+            candle, previous = candles[index], candles[index - 1]
+            visible = tuple(s for s in swings if s.available_at <= candle.timestamp)
+            prior_state, _, _ = self._state(candles[:index], visible)
+            for kind, direction in (
+                (SwingKind.HIGH, ScenarioDirection.LONG),
+                (SwingKind.LOW, ScenarioDirection.SHORT),
+            ):
+                pivot = next((s for s in reversed(visible) if s.kind is kind), None)
+                if pivot is None or (kind, pivot.occurred_at) in consumed:
+                    continue
+                crossed = (
+                    previous.close <= pivot.price < candle.close
+                    if kind is SwingKind.HIGH
+                    else previous.close >= pivot.price > candle.close
                 )
-            )
-        if lows and latest.close < lows[-1].price:
-            event_type = "BOS_DOWN" if state is StructureState.BEARISH else "CHOCH_DOWN"
-            events.append(
-                StructureEvent(
-                    event_type=event_type,
-                    direction=ScenarioDirection.SHORT,
-                    level=lows[-1].price,
-                    occurred_at=latest.timestamp,
-                    evidence_ref=f"market_structure:{timeframe}:{event_type}",
+                if not crossed:
+                    continue
+                aligned = (
+                    prior_state is StructureState.BULLISH
+                    if kind is SwingKind.HIGH
+                    else prior_state is StructureState.BEARISH
                 )
-            )
+                suffix = "UP" if kind is SwingKind.HIGH else "DOWN"
+                event_type = f"{'BOS' if aligned else 'CHOCH'}_{suffix}"
+                consumed.add((kind, pivot.occurred_at))
+                events.append(
+                    StructureEvent(
+                        event_type=event_type,
+                        direction=direction,
+                        level=pivot.price,
+                        occurred_at=candle.timestamp + duration,
+                        evidence_ref=f"market_structure:{timeframe}:{event_type}:{pivot.occurred_at.isoformat()}",
+                    )
+                )
         return tuple(events)
 
     @staticmethod

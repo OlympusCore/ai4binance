@@ -16,17 +16,17 @@ from ai4binance.application.opportunity_monitor import (
     monitor_directory,
     refresh_monitor,
 )
-from ai4binance.cli.runtime import RuntimeFuturesAdvisor
+from ai4binance.application.opportunity_observation import (
+    analyze_futures_snapshot,
+    project_futures_opportunity,
+)
 from ai4binance.config import Settings
+from ai4binance.data.acquisition import LocalMarketSnapshotTransport
 from ai4binance.data.archive import ParquetOHLCVArchive
 from ai4binance.data.binance_vision_futures import (
     BinanceVisionFuturesReplayIngestor,
 )
 from ai4binance.data.market_history_sync import MarketHistorySourceUnavailableError
-from ai4binance.domain.opportunity_observation import (
-    estimate_measurable_trade_plan,
-)
-from ai4binance.indicators import atr
 from ai4binance.integrations.research_market_universe import (
     RESEARCH_MARKET_UNIVERSE_SOURCE,
 )
@@ -37,7 +37,7 @@ from ai4binance.research.futures_multitf import (
     FuturesMultiTimeframeBacktestReport,
     FuturesMultiTimeframeBacktestRunner,
 )
-from ai4binance.schemas import MarketSnapshot
+from ai4binance.schemas import AnalysisState, MarketSnapshot
 from ai4binance.storage import write_json_object_verified
 from ai4binance.validation import (
     FuturesWalkForwardValidator,
@@ -49,7 +49,6 @@ from ai4binance.validation import (
     WalkForwardConfig,
     classify_validation_regime,
 )
-from ai4binance.validation.futures_oos import FuturesOosEvidenceReader
 from ai4binance.whale_fusion.models import PriceOiRegime
 
 _SAFE_STATE = {
@@ -567,40 +566,19 @@ def _refresh_futures_monitor(
 ) -> dict[str, object]:
     """Share the canonical Futures monitor between background consumers."""
 
+    analysis: AnalysisState | None = None
+    transport = LocalMarketSnapshotTransport(
+        _absolute(settings.dataset_directory) / "usd_m_futures" / "metadata",
+        clock=lambda: observed_at,
+    )
+
     def build(snapshot: MarketSnapshot, timeframe: str) -> dict[str, object]:
-        advisory = RuntimeFuturesAdvisor(
-            None,
-            oos_evidence=FuturesOosEvidenceReader(
-                _absolute(settings.futures_oos_artifact_directory)
-            ),
-            timeframe=timeframe,
-        ).build(snapshot)
-        if not advisory.opportunity_radar:
-            return {
-                "status": "DATA_BLOCKED",
-                "blockers": ["FUTURES_OPPORTUNITY_RADAR_UNAVAILABLE"],
-            }
-        primitive = to_primitive(advisory.opportunity_radar[0])
-        if not isinstance(primitive, Mapping):
-            return {
-                "status": "DATA_BLOCKED",
-                "blockers": ["FUTURES_OPPORTUNITY_RADAR_INVALID"],
-            }
-        result = dict(primitive)
-        candles = snapshot.ohlcv_by_timeframe.get(timeframe, ())
-        try:
-            risk = atr(candles)
-            entry = candles[-1].close
-        except (IndexError, ValueError):
-            return result
-        result.update(
-            estimate_measurable_trade_plan(
-                entry=entry,
-                risk=risk,
-                direction=str(result.get("direction", "")),
+        nonlocal analysis
+        if analysis is None:
+            analysis = analyze_futures_snapshot(
+                transport.attach_futures_context(snapshot)
             )
-        )
-        return result
+        return project_futures_opportunity(analysis, timeframe)
 
     payload = refresh_monitor(
         root,

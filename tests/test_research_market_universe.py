@@ -122,8 +122,10 @@ def test_wallet_reader_uses_only_latest_complete_run_and_strict_value_floor(
     assert snapshot.sync_run_id == "new"
 
 
+@pytest.mark.parametrize("spot_only_extra", [False, True])
 def test_research_universe_unions_wallet_and_filtered_market_cap(
     tmp_path: Path,
+    spot_only_extra: bool,
 ) -> None:
     wallet_path = tmp_path / "balance_snapshots.jsonl"
     _write_wallet(
@@ -150,11 +152,39 @@ def test_research_universe_unions_wallet_and_filtered_market_cap(
                 "name": asset,
                 "market_cap_rank": rank,
                 "market_cap": 1_000_000 - rank,
+                "last_updated": NOW.isoformat(),
             }
             for rank, asset in enumerate(MARKET_CAP_ASSETS, start=4)
         ],
     ]
     metadata = _metadata()
+    if spot_only_extra:
+        from dataclasses import replace
+
+        metadata = replace(
+            metadata,
+            spot_symbols=tuple(
+                sorted(
+                    (
+                        *(
+                            s
+                            for s in metadata.spot_symbols
+                            if s != MARKET_CAP_ASSETS[0] + "USDT"
+                        ),
+                        "EXTRAUSDT",
+                    )
+                )
+            ),
+        )
+        rows.append(
+            {
+                "symbol": "extra",
+                "name": "Extra",
+                "market_cap_rank": 99,
+                "market_cap": 1,
+                "last_updated": NOW.isoformat(),
+            }
+        )
     binance = SimpleNamespace(
         quote_assets=("USDT", "USDC"),
         spot_transport=object(),
@@ -173,8 +203,14 @@ def test_research_universe_unions_wallet_and_filtered_market_cap(
 
     assert result.blockers == ()
     assert result.wallet_assets == ("ATOM",)
-    assert result.market_cap_assets == MARKET_CAP_ASSETS
-    assert len(result.market_cap_assets) == 20
+    if spot_only_extra:
+        assert "EXTRAUSDT" in result.spot_symbols
+        assert "EXTRAUSDT" not in result.futures_symbols
+        assert MARKET_CAP_ASSETS[0] + "USDT" in result.futures_symbols
+        assert len(result.market_cap_assets) == 21
+    else:
+        assert result.market_cap_assets == MARKET_CAP_ASSETS
+        assert len(result.market_cap_assets) == 20
     assert "USDT" not in result.selected_assets
     assert "WBTC" not in result.selected_assets
     assert "USDS" not in result.selected_assets
@@ -182,6 +218,31 @@ def test_research_universe_unions_wallet_and_filtered_market_cap(
     assert result.execution_allowed is False
     assert result.live_eligibility_status == "LIVE_ORDER_BLOCKED"
     assert transport.calls[0][0] == "/api/v3/coins/markets"
+
+
+@pytest.mark.parametrize("age_minutes", [-2, 61])
+def test_market_cap_ranking_rejects_stale_or_future_observations(
+    tmp_path: Path,
+    age_minutes: int,
+) -> None:
+    metadata = _metadata()
+    provider = ResearchMarketUniverseProvider(
+        binance=SimpleNamespace(quote_assets=("USDT", "USDC")),  # type: ignore[arg-type]
+        market_cap_transport=_MarketCapTransport([]),
+        wallet_balance_path=tmp_path / "unused.jsonl",
+        clock=lambda: NOW,
+    )
+    rows = [
+        {
+            "symbol": MARKET_CAP_ASSETS[0],
+            "name": MARKET_CAP_ASSETS[0],
+            "market_cap_rank": 1,
+            "market_cap": 100,
+            "last_updated": (NOW - timedelta(minutes=age_minutes)).isoformat(),
+        }
+    ]
+    with pytest.raises(ValueError, match="stale"):
+        provider._ranked_assets(rows, metadata, market="SPOT")
 
 
 def test_research_universe_fails_closed_for_stale_wallet(tmp_path: Path) -> None:

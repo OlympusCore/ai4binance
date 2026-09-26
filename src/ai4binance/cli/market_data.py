@@ -197,7 +197,11 @@ def build_continuous_market_history(
         on_symbol_ready=_build_canonical_opportunity_pipeline(
             settings, root, include_futures=True
         ),
-        on_symbol_screen=_build_opportunity_screen(settings, root),
+        on_symbol_screen=(
+            None
+            if settings.market_history_full_universe
+            else _build_opportunity_screen(settings, root)
+        ),
         retention=MarketUniverseRetention(
             archive_root=_absolute(settings.dataset_directory),
             source_cache_root=_absolute(

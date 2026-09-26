@@ -1586,8 +1586,14 @@ class ContinuousMarketHistory:
         if market in {"usd_m_futures", "coin_m_futures"}:
             return (
                 *(("klines", timeframe) for timeframe in MARKET_HISTORY_TIMEFRAMES),
-                ("markPriceKlines", "5m"),
-                ("indexPriceKlines", "5m"),
+                *(
+                    ("markPriceKlines", timeframe)
+                    for timeframe in MARKET_HISTORY_TIMEFRAMES
+                ),
+                *(
+                    ("indexPriceKlines", timeframe)
+                    for timeframe in MARKET_HISTORY_TIMEFRAMES
+                ),
                 ("funding", None),
                 ("open_interest", None),
             )
@@ -1834,7 +1840,7 @@ class ContinuousMarketHistory:
                         kind,
                         transport,
                         now,
-                        timeframe="5m",
+                        timeframe=timeframe or "5m",
                         history_days=history_days,
                     )
             elif kind in {"funding", "open_interest"}:

@@ -238,6 +238,15 @@ def test_chart_pattern_rejects_short_history_and_detects_double_bottom() -> None
     assert result.pattern_type == "DOUBLE_BOTTOM"
     assert result.directional_bias is CandleDirection.BULLISH
     assert result.state is ChartPatternLifecycleState.POTENTIAL
+    next_observation = detect_chart_pattern(
+        rows,
+        timeframe="15m",
+        snapshot_id="next-observation",
+        decision_time=rows[-1].timestamp + timedelta(minutes=15),
+    )
+    assert next_observation is not None
+    assert next_observation.pattern_id == result.pattern_id
+    assert next_observation.observation_id != result.observation_id
 
 
 def test_lifecycle_rejects_time_regression_and_terminal_reentry() -> None:
