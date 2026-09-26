@@ -308,72 +308,28 @@ class AccountingUserStreamCollectorService:
             raise ValueError("WebSocket receive timeout is outside the safe range")
 
     def collect_once(self, *, sync_run_id: str) -> WebSocketCollectionSummary:
-        accepted = 0
-        duplicates = 0
-        rejected = 0
         blockers: list[str] = []
         collector = AccountingWebSocketCollector(self.ledger)
         deadline = time.monotonic() + self.collect_seconds
-        opened: list[UserDataStreamSession] = []
-        now = datetime.now(UTC)
+        opened, accepted, duplicates, rejected = self._open_sessions(
+            sync_run_id=sync_run_id,
+            received_at=datetime.now(UTC),
+            blockers=blockers,
+        )
         try:
-            for session in self.sessions:
-                try:
-                    session.open()
-                    opened.append(session)
-                    if self._append_subscription_event(session, sync_run_id, now):
-                        accepted += 1
-                    else:
-                        duplicates += 1
-                except (OSError, RuntimeError, ValueError, WebSocketException) as error:
-                    rejected += 1
-                    blockers.append(
-                        f"{session.product_type.value}_WEBSOCKET_OPEN_FAILED:{type(error).__name__}"
-                    )
-            while (
-                accepted + duplicates < self.event_limit and time.monotonic() < deadline
-            ):
-                made_progress = False
-                for session in opened:
-                    if accepted + duplicates >= self.event_limit:
-                        break
-                    try:
-                        event = session.receive_event(
-                            timeout_seconds=self.receive_timeout_seconds
-                        )
-                    except TimeoutError:
-                        continue
-                    except (
-                        OSError,
-                        RuntimeError,
-                        ValueError,
-                        WebSocketException,
-                    ) as error:
-                        blockers.append(
-                            f"{session.product_type.value}_WEBSOCKET_EVENT_FAILED:{type(error).__name__}"
-                        )
-                        continue
-                    result = collector.ingest_event(
-                        event,
-                        snapshot_id=sync_run_id,
-                        sync_run_id=sync_run_id,
-                        received_at=datetime.now(UTC),
-                    )
-                    accepted += result.accepted_count
-                    duplicates += result.duplicate_count
-                    rejected += result.rejected_count
-                    blockers.extend(result.blockers)
-                    made_progress = True
-                if not made_progress and not opened:
-                    break
+            event_counts = self._collect_events(
+                collector=collector,
+                opened=opened,
+                sync_run_id=sync_run_id,
+                deadline=deadline,
+                accepted=accepted,
+                duplicates=duplicates,
+                rejected=rejected,
+                blockers=blockers,
+            )
+            accepted, duplicates, rejected = event_counts
         finally:
-            for session in reversed(opened):
-                try:
-                    session.close()
-                except (OSError, RuntimeError, ValueError, WebSocketException):
-                    blockers.append(
-                        f"{session.product_type.value}_WEBSOCKET_CLOSE_FAILED"
-                    )
+            self._close_sessions(opened, blockers)
         return WebSocketCollectionSummary(
             "COLLECTED" if not blockers and rejected == 0 else "DEGRADED",
             accepted,
@@ -381,6 +337,88 @@ class AccountingUserStreamCollectorService:
             rejected,
             tuple(dict.fromkeys(blockers)),
         )
+
+    def _open_sessions(
+        self,
+        *,
+        sync_run_id: str,
+        received_at: datetime,
+        blockers: list[str],
+    ) -> tuple[list[UserDataStreamSession], int, int, int]:
+        opened: list[UserDataStreamSession] = []
+        accepted = duplicates = rejected = 0
+        for session in self.sessions:
+            try:
+                session.open()
+                opened.append(session)
+                if self._append_subscription_event(session, sync_run_id, received_at):
+                    accepted += 1
+                else:
+                    duplicates += 1
+            except (OSError, RuntimeError, ValueError, WebSocketException) as error:
+                rejected += 1
+                blockers.append(
+                    f"{session.product_type.value}_WEBSOCKET_OPEN_FAILED:{type(error).__name__}"
+                )
+        return opened, accepted, duplicates, rejected
+
+    def _collect_events(
+        self,
+        *,
+        collector: AccountingWebSocketCollector,
+        opened: list[UserDataStreamSession],
+        sync_run_id: str,
+        deadline: float,
+        accepted: int,
+        duplicates: int,
+        rejected: int,
+        blockers: list[str],
+    ) -> tuple[int, int, int]:
+        while accepted + duplicates < self.event_limit and time.monotonic() < deadline:
+            made_progress = False
+            for session in opened:
+                if accepted + duplicates >= self.event_limit:
+                    break
+                try:
+                    event = session.receive_event(
+                        timeout_seconds=self.receive_timeout_seconds
+                    )
+                except TimeoutError:
+                    continue
+                except (
+                    OSError,
+                    RuntimeError,
+                    ValueError,
+                    WebSocketException,
+                ) as error:
+                    blockers.append(
+                        f"{session.product_type.value}_WEBSOCKET_EVENT_FAILED:{type(error).__name__}"
+                    )
+                    continue
+                result = collector.ingest_event(
+                    event,
+                    snapshot_id=sync_run_id,
+                    sync_run_id=sync_run_id,
+                    received_at=datetime.now(UTC),
+                )
+                accepted += result.accepted_count
+                duplicates += result.duplicate_count
+                rejected += result.rejected_count
+                blockers.extend(result.blockers)
+                made_progress = True
+            if not made_progress and not opened:
+                break
+        return accepted, duplicates, rejected
+
+    @staticmethod
+    def _close_sessions(
+        opened: list[UserDataStreamSession], blockers: list[str]
+    ) -> None:
+        for session in reversed(opened):
+            try:
+                session.close()
+            except (OSError, RuntimeError, ValueError, WebSocketException):
+                blockers.append(f"{session.product_type.value}_WEBSOCKET_CLOSE_FAILED")
 
     def _append_subscription_event(
         self,

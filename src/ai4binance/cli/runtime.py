@@ -1015,69 +1015,140 @@ def _run_virtual_loss_tuning(
 ) -> dict[str, object]:
     """Run canonical Spot backtest/tuning after three same-day virtual losses."""
 
-    safe_state = {
+    trigger, early_result = _virtual_loss_tuning_trigger(journal, observed_at)
+    if early_result is not None:
+        return early_result
+    if trigger is None:
+        raise RuntimeError("virtual loss tuning trigger resolution failed closed")
+    trigger_id = str(trigger.get("trigger_id", ""))
+    tuning_root = settings.validation_artifact_directory / "virtual_loss_tuning"
+    artifact_path = tuning_root / f"{trigger_id.rsplit(':', maxsplit=1)[-1]}.json"
+    existing_result = _existing_virtual_loss_tuning_result(
+        artifact_path,
+        trigger_id=trigger_id,
+        observed_at=observed_at,
+    )
+    if existing_result is not None:
+        return existing_result
+    results, aggregate_blockers = _virtual_loss_tuning_subject_results(
+        settings,
+        trigger,
+        tuning_root,
+    )
+    status = (
+        "RESEARCH_TUNING_COMPLETED"
+        if results
+        and all(item.get("status") == "RESEARCH_TUNING_COMPLETED" for item in results)
+        else "RETRY_PENDING"
+    )
+    payload = {
+        "schema_version": "VirtualLossTuningResult/v1",
+        "status": status,
+        "trigger_id": trigger_id,
+        "trigger": trigger,
+        "attempted_at": observed_at.astimezone(UTC).isoformat(),
+        "results": results,
+        "blockers": list(dict.fromkeys(aggregate_blockers)),
+        "parameter_application": "NOT_APPLIED",
+        **_virtual_loss_safe_state(),
+    }
+    write_json_object_verified(
+        artifact_path,
+        payload,
+        blocker="VIRTUAL_LOSS_TUNING_WRITE_FAILED",
+        subject_id=trigger_id,
+        indent=2,
+        durable=True,
+    )
+    return {**payload, "artifact_path": str(artifact_path)}
+
+
+def _virtual_loss_safe_state() -> dict[str, object]:
+    return {
         "execution_allowed": False,
         "promotion_status": "RESEARCH_ONLY",
         "live_eligibility_status": "LIVE_ORDER_BLOCKED",
     }
+
+
+def _virtual_loss_tuning_trigger(
+    journal: VirtualWalletJournal,
+    observed_at: datetime,
+) -> tuple[dict[str, object] | None, dict[str, object] | None]:
     try:
         trigger = journal.daily_loss_tuning_trigger(observed_at)
     except (OSError, RuntimeError, TypeError, ValueError):
-        return {
+        return None, {
             "status": "BLOCKED",
             "blockers": ["VIRTUAL_LOSS_TUNING_TRIGGER_UNAVAILABLE"],
             "parameter_application": "NOT_APPLIED",
-            **safe_state,
+            **_virtual_loss_safe_state(),
         }
     if trigger.get("status") != "TRIGGERED":
-        return {**trigger, "parameter_application": "NOT_APPLIED"}
+        return None, {**trigger, "parameter_application": "NOT_APPLIED"}
     trigger_id = str(trigger.get("trigger_id", ""))
-    if not re.fullmatch(r"virtual-loss-tuning:[0-9a-f]{24}", trigger_id):
+    if re.fullmatch(r"virtual-loss-tuning:[0-9a-f]{24}", trigger_id):
+        return trigger, None
+    return None, {
+        "status": "BLOCKED",
+        "blockers": ["VIRTUAL_LOSS_TUNING_TRIGGER_INVALID"],
+        "parameter_application": "NOT_APPLIED",
+        **_virtual_loss_safe_state(),
+    }
+
+
+def _existing_virtual_loss_tuning_result(
+    artifact_path: Path,
+    *,
+    trigger_id: str,
+    observed_at: datetime,
+) -> dict[str, object] | None:
+    existing = _load_json_mapping(artifact_path)
+    if not existing:
+        return None
+    safe_state = _virtual_loss_safe_state()
+    if (
+        existing.get("trigger_id") != trigger_id
+        or existing.get("execution_allowed") is not False
+        or existing.get("promotion_status") != "RESEARCH_ONLY"
+        or existing.get("live_eligibility_status") != "LIVE_ORDER_BLOCKED"
+    ):
         return {
             "status": "BLOCKED",
-            "blockers": ["VIRTUAL_LOSS_TUNING_TRIGGER_INVALID"],
+            "blockers": ["VIRTUAL_LOSS_TUNING_ARTIFACT_INVALID"],
             "parameter_application": "NOT_APPLIED",
             **safe_state,
         }
-    tuning_root = settings.validation_artifact_directory / "virtual_loss_tuning"
-    artifact_path = tuning_root / f"{trigger_id.rsplit(':', maxsplit=1)[-1]}.json"
-    existing = _load_json_mapping(artifact_path)
-    if existing:
-        if (
-            existing.get("trigger_id") != trigger_id
-            or existing.get("execution_allowed") is not False
-            or existing.get("promotion_status") != "RESEARCH_ONLY"
-            or existing.get("live_eligibility_status") != "LIVE_ORDER_BLOCKED"
-        ):
-            return {
-                "status": "BLOCKED",
-                "blockers": ["VIRTUAL_LOSS_TUNING_ARTIFACT_INVALID"],
-                "parameter_application": "NOT_APPLIED",
-                **safe_state,
-            }
-        if existing.get("status") == "RESEARCH_TUNING_COMPLETED":
-            return {
-                "status": "ALREADY_REVIEWED",
-                "trigger_id": trigger_id,
-                "artifact_path": str(artifact_path),
-                "parameter_application": "NOT_APPLIED",
-                **safe_state,
-            }
-        attempted_at = existing.get("attempted_at")
-        try:
-            previous_attempt = datetime.fromisoformat(str(attempted_at)).astimezone(UTC)
-        except (TypeError, ValueError):
-            previous_attempt = observed_at.astimezone(UTC) - timedelta(hours=1)
-        if observed_at.astimezone(UTC) - previous_attempt < timedelta(minutes=15):
-            return {
-                "status": "RETRY_PENDING",
-                "trigger_id": trigger_id,
-                "artifact_path": str(artifact_path),
-                "blockers": existing.get("blockers", []),
-                "parameter_application": "NOT_APPLIED",
-                **safe_state,
-            }
+    if existing.get("status") == "RESEARCH_TUNING_COMPLETED":
+        return {
+            "status": "ALREADY_REVIEWED",
+            "trigger_id": trigger_id,
+            "artifact_path": str(artifact_path),
+            "parameter_application": "NOT_APPLIED",
+            **safe_state,
+        }
+    attempted_at = existing.get("attempted_at")
+    try:
+        previous_attempt = datetime.fromisoformat(str(attempted_at)).astimezone(UTC)
+    except (TypeError, ValueError):
+        previous_attempt = observed_at.astimezone(UTC) - timedelta(hours=1)
+    if observed_at.astimezone(UTC) - previous_attempt >= timedelta(minutes=15):
+        return None
+    return {
+        "status": "RETRY_PENDING",
+        "trigger_id": trigger_id,
+        "artifact_path": str(artifact_path),
+        "blockers": existing.get("blockers", []),
+        "parameter_application": "NOT_APPLIED",
+        **safe_state,
+    }
 
+
+def _virtual_loss_tuning_subject_results(
+    settings: Settings,
+    trigger: Mapping[str, object],
+    tuning_root: Path,
+) -> tuple[list[dict[str, object]], list[str]]:
     from ai4binance.application.validation_pipeline import VALIDATED_PLAYBOOKS
     from ai4binance.data import DatasetIntegrityError, ParquetOHLCVArchive
     from ai4binance.validation_pipeline_runtime import (
@@ -1094,7 +1165,7 @@ def _run_virtual_loss_tuning(
     )
     runtime = HistoricalValidationRuntime(
         report_directory=settings.backtest_report_directory / "virtual_loss_tuning",
-        position_notional_to_equity_ratio=(SPOT_VALIDATION_NOTIONAL_TO_EQUITY_RATIO),
+        position_notional_to_equity_ratio=SPOT_VALIDATION_NOTIONAL_TO_EQUITY_RATIO,
     )
     results: list[dict[str, object]] = []
     aggregate_blockers: list[str] = []
@@ -1102,29 +1173,23 @@ def _run_virtual_loss_tuning(
         if not isinstance(raw_subject, Mapping):
             aggregate_blockers.append("VIRTUAL_LOSS_TUNING_SUBJECT_INVALID")
             continue
-        market = str(raw_subject.get("market", "")).upper()
-        symbol = str(raw_subject.get("symbol", "")).upper()
-        timeframe = str(raw_subject.get("timeframe", ""))
-        playbook = str(raw_subject.get("strategy_id", ""))
         subject = {
-            "market": market,
-            "symbol": symbol,
-            "timeframe": timeframe,
-            "strategy_id": playbook,
+            "market": str(raw_subject.get("market", "")).upper(),
+            "symbol": str(raw_subject.get("symbol", "")).upper(),
+            "timeframe": str(raw_subject.get("timeframe", "")),
+            "strategy_id": str(raw_subject.get("strategy_id", "")),
         }
-        if market != "SPOT" or playbook not in VALIDATED_PLAYBOOKS:
-            blocker = "VIRTUAL_LOSS_TUNING_SUBJECT_UNSUPPORTED"
-            aggregate_blockers.append(blocker)
-            results.append(
-                {"subject": subject, "status": "BLOCKED", "blockers": [blocker]}
-            )
-            continue
         try:
-            candles = archive.read(symbol, timeframe)
+            if (
+                subject["market"] != "SPOT"
+                or subject["strategy_id"] not in VALIDATED_PLAYBOOKS
+            ):
+                raise LookupError("unsupported virtual loss tuning subject")
+            candles = archive.read(str(subject["symbol"]), str(subject["timeframe"]))
             result = runtime.validate_one(
-                symbol,
-                timeframe,
-                playbook,
+                str(subject["symbol"]),
+                str(subject["timeframe"]),
+                str(subject["strategy_id"]),
                 candles,
                 artifact_directory=tuning_root / "evidence",
             )
@@ -1132,6 +1197,25 @@ def _run_virtual_loss_tuning(
             backtest = cast(Any, result.backtest)
             if tuning is None or backtest is None:
                 raise ValueError("VIRTUAL_LOSS_TUNING_RESULT_INCOMPLETE")
+        except LookupError:
+            blocker = "VIRTUAL_LOSS_TUNING_SUBJECT_UNSUPPORTED"
+            aggregate_blockers.append(blocker)
+            results.append(
+                {"subject": subject, "status": "BLOCKED", "blockers": [blocker]}
+            )
+        except (
+            DatasetIntegrityError,
+            FileNotFoundError,
+            OSError,
+            TypeError,
+            ValueError,
+        ):
+            blocker = "VIRTUAL_LOSS_TUNING_DATA_OR_VALIDATION_UNAVAILABLE"
+            aggregate_blockers.append(blocker)
+            results.append(
+                {"subject": subject, "status": "BLOCKED", "blockers": [blocker]}
+            )
+        else:
             results.append(
                 {
                     "subject": subject,
@@ -1146,46 +1230,9 @@ def _run_virtual_loss_tuning(
                     "parameter_application": "NOT_APPLIED",
                 }
             )
-        except (
-            DatasetIntegrityError,
-            FileNotFoundError,
-            OSError,
-            TypeError,
-            ValueError,
-        ):
-            blocker = "VIRTUAL_LOSS_TUNING_DATA_OR_VALIDATION_UNAVAILABLE"
-            aggregate_blockers.append(blocker)
-            results.append(
-                {"subject": subject, "status": "BLOCKED", "blockers": [blocker]}
-            )
     if not subjects:
         aggregate_blockers.append("VIRTUAL_LOSS_TUNING_SUBJECTS_MISSING")
-    status = (
-        "RESEARCH_TUNING_COMPLETED"
-        if results
-        and all(item.get("status") == "RESEARCH_TUNING_COMPLETED" for item in results)
-        else "RETRY_PENDING"
-    )
-    payload = {
-        "schema_version": "VirtualLossTuningResult/v1",
-        "status": status,
-        "trigger_id": trigger_id,
-        "trigger": trigger,
-        "attempted_at": observed_at.astimezone(UTC).isoformat(),
-        "results": results,
-        "blockers": list(dict.fromkeys(aggregate_blockers)),
-        "parameter_application": "NOT_APPLIED",
-        **safe_state,
-    }
-    write_json_object_verified(
-        artifact_path,
-        payload,
-        blocker="VIRTUAL_LOSS_TUNING_WRITE_FAILED",
-        subject_id=trigger_id,
-        indent=2,
-        durable=True,
-    )
-    return {**payload, "artifact_path": str(artifact_path)}
+    return results, aggregate_blockers
 
 
 def _virtual_wallet_report_root(state_path: Path) -> Path:
@@ -1948,104 +1995,22 @@ def _validate_runtime_research_traceability(
 
     opportunity_payload = _load_json_mapping(opportunity_path)
     if opportunity_payload is None:
-        blockers.append("RUNTIME_OPPORTUNITY_REPORT_UNAVAILABLE")
-        report = {
-            "report_id": "runtime-research-trace-validation:unavailable",
-            "generated_at": generated_at.isoformat(),
-            "status": "BLOCKED",
-            "opportunity_report_path": str(opportunity_path),
-            "report_path": str(report_path),
-            "opportunity_count": 0,
-            "validated_count": 0,
-            "mismatch_count": 0,
-            "all_opportunities_traceable": False,
-            "mismatches": (),
-            "blockers": tuple(blockers),
-            "execution_allowed": False,
-            "live_eligibility_status": "LIVE_ORDER_BLOCKED",
-        }
+        report = _unavailable_runtime_trace_report(
+            generated_at=generated_at,
+            opportunity_path=opportunity_path,
+            report_path=report_path,
+        )
         _persist_trace_report(report_path, report)
         return report, 2
 
-    feed_paths = {
-        "news": _resolve_path(settings.runtime_news_feed_path),
-        "social": _resolve_path(settings.runtime_social_feed_path),
-        "content": _resolve_path(settings.runtime_content_feed_path),
-        "technology": _resolve_path(settings.runtime_technology_feed_path),
-    }
-    feed_indices = {
-        "news": _jsonl_source_index(feed_paths["news"], ("event_id",)),
-        "social": _jsonl_source_index(feed_paths["social"], ("event_id",)),
-        "content": _jsonl_source_index(feed_paths["content"], ("event_id",)),
-        "technology": _jsonl_source_index(
-            feed_paths["technology"],
-            ("development_id", "event_id"),
-        ),
-    }
-
+    feed_paths, feed_indices = _runtime_trace_sources(settings)
     opportunities = _mapping_sequence(opportunity_payload.get("opportunities"))
-    mismatch_entries: list[dict[str, object]] = []
-    validated_count = 0
-
-    for index, opportunity in enumerate(opportunities):
-        opportunity_id = _required_text(opportunity.get("opportunity_id"))
-        if opportunity_id is None:
-            opportunity_id = f"opportunity-{index + 1}"
-        errors: list[str] = []
-
-        primary_source_url = _required_text(opportunity.get("primary_source_url"))
-        trace_urls = _text_sequence(opportunity.get("trace_urls"))
-        trace_evidence = _mapping_sequence(opportunity.get("trace_evidence"))
-        if primary_source_url is None or not _is_allowed_url(primary_source_url):
-            errors.append("PRIMARY_SOURCE_URL_MISSING_OR_INVALID")
-        if not trace_urls:
-            errors.append("TRACE_URLS_MISSING")
-        if not trace_evidence:
-            errors.append("TRACE_EVIDENCE_MISSING")
-        if (
-            primary_source_url is not None
-            and trace_urls
-            and primary_source_url not in trace_urls
-        ):
-            errors.append("PRIMARY_SOURCE_NOT_IN_TRACE_URLS")
-
-        for trace_entry in trace_evidence:
-            feed = _required_text(trace_entry.get("feed"))
-            evidence_id = _required_text(trace_entry.get("evidence_id"))
-            source_url = _required_text(trace_entry.get("source_url"))
-            if feed is None or evidence_id is None or source_url is None:
-                errors.append("TRACE_EVIDENCE_SHAPE_INVALID")
-                continue
-            index_payload = feed_indices.get(feed)
-            if index_payload is None:
-                errors.append(f"TRACE_EVIDENCE_FEED_UNKNOWN:{feed}")
-                continue
-            expected_url = index_payload.get(evidence_id)
-            if expected_url is None:
-                errors.append(f"TRACE_EVIDENCE_ID_NOT_FOUND:{feed}:{evidence_id}")
-                continue
-            if expected_url != source_url:
-                errors.append(f"TRACE_EVIDENCE_URL_MISMATCH:{feed}:{evidence_id}")
-            if source_url not in trace_urls:
-                errors.append(f"TRACE_EVIDENCE_URL_NOT_LISTED:{feed}:{evidence_id}")
-
-        if errors:
-            mismatch_entries.append(
-                {
-                    "opportunity_id": opportunity_id,
-                    "errors": tuple(dict.fromkeys(errors)),
-                }
-            )
-        else:
-            validated_count += 1
-
-    all_traceable = not mismatch_entries
-    report_id_source = _required_text(opportunity_payload.get("snapshot_id"))
-    report_id = (
-        f"runtime-research-trace-validation:{report_id_source}"
-        if report_id_source is not None
-        else "runtime-research-trace-validation:unknown"
+    mismatch_entries, validated_count = _runtime_trace_mismatches(
+        opportunities,
+        feed_indices,
     )
+    all_traceable = not mismatch_entries
+    report_id = _runtime_trace_report_id(opportunity_payload)
     report = {
         "report_id": report_id,
         "generated_at": generated_at.isoformat(),
@@ -2069,6 +2034,126 @@ def _validate_runtime_research_traceability(
         report["status"] = "BLOCKED"
         report["blockers"] = tuple(dict.fromkeys(blockers))
     return report, 0 if report["status"] == "PASS" else 2
+
+
+def _unavailable_runtime_trace_report(
+    *,
+    generated_at: datetime,
+    opportunity_path: Path,
+    report_path: Path,
+) -> dict[str, object]:
+    return {
+        "report_id": "runtime-research-trace-validation:unavailable",
+        "generated_at": generated_at.isoformat(),
+        "status": "BLOCKED",
+        "opportunity_report_path": str(opportunity_path),
+        "report_path": str(report_path),
+        "opportunity_count": 0,
+        "validated_count": 0,
+        "mismatch_count": 0,
+        "all_opportunities_traceable": False,
+        "mismatches": (),
+        "blockers": ("RUNTIME_OPPORTUNITY_REPORT_UNAVAILABLE",),
+        "execution_allowed": False,
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+    }
+
+
+def _runtime_trace_sources(
+    settings: Settings,
+) -> tuple[dict[str, Path], dict[str, dict[str, str]]]:
+    feed_paths = {
+        "news": _resolve_path(settings.runtime_news_feed_path),
+        "social": _resolve_path(settings.runtime_social_feed_path),
+        "content": _resolve_path(settings.runtime_content_feed_path),
+        "technology": _resolve_path(settings.runtime_technology_feed_path),
+    }
+    return feed_paths, {
+        "news": _jsonl_source_index(feed_paths["news"], ("event_id",)),
+        "social": _jsonl_source_index(feed_paths["social"], ("event_id",)),
+        "content": _jsonl_source_index(feed_paths["content"], ("event_id",)),
+        "technology": _jsonl_source_index(
+            feed_paths["technology"],
+            ("development_id", "event_id"),
+        ),
+    }
+
+
+def _runtime_trace_mismatches(
+    opportunities: tuple[Mapping[str, object], ...],
+    feed_indices: Mapping[str, Mapping[str, str]],
+) -> tuple[list[dict[str, object]], int]:
+    mismatches: list[dict[str, object]] = []
+    validated_count = 0
+    for index, opportunity in enumerate(opportunities):
+        opportunity_id = _required_text(opportunity.get("opportunity_id"))
+        if opportunity_id is None:
+            opportunity_id = f"opportunity-{index + 1}"
+        errors = _runtime_trace_errors(opportunity, feed_indices)
+        if errors:
+            mismatches.append(
+                {
+                    "opportunity_id": opportunity_id,
+                    "errors": tuple(dict.fromkeys(errors)),
+                }
+            )
+        else:
+            validated_count += 1
+    return mismatches, validated_count
+
+
+def _runtime_trace_errors(
+    opportunity: Mapping[str, object],
+    feed_indices: Mapping[str, Mapping[str, str]],
+) -> list[str]:
+    errors: list[str] = []
+    primary_source_url = _required_text(opportunity.get("primary_source_url"))
+    trace_urls = _text_sequence(opportunity.get("trace_urls"))
+    trace_evidence = _mapping_sequence(opportunity.get("trace_evidence"))
+    if primary_source_url is None or not _is_allowed_url(primary_source_url):
+        errors.append("PRIMARY_SOURCE_URL_MISSING_OR_INVALID")
+    if not trace_urls:
+        errors.append("TRACE_URLS_MISSING")
+    if not trace_evidence:
+        errors.append("TRACE_EVIDENCE_MISSING")
+    if primary_source_url is not None and primary_source_url not in trace_urls:
+        errors.append("PRIMARY_SOURCE_NOT_IN_TRACE_URLS")
+    for trace_entry in trace_evidence:
+        errors.extend(
+            _runtime_trace_entry_errors(trace_entry, trace_urls, feed_indices)
+        )
+    return errors
+
+
+def _runtime_trace_entry_errors(
+    trace_entry: Mapping[str, object],
+    trace_urls: tuple[str, ...],
+    feed_indices: Mapping[str, Mapping[str, str]],
+) -> list[str]:
+    feed = _required_text(trace_entry.get("feed"))
+    evidence_id = _required_text(trace_entry.get("evidence_id"))
+    source_url = _required_text(trace_entry.get("source_url"))
+    if feed is None or evidence_id is None or source_url is None:
+        return ["TRACE_EVIDENCE_SHAPE_INVALID"]
+    index_payload = feed_indices.get(feed)
+    if index_payload is None:
+        return [f"TRACE_EVIDENCE_FEED_UNKNOWN:{feed}"]
+    expected_url = index_payload.get(evidence_id)
+    if expected_url is None:
+        return [f"TRACE_EVIDENCE_ID_NOT_FOUND:{feed}:{evidence_id}"]
+    errors: list[str] = []
+    if expected_url != source_url:
+        errors.append(f"TRACE_EVIDENCE_URL_MISMATCH:{feed}:{evidence_id}")
+    if source_url not in trace_urls:
+        errors.append(f"TRACE_EVIDENCE_URL_NOT_LISTED:{feed}:{evidence_id}")
+    return errors
+
+
+def _runtime_trace_report_id(opportunity_payload: Mapping[str, object]) -> str:
+    report_id_source = _required_text(opportunity_payload.get("snapshot_id"))
+    if report_id_source is None:
+        return "runtime-research-trace-validation:unknown"
+    return f"runtime-research-trace-validation:{report_id_source}"
 
 
 def _persist_trace_report(path: Path, payload: dict[str, object]) -> str | None:

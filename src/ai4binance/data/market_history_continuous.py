@@ -2101,6 +2101,135 @@ class ContinuousMarketHistory:
         aligned_epoch = int(start.timestamp()) // interval_seconds * interval_seconds
         return datetime.fromtimestamp(aligned_epoch, tz=UTC)
 
+    @staticmethod
+    def _flush_vision_pending(
+        *,
+        archive: ParquetOHLCVArchive,
+        dataset_symbol: str,
+        timeframe: str,
+        pending_candles: list[OHLCVCandle],
+        pending_source_hashes: list[str],
+        generated_at: datetime,
+        state: dict[str, object],
+        progress_path: Path,
+        next_at: datetime,
+        replace_conflicts_from_sources: tuple[str, ...],
+    ) -> None:
+        if not pending_candles:
+            return
+        source_digest = (
+            pending_source_hashes[0]
+            if len(pending_source_hashes) == 1
+            else sha256("".join(pending_source_hashes).encode()).hexdigest()
+        )
+        archive.update(
+            dataset_symbol,
+            timeframe,
+            tuple(pending_candles),
+            source=f"BINANCE_VISION_DIRECT_{timeframe.upper()}_SHA256:{source_digest}",
+            generated_at=generated_at,
+            replace_conflicts_from_sources=replace_conflicts_from_sources,
+        )
+        state["next_at"] = next_at.isoformat()
+        _save(progress_path, state)
+        pending_candles.clear()
+        pending_source_hashes.clear()
+
+    @staticmethod
+    def _vision_first_available(state: Mapping[str, object]) -> datetime | None:
+        raw_first_available = state.get("first_available_at")
+        known_first_available = (
+            datetime.fromisoformat(str(raw_first_available))
+            if raw_first_available
+            else None
+        )
+        if (
+            known_first_available is not None
+            and known_first_available.utcoffset() is None
+        ):
+            raise ValueError("collection first available boundary is invalid")
+        return known_first_available
+
+    def _handle_missing_vision_archive(
+        self,
+        *,
+        archive: ParquetOHLCVArchive,
+        dataset_symbol: str,
+        timeframe: str,
+        pending_candles: list[OHLCVCandle],
+        pending_source_hashes: list[str],
+        generated_at: datetime,
+        state: dict[str, object],
+        progress_path: Path,
+        cursor: datetime,
+        archive_end: datetime,
+        replace_conflicts_from_sources: tuple[str, ...],
+    ) -> tuple[datetime, dict[str, object] | None, bool]:
+        known_first_available = self._vision_first_available(state)
+        self._flush_vision_pending(
+            archive=archive,
+            dataset_symbol=dataset_symbol,
+            timeframe=timeframe,
+            pending_candles=pending_candles,
+            pending_source_hashes=pending_source_hashes,
+            generated_at=generated_at,
+            state=state,
+            progress_path=progress_path,
+            next_at=cursor,
+            replace_conflicts_from_sources=replace_conflicts_from_sources,
+        )
+        if known_first_available is None or archive_end <= known_first_available:
+            state["next_at"] = archive_end.isoformat()
+            _save(progress_path, state)
+            return archive_end, None, True
+        return (
+            cursor,
+            {
+                "status": "UNAVAILABLE",
+                "next_at": cursor.isoformat(),
+                "reason": "BINANCE_VISION_ARCHIVE_UNAVAILABLE",
+            },
+            False,
+        )
+
+    def _validate_vision_chunk_start(
+        self,
+        *,
+        archive: ParquetOHLCVArchive,
+        dataset_symbol: str,
+        timeframe: str,
+        pending_candles: list[OHLCVCandle],
+        pending_source_hashes: list[str],
+        generated_at: datetime,
+        state: dict[str, object],
+        progress_path: Path,
+        cursor: datetime,
+        first_timestamp: datetime,
+        replace_conflicts_from_sources: tuple[str, ...],
+    ) -> tuple[datetime, dict[str, object] | None]:
+        if first_timestamp <= cursor or not state.get("first_available_at"):
+            return cursor, None
+        known_first_available = self._vision_first_available(state)
+        if first_timestamp == known_first_available:
+            return first_timestamp, None
+        self._flush_vision_pending(
+            archive=archive,
+            dataset_symbol=dataset_symbol,
+            timeframe=timeframe,
+            pending_candles=pending_candles,
+            pending_source_hashes=pending_source_hashes,
+            generated_at=generated_at,
+            state=state,
+            progress_path=progress_path,
+            next_at=cursor,
+            replace_conflicts_from_sources=replace_conflicts_from_sources,
+        )
+        return cursor, {
+            "status": "UNAVAILABLE",
+            "next_at": cursor.isoformat(),
+            "reason": "KLINE_GAP",
+        }
+
     def _vision_history(
         self,
         *,
@@ -2124,29 +2253,6 @@ class ContinuousMarketHistory:
 
         pending_candles: list[OHLCVCandle] = []
         pending_source_hashes: list[str] = []
-
-        def flush_pending() -> None:
-            if not pending_candles:
-                return
-            source_digest = (
-                pending_source_hashes[0]
-                if len(pending_source_hashes) == 1
-                else sha256("".join(pending_source_hashes).encode()).hexdigest()
-            )
-            archive.update(
-                dataset_symbol,
-                timeframe,
-                tuple(pending_candles),
-                source=(
-                    f"BINANCE_VISION_DIRECT_{timeframe.upper()}_SHA256:{source_digest}"
-                ),
-                generated_at=now,
-                replace_conflicts_from_sources=replace_conflicts_from_sources,
-            )
-            state["next_at"] = cursor.isoformat()
-            _save(progress_path, state)
-            pending_candles.clear()
-            pending_source_hashes.clear()
 
         while cursor < closed_history_end:
             month_start = cursor.replace(
@@ -2187,34 +2293,24 @@ class ContinuousMarketHistory:
                 # also applies when a retained dataset already proved a later
                 # first-available boundary and the requested history horizon
                 # is subsequently extended backwards.
-                raw_first_available = state.get("first_available_at")
-                known_first_available = (
-                    datetime.fromisoformat(str(raw_first_available))
-                    if raw_first_available
-                    else None
+                cursor, unavailable, should_continue = (
+                    self._handle_missing_vision_archive(
+                        archive=archive,
+                        dataset_symbol=dataset_symbol,
+                        timeframe=timeframe,
+                        pending_candles=pending_candles,
+                        pending_source_hashes=pending_source_hashes,
+                        generated_at=now,
+                        state=state,
+                        progress_path=progress_path,
+                        cursor=cursor,
+                        archive_end=archive_end,
+                        replace_conflicts_from_sources=replace_conflicts_from_sources,
+                    )
                 )
-                if (
-                    known_first_available is not None
-                    and known_first_available.utcoffset() is None
-                ):
-                    raise ValueError(
-                        "collection first available boundary is invalid"
-                    ) from None
-                if (
-                    known_first_available is None
-                    or archive_end <= known_first_available
-                ):
-                    flush_pending()
-                    cursor = archive_end
-                    state["next_at"] = cursor.isoformat()
-                    _save(progress_path, state)
+                if should_continue:
                     continue
-                flush_pending()
-                return cursor, {
-                    "status": "UNAVAILABLE",
-                    "next_at": cursor.isoformat(),
-                    "reason": "BINANCE_VISION_ARCHIVE_UNAVAILABLE",
-                }
+                return cursor, unavailable
             except ValueError as error:
                 if (
                     timeframe in _DASHBOARD_REFRESH_TIMEFRAMES
@@ -2222,35 +2318,68 @@ class ContinuousMarketHistory:
                 ):
                     break
                 raise
-            if candles[0].timestamp > cursor and state.get("first_available_at"):
-                known_first_available = datetime.fromisoformat(
-                    str(state["first_available_at"])
-                )
-                if known_first_available.utcoffset() is None:
-                    raise ValueError("collection first available boundary is invalid")
-                if candles[0].timestamp == known_first_available:
-                    cursor = known_first_available
-                else:
-                    flush_pending()
-                    return cursor, {
-                        "status": "UNAVAILABLE",
-                        "next_at": cursor.isoformat(),
-                        "reason": "KLINE_GAP",
-                    }
+            cursor, gap = self._validate_vision_chunk_start(
+                archive=archive,
+                dataset_symbol=dataset_symbol,
+                timeframe=timeframe,
+                pending_candles=pending_candles,
+                pending_source_hashes=pending_source_hashes,
+                generated_at=now,
+                state=state,
+                progress_path=progress_path,
+                cursor=cursor,
+                first_timestamp=candles[0].timestamp,
+                replace_conflicts_from_sources=replace_conflicts_from_sources,
+            )
+            if gap is not None:
+                return cursor, gap
             state.setdefault("first_available_at", candles[0].timestamp.isoformat())
             pending_candles.extend(candles)
             pending_source_hashes.append(str(source.sha256))
             cursor = candles[-1].timestamp + interval
             if cursor < archive_end:
-                flush_pending()
+                self._flush_vision_pending(
+                    archive=archive,
+                    dataset_symbol=dataset_symbol,
+                    timeframe=timeframe,
+                    pending_candles=pending_candles,
+                    pending_source_hashes=pending_source_hashes,
+                    generated_at=now,
+                    state=state,
+                    progress_path=progress_path,
+                    next_at=cursor,
+                    replace_conflicts_from_sources=replace_conflicts_from_sources,
+                )
                 return cursor, {
                     "status": "UNAVAILABLE",
                     "next_at": cursor.isoformat(),
                     "reason": "KLINE_GAP",
                 }
             if len(pending_source_hashes) >= _VISION_ARCHIVE_BATCH_SIZE:
-                flush_pending()
-        flush_pending()
+                self._flush_vision_pending(
+                    archive=archive,
+                    dataset_symbol=dataset_symbol,
+                    timeframe=timeframe,
+                    pending_candles=pending_candles,
+                    pending_source_hashes=pending_source_hashes,
+                    generated_at=now,
+                    state=state,
+                    progress_path=progress_path,
+                    next_at=cursor,
+                    replace_conflicts_from_sources=replace_conflicts_from_sources,
+                )
+        self._flush_vision_pending(
+            archive=archive,
+            dataset_symbol=dataset_symbol,
+            timeframe=timeframe,
+            pending_candles=pending_candles,
+            pending_source_hashes=pending_source_hashes,
+            generated_at=now,
+            state=state,
+            progress_path=progress_path,
+            next_at=cursor,
+            replace_conflicts_from_sources=replace_conflicts_from_sources,
+        )
         return cursor, None
 
     def _candles(
