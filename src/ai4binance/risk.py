@@ -58,6 +58,7 @@ class RiskContext:
 class RiskAssessment:
     candidate_id: str
     approved: bool
+    scenario_id: str | None = None
     size_usdt: Decimal = ZERO
     quantity: Decimal = ZERO
     risk_amount_usdt: Decimal = ZERO
@@ -66,6 +67,8 @@ class RiskAssessment:
     def __post_init__(self) -> None:
         if not self.candidate_id.strip():
             raise ValueError("candidate_id cannot be empty")
+        if self.scenario_id is not None and not self.scenario_id.strip():
+            raise ValueError("scenario_id cannot be blank")
         if min(self.size_usdt, self.quantity, self.risk_amount_usdt) < ZERO:
             raise ValueError("risk assessment values cannot be negative")
         if self.approved and self.blockers:
@@ -94,6 +97,8 @@ class RiskAssessment:
         if not isinstance(candidate_id, str) or not candidate_id.strip():
             return None
         approved = metadata.get("approved") is True
+        raw_scenario_id = metadata.get("scenario_id")
+        scenario_id = raw_scenario_id if isinstance(raw_scenario_id, str) else None
         size_usdt = _metadata_decimal(metadata.get("size_usdt"))
         quantity = _metadata_decimal(metadata.get("quantity"))
         risk_amount = _metadata_decimal(metadata.get("risk_amount_usdt"))
@@ -106,6 +111,7 @@ class RiskAssessment:
             return cls(
                 candidate_id=candidate_id,
                 approved=approved,
+                scenario_id=scenario_id,
                 size_usdt=size_usdt,
                 quantity=quantity,
                 risk_amount_usdt=risk_amount,
@@ -187,6 +193,16 @@ class RiskEngine:
             blockers.append("SPREAD_EXCEEDS_LIMIT")
         if candidate.risk_reward < self.config.minimum_risk_reward:
             blockers.append("RISK_REWARD_BELOW_MINIMUM")
+        if (
+            candidate.market_type == "USD_M_FUTURES"
+            and candidate.net_risk_reward is None
+        ):
+            blockers.append("FUTURES_NET_RISK_REWARD_UNAVAILABLE")
+        if (
+            candidate.net_risk_reward is not None
+            and candidate.net_risk_reward < self.config.minimum_risk_reward
+        ):
+            blockers.append("NET_RISK_REWARD_BELOW_MINIMUM")
         if context.open_position_count >= self.config.virtual_market.maximum_positions:
             blockers.append("MAX_OPEN_POSITIONS_EXCEEDED")
 
@@ -248,6 +264,7 @@ class RiskEngine:
         return RiskAssessment(
             candidate_id=candidate.candidate_id,
             approved=not unique_blockers,
+            scenario_id=candidate.scenario_id,
             size_usdt=size_usdt,
             quantity=quantity,
             risk_amount_usdt=risk_amount,

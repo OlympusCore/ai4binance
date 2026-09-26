@@ -105,7 +105,12 @@ class MarketUniverseRetention:
             for child in root.iterdir()
             if child.is_dir()
             and not child.is_symlink()
-            and _SYMBOL.fullmatch(child.name)
+            # Symbol names from an exchange are untrusted.  Do not retain an
+            # unknown directory merely because it is not an ASCII symbol: that
+            # would let a delisted or non-canonical market survive a universe
+            # reduction.  ``metadata`` is the only non-symbol child owned by
+            # these archive roots.
+            and child.name != "metadata"
             and child.name not in allowed
         ]
 
@@ -149,7 +154,14 @@ class MarketUniverseRetention:
             if not child.is_file() or child.is_symlink():
                 continue
             symbol = child.name.split("-", maxsplit=1)[0]
-            if _SYMBOL.fullmatch(symbol) and symbol not in allowed:
+            # Replay datasets use ``<SYMBOL>-<timeframe>-...`` names.  Keeping
+            # a non-ASCII or otherwise malformed prefix would preserve data
+            # outside a verified universe, so only an exact allowed symbol is
+            # retained.  Non-dataset files (without the separator) are left
+            # intact for service diagnostics.
+            if "-" in child.name and (
+                not _SYMBOL.fullmatch(symbol) or symbol not in allowed
+            ):
                 candidates.append(child)
         return candidates
 

@@ -169,6 +169,11 @@ class RiskGate:
                 item.candidate_id,
             ),
         )
+        selected_candidate = next(
+            item
+            for item in self.candidates
+            if item.candidate_id == assessment.candidate_id
+        )
         return self._result(
             snapshot,
             status=AgentStatus.SUCCESS if assessment.approved else AgentStatus.BLOCKED,
@@ -180,10 +185,30 @@ class RiskGate:
             reason_codes=("RISK_APPROVED" if assessment.approved else "RISK_REJECTED",),
             calculation_metadata={
                 "candidate_id": assessment.candidate_id,
+                "scenario_id": assessment.scenario_id,
                 "approved": assessment.approved,
                 "size_usdt": str(assessment.size_usdt),
                 "quantity": str(assessment.quantity),
                 "risk_amount_usdt": str(assessment.risk_amount_usdt),
+                "gross_risk_reward": str(selected_candidate.gross_risk_reward),
+                "structural_risk_reward": (
+                    str(selected_candidate.structural_risk_reward)
+                    if selected_candidate.structural_risk_reward is not None
+                    else None
+                ),
+                "net_risk_reward": (
+                    str(selected_candidate.net_risk_reward)
+                    if selected_candidate.net_risk_reward is not None
+                    else None
+                ),
+                "expected_r": (
+                    str(selected_candidate.expected_r)
+                    if selected_candidate.expected_r is not None
+                    else None
+                ),
+                "probability_calibration_state": (
+                    selected_candidate.probability_calibration_state
+                ),
                 "evaluated_candidate_count": len(assessments),
                 "unevaluated_candidate_count": max(
                     0, len(self.candidates) - len(assessments)
@@ -191,6 +216,7 @@ class RiskGate:
                 "assessments": tuple(
                     {
                         "candidate_id": item.candidate_id,
+                        "scenario_id": item.scenario_id,
                         "approved": item.approved,
                         "blockers": item.blockers,
                     }

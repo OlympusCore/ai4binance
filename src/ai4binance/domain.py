@@ -202,6 +202,14 @@ class TradeCandidate:
     evidence: tuple[str, ...] = field(default_factory=tuple)
     blockers: tuple[str, ...] = field(default_factory=tuple)
     market_type: str = "SPOT"
+    scenario_id: str | None = None
+    scenario_type: str | None = None
+    scenario_state: str | None = None
+    scenario_invalidation: str | None = None
+    structural_risk_reward: Decimal | None = None
+    net_risk_reward: Decimal | None = None
+    expected_r: Decimal | None = None
+    probability_calibration_state: str = "PROBABILITY_NOT_CALIBRATED"
 
     def __post_init__(self) -> None:
         """Validate identity, geometry and market semantics."""
@@ -245,6 +253,27 @@ class TradeCandidate:
             raise ValueError("confidence must be finite and between 0 and 1")
         if self.ranking_score is not None:
             _validate_score("ranking_score", self.ranking_score)
+        self._validate_plan_metrics()
+        scenario_fields = (
+            self.scenario_type,
+            self.scenario_state,
+            self.scenario_invalidation,
+        )
+        if self.scenario_id is None:
+            if any(value is not None for value in scenario_fields):
+                raise ValueError("scenario metadata requires scenario_id")
+        else:
+            if not self.scenario_id.strip():
+                raise ValueError("scenario_id cannot be blank")
+            if self.scenario_type is None or not self.scenario_type.strip():
+                raise ValueError("scenario_type is required for a bound scenario")
+            if self.scenario_state is None or not self.scenario_state.strip():
+                raise ValueError("scenario_state is required for a bound scenario")
+            if (
+                self.scenario_invalidation is not None
+                and not self.scenario_invalidation.strip()
+            ):
+                raise ValueError("scenario_invalidation cannot be blank")
         entry = self.entry_price
         if self.action is Action.BUY:
             if self.stop_loss >= entry or any(
@@ -258,10 +287,34 @@ class TradeCandidate:
         if self.status is CandidateStatus.READY_FOR_RISK and self.blockers:
             raise ValueError("READY_FOR_RISK candidate cannot contain blockers")
 
+    def _validate_plan_metrics(self) -> None:
+        """Validate explicit structural, net, and calibrated R metrics."""
+        for field_name in ("structural_risk_reward", "net_risk_reward"):
+            value = getattr(self, field_name)
+            if value is not None and (not value.is_finite() or value <= ZERO):
+                raise ValueError(f"{field_name} must be finite and positive")
+        if self.expected_r is not None and not self.expected_r.is_finite():
+            raise ValueError("expected_r must be finite when available")
+        if self.probability_calibration_state not in {
+            "PROBABILITY_NOT_CALIBRATED",
+            "OOS_CALIBRATED",
+        }:
+            raise ValueError("probability calibration state is invalid")
+        if (
+            self.expected_r is not None
+            and self.probability_calibration_state != "OOS_CALIBRATED"
+        ):
+            raise ValueError("expected_r requires OOS-calibrated probability")
+
     @property
     def entry_price(self) -> Decimal:
         """Return the deterministic midpoint used for risk calculations."""
         return (self.entry_zone.lower + self.entry_zone.upper) / Decimal("2")
+
+    @property
+    def gross_risk_reward(self) -> Decimal:
+        """Retain the existing projected R/R as the gross metric."""
+        return self.risk_reward
 
 
 @dataclass(frozen=True, slots=True)

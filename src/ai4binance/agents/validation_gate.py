@@ -88,6 +88,19 @@ class ValidationGate:
             and candidate.timeframe in snapshot.timeframes
             and candidate.market_type.upper() == snapshot.market_type.upper()
         )
+        selected_scenario_id = selected[0].scenario_id if len(selected) == 1 else None
+        risk_scenario_id = (
+            risk.calculation_metadata.get("scenario_id") if risk is not None else None
+        )
+        scenario_binding_required = (
+            selected_scenario_id is not None or risk_scenario_id is not None
+        )
+        scenario_binding_valid = not scenario_binding_required or (
+            isinstance(risk_scenario_id, str)
+            and risk_scenario_id == selected_scenario_id
+        )
+        if scenario_binding_required and not scenario_binding_valid:
+            blockers.append("RISK_SCENARIO_BINDING_MISMATCH")
         risk_approved = (
             len(selected) == 1
             and risk is not None
@@ -96,6 +109,7 @@ class ValidationGate:
             and risk.status is AgentStatus.SUCCESS
             and not risk.blockers
             and risk.calculation_metadata.get("approved") is True
+            and scenario_binding_valid
         )
         required_gates_passed = all(
             (gate_result := agent_results.get(name)) is not None
@@ -225,6 +239,11 @@ class ValidationGate:
             else "Paper evidence verified; governance authorization is required.",
             supporting_evidence=tuple(
                 result.agent_name for result in evaluated if result.evidence
+            )
+            + (
+                (f"SCENARIO:{selected_scenario_id}",)
+                if selected_scenario_id is not None
+                else ()
             )
             + ((maturity_ref,) if maturity_ref is not None else ()),
             blockers=unique_blockers,

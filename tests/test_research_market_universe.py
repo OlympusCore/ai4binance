@@ -218,6 +218,7 @@ def test_retention_removes_only_out_of_scope_symbol_directories(
     validation = tmp_path / "validation"
     keep = archive / "spot" / "BTCUSDT"
     drop = archive / "spot" / "OLDUSDT"
+    non_ascii_drop = archive / "usd_m_futures" / "币安人生USDT"
     metadata = archive / "spot" / "metadata"
     coin_m_archive = archive / "coin_m_futures" / "metadata"
     source_keep = sources / "data/spot/daily/klines/BTCUSDT"
@@ -235,6 +236,7 @@ def test_retention_removes_only_out_of_scope_symbol_directories(
     for directory in (
         keep,
         drop,
+        non_ascii_drop,
         metadata,
         coin_m_archive,
         source_keep,
@@ -269,6 +271,7 @@ def test_retention_removes_only_out_of_scope_symbol_directories(
     assert replay_keep.is_file()
     assert validation_keep.is_dir()
     assert not drop.exists()
+    assert not non_ascii_drop.exists()
     assert not source_drop.exists()
     assert not coin_m.exists()
     assert not monitor_drop.exists()
