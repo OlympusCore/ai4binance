@@ -221,6 +221,7 @@ def run_second_brain(
     hits = index.query(
         resolved_query,
         source_prefixes=(
+            "runtime/state/learning_cases",
             "docs",
             "artifacts",
             "runtime/artifacts/research/backtest/validation",
@@ -242,6 +243,7 @@ def run_second_brain(
             else RagAuthorityCeiling.REPORT_ONLY
         ),
         allowed_source_prefixes=(
+            "runtime/state/learning_cases",
             "docs",
             "artifacts",
             "runtime/artifacts/research/backtest/validation",
@@ -332,6 +334,7 @@ def run_virtual_market_retrieval_eval_command(
     hits = index.query(
         resolved_query,
         source_prefixes=(
+            "runtime/state/learning_cases",
             "docs",
             "artifacts",
             "runtime/artifacts/research/backtest/validation",
@@ -349,6 +352,7 @@ def run_virtual_market_retrieval_eval_command(
         criticality=TaskCriticality.MEDIUM,
         authority_ceiling=RagAuthorityCeiling.REPORT_ONLY,
         allowed_source_prefixes=(
+            "runtime/state/learning_cases",
             "docs",
             "artifacts",
             "runtime/artifacts/research/backtest/validation",

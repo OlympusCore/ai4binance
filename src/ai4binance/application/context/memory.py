@@ -330,7 +330,10 @@ class GovernedMemoryCycleBridge:
                 event_time=summary.created_at,
                 observed_at=summary.created_at,
                 source_refs=(summary.summary_id,),
-                evidence_refs=(f"learning-summary:{summary.summary_id}",),
+                evidence_refs=(
+                    f"learning-summary:{summary.summary_id}",
+                    *getattr(lesson, "evidence_refs", ()),
+                ),
                 source_hashes=(memory_canonical_sha256(asdict(cast(Any, lesson))),),
                 producer_role=MemoryProducerRole.OBSERVER,
                 trust_class=MemoryTrustClass.VERIFIED_SYSTEM_EVIDENCE,

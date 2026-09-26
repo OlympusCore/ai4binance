@@ -5,6 +5,10 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 
+from ai4binance.domain.research.virtual_runtime_attribution import (
+    TradeDecisionEvidence,
+    TradeParameterMethods,
+)
 from ai4binance.execution.paper import ExitReason, PaperOrder, PaperOrderStatus
 from ai4binance.execution.trailing import update_long_trailing_stop
 from ai4binance.schemas import OHLCVCandle
@@ -103,6 +107,14 @@ class LifecyclePosition:
     realized_pnl_usdt: Decimal = ZERO
     exits: tuple[LifecycleExit, ...] = field(default_factory=tuple)
     closure_review: PaperClosureReview | None = None
+    leverage: int | None = field(init=False, default=None)
+    planned_rr: Decimal | None = field(init=False, default=None)
+    decision_evidence: TradeDecisionEvidence = field(
+        default_factory=TradeDecisionEvidence
+    )
+    parameter_methods: TradeParameterMethods = field(
+        default_factory=TradeParameterMethods
+    )
 
     def __post_init__(self) -> None:
         if not self.position_id.strip() or not self.candidate_id.strip():
@@ -137,6 +149,9 @@ class LifecyclePosition:
             raise ValueError("closed position cannot retain quantity")
         if self.status is not PositionStatus.CLOSED and self.remaining_quantity == ZERO:
             raise ValueError("active position must retain quantity")
+        risk = self.entry_price - self.stop_loss
+        reward = self.plan.targets[0] - self.entry_price
+        object.__setattr__(self, "planned_rr", reward / risk if risk > ZERO else None)
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,6 +198,19 @@ class PaperLifecycleEngine:
             trailing_stop=stop_loss,
             atr=atr,
             plan=plan,
+            decision_evidence=order.decision_evidence,
+            parameter_methods=replace(
+                order.parameter_methods,
+                leverage="NOT_APPLICABLE_SPOT",
+                stop_loss=order.parameter_methods.stop_loss
+                if stop_loss == order.stop_loss
+                else "EXPLICIT_LIFECYCLE_STOP_ARGUMENT",
+                take_profit=order.parameter_methods.take_profit
+                if plan.targets == order.take_profit_levels
+                else "EXPLICIT_STAGED_EXIT_PLAN",
+                risk_reward="FIRST_TARGET_DISTANCE_DIVIDED_BY_FILLED_ENTRY_STOP_DISTANCE",
+                pnl="PAPER_EXIT_CASHFLOWS_MINUS_ENTRY_AND_EXIT_FEES",
+            ),
         )
 
     def process_candle(

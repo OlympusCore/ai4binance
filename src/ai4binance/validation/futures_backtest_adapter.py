@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field, replace
 from decimal import ROUND_DOWN, Decimal
 from hashlib import sha256
 
+from ai4binance.data.timeframes import timeframe_duration
+from ai4binance.domain.research.virtual_runtime_attribution import TradeDecisionEvidence
 from ai4binance.research.backtesting.futures_engine import (
     FuturesBacktestConfig,
     FuturesBacktestEngine,
@@ -230,6 +233,42 @@ class RuntimeFuturesBacktestAdapter:
             snapshot_id=snapshot_id,
             decision_id=f"decision:{digest}",
             dge_status="RESEARCH_ONLY",
+            decision_evidence=TradeDecisionEvidence(
+                status="RECORDED_AT_DECISION",
+                as_of=candle.timestamp + timeframe_duration(replay.timeframe),
+                direction_method="CLOSED_CANDLE_PRICE_OI_REGIME",
+                entry_method="PRICE_OI_SETUP_MATCH_NEXT_BAR_OPEN",
+                factors_json=json.dumps(
+                    {
+                        "regime": regime.value,
+                        "close": str(candle.close),
+                        "lookback": self.feature_engine.medium_lookback,
+                        "earlier_close": str(
+                            replay.candles[
+                                index - self.feature_engine.medium_lookback
+                            ].close
+                        ),
+                        "open_interest": str(
+                            replay.derivatives.series[DerivativesMetric.OPEN_INTEREST][
+                                index
+                            ].value
+                        ),
+                        "earlier_open_interest": str(
+                            replay.derivatives.series[DerivativesMetric.OPEN_INTEREST][
+                                index - self.feature_engine.medium_lookback
+                            ].value
+                        ),
+                        "stop_loss": str(stop_loss),
+                        "take_profit": str(take_profit),
+                        "geometry_method": "CONFIGURED_PRICE_PERCENTAGES",
+                        "maximum_holding_bars": self.config.maximum_holding_bars,
+                        "snapshot_id": snapshot_id,
+                        "strategy_sha256": self.strategy_sha256,
+                        "scope": "PRICE_OI_COMPONENT_ONLY",
+                    },
+                    sort_keys=True,
+                ),
+            ),
         )
 
     def _indexed_snapshot_id(

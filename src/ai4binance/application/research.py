@@ -47,7 +47,10 @@ from ai4binance.core.contracts.virtual_governance import (
     DGE_SIMULATION_NOT_APPROVED,
     VirtualGovernanceResult,
 )
-from ai4binance.domain.research.virtual_runtime_attribution import TradeDecisionEvidence, TradeParameterMethods
+from ai4binance.domain.research.virtual_runtime_attribution import (
+    TradeDecisionEvidence,
+    TradeParameterMethods,
+)
 
 
 class StatusValueLike(Protocol):
@@ -401,6 +404,26 @@ class ResearchApplicationService:
             if self.learning_evidence_provider is not None
             else {}
         )
+        runtime_learning = getattr(
+            self.virtual_market_runtime, "learning_evidence_for_decision", None
+        )
+        if (
+            callable(runtime_learning)
+            and virtual_runtime_request is not None
+            and virtual_runtime_decision is not None
+        ):
+            missed = runtime_learning(
+                request=virtual_runtime_request,
+                decision=virtual_runtime_decision,
+                observed_at=snapshot.created_at,
+            )
+            if missed:
+                existing_missed = learning_artifacts.get("missed_opportunities", ())
+                if not isinstance(existing_missed, tuple):
+                    raise ValueError(
+                        "missed_opportunities learning evidence must be a tuple"
+                    )
+                learning_artifacts["missed_opportunities"] = (*existing_missed, *missed)
         learning_artifacts = self._merge_virtual_learning_artifacts(
             learning_artifacts,
             virtual_runtime_decision=virtual_runtime_decision,
@@ -959,10 +982,13 @@ class ResearchApplicationService:
             portfolio=portfolio,
             strategy_id=candidate.setup_name,
             timeframe=candidate.timeframe,
-            entry_reason=tuple(dict.fromkeys(candidate.evidence)) or ("VIRTUAL_MARKET_ENTRY",),
+            entry_reason=tuple(dict.fromkeys(candidate.evidence))
+            or ("VIRTUAL_MARKET_ENTRY",),
             parameter_methods=TradeParameterMethods(
                 quantity="DETERMINISTIC_RISK_ASSESSMENT_WITH_PORTFOLIO_VETO",
-                leverage="FUTURES_STRUCTURAL_MARGIN_GOVERNOR" if market == "USD_M_FUTURES" else "NOT_APPLICABLE_SPOT",
+                leverage="EXECUTION_CONTEXT_LEVERAGE_WITH_DETERMINISTIC_MARGIN_VETO"
+                if market == "USD_M_FUTURES"
+                else "NOT_APPLICABLE_SPOT",
                 stop_loss="CANDIDATE_INVALIDATION_AND_PRICE_FILTERS",
                 entry="CANDIDATE_ENTRY_ZONE_AND_VIRTUAL_FILL_MODEL",
                 take_profit="CANDIDATE_TARGET_SOURCES",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import date, datetime
 from hashlib import sha256
@@ -14,6 +15,7 @@ from ai4binance.learning.models import (
     ExperimentCandidate,
     ExperimentRecommendation,
     FailureAnalysis,
+    LearningEvidenceCase,
     LearningSummary,
     LessonCandidate,
     ProfitabilityExperiment,
@@ -21,7 +23,13 @@ from ai4binance.learning.models import (
     ProfitabilityOptimizationLoop,
     StrategyRegimeAttribution,
 )
-from ai4binance.research.backtesting.models import BacktestResult, TradeRecord
+from ai4binance.reporting import to_primitive
+from ai4binance.research.backtesting.models import (
+    BacktestResult,
+    MissedOpportunityRecord,
+    TradeOutcome,
+    TradeRecord,
+)
 from ai4binance.research.backtesting.robustness import BacktestRobustnessReport
 from ai4binance.tuning.models import TuningReport
 from ai4binance.validation.models import WalkForwardReport
@@ -44,43 +52,76 @@ class ControlledLearningEngine:
         robustness_reports: tuple[BacktestRobustnessReport, ...] = (),
         paper_positions: tuple[LifecyclePosition, ...] = (),
         performance_snapshots: tuple[PerformanceEvidenceSnapshot, ...] = (),
+        trade_outcomes: tuple[TradeOutcome, ...] = (),
+        missed_opportunities: tuple[MissedOpportunityRecord, ...] = (),
     ) -> LearningSummary:
         counts: dict[str, int] = {}
+        cases: dict[str, LearningEvidenceCase] = {}
+        outcomes = (
+            *trade_outcomes,
+            *(
+                trade.trade_outcome
+                for result in backtests
+                for trade in getattr(result, "trades", ())
+                if isinstance(trade, TradeRecord)
+            ),
+        )
+        missed = (
+            *missed_opportunities,
+            *(
+                record
+                for result in backtests
+                for record in getattr(
+                    getattr(result, "missed_opportunity_ledger", None), "records", ()
+                )
+            ),
+        )
+        for outcome in outcomes:
+            tags = []
+            if outcome.decision_evidence.status != "RECORDED_AT_DECISION":
+                tags.append("DECISION_TIME_EVIDENCE_MISSING")
+            if outcome.net_pnl < 0:
+                tags.append("CLOSED_TRADE_LOSS")
+                if outcome.entry_time == outcome.exit_time:
+                    tags.append("LOSS_ON_ENTRY_CANDLE")
+                if (
+                    outcome.risk_at_entry > 0
+                    and outcome.fee_cost + outcome.slippage_cost
+                    >= outcome.risk_at_entry
+                ):
+                    tags.append("REALIZED_COST_EXCEEDS_INITIAL_PRICE_RISK")
+            case = LearningEvidenceCase(
+                "CLOSED_TRADE", json.dumps(to_primitive(outcome)), tuple(tags)
+            )
+            cases[case.sha256] = case
+        for record in missed:
+            category = str(record.counterfactual_result)
+            tags = [f"MISSED_{category}"]
+            if category == "BAD_BLOCK":
+                tags.extend(
+                    (
+                        "IMPROVEMENT_CANDIDATE",
+                        *(f"BAD_BLOCK_{blocker}" for blocker in record.blockers),
+                    )
+                )
+            if isinstance(record, MissedOpportunityRecord):
+                case = LearningEvidenceCase(
+                    "MISSED_OPPORTUNITY", json.dumps(to_primitive(record)), tuple(tags)
+                )
+                cases[case.sha256] = case
+            else:
+                # Legacy aggregate evidence cannot claim a complete trade case.
+                for tag in tags:
+                    self._add(counts, tag, 1)
+        for case in cases.values():
+            for tag in case.tags:
+                self._add(counts, tag, 1)
         for result in backtests:
             rejected_signals = getattr(result, "rejected_signals", ())
             metrics = getattr(result, "metrics", None)
             trade_count = int(getattr(metrics, "trade_count", 0))
             self._add(counts, "REJECTED_SIGNALS", len(rejected_signals))
             self._add(counts, "LOW_TRADE_COUNT", int(trade_count < 5))
-            for trade in getattr(result, "trades", ()):
-                evidence = getattr(trade.attribution, "decision_evidence", None)
-                if getattr(evidence, "status", None) != "RECORDED_AT_DECISION":
-                    self._add(counts, "DECISION_TIME_EVIDENCE_MISSING", 1)
-                if trade.net_pnl_usdt < 0:
-                    if getattr(trade, "entry_timestamp", None) is not None and (
-                        trade.entry_timestamp == trade.exit_timestamp
-                    ):
-                        self._add(counts, "LOSS_ON_ENTRY_CANDLE", 1)
-                    if (
-                        getattr(trade, "risk_at_entry", 0) > 0
-                        and (trade.fee_cost_usdt + trade.slippage_cost_usdt)
-                        >= trade.risk_at_entry
-                    ):
-                        self._add(counts, "REALIZED_COST_EXCEEDS_INITIAL_PRICE_RISK", 1)
-            missed_opportunity_ledger = getattr(
-                result,
-                "missed_opportunity_ledger",
-                None,
-            )
-            for record in getattr(missed_opportunity_ledger, "records", ()):
-                category = str(getattr(record, "counterfactual_result", "")).strip()
-                if not category:
-                    continue
-                self._add(counts, f"MISSED_{category}", 1)
-                if category == "BAD_BLOCK":
-                    self._add(counts, "IMPROVEMENT_CANDIDATE", 1)
-                    for blocker in getattr(record, "blockers", ()):
-                        self._add(counts, f"BAD_BLOCK_{blocker}", 1)
         for walk_forward_report in walk_forward_reports:
             for blocker in getattr(walk_forward_report, "blockers", ()):
                 self._add(counts, f"OOS_{blocker}", 1)
@@ -90,6 +131,12 @@ class ControlledLearningEngine:
         for position in paper_positions:
             if position.closure_review is not None:
                 self._add(counts, position.closure_review.lesson_candidate, 1)
+                case = LearningEvidenceCase(
+                    "PAPER_POSITION",
+                    json.dumps(to_primitive(position)),
+                    (position.closure_review.lesson_candidate,),
+                )
+                cases[case.sha256] = case
         for snapshot in performance_snapshots:
             if not snapshot.auto_learn_consumable:
                 continue
@@ -102,7 +149,16 @@ class ControlledLearningEngine:
             for root_cause_tag in getattr(snapshot, "root_cause_tags", ()):
                 self._add(counts, _performance_root_cause_code(root_cause_tag), 1)
         lessons = tuple(
-            LessonCandidate(code, count, self._rationale(code))
+            LessonCandidate(
+                code,
+                count,
+                self._rationale(code),
+                tuple(
+                    case.evidence_ref
+                    for case in sorted(cases.values(), key=lambda item: item.sha256)
+                    if code in case.tags
+                ),
+            )
             for code, count in sorted(
                 counts.items(),
                 key=lambda item: (-item[1], item[0]),
@@ -119,6 +175,7 @@ class ControlledLearningEngine:
             for index, lesson in enumerate(lessons, start=1)
         )
         payload = "|".join(f"{item.code}:{item.evidence_count}" for item in lessons)
+        payload += "|" + "|".join(sorted(cases))
         profitability_loop = self._profitability_loop(
             backtests=backtests,
             walk_forward_reports=walk_forward_reports,
@@ -143,6 +200,7 @@ class ControlledLearningEngine:
             lessons=lessons,
             experiments=experiments,
             profitability_loop=profitability_loop,
+            evidence_cases=tuple(cases[key] for key in sorted(cases)),
         )
 
     @staticmethod

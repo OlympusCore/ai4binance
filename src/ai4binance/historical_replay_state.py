@@ -11,7 +11,10 @@ from decimal import Decimal
 from pathlib import Path
 from typing import cast
 
-from ai4binance.domain.research.virtual_runtime_attribution import TradeDecisionEvidence
+from ai4binance.domain.research.virtual_runtime_attribution import (
+    TradeDecisionEvidence,
+    TradeParameterMethods,
+)
 from ai4binance.research.backtesting.models import (
     BacktestExitReason,
     ClosedTradeAttribution,
@@ -713,6 +716,9 @@ def _position_from_payload(payload: Mapping[str, object]) -> VirtualManagedPosit
             for item in _sequence(payload, "entry_reason")
         ),
         entry_slippage_cost_usdt=_decimal(payload, "entry_slippage_cost_usdt"),
+        parameter_methods=TradeParameterMethods.from_payload(
+            payload.get("parameter_methods")
+        ),
         decision_evidence=TradeDecisionEvidence.from_payload(
             payload.get("decision_evidence")
         ),
@@ -808,6 +814,20 @@ def _closed_trade_from_payload(
         maximum_favorable_excursion=_decimal(payload, "maximum_favorable_excursion"),
         maximum_adverse_excursion=_decimal(payload, "maximum_adverse_excursion"),
         false_breakout=_boolean(payload, "false_breakout"),
+        leverage=_optional_integer(payload, "leverage"),
+        initial_stop_loss=_optional_decimal(payload, "initial_stop_loss"),
+        initial_take_profit_levels=tuple(
+            Decimal(str(value))
+            for value in (
+                _sequence(payload, "initial_take_profit_levels")
+                if "initial_take_profit_levels" in payload
+                else ()
+            )
+        ),
+        planned_rr=_optional_decimal(payload, "planned_rr"),
+        parameter_methods=TradeParameterMethods.from_payload(
+            payload.get("parameter_methods")
+        ),
     )
 
 

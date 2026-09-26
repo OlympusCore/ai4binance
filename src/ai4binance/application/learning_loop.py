@@ -55,6 +55,9 @@ class ControlledLearningLoop:
         if not isinstance(raw_transitions, tuple):
             raise ValueError("lesson transitions must be an immutable tuple")
         summary = self.engine.analyze(**artifacts)
+        save_cases = getattr(self.store, "save_cases", None)
+        if callable(save_cases):
+            save_cases(summary)
         governed_lessons: tuple[GovernedLessonLike, ...] = ()
         lessons_saved = False
         if self.lifecycle_worker is not None:

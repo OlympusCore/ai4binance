@@ -841,6 +841,21 @@ def test_backtest_result_persists_as_redacted_jsonl(tmp_path: Path) -> None:
         "strategy_version": "1",
         "symbol": "HOTUSDT",
         "trade_id": "trade:signal-1",
+        "quantity": "1.00000000",
+        "leverage": None,
+        "initial_stop_loss": "95",
+        "initial_take_profit_levels": ["110"],
+        "parameter_methods": {
+            "quantity": "BACKTEST_CONFIG_QUANTITY_WITH_STEP_AND_LIQUIDITY_FILTERS",
+            "leverage": "NOT_APPLICABLE_SPOT",
+            "stop_loss": "INTENT_STOP_WITH_DECISION_EVIDENCE",
+            "entry": "NEXT_CANDLE_OPEN_PLUS_SLIPPAGE_AND_PRICE_IMPACT",
+            "take_profit": "INTENT_TARGETS_WITH_DECISION_EVIDENCE",
+            "risk_reward": (
+                "FIRST_TARGET_DISTANCE_DIVIDED_BY_FILLED_ENTRY_STOP_DISTANCE"
+            ),
+            "pnl": "SPOT_FILL_CASHFLOWS_MINUS_FEES_SLIPPAGE_FUNDING",
+        },
     }
     assert (
         payload["payload"]["result"]["trades"][0]["gross_pnl_usdt"]

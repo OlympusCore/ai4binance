@@ -12,7 +12,10 @@ from ai4binance.core.contracts.virtual_governance import (
     DGE_SIMULATION_NOT_APPROVED,
 )
 from ai4binance.domain import Action
-from ai4binance.domain.research.virtual_runtime_attribution import TradeDecisionEvidence, TradeParameterMethods
+from ai4binance.domain.research.virtual_runtime_attribution import (
+    TradeDecisionEvidence,
+    TradeParameterMethods,
+)
 from ai4binance.governance.execution_authority import ExecutionSurface
 from ai4binance.portfolio.risk_budget import PositionExposure
 from ai4binance.research.backtesting.liquidity import LiquidityStressConfig
@@ -82,16 +85,27 @@ class VirtualRuntimeRequest:
     risk_policy_version: str = "unknown"
     validation_version: str = "unknown"
     entry_reason: tuple[str, ...] = ("VIRTUAL_MARKET_ENTRY",)
-    parameter_methods: TradeParameterMethods = field(default_factory=TradeParameterMethods)
+    parameter_methods: TradeParameterMethods = field(
+        default_factory=TradeParameterMethods
+    )
     decision_evidence: TradeDecisionEvidence = field(
         default_factory=TradeDecisionEvidence
     )
     require_structural_margin_proof: bool = False
     structural_margin_context: Mapping[str, object] | None = None
     structural_risk_budget_usdt: Decimal | None = None
+    planned_rr: Decimal | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         self._validate_numeric_inputs()
+        sign = ONE if self.action is Action.BUY else -ONE
+        risk = sign * (self.entry_price - self.stop_loss)
+        reward = (
+            sign * (self.take_profit_levels[0] - self.entry_price)
+            if self.take_profit_levels
+            else ZERO
+        )
+        object.__setattr__(self, "planned_rr", reward / risk if risk > ZERO else None)
         if not isinstance(self.require_structural_margin_proof, bool):
             raise ValueError("structural margin requirement must be boolean")
         if self.structural_risk_budget_usdt is not None and (

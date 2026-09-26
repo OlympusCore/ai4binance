@@ -10,7 +10,9 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from ai4binance.application.learning_loop import ControlledLearningLoop
 from ai4binance.learning.engine import ControlledLearningEngine
+from ai4binance.learning.storage import LearningStore
 from ai4binance.reporting import to_primitive
 from ai4binance.research.backtesting.models import BacktestResult
 from ai4binance.validation.futures_backtest_adapter import (
@@ -69,6 +71,7 @@ class FuturesMultiTimeframeBacktestRunner:
     """Run and persist each configured timeframe as a distinct backtest."""
 
     artifact_root: Path
+    learning_store: LearningStore | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "artifact_root", self.artifact_root.resolve())
@@ -122,9 +125,20 @@ class FuturesMultiTimeframeBacktestRunner:
                 )
             )
 
-        learning = ControlledLearningEngine().analyze(
-            created_at=timestamp,
-            backtests=tuple(all_backtests),
+        learning = (
+            ControlledLearningLoop(
+                store=self.learning_store
+                or LearningStore(
+                    self.artifact_root / "learning_summary.json",
+                    self.artifact_root / "learning_audit.jsonl",
+                ),
+                engine=ControlledLearningEngine(),
+            )
+            .run(
+                created_at=timestamp,
+                backtests=tuple(all_backtests),
+            )
+            .summary
         )
         symbol = ordered[0].symbol
         payload = self._payload(symbol, timestamp, tuple(timeframe_results), learning)

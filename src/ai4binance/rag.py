@@ -981,6 +981,7 @@ class RagIndex:
 class LocalRagIndexer:
     repository_root: Path
     allowed_roots: tuple[str, ...] = (
+        "runtime/state/learning_cases",
         "docs",
         "runtime/artifacts",
         "runtime/artifacts/research/backtest/validation",
@@ -1002,8 +1003,26 @@ class LocalRagIndexer:
                 raise ValueError("RAG root escapes repository")
             if not root.exists():
                 continue
-            for path in sorted(root.rglob("*")):
-                if len(fragments) >= self.maximum_fragments:
+            root_start = len(fragments)
+            root_budget = (
+                min(250, self.maximum_fragments // 4)
+                if root_name == "runtime/state/learning_cases"
+                else self.maximum_fragments
+            )
+            paths = (
+                sorted(
+                    root.glob("*.json"),
+                    key=lambda path: (path.stat().st_mtime_ns, path.name),
+                    reverse=True,
+                )
+                if root_name == "runtime/state/learning_cases"
+                else sorted(root.rglob("*"))
+            )
+            for path in paths:
+                if (
+                    len(fragments) >= self.maximum_fragments
+                    or len(fragments) - root_start >= root_budget
+                ):
                     break
                 if not self._accepts(path, repository_root):
                     continue

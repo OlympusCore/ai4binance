@@ -33,6 +33,7 @@ from ai4binance.domain.research.virtual_runtime_attribution import (
     ClosedTradeAttribution,
     TradeDecisionEvidence,
     TradeDirection,
+    TradeParameterMethods,
     VirtualClosedTradeRecord,
     VirtualTradeAttributionAggregate,
     VirtualTradeAttributionLedger,
@@ -905,6 +906,9 @@ class VirtualManagedPosition:
     risk_policy_version: str = "unknown"
     validation_version: str = "unknown"
     entry_reason: tuple[str, ...] = ("VIRTUAL_MARKET_ENTRY",)
+    parameter_methods: TradeParameterMethods = field(
+        default_factory=TradeParameterMethods
+    )
     decision_evidence: TradeDecisionEvidence = field(
         default_factory=TradeDecisionEvidence
     )
@@ -916,6 +920,7 @@ class VirtualManagedPosition:
     liquidation_price: Decimal | None = None
     leverage: int | None = None
     liquidation_fee_ratio: Decimal = Decimal("0.005")
+    planned_rr: Decimal | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         from ai4binance.execution.lifecycle import StagedExitPlan
@@ -1091,6 +1096,14 @@ class VirtualManagedPosition:
         )
         if self.next_target_index < 0 or self.next_target_index > len(plan.targets):
             raise ValueError("virtual managed position target index is invalid")
+        sign = ONE if self.position_side is VirtualPositionSide.LONG else -ONE
+        initial_risk = sign * (self.entry_price - self.stop_loss)
+        initial_reward = sign * (self.take_profit_levels[0] - self.entry_price)
+        object.__setattr__(
+            self,
+            "planned_rr",
+            initial_reward / initial_risk if initial_risk > ZERO else None,
+        )
 
     def _normalized_targets(self) -> tuple[Decimal, ...]:
         if self.position_side is VirtualPositionSide.LONG:
@@ -2333,6 +2346,7 @@ class VirtualMarketRuntime:
             validation_version=request.validation_version,
             entry_reason=request.entry_reason,
             decision_evidence=request.decision_evidence,
+            parameter_methods=request.parameter_methods,
             entry_slippage_cost_usdt=entry_slippage,
             funding_cost_usdt=funding_cost,
             realized_pnl_usdt=-funding_cost,
@@ -2654,6 +2668,16 @@ class VirtualMarketRuntime:
                 * quantity
             ),
             false_breakout=false_breakout,
+            leverage=position_before.leverage,
+            initial_stop_loss=position_before.stop_loss,
+            initial_take_profit_levels=position_before.take_profit_levels,
+            planned_rr=(
+                abs(position_before.take_profit_levels[0] - position_before.entry_price)
+                / abs(position_before.entry_price - position_before.stop_loss)
+                if position_before.entry_price != position_before.stop_loss
+                else None
+            ),
+            parameter_methods=position_before.parameter_methods,
         )
 
     @staticmethod
@@ -5697,6 +5721,25 @@ class VirtualMarketRuntime:
         )
 
     @staticmethod
+    def learning_evidence_for_decision(
+        *,
+        request: VirtualRuntimeRequest,
+        decision: VirtualRuntimeDecision,
+        observed_at: datetime,
+    ) -> tuple[MissedOpportunityRecord, ...]:
+        """Retain a rejected request without inventing a future economic outcome."""
+        if decision.trade_intent is not None:
+            return ()
+        return (
+            VirtualMarketRuntime._missed_opportunity_record(
+                request=request,
+                blockers=decision.eligibility.blockers,
+                observed_at=observed_at,
+                counterfactual_trade=None,
+            ),
+        )
+
+    @staticmethod
     def _missed_opportunity_record(
         *,
         request: VirtualRuntimeRequest,
@@ -5724,6 +5767,17 @@ class VirtualMarketRuntime:
                     f"{request.candidate_id}"
                 ),
                 counterfactual_result=MissedOpportunityCategory.INSUFFICIENT_EVIDENCE,
+                decision_evidence=request.decision_evidence,
+                proposed_quantity=request.quantity,
+                proposed_leverage=request.leverage,
+                proposed_stop_loss=request.stop_loss,
+                proposed_take_profit_levels=request.take_profit_levels,
+                proposed_entry=request.entry_price,
+                proposed_rr=request.planned_rr,
+                parameter_methods=replace(
+                    request.parameter_methods,
+                    pnl="UNAVAILABLE_WITHOUT_FORWARD_EVIDENCE",
+                ),
             )
         category = VirtualMarketRuntime._missed_opportunity_category(
             counterfactual_trade
@@ -5756,6 +5810,16 @@ class VirtualMarketRuntime:
             forward_realized_r=counterfactual_trade.realized_r_multiple,
             forward_net_pnl=counterfactual_trade.net_pnl_usdt,
             improvement_candidate_id=improvement_candidate_id,
+            decision_evidence=request.decision_evidence,
+            proposed_quantity=request.quantity,
+            proposed_leverage=request.leverage,
+            proposed_stop_loss=request.stop_loss,
+            proposed_take_profit_levels=request.take_profit_levels,
+            proposed_entry=request.entry_price,
+            proposed_rr=request.planned_rr,
+            parameter_methods=replace(
+                request.parameter_methods, pnl="COUNTERFACTUAL_FORWARD_OUTCOME_ONLY"
+            ),
         )
 
     @staticmethod
@@ -5783,7 +5847,7 @@ class VirtualMarketRuntime:
             entry_price=counterfactual_trade.entry_price,
             exit_price=counterfactual_trade.exit_price,
             risk_at_entry=counterfactual_trade.risk_at_entry,
-            planned_rr=ZERO,
+            planned_rr=counterfactual_trade.planned_rr,
             realized_rr=counterfactual_trade.realized_r_multiple,
             gross_pnl=counterfactual_trade.gross_pnl_usdt,
             fee_cost=counterfactual_trade.fee_cost_usdt,
@@ -5796,6 +5860,12 @@ class VirtualMarketRuntime:
             entry_reason=counterfactual_trade.entry_reason,
             exit_reason=counterfactual_trade.exit_reason,
             blocker_history=(),
+            decision_evidence=counterfactual_trade.attribution.decision_evidence,
+            quantity=counterfactual_trade.quantity,
+            leverage=counterfactual_trade.leverage,
+            initial_stop_loss=counterfactual_trade.initial_stop_loss,
+            initial_take_profit_levels=counterfactual_trade.initial_take_profit_levels,
+            parameter_methods=counterfactual_trade.parameter_methods,
         )
 
     @staticmethod

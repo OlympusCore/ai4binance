@@ -8,6 +8,10 @@ from decimal import Decimal
 from pathlib import Path
 from typing import cast
 
+from ai4binance.domain.research.virtual_runtime_attribution import (
+    TradeDecisionEvidence,
+    TradeParameterMethods,
+)
 from ai4binance.execution.lifecycle import (
     LifecycleExit,
     LifecyclePosition,
@@ -122,6 +126,12 @@ class PaperLedger:
             status=PositionStatus(str(payload["status"])),
             next_target_index=int(str(payload["next_target_index"])),
             realized_pnl_usdt=Decimal(str(payload["realized_pnl_usdt"])),
+            decision_evidence=TradeDecisionEvidence.from_payload(
+                payload.get("decision_evidence")
+            ),
+            parameter_methods=TradeParameterMethods.from_payload(
+                payload.get("parameter_methods")
+            ),
             exits=tuple(self._exit_from_payload(item) for item in exits_payload),
             closure_review=(
                 self._review_from_payload(cast(Mapping[str, object], review_payload))

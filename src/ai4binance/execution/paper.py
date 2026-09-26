@@ -1,6 +1,6 @@
 """Deterministic virtual-market fills and conservative long-position lifecycle."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -13,6 +13,10 @@ from ai4binance.domain import (
     CandidateStatus,
     TradeCandidate,
     ValidationStatus,
+)
+from ai4binance.domain.research.virtual_runtime_attribution import (
+    TradeDecisionEvidence,
+    TradeParameterMethods,
 )
 from ai4binance.governance.execution_authority import (
     ExecutionSurface,
@@ -50,6 +54,17 @@ class PaperOrder:
     fill_price: Decimal
     fee_usdt: Decimal
     blockers: tuple[str, ...] = ()
+    stop_loss: Decimal | None = None
+    take_profit_levels: tuple[Decimal, ...] = ()
+    leverage: int | None = None
+    planned_rr: Decimal | None = None
+    net_pnl: Decimal | None = None
+    decision_evidence: TradeDecisionEvidence = field(
+        default_factory=TradeDecisionEvidence
+    )
+    parameter_methods: TradeParameterMethods = field(
+        default_factory=TradeParameterMethods
+    )
 
     def __post_init__(self) -> None:
         if self.timestamp.tzinfo is None or self.timestamp.utcoffset() is None:
@@ -150,6 +165,17 @@ class PaperBroker:
             blockers.append("AUTO_SIMULATION_NOT_ALLOWED")
         unique_blockers = tuple(dict.fromkeys(blockers))
         requested_price = candidate.entry_price
+        methods = TradeParameterMethods(
+            quantity="DETERMINISTIC_RISK_ASSESSMENT",
+            leverage="NOT_APPLICABLE_SPOT"
+            if candidate.market_type == "SPOT"
+            else "NOT_MODELED_BY_PAPER_BROKER",
+            stop_loss="CANDIDATE_STOP_LOSS",
+            entry="CANDIDATE_ENTRY_MIDPOINT_PLUS_PAPER_SLIPPAGE",
+            take_profit="CANDIDATE_TARGET_LEVELS",
+            risk_reward="FIRST_TARGET_DISTANCE_DIVIDED_BY_ENTRY_STOP_DISTANCE",
+            pnl="UNREALIZED_UNTIL_PAPER_POSITION_CLOSE",
+        )
         if unique_blockers:
             return PaperOrder(
                 candidate_id=candidate.candidate_id,
@@ -162,6 +188,16 @@ class PaperBroker:
                 fill_price=ZERO,
                 fee_usdt=ZERO,
                 blockers=unique_blockers,
+                stop_loss=candidate.stop_loss,
+                take_profit_levels=candidate.take_profit_levels,
+                planned_rr=candidate.risk_reward,
+                decision_evidence=candidate.decision_evidence,
+                parameter_methods=replace(
+                    methods,
+                    entry="NOT_FILLED_CANDIDATE_ENTRY_REFERENCE",
+                    risk_reward="CANDIDATE_REPORTED_RR",
+                    pnl="NO_FILLED_POSITION",
+                ),
             )
         slippage = (
             ONE + self.slippage_ratio
@@ -170,6 +206,9 @@ class PaperBroker:
         )
         fill_price = requested_price * slippage
         fee = fill_price * assessment.quantity * self.fee_ratio
+        sign = ONE if candidate.action is Action.BUY else -ONE
+        risk = sign * (fill_price - candidate.stop_loss)
+        reward = sign * (candidate.take_profit_levels[0] - fill_price)
         return PaperOrder(
             candidate_id=candidate.candidate_id,
             timestamp=timestamp,
@@ -180,6 +219,11 @@ class PaperBroker:
             requested_price=requested_price,
             fill_price=fill_price,
             fee_usdt=fee,
+            stop_loss=candidate.stop_loss,
+            take_profit_levels=candidate.take_profit_levels,
+            planned_rr=reward / risk if risk > ZERO else None,
+            decision_evidence=candidate.decision_evidence,
+            parameter_methods=methods,
         )
 
     @staticmethod

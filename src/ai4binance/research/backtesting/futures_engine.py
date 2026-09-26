@@ -7,7 +7,10 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from decimal import ROUND_DOWN, ROUND_UP, Decimal
 
-from ai4binance.domain.research.virtual_runtime_attribution import TradeDecisionEvidence
+from ai4binance.domain.research.virtual_runtime_attribution import (
+    TradeDecisionEvidence,
+    TradeParameterMethods,
+)
 from ai4binance.research.backtesting.liquidity import (
     LiquidityFillDecision,
     assess_liquidity_fill,
@@ -1015,6 +1018,16 @@ class FuturesBacktestEngine:
             initial_stop_loss=open_trade.intent.stop_loss,
             initial_take_profit_levels=(open_trade.intent.take_profit,),
             entry_reference_price=open_trade.entry_reference_price,
+            leverage=self.config.leverage,
+            parameter_methods=TradeParameterMethods(
+                quantity="BACKTEST_CONFIG_QUANTITY_WITH_STEP_AND_LIQUIDITY_FILTERS",
+                leverage="FIXED_BACKTEST_CONFIG_WITH_MARGIN_BRACKET_CHECKS",
+                stop_loss="INTENT_STOP_WITH_DECISION_EVIDENCE",
+                entry="NEXT_CANDLE_OPEN_PLUS_DIRECTIONAL_SLIPPAGE",
+                take_profit="INTENT_TARGET_WITH_DECISION_EVIDENCE",
+                risk_reward="FIRST_TARGET_DISTANCE_DIVIDED_BY_FILLED_ENTRY_STOP_DISTANCE",
+                pnl="DIRECTIONAL_FILLS_MINUS_FEES_SLIPPAGE_FUNDING_LIQUIDATION_FEE",
+            ),
             gross_pnl_usdt=gross_pnl,
             fee_cost_usdt=fee_cost,
             slippage_cost_usdt=slippage_cost,
@@ -1148,6 +1161,17 @@ class FuturesBacktestEngine:
             forward_realized_r=trade.realized_r_multiple,
             forward_net_pnl=trade.net_pnl_usdt,
             improvement_candidate_id=improvement_candidate_id,
+            decision_evidence=rejected.intent.decision_evidence,
+            proposed_quantity=self.config.quantity,
+            proposed_leverage=self.config.leverage,
+            proposed_stop_loss=rejected.intent.stop_loss,
+            proposed_take_profit_levels=(rejected.intent.take_profit,),
+            parameter_methods=replace(
+                trade.parameter_methods,
+                entry="NOT_FILLED_NEXT_CANDLE_OPEN_REQUIRED",
+                risk_reward="SEE_FORWARD_OUTCOME_FOR_SIMULATED_FILL_RR",
+                pnl="COUNTERFACTUAL_FORWARD_OUTCOME_ONLY",
+            ),
         )
 
     def _simulate_counterfactual_trade(
@@ -1206,8 +1230,8 @@ class FuturesBacktestEngine:
             return MissedOpportunityCategory.GOOD_BLOCK
         return MissedOpportunityCategory.NEUTRAL_BLOCK
 
-    @staticmethod
     def _insufficient_evidence_record(
+        self,
         rejected: _RejectedFuturesCandidate,
     ) -> MissedOpportunityRecord:
         intent = rejected.intent
@@ -1225,6 +1249,20 @@ class FuturesBacktestEngine:
             dge_status=intent.dge_status,
             pre_veto_observation_id=rejected.pre_veto_observation_id,
             counterfactual_result=MissedOpportunityCategory.INSUFFICIENT_EVIDENCE,
+            decision_evidence=intent.decision_evidence,
+            proposed_stop_loss=intent.stop_loss,
+            proposed_take_profit_levels=(intent.take_profit,),
+            proposed_quantity=self.config.quantity,
+            proposed_leverage=self.config.leverage,
+            parameter_methods=TradeParameterMethods(
+                quantity="BACKTEST_CONFIG_QUANTITY_BEFORE_FILL_FILTERS",
+                leverage="BACKTEST_CONFIG_WITH_MARGIN_VETO",
+                stop_loss="INTENT_STOP_WITH_DECISION_EVIDENCE",
+                entry="NOT_FILLED_NEXT_CANDLE_OPEN_REQUIRED",
+                take_profit="INTENT_TARGETS_WITH_DECISION_EVIDENCE",
+                risk_reward="UNAVAILABLE_WITHOUT_ENTRY_FILL",
+                pnl="UNAVAILABLE_WITHOUT_FORWARD_EVIDENCE",
+            ),
         )
 
     def _buy_and_hold_return(self, candles: tuple[OHLCVCandle, ...]) -> float:

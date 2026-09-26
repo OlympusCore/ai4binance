@@ -565,6 +565,20 @@ class HistoricalReplaySystemEvaluator:
                 performance_snapshots=tuple(
                     item.evidence_surface.performance_snapshot for item in ordered
                 ),
+                trade_outcomes=tuple(
+                    self.runtime._trade_outcome(trade) for trade in result.closed_trades
+                ),
+                missed_opportunities=tuple(
+                    record
+                    for cycle in result.cycles
+                    if cycle.workflow.virtual_runtime_request is not None
+                    and cycle.workflow.virtual_runtime_decision is not None
+                    for record in self.runtime.learning_evidence_for_decision(
+                        request=cycle.workflow.virtual_runtime_request,
+                        decision=cycle.workflow.virtual_runtime_decision,
+                        observed_at=cycle.replay_snapshot.created_at,
+                    )
+                ),
             )
             if learning_loop is not None
             else None

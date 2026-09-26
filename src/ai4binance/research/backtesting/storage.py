@@ -91,6 +91,9 @@ class BacktestAuditWriter:
                         {
                             "trades": result.trades,
                             "trade_outcomes": result.trade_outcomes,
+                            "missed_opportunity_ledger": (
+                                result.missed_opportunity_ledger
+                            ),
                         }
                     )
                 ),

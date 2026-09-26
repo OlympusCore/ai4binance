@@ -1,7 +1,9 @@
 """Immutable controlled-learning and experiment recommendation models."""
 
+import json
 from dataclasses import dataclass
 from datetime import datetime
+from hashlib import sha256
 from math import isfinite
 
 from ai4binance.domain import ValidationStatus
@@ -14,6 +16,36 @@ class LessonCandidate:
     code: str
     evidence_count: int
     rationale: str
+    evidence_refs: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class LearningEvidenceCase:
+    """Content-bound observation; counterfactual cases never become actual PnL."""
+
+    kind: str
+    payload_json: str
+    tags: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.kind not in {"CLOSED_TRADE", "MISSED_OPPORTUNITY", "PAPER_POSITION"}:
+            raise ValueError("unsupported learning evidence case kind")
+        payload = json.loads(self.payload_json)
+        if not isinstance(payload, dict):
+            raise ValueError("learning evidence case requires an object")
+        object.__setattr__(
+            self,
+            "payload_json",
+            json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False),
+        )
+
+    @property
+    def sha256(self) -> str:
+        return sha256(f"{self.kind}|{self.payload_json}".encode()).hexdigest()
+
+    @property
+    def evidence_ref(self) -> str:
+        return f"learning-case:{self.sha256}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -283,6 +315,7 @@ class LearningSummary:
     application_state: str = _NOT_APPLIED
     promotion_evidence_required: bool = True
     closure_evidence_required: bool = True
+    evidence_cases: tuple[LearningEvidenceCase, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.summary_id.strip():

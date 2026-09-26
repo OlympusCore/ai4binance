@@ -833,7 +833,9 @@ def test_successful_cycle_persists_datasets_learning_and_safe_tuning_failure(
     monkeypatch.setattr(
         futures_multitf,
         "FuturesMultiTimeframeBacktestRunner",
-        lambda _root: SimpleNamespace(run=lambda *_args, **_kwargs: report),
+        lambda _root, *, learning_store: SimpleNamespace(
+            run=lambda *_args, **_kwargs: report
+        ),
     )
     monkeypatch.setattr(
         futures_multitf,

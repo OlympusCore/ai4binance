@@ -30,6 +30,7 @@ from ai4binance.data.market_history_sync import MarketHistorySourceUnavailableEr
 from ai4binance.integrations.research_market_universe import (
     RESEARCH_MARKET_UNIVERSE_SOURCE,
 )
+from ai4binance.learning.storage import LearningStore
 from ai4binance.ops import SingleInstanceLease
 from ai4binance.reporting import to_primitive
 from ai4binance.research.futures_multitf import (
@@ -795,7 +796,12 @@ def run_cycle(settings: Settings, *, observed_at: datetime) -> dict[str, object]
             active_timeframe=active_timeframe,
             artifacts=artifacts,
         )
-        report = FuturesMultiTimeframeBacktestRunner(report_root).run(
+        report = FuturesMultiTimeframeBacktestRunner(
+            report_root,
+            learning_store=LearningStore(
+                settings.learning_summary_path, settings.learning_audit_path
+            ),
+        ).run(
             datasets,
             created_at=now,
         )

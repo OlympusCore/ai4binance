@@ -12,7 +12,10 @@ from ai4binance.domain.research.virtual_runtime_attribution import (
 from ai4binance.domain.research.virtual_runtime_attribution import (
     ClosedTradeAttribution as ClosedTradeAttribution,
 )
-from ai4binance.domain.research.virtual_runtime_attribution import TradeDecisionEvidence, TradeParameterMethods
+from ai4binance.domain.research.virtual_runtime_attribution import (
+    TradeDecisionEvidence,
+    TradeParameterMethods,
+)
 from ai4binance.domain.research.virtual_runtime_attribution import (
     TradeDirection as TradeDirection,
 )
@@ -406,7 +409,9 @@ class TradeOutcome:
     leverage: int | None = None
     initial_stop_loss: Decimal | None = None
     initial_take_profit_levels: tuple[Decimal, ...] = ()
-    parameter_methods: TradeParameterMethods = field(default_factory=TradeParameterMethods)
+    parameter_methods: TradeParameterMethods = field(
+        default_factory=TradeParameterMethods
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -434,7 +439,9 @@ class TradeRecord:
     entry_reference_price: Decimal | None = None
     excursion_observation: str = "CANDLE_EXTREMA_INTRABAR_ORDER_UNKNOWN"
     leverage: int | None = None
-    parameter_methods: TradeParameterMethods = field(default_factory=TradeParameterMethods)
+    parameter_methods: TradeParameterMethods = field(
+        default_factory=TradeParameterMethods
+    )
     gross_pnl_usdt: Decimal = ZERO
     fee_cost_usdt: Decimal = ZERO
     slippage_cost_usdt: Decimal = ZERO
@@ -520,11 +527,18 @@ class MissedOpportunityRecord:
     forward_realized_r: Decimal | None = None
     forward_net_pnl: Decimal | None = None
     improvement_candidate_id: str | None = None
-    decision_evidence: TradeDecisionEvidence = field(default_factory=TradeDecisionEvidence)
+    decision_evidence: TradeDecisionEvidence = field(
+        default_factory=TradeDecisionEvidence
+    )
     proposed_quantity: Decimal | None = None
     proposed_leverage: int | None = None
     proposed_stop_loss: Decimal | None = None
     proposed_take_profit_levels: tuple[Decimal, ...] = ()
+    proposed_entry: Decimal | None = None
+    proposed_rr: Decimal | None = None
+    parameter_methods: TradeParameterMethods = field(
+        default_factory=TradeParameterMethods
+    )
 
     def __post_init__(self) -> None:
         if not self.pre_veto_observation_id.strip():

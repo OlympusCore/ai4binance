@@ -47,8 +47,11 @@ class TradeParameterMethods:
     pnl: str = "NOT_RECORDED"
 
     def __post_init__(self) -> None:
-        if any(not getattr(self, key).strip() for key in self.__dataclass_fields__):
-            raise ValueError("trade parameter methods cannot be blank")
+        if any(
+            not isinstance(getattr(self, key), str) or not getattr(self, key).strip()
+            for key in self.__dataclass_fields__
+        ):
+            raise ValueError("trade parameter methods must be nonblank strings")
 
     @classmethod
     def from_payload(cls, payload: object) -> TradeParameterMethods:
@@ -56,7 +59,13 @@ class TradeParameterMethods:
             return cls()
         if not isinstance(payload, Mapping):
             raise ValueError("trade parameter methods must be a mapping")
-        return cls(**{key: str(payload.get(key, "NOT_RECORDED")) for key in cls.__dataclass_fields__})
+        values: dict[str, str] = {}
+        for key in cls.__dataclass_fields__:
+            value = payload.get(key, "NOT_RECORDED")
+            if not isinstance(value, str):
+                raise ValueError("trade parameter methods must be strings")
+            values[key] = value
+        return cls(**values)
 
 
 @dataclass(frozen=True, slots=True)
@@ -245,7 +254,9 @@ class VirtualClosedTradeRecord:
     initial_stop_loss: Decimal | None = None
     initial_take_profit_levels: tuple[Decimal, ...] = ()
     planned_rr: Decimal | None = None
-    parameter_methods: TradeParameterMethods = field(default_factory=TradeParameterMethods)
+    parameter_methods: TradeParameterMethods = field(
+        default_factory=TradeParameterMethods
+    )
 
     def __post_init__(self) -> None:
         if not self.trade_id.strip():

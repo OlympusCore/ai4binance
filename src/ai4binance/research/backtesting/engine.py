@@ -6,6 +6,7 @@ from datetime import datetime
 from decimal import ROUND_DOWN, ROUND_UP, Decimal
 from typing import TYPE_CHECKING, cast, overload
 
+from ai4binance.domain.research.virtual_runtime_attribution import TradeParameterMethods
 from ai4binance.research.backtesting.exit_engine import VirtualExitEngine
 from ai4binance.research.backtesting.liquidity import (
     LiquidityFillDecision,
@@ -545,6 +546,15 @@ class BacktestEngine:
             initial_stop_loss=open_trade.intent.stop_loss,
             initial_take_profit_levels=open_trade.intent.targets,
             entry_reference_price=open_trade.entry_reference_price,
+            parameter_methods=TradeParameterMethods(
+                quantity="BACKTEST_CONFIG_QUANTITY_WITH_STEP_AND_LIQUIDITY_FILTERS",
+                leverage="NOT_APPLICABLE_SPOT",
+                stop_loss="INTENT_STOP_WITH_DECISION_EVIDENCE",
+                entry="NEXT_CANDLE_OPEN_PLUS_SLIPPAGE_AND_PRICE_IMPACT",
+                take_profit="INTENT_TARGETS_WITH_DECISION_EVIDENCE",
+                risk_reward="FIRST_TARGET_DISTANCE_DIVIDED_BY_FILLED_ENTRY_STOP_DISTANCE",
+                pnl="SPOT_FILL_CASHFLOWS_MINUS_FEES_SLIPPAGE_FUNDING",
+            ),
             gross_pnl_usdt=gross_pnl,
             fee_cost_usdt=fee_cost,
             slippage_cost_usdt=slippage_cost,
@@ -861,6 +871,16 @@ class BacktestEngine:
             forward_realized_r=trade.realized_r_multiple,
             forward_net_pnl=trade.net_pnl_usdt,
             improvement_candidate_id=improvement_candidate_id,
+            decision_evidence=intent.decision_evidence,
+            proposed_quantity=self.config.quantity,
+            proposed_stop_loss=intent.stop_loss,
+            proposed_take_profit_levels=intent.targets,
+            parameter_methods=replace(
+                trade.parameter_methods,
+                entry="NOT_FILLED_NEXT_CANDLE_OPEN_REQUIRED",
+                risk_reward="SEE_FORWARD_OUTCOME_FOR_SIMULATED_FILL_RR",
+                pnl="COUNTERFACTUAL_FORWARD_OUTCOME_ONLY",
+            ),
         )
 
     @staticmethod
@@ -871,8 +891,8 @@ class BacktestEngine:
             return MissedOpportunityCategory.GOOD_BLOCK
         return MissedOpportunityCategory.NEUTRAL_BLOCK
 
-    @staticmethod
     def _insufficient_evidence_record(
+        self,
         intent: BacktestIntent,
         blockers: tuple[str, ...],
         pre_veto_observation_id: str,
@@ -891,6 +911,19 @@ class BacktestEngine:
             dge_status=intent.dge_status,
             pre_veto_observation_id=pre_veto_observation_id,
             counterfactual_result=MissedOpportunityCategory.INSUFFICIENT_EVIDENCE,
+            decision_evidence=intent.decision_evidence,
+            proposed_stop_loss=intent.stop_loss,
+            proposed_take_profit_levels=intent.targets,
+            proposed_quantity=self.config.quantity,
+            parameter_methods=TradeParameterMethods(
+                quantity="BACKTEST_CONFIG_QUANTITY_BEFORE_FILL_FILTERS",
+                leverage="NOT_APPLICABLE_SPOT",
+                stop_loss="INTENT_STOP_WITH_DECISION_EVIDENCE",
+                entry="NOT_FILLED_NEXT_CANDLE_OPEN_REQUIRED",
+                take_profit="INTENT_TARGETS_WITH_DECISION_EVIDENCE",
+                risk_reward="UNAVAILABLE_WITHOUT_ENTRY_FILL",
+                pnl="UNAVAILABLE_WITHOUT_FORWARD_EVIDENCE",
+            ),
         )
 
     @staticmethod
