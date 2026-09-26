@@ -174,15 +174,6 @@ class RiskEngine:
     ) -> RiskAssessment:
         """Evaluate a candidate and calculate a safely rounded position preview."""
         blockers = list(candidate_safety_blockers(candidate, snapshot))
-        if candidate.status is not CandidateStatus.READY_FOR_RISK:
-            blockers.append("CANDIDATE_NOT_READY_FOR_RISK")
-        if candidate.scenario_id is not None and candidate.entry_state != "ENTRY_VALID":
-            blockers.append("SCENARIO_ENTRY_NOT_VALID")
-        if (
-            candidate.entry_expiry is not None
-            and snapshot.created_at >= candidate.entry_expiry
-        ):
-            blockers.append("CANDIDATE_ENTRY_EXPIRED")
         if (
             execution_surface is ExecutionSurface.BINANCE_MARKET
             and candidate.promotion_status
@@ -353,18 +344,22 @@ def candidate_safety_blockers(
             or candidate.invalidation_level > invalidation
         ):
             blockers.append("CANDIDATE_RISK_EXTENDS_BEYOND_SCENARIO")
-        cost = candidate.estimated_round_trip_cost_ratio
-        if cost is None or candidate.net_risk_reward is None:
-            blockers.append("NET_RISK_REWARD_UNAVAILABLE")
-        else:
-            distance = candidate_risk_distance(candidate)
-            reward = (
-                abs(candidate.take_profit_levels[0] - candidate.entry_price)
-                - candidate.entry_price * cost
-            )
-            if distance <= ZERO or candidate.net_risk_reward > reward / distance:
-                blockers.append("NET_RISK_REWARD_INCONSISTENT")
+        blockers.extend(_candidate_economics_blockers(candidate))
     return tuple(dict.fromkeys(blockers))
+
+
+def _candidate_economics_blockers(candidate: TradeCandidate) -> tuple[str, ...]:
+    cost = candidate.estimated_round_trip_cost_ratio
+    if cost is None or candidate.net_risk_reward is None:
+        return ("NET_RISK_REWARD_UNAVAILABLE",)
+    distance = candidate_risk_distance(candidate)
+    reward = (
+        abs(candidate.take_profit_levels[0] - candidate.entry_price)
+        - candidate.entry_price * cost
+    )
+    if distance <= ZERO or candidate.net_risk_reward > reward / distance:
+        return ("NET_RISK_REWARD_INCONSISTENT",)
+    return ()
 
 
 def _metadata_decimal(value: object) -> Decimal | None:

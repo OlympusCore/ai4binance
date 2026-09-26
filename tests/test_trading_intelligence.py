@@ -1,5 +1,6 @@
 """Deterministic Trading Intelligence evidence-chain tests."""
 
+from collections.abc import Mapping
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
@@ -425,6 +426,12 @@ def test_confirmed_swings_are_available_only_after_right_side_closes() -> None:
     for swing in structure.swings:
         assert swing.available_at == candles[swing.candle_index + 2].timestamp
         assert swing.available_at > swing.occurred_at
+    prefix = MarketStructureEngine().analyze("1h", candles[:20])
+    assert prefix.swings == tuple(
+        swing
+        for swing in structure.swings
+        if swing.available_at <= candles[19].timestamp
+    )
 
 
 def test_simulated_leverage_governor_is_oos_and_margin_bound() -> None:
@@ -589,6 +596,8 @@ def test_zero_fee_is_valid_and_net_rr_includes_loss_side_costs() -> None:
     )
     engine = TradingIntelligenceEngine()
     state = engine.build(snapshot, _evidence_results())
+    assert snapshot.spread is not None
+    assert snapshot.latest_price is not None
     assert (
         state.estimated_round_trip_cost_ratio == snapshot.spread / snapshot.latest_price
     )
@@ -703,3 +712,96 @@ def test_futures_context_rejects_foreign_agent_identity() -> None:
         replace(_result("derivatives"), snapshot_id="foreign"),
     )
     assert context.blockers == ("FUTURES_DERIVATIVES_IDENTITY_MISMATCH",)
+
+
+def test_futures_costs_require_explicit_funding_horizon() -> None:
+    snapshot = replace(
+        _costed_snapshot(),
+        market_type="USD_M_FUTURES",
+        derivatives_snapshot={
+            "source_count": 4,
+            "as_of": NOW.isoformat(),
+            "funding_rate": "0.001",
+            "open_interest": "500",
+            "mark_price": "1.1",
+            "index_price": "1.1",
+        },
+    )
+    results = {**_evidence_results(), "derivatives": _result("derivatives")}
+    engine = TradingIntelligenceEngine()
+    missing = engine.build(snapshot, results)
+    assert missing.estimated_round_trip_cost_ratio is None
+    assert "COST_FUNDING_HORIZON_UNAVAILABLE" in missing.cost_blockers
+    zero = engine.build(
+        replace(
+            snapshot,
+            market_metadata={
+                **snapshot.market_metadata,
+                "estimated_funding_periods": 0,
+            },
+        ),
+        results,
+    )
+    two = engine.build(
+        replace(
+            snapshot,
+            market_metadata={
+                **snapshot.market_metadata,
+                "estimated_funding_periods": 2,
+            },
+        ),
+        results,
+    )
+    assert zero.estimated_round_trip_cost_ratio is not None
+    assert (
+        two.estimated_round_trip_cost_ratio
+        == zero.estimated_round_trip_cost_ratio + Decimal("0.002")
+    )
+
+
+def test_invalid_derivatives_alias_does_not_override_canonical_metric() -> None:
+    snapshot = replace(
+        technical_snapshot(),
+        market_type="USD_M_FUTURES",
+        derivatives_snapshot={
+            "source_count": 4,
+            "as_of": NOW.isoformat(),
+            "funding_rate": "0.001",
+            "open_interest": "NaN",
+            "openInterest": "500",
+            "mark_price": "1.1",
+            "index_price": "1.1",
+            "taker_buy_sell_ratio": "-1",
+        },
+    )
+    context = FuturesContextEngine().build(snapshot, _result("derivatives"))
+    assert context.status == "BLOCKED"
+    assert "FUTURES_METRIC_MISSING:OPEN_INTEREST" in context.blockers
+    assert "FUTURES_METRIC_INVALID:TAKER_BUY_SELL_RATIO" in context.blockers
+
+
+def test_missing_and_future_directional_structure_cannot_confirm_scenario() -> None:
+    results = _evidence_results()
+    original = results["market_structure"]
+    timeframes = original.calculation_metadata["timeframes"]
+    assert isinstance(timeframes, Mapping)
+    raw = dict(timeframes)
+    raw.pop("4h")
+    results["market_structure"] = replace(
+        original, calculation_metadata={"timeframes": raw}
+    )
+    state = TradingIntelligenceEngine().build(_costed_snapshot(), results)
+    assert "DIRECTION_STRUCTURE_UNAVAILABLE" in state.blockers
+    raw = dict(timeframes)
+    directional = dict(raw["4h"])
+    swing = {
+        **directional["swings"][0],
+        "available_at": (NOW + timedelta(hours=1)).isoformat(),
+    }
+    raw["4h"] = {**directional, "swings": (swing,)}
+    results["market_structure"] = replace(
+        original, calculation_metadata={"timeframes": raw}
+    )
+    state = TradingIntelligenceEngine().build(_costed_snapshot(), results)
+    assert state.selected_scenario is None
+    assert "DIRECTION_STRUCTURE_UNAVAILABLE" in state.blockers

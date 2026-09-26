@@ -480,6 +480,16 @@ class TradingIntelligenceState:
             or self.estimated_round_trip_cost_ratio < ZERO
         ):
             raise ValueError("trading intelligence cost ratio is invalid")
+        self._validate_evidence_binding()
+        if (
+            self.promotion_status != "RESEARCH_ONLY"
+            or self.execution_allowed
+            or self.live_eligibility_status != "LIVE_ORDER_BLOCKED"
+        ):
+            raise ValueError("trading intelligence must remain research-only")
+
+    def _validate_evidence_binding(self) -> None:
+        """Reject cross-cycle evidence and contradictory scenario selection."""
         scenario_ids = tuple(item.scenario_id for item in self.scenarios)
         if any(item.snapshot_id != self.snapshot_id for item in self.scenarios):
             raise ValueError("scenario snapshot identity must match shared state")
@@ -507,12 +517,6 @@ class TradingIntelligenceState:
             and self.selected_scenario_id not in scenario_ids
         ):
             raise ValueError("selected scenario must exist in the scenario set")
-        if (
-            self.promotion_status != "RESEARCH_ONLY"
-            or self.execution_allowed
-            or self.live_eligibility_status != "LIVE_ORDER_BLOCKED"
-        ):
-            raise ValueError("trading intelligence must remain research-only")
 
     @property
     def selected_scenario(self) -> ScenarioHypothesis | None:

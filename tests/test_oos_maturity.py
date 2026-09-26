@@ -350,10 +350,12 @@ def test_runtime_validation_consumes_exact_maturity_and_keeps_all_vetoes(
     tmp_path: Path, bundle: OOSMaturityEvidenceBundle, case: str
 ) -> None:
     from datetime import timedelta
+    from decimal import Decimal
 
     from ai4binance.agents.validation_gate import ValidationGate
+    from ai4binance.risk import RiskContext, RiskEngine
     from ai4binance.schemas import AgentResult, AgentStatus, DataQuality
-    from tests.test_strategy_risk import approved_candidate, snapshot
+    from tests.test_strategy_risk import approved_candidate, snapshot, symbol_filters
 
     assert bundle.subject is not None
     subject = bundle.subject
@@ -375,6 +377,10 @@ def test_runtime_validation_consumes_exact_maturity_and_keeps_all_vetoes(
         timeframe=subject.promotion.timeframe,
         setup_name=subject.setup_type,
     )
+    assessment = RiskEngine().evaluate(
+        candidate, market, RiskContext(equity_usdt=Decimal("1000")), symbol_filters()
+    )
+    assert assessment.approved
     risk = AgentResult(
         agent_name="risk",
         agent_version="1",
@@ -389,7 +395,13 @@ def test_runtime_validation_consumes_exact_maturity_and_keeps_all_vetoes(
         score=100,
         confidence=1,
         reason_codes=("RISK_APPROVED",),
-        calculation_metadata={"approved": True, "candidate_id": candidate.candidate_id},
+        calculation_metadata={
+            "approved": assessment.approved,
+            "candidate_id": candidate.candidate_id,
+            "size_usdt": str(assessment.size_usdt),
+            "quantity": str(assessment.quantity),
+            "risk_amount_usdt": str(assessment.risk_amount_usdt),
+        },
     )
     if case == "wrong_hash":
         subject = replace(subject, feature_definition_sha256="9" * 64)

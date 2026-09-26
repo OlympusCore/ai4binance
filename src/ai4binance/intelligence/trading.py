@@ -212,98 +212,100 @@ class TradingIntelligenceEngine:
                     )
                 )
                 continue
-            status = candidate.status
-            candidate_blockers = list(candidate.blockers)
-            if (
-                primary.state is ScenarioState.CONFIRMED
-                and f"ENTRY_TRIGGER_TIMEFRAME:{candidate.timeframe}"
-                not in primary.evidence_for
-            ):
-                status = CandidateStatus.RESEARCH_ONLY
-                candidate_blockers.append("ENTRY_TRIGGER_TIMEFRAME_MISMATCH")
-            if primary.state is ScenarioState.FORMING:
-                if status is CandidateStatus.READY_FOR_RISK:
-                    status = CandidateStatus.WAIT_FOR_RETEST
-                candidate_blockers.append("SCENARIO_CONFIRMATION_PENDING")
-            elif primary.state is not ScenarioState.CONFIRMED:
-                status = CandidateStatus.RESEARCH_ONLY
-                candidate_blockers.extend(("SCENARIO_NOT_CONFIRMED", *primary.blockers))
-            net_risk_reward = self._net_risk_reward(
-                candidate,
-                state.estimated_round_trip_cost_ratio,
-            )
-            if net_risk_reward is None:
-                status = CandidateStatus.RESEARCH_ONLY
-                candidate_blockers.extend(
-                    (*state.cost_blockers, "NET_RISK_REWARD_UNAVAILABLE")
-                )
-            invalidation = primary.invalidation_level
-            valid_invalidation = invalidation is not None and (
-                ZERO < invalidation < candidate.entry_zone.lower
-                if candidate.action is Action.BUY
-                else invalidation > candidate.entry_zone.upper
-            )
-            structural_rr = None
-            if valid_invalidation and invalidation is not None:
-                structural_rr = abs(
-                    candidate.take_profit_levels[0] - candidate.entry_price
-                ) / abs(candidate.entry_price - invalidation)
-            else:
-                status = CandidateStatus.RESEARCH_ONLY
-                candidate_blockers.append(
-                    "SCENARIO_INVALIDATION_UNAVAILABLE_OR_INVALID"
-                )
-            if primary.blockers and primary.state is ScenarioState.CONFIRMED:
-                status = CandidateStatus.RESEARCH_ONLY
-                candidate_blockers.extend(primary.blockers)
-            if primary.state is ScenarioState.CONFIRMED and primary.confidence <= 0:
-                status = CandidateStatus.RESEARCH_ONLY
-                candidate_blockers.append("SCENARIO_CONFIDENCE_UNAVAILABLE")
-            expiry = self._entry_expiry(candidate.timestamp, candidate.timeframe)
-            if expiry is None:
-                status = CandidateStatus.RESEARCH_ONLY
-                candidate_blockers.append("ENTRY_EXPIRY_UNAVAILABLE")
-            bound.append(
-                replace(
-                    candidate,
-                    status=status,
-                    scenario_id=primary.scenario_id,
-                    scenario_type=primary.scenario_type.value,
-                    scenario_state=primary.state.value,
-                    scenario_invalidation=(
-                        str(primary.invalidation_level)
-                        if primary.invalidation_level is not None
-                        else None
-                    ),
-                    structural_risk_reward=structural_rr,
-                    net_risk_reward=net_risk_reward,
-                    estimated_round_trip_cost_ratio=(
-                        state.estimated_round_trip_cost_ratio
-                    ),
-                    expected_r=None,
-                    probability_calibration_state=primary.calibration_state.value,
-                    entry_trigger=self._entry_trigger(primary),
-                    entry_state=(
-                        "ENTRY_VALID"
-                        if status is CandidateStatus.READY_FOR_RISK
-                        and not candidate_blockers
-                        else "ENTRY_NOT_READY"
-                    ),
-                    entry_expiry=expiry,
-                    target_sources=candidate.target_sources,
-                    evidence=tuple(
-                        dict.fromkeys(
-                            (
-                                *candidate.evidence,
-                                f"SCENARIO_ID:{primary.scenario_id}",
-                                f"SCENARIO_TYPE:{primary.scenario_type.value}",
-                            )
-                        )
-                    ),
-                    blockers=tuple(dict.fromkeys(candidate_blockers)),
-                )
-            )
+            bound.append(self._bind_scenario(candidate, primary, state))
         return tuple(bound)
+
+    def _bind_scenario(
+        self,
+        candidate: TradeCandidate,
+        primary: ScenarioHypothesis,
+        state: TradingIntelligenceState,
+    ) -> TradeCandidate:
+        """Bind scenario economics without changing strategy-owned target geometry."""
+        status = candidate.status
+        candidate_blockers = list(candidate.blockers)
+        if (
+            primary.state is ScenarioState.CONFIRMED
+            and f"ENTRY_TRIGGER_TIMEFRAME:{candidate.timeframe}"
+            not in primary.evidence_for
+        ):
+            status = CandidateStatus.RESEARCH_ONLY
+            candidate_blockers.append("ENTRY_TRIGGER_TIMEFRAME_MISMATCH")
+        if primary.state is ScenarioState.FORMING:
+            if status is CandidateStatus.READY_FOR_RISK:
+                status = CandidateStatus.WAIT_FOR_RETEST
+            candidate_blockers.append("SCENARIO_CONFIRMATION_PENDING")
+        elif primary.state is not ScenarioState.CONFIRMED:
+            status = CandidateStatus.RESEARCH_ONLY
+            candidate_blockers.extend(("SCENARIO_NOT_CONFIRMED", *primary.blockers))
+        net_risk_reward = self._net_risk_reward(
+            candidate,
+            state.estimated_round_trip_cost_ratio,
+        )
+        if net_risk_reward is None:
+            status = CandidateStatus.RESEARCH_ONLY
+            candidate_blockers.extend(
+                (*state.cost_blockers, "NET_RISK_REWARD_UNAVAILABLE")
+            )
+        invalidation = primary.invalidation_level
+        valid_invalidation = invalidation is not None and (
+            ZERO < invalidation < candidate.entry_zone.lower
+            if candidate.action is Action.BUY
+            else invalidation > candidate.entry_zone.upper
+        )
+        structural_rr = None
+        if valid_invalidation and invalidation is not None:
+            structural_rr = abs(
+                candidate.take_profit_levels[0] - candidate.entry_price
+            ) / abs(candidate.entry_price - invalidation)
+        else:
+            status = CandidateStatus.RESEARCH_ONLY
+            candidate_blockers.append("SCENARIO_INVALIDATION_UNAVAILABLE_OR_INVALID")
+        if primary.blockers and primary.state is ScenarioState.CONFIRMED:
+            status = CandidateStatus.RESEARCH_ONLY
+            candidate_blockers.extend(primary.blockers)
+        if primary.state is ScenarioState.CONFIRMED and primary.confidence <= 0:
+            status = CandidateStatus.RESEARCH_ONLY
+            candidate_blockers.append("SCENARIO_CONFIDENCE_UNAVAILABLE")
+        expiry = self._entry_expiry(candidate.timestamp, candidate.timeframe)
+        if expiry is None:
+            status = CandidateStatus.RESEARCH_ONLY
+            candidate_blockers.append("ENTRY_EXPIRY_UNAVAILABLE")
+        return replace(
+            candidate,
+            status=status,
+            scenario_id=primary.scenario_id,
+            scenario_type=primary.scenario_type.value,
+            scenario_state=primary.state.value,
+            scenario_invalidation=(
+                str(primary.invalidation_level)
+                if primary.invalidation_level is not None
+                else None
+            ),
+            structural_risk_reward=structural_rr,
+            net_risk_reward=net_risk_reward,
+            estimated_round_trip_cost_ratio=(state.estimated_round_trip_cost_ratio),
+            expected_r=None,
+            probability_calibration_state=primary.calibration_state.value,
+            entry_trigger=self._entry_trigger(primary),
+            entry_state=(
+                "ENTRY_VALID"
+                if status is CandidateStatus.READY_FOR_RISK and not candidate_blockers
+                else "ENTRY_NOT_READY"
+            ),
+            entry_expiry=expiry,
+            target_sources=candidate.target_sources,
+            evidence=tuple(
+                dict.fromkeys(
+                    (
+                        *candidate.evidence,
+                        f"SCENARIO_ID:{primary.scenario_id}",
+                        f"SCENARIO_TYPE:{primary.scenario_type.value}",
+                    )
+                )
+            ),
+            blockers=tuple(dict.fromkeys(candidate_blockers)),
+        )
 
     @classmethod
     def _cost_model(
@@ -416,18 +418,9 @@ class TradingIntelligenceEngine:
                 continue
             invalidation = self._decimal(raw.get("invalidation_level"))
             confidence = self._float(raw.get("structure_confidence"))
-            if confidence is not None and not 0.0 <= confidence <= 1.0:
-                continue
             swings = self._swings(raw.get("swings"), timeframe)
             events = self._events(raw.get("events"))
-            if any(swing.available_at > snapshot.created_at for swing in swings) or any(
-                event.occurred_at > snapshot.created_at for event in events
-            ):
-                continue
-            raw_swings = raw.get("swings")
-            if isinstance(raw_swings, (tuple, list)) and len(swings) != len(raw_swings):
-                continue
-            if invalidation is not None and invalidation <= ZERO:
+            if not self._structure_projection_is_valid(snapshot, raw, swings, events):
                 continue
             structures.append(
                 TimeframeStructureEvidence(
@@ -449,6 +442,28 @@ class TradingIntelligenceEngine:
                 )
             )
         return tuple(structures)
+
+    @classmethod
+    def _structure_projection_is_valid(
+        cls,
+        snapshot: MarketSnapshot,
+        raw: Mapping[str, object],
+        swings: tuple[ConfirmedSwing, ...],
+        events: tuple[StructureEvent, ...],
+    ) -> bool:
+        confidence = cls._float(raw.get("structure_confidence"))
+        invalidation = cls._decimal(raw.get("invalidation_level"))
+        raw_swings, raw_events = raw.get("swings", ()), raw.get("events", ())
+        return (
+            (confidence is None or 0.0 <= confidence <= 1.0)
+            and (invalidation is None or invalidation > ZERO)
+            and isinstance(raw_swings, (tuple, list))
+            and len(swings) == len(raw_swings)
+            and isinstance(raw_events, (tuple, list))
+            and len(events) == len(raw_events)
+            and all(swing.available_at <= snapshot.created_at for swing in swings)
+            and all(event.occurred_at <= snapshot.created_at for event in events)
+        )
 
     def _levels(
         self,
