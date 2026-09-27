@@ -1,6 +1,8 @@
 param(
     [ValidateSet("fast", "standard", "full")]
     [string]$Profile = "full",
+    [string]$BaseRef = "",
+    [string]$HeadRef = "",
     [Alias("ApprovalRecordPath")]
     [string]$ApprovalRecordReportPath = "",
     [string]$ApprovalBy = "",
@@ -13,11 +15,16 @@ $ErrorActionPreference = "Stop"
 $python = Join-Path $PSScriptRoot "..\.venv\Scripts\python.exe"
 $coverageReaderScript = Join-Path $PSScriptRoot "read_coverage_percent.py"
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+$qualityGitCommonDirectory = & git -C $repoRoot rev-parse --path-format=absolute --git-common-dir
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace([string]$qualityGitCommonDirectory)) {
+    throw "QUALITY_GATE_GIT_COMMON_DIRECTORY_UNAVAILABLE"
+}
+$qualityLockScope = [IO.Path]::GetFullPath(([string]$qualityGitCommonDirectory).Trim())
 $qualityGateHashAlgorithm = [System.Security.Cryptography.SHA256]::Create()
 try {
     $qualityGateMutexSuffix = [BitConverter]::ToString(
         $qualityGateHashAlgorithm.ComputeHash(
-            [System.Text.Encoding]::UTF8.GetBytes($repoRoot.ToLowerInvariant())
+            [System.Text.Encoding]::UTF8.GetBytes($qualityLockScope.ToLowerInvariant())
         )
     ).Replace("-", "")
 }
@@ -203,7 +210,9 @@ $script:qualityInvocationParameters = @{} + $PSBoundParameters
 $script:cachedRepositoryValidatorReport = $null
 $script:cachedGovernanceGateReport = $null
 $script:qualityGateProfile = $Profile.ToLowerInvariant()
+$script:qualityProfilePolicy = @{ fail_fast = $true }
 $script:qualityStepExitCodes = [ordered]@{}
+$script:qualityStepFailures = @()
 $script:qualityStepTelemetry = @()
 $script:qualityRunStartedAtUtc = [DateTimeOffset]::UtcNow
 $script:qualityRunStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -415,6 +424,7 @@ function Invoke-CleanupScript {
         }
         if (-not $invocationSucceeded) {
             $stepStatus = "FAIL"
+            $script:qualityStepFailures += $Name
             throw "$Name failed with exit code $exitCode. Evidence: $stepArtifactPath"
         }
         $stepStatus = "PASS"
@@ -506,6 +516,10 @@ function Invoke-QualityStepWithAllowedExitCodes {
         $script:qualityStepExitCodes[$Name] = $exitCode
         if ($AllowedExitCodes -notcontains $exitCode) {
             $stepStatus = "FAIL"
+            $script:qualityStepFailures += $Name
+            if (-not $script:qualityProfilePolicy.fail_fast) {
+                return $exitCode
+            }
             throw "$Name failed with exit code $exitCode. Evidence: $stepArtifactPath"
         }
         if ($StatusByExitCode.ContainsKey($exitCode)) {
@@ -1038,6 +1052,8 @@ function Invoke-PytestWithCapturedOutput {
     $arguments = @(
         "-m",
         "pytest",
+        "--junitxml", (Join-Path $qualityRunDirectory "pytest-results.xml"),
+        "-o", "junit_family=legacy",
         "--basetemp",
         $pytestTemp,
         "--cov=ai4binance",
@@ -1096,6 +1112,8 @@ function Invoke-ScopedPytestWithCapturedOutput {
     $previousPythonDontWriteBytecode = $env:PYTHONDONTWRITEBYTECODE
     $env:PYTHONDONTWRITEBYTECODE = "1"
     $arguments = @("-m", "pytest") + $PytestArguments + @(
+        "--junitxml", (Join-Path $qualityRunDirectory "pytest-results.xml"),
+        "-o", "junit_family=legacy",
         "--basetemp",
         $pytestTemp,
         "--durations=20",
@@ -1254,6 +1272,9 @@ function Invoke-QualityPytestSelector {
         "--profile",
         $Profile
     )
+    if ($BaseRef -or $HeadRef) {
+        $selectorArguments += @("--base", $BaseRef, "--head", $HeadRef)
+    }
     foreach ($changedPath in ($ChangedPaths | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
         $selectorArguments += @("--changed-path", $changedPath)
     }
@@ -1662,7 +1683,6 @@ function Reset-LatestQualityGateArtifacts {
         $qualityEvidencePath,
         $repositoryValidatorReportPath,
         $deterministicQualityGateReportPath,
-        $approvalRecordPath,
         $humanGovernanceClosureRequestPath,
         $humanGovernanceClosureRequestMarkdownPath,
         $governanceGateReportPath
@@ -1711,6 +1731,19 @@ function Get-QualityGateGitWriteLeasePath {
 
 function Publish-QualityGateGitWriteLease {
     $leasePath = Get-QualityGateGitWriteLeasePath
+    if (Test-Path -LiteralPath $leasePath -PathType Leaf) {
+        $existingLease = Get-Content -LiteralPath $leasePath -Raw | ConvertFrom-Json
+        if ([int]$existingLease.process_id -le 0 -or -not $existingLease.process_started_at_utc) {
+            throw "QUALITY_GATE_GIT_WRITE_LEASE_INVALID"
+        }
+        $existingProcess = Get-Process -Id ([int]$existingLease.process_id) -ErrorAction SilentlyContinue
+        if ($null -ne $existingProcess) {
+            $recordedStart = [DateTimeOffset]$existingLease.process_started_at_utc
+            if ($existingProcess.StartTime.ToUniversalTime().Ticks -eq $recordedStart.UtcDateTime.Ticks) {
+                throw "QUALITY_GATE_ALREADY_RUNNING: existing lease belongs to an active run."
+            }
+        }
+    }
     $process = Get-Process -Id $PID -ErrorAction Stop
     $temporaryLeasePath = "$leasePath.$PID.tmp"
     $payload = [ordered]@{
@@ -1745,7 +1778,17 @@ function Remove-QualityGateGitWriteLease {
         return
     }
     if (Test-Path -LiteralPath $leasePath -PathType Leaf) {
-        Remove-Item -LiteralPath $leasePath -Force -ErrorAction SilentlyContinue
+        $lease = Get-Content -LiteralPath $leasePath -Raw | ConvertFrom-Json
+        $ownerStart = (Get-Process -Id $PID).StartTime.ToUniversalTime().Ticks
+        $recordedStart = [DateTimeOffset]$lease.process_started_at_utc
+        if (
+            [string]$lease.run_id -ne $qualityRunTimestamp -or
+            [int]$lease.process_id -ne $PID -or
+            $recordedStart.UtcDateTime.Ticks -ne $ownerStart
+        ) {
+            throw "QUALITY_GATE_LEASE_OWNER_MISMATCH"
+        }
+        Remove-Item -LiteralPath $leasePath -Force -ErrorAction Stop
     }
     $script:qualityGateGitWriteLeasePath = $null
 }
@@ -1755,6 +1798,11 @@ function Assert-QualityWorkspaceStable {
         [Parameter(Mandatory = $true)]
         [string]$Stage
     )
+
+    $failedSteps = @($script:qualityStepFailures)
+    if ($failedSteps.Count -gt 0) {
+        throw ("QUALITY_STEPS_FAILED: " + ($failedSteps -join ", "))
+    }
 
     $guardStartedAtUtc = [DateTimeOffset]::UtcNow
     $guardStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -2230,185 +2278,30 @@ function Assert-ApprovalReplayArtifactHash {
 
 function Get-FullApprovalReplayContext {
     $resolvedApprovalRecordPath = Resolve-ApprovalRecordPathForGovernanceGate
-    if ($null -eq $resolvedApprovalRecordPath) {
-        throw "APPROVAL_REPLAY_RECORD_REQUIRED"
-    }
-    $approvalPayload = Get-Content -LiteralPath $resolvedApprovalRecordPath -Raw |
-        ConvertFrom-Json
-    $approvalRecords = @($approvalPayload.approval_records)
-    if ($approvalRecords.Count -lt 1) {
-        throw "APPROVAL_REPLAY_RECORDS_MISSING"
-    }
-    $subjectRefs = @(
-        $approvalRecords |
-            ForEach-Object { [string]$_.subject_ref } |
-            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
-            Select-Object -Unique
+    if ($null -eq $resolvedApprovalRecordPath) { throw "APPROVAL_REPLAY_RECORD_REQUIRED" }
+    $pythonCode = @'
+import json
+import sys
+from pathlib import Path
+from ai4binance.governance.gate import load_approval_replay_context
+try:
+    payload = load_approval_replay_context(
+        Path(sys.argv[1]), Path(sys.argv[2]), json.load(sys.stdin)
     )
-    if ($subjectRefs.Count -ne 1) {
-        throw "APPROVAL_REPLAY_SUBJECT_REF_AMBIGUOUS"
-    }
-    foreach ($record in $approvalRecords) {
-        if ([bool]$record.execution_allowed) {
-            throw "APPROVAL_REPLAY_EXECUTION_AUTHORITY_FORBIDDEN"
-        }
-        if ([string]$record.live_eligibility_status -ne "LIVE_ORDER_BLOCKED") {
-            throw "APPROVAL_REPLAY_LIVE_BOUNDARY_MISMATCH"
-        }
-    }
-
-    $sourceGovernancePath = Resolve-ApprovalReplaySourcePath -Path $subjectRefs[0]
-    if ((Split-Path -Leaf $sourceGovernancePath) -ne "governance-gate-approval-required.json") {
-        throw "APPROVAL_REPLAY_SUBJECT_REF_NOT_FROZEN"
-    }
-    $sourceDirectory = Split-Path -Parent $sourceGovernancePath
-    $sourceGovernance = Get-Content -LiteralPath $sourceGovernancePath -Raw |
-        ConvertFrom-Json
-    $nonApprovalBlockers = @(
-        @($sourceGovernance.blockers) | Where-Object {
-            $_ -ne "APPROVAL_REQUIRED" -and $_ -notlike "APPROVAL_*"
-        }
-    )
-    if (
-        [string]$sourceGovernance.status -ne "RUNNING_WITH_BLOCKERS" -or
-        $nonApprovalBlockers.Count -gt 0 -or
-        [int]$sourceGovernance.approval_verification.required_approval_count -lt 1
-    ) {
-        throw "APPROVAL_REPLAY_SOURCE_NOT_APPROVAL_ONLY"
-    }
-    if (
-        [string]$sourceGovernance.deterministic_quality_gate.status -ne "PASS" -or
-        [string]$sourceGovernance.repository_hygiene.status -ne "PASS" -or
-        [string]$sourceGovernance.constitution_sync.status -ne "PASS" -or
-        [string]$sourceGovernance.repository_conformance.status -ne "PASS" -or
-        [string]$sourceGovernance.repository_validator_gate.status -ne "PASS"
-    ) {
-        throw "APPROVAL_REPLAY_SOURCE_GATE_NOT_PASSING"
-    }
-    if (
-        [bool]$sourceGovernance.execution_allowed -or
-        [string]$sourceGovernance.promotion_status -ne "RESEARCH_ONLY" -or
-        [string]$sourceGovernance.live_eligibility_status -ne "LIVE_ORDER_BLOCKED"
-    ) {
-        throw "APPROVAL_REPLAY_SOURCE_SAFETY_BOUNDARY_MISMATCH"
-    }
-
-    $currentAttestation = $script:qualityInitialWorkspaceAttestation
-    if ($null -eq $currentAttestation) {
-        throw "APPROVAL_REPLAY_WORKSPACE_ATTESTATION_MISSING"
-    }
-    $expectedSubject = $sourceGovernance.subject_digest
-    if (
-        [string]$currentAttestation.repository_tree_sha256 -ne
-            [string]$expectedSubject.repository_tree_sha256 -or
-        [string]$currentAttestation.git_commit -ne [string]$expectedSubject.git_commit
-    ) {
-        throw "APPROVAL_REPLAY_SUBJECT_DRIFT"
-    }
-
-    $sourceQualityPath = Resolve-ApprovalReplaySourcePath -Path (
-        Join-Path $sourceDirectory "deterministic-quality-gate.json"
-    )
-    $sourceValidatorPath = Resolve-ApprovalReplaySourcePath -Path (
-        Join-Path $sourceDirectory "repository-validator.json"
-    )
-    $sourceCoverageSummaryPath = Resolve-ApprovalReplaySourcePath -Path (
-        Join-Path $sourceDirectory "coverage-summary.json"
-    )
-    $sourceCoverageMarkdownPath = Resolve-ApprovalReplaySourcePath -Path (
-        Join-Path $sourceDirectory "coverage-summary.md"
-    )
-    $sourceQuality = Get-Content -LiteralPath $sourceQualityPath -Raw |
-        ConvertFrom-Json
-    $sourceValidator = Get-Content -LiteralPath $sourceValidatorPath -Raw |
-        ConvertFrom-Json
-    $sourceCoverageSummary = Get-Content -LiteralPath $sourceCoverageSummaryPath -Raw |
-        ConvertFrom-Json
-    if (
-        [string]$sourceQuality.status -ne "PASS" -or
-        [string]$sourceQuality.gate_evidence_sha256 -ne
-            [string]$sourceGovernance.deterministic_quality_gate.gate_evidence_sha256 -or
-        [string]$sourceQuality.subject_digest.subject_id -ne
-            [string]$expectedSubject.subject_id -or
-        [string]$sourceQuality.subject_digest.change_set_sha256 -ne
-            [string]$expectedSubject.change_set_sha256
-    ) {
-        throw "APPROVAL_REPLAY_DETERMINISTIC_QUALITY_DRIFT"
-    }
-    if (
-        [string]$currentAttestation.change_set_sha256 -ne
-            [string]$sourceQuality.quality_evidence_gate.quality_gate.workspace_attestation.change_set_sha256
-    ) {
-        throw "APPROVAL_REPLAY_WORKSPACE_ATTESTATION_DRIFT"
-    }
-    if ([string]$sourceValidator.status -ne "PASS") {
-        throw "APPROVAL_REPLAY_REPOSITORY_VALIDATOR_NOT_PASSING"
-    }
-
-    foreach ($evidence in @(
-            $sourceGovernance.docs_hygiene,
-            $sourceGovernance.artifact_hygiene,
-            $sourceGovernance.constitution_sync_tests
-        )) {
-        if (-not [bool]$evidence.passed) {
-            throw "APPROVAL_REPLAY_HYGIENE_EVIDENCE_NOT_PASSING"
-        }
-        $evidencePath = Resolve-ApprovalReplaySourcePath -Path (
-            [string]$evidence.evidence_path
-        )
-        if ((Split-Path -Parent $evidencePath) -ne $sourceDirectory) {
-            throw "APPROVAL_REPLAY_HYGIENE_EVIDENCE_NOT_RUN_SCOPED"
-        }
-        Assert-ApprovalReplayArtifactHash `
-            -Path $evidencePath `
-            -ExpectedSha256 ([string]$evidence.evidence_sha256) `
-            -ArtifactName ([string]$evidence.check_id)
-    }
-
-    $sourcePytestPath = Resolve-ApprovalReplaySourcePath -Path (
-        [string]$sourceGovernance.docs_hygiene.evidence_path
-    )
-    $sourceBanditPath = Resolve-ApprovalReplaySourcePath -Path (
-        [string]$sourceQuality.security_scan.evidence_path
-    )
-    Assert-ApprovalReplayArtifactHash `
-        -Path $sourceBanditPath `
-        -ExpectedSha256 ([string]$sourceQuality.security_scan.evidence_sha256) `
-        -ArtifactName "BANDIT"
-    Assert-ApprovalReplayArtifactHash `
-        -Path $sourceCoverageMarkdownPath `
-        -ExpectedSha256 (
-            [string]$sourceQuality.quality_evidence_gate.quality_gate.coverage_realism_proof_sha256
-        ) `
-        -ArtifactName "COVERAGE_REALISM_PROOF"
-    $expectedCoverage = [double](
-        $sourceQuality.quality_evidence_gate.quality_gate.coverage_percent
-    )
-    if (
-        [math]::Abs(
-            [double]$sourceCoverageSummary.total_coverage_percent - $expectedCoverage
-        ) -gt 0.01
-    ) {
-        throw "APPROVAL_REPLAY_COVERAGE_SUMMARY_DRIFT"
-    }
-    $sourceCoveragePath = Resolve-ApprovalReplaySourcePath -Path (
-        Join-Path $sourceDirectory "coverage.json"
-    )
-
-    return [ordered]@{
-        approval_record_path = $resolvedApprovalRecordPath
-        governance = $sourceGovernance
-        quality = $sourceQuality
-        governance_path = $sourceGovernancePath
-        quality_path = $sourceQualityPath
-        validator_path = $sourceValidatorPath
-        pytest_path = $sourcePytestPath
-        coverage_path = $sourceCoveragePath
-        bandit_path = $sourceBanditPath
-        coverage_summary_path = $sourceCoverageSummaryPath
-        coverage_markdown_path = $sourceCoverageMarkdownPath
-    }
+except (ValueError, KeyError, TypeError, OSError) as error:
+    reason = str(error)
+    if not reason.startswith('APPROVAL_REPLAY_'):
+        reason = 'APPROVAL_REPLAY_CONTEXT_INVALID'
+    print(json.dumps({'error': reason}))
+    raise SystemExit(2)
+print(json.dumps(payload))
+'@
+    $context = ($script:qualityInitialWorkspaceAttestation | ConvertTo-Json -Depth 6) |
+        & $python -B -c $pythonCode $repoRoot $resolvedApprovalRecordPath
+    if ($LASTEXITCODE -ne 0) { throw ([string](($context | ConvertFrom-Json).error)) }
+    return $context | ConvertFrom-Json
 }
+
 
 function Copy-ApprovalReplayArtifact {
     param(
@@ -2728,8 +2621,7 @@ function Write-QualityGateGreenEvidence {
         promotion_status = "RESEARCH_ONLY"
         live_eligibility_status = "LIVE_ORDER_BLOCKED"
     }
-    $payload |
-        ConvertTo-Json -Depth 12 |
+    Complete-QualityEvidenceBinding -Payload $payload |
         Set-Content -LiteralPath $qualityEvidencePath -Encoding UTF8
 }
 
@@ -2774,9 +2666,29 @@ function Write-QualityGateFailureEvidence {
         promotion_status = "RESEARCH_ONLY"
         live_eligibility_status = "LIVE_ORDER_BLOCKED"
     }
+    if ($null -ne $script:qualityInitialWorkspaceAttestation) {
+        $payload.workspace_attestation = $script:qualityInitialWorkspaceAttestation
+        $bound = ($payload | ConvertTo-Json -Depth 20) |
+            & $python -B -m ai4binance.ops.quality_gate bind-failure-evidence `
+                --repository-root $repoRoot --run-id $qualityRunTimestamp
+        if ($LASTEXITCODE -ne 0) { throw "QUALITY_FAILURE_EVIDENCE_BINDING_FAILED" }
+        $bound | Set-Content -LiteralPath $qualityEvidencePath -Encoding UTF8
+        return
+    }
     $payload |
         ConvertTo-Json -Depth 6 |
         Set-Content -LiteralPath $qualityEvidencePath -Encoding UTF8
+}
+
+function Complete-QualityEvidenceBinding {
+    param([System.Collections.IDictionary]$Payload)
+    $Payload.workspace_attestation = $script:qualityInitialWorkspaceAttestation
+    $json = $Payload | ConvertTo-Json -Depth 20
+    $bound = $json | & $python -B -m ai4binance.ops.quality_gate bind-evidence `
+        --repository-root $repoRoot --run-id $qualityRunTimestamp `
+        --junit-path (Join-Path $qualityRunDirectory "pytest-results.xml")
+    if ($LASTEXITCODE -ne 0) { throw "QUALITY_EVIDENCE_BINDING_FAILED" }
+    return $bound
 }
 
 function Write-QualityProfileEvidence {
@@ -2812,8 +2724,7 @@ function Write-QualityProfileEvidence {
         promotion_status = "RESEARCH_ONLY"
         live_eligibility_status = "LIVE_ORDER_BLOCKED"
     }
-    $payload |
-        ConvertTo-Json -Depth 6 |
+    Complete-QualityEvidenceBinding -Payload $payload |
         Set-Content -LiteralPath $qualityEvidencePath -Encoding UTF8
 }
 
@@ -3340,6 +3251,7 @@ function Invoke-StandardQualityGate {
         $repoRoot
     )
     Invoke-QualityStep "MyPy" @("-m", "mypy")
+    Invoke-RepositoryGovernanceValidator
     Assert-QualityWorkspaceStable -Stage "BEFORE_STANDARD_PYTEST"
     Invoke-ScopedPytestWithCapturedOutput `
         -Name "Pytest required" `
@@ -3365,6 +3277,10 @@ New-Item -ItemType Directory -Path $qualityGateArtifactDirectory -Force | Out-Nu
 Start-Transcript -Path $qualityRunOutputPath -Force | Out-Null
 Write-QualityRunMetadata -Status $qualityRunStatus -CurrentStep $qualityRunCurrentStep
 try {
+    $profileOutput = & $python -B -m ai4binance.ops.quality_gate profile `
+        --config $qualityGateProfileConfigPath --profile $script:qualityGateProfile
+    if ($LASTEXITCODE -ne 0) { throw "QUALITY_PROFILE_POLICY_INVALID" }
+    $script:qualityProfilePolicy = $profileOutput | ConvertFrom-Json
     $script:qualityRunCurrentStep = "Quality gate Git write guard"
     Publish-QualityGateGitWriteLease
     $script:qualityRunCurrentStep = "Repository state baseline"

@@ -111,7 +111,24 @@ def build_scripts_inventory_report(
     entries = tuple(
         _inventory_entry(path, root, scripts_root)
         for path in sorted(scripts_root.rglob("*"))
-        if path.is_file() and path.suffix.lower() in {".ps1", ".py"}
+        if path.is_file()
+        and (
+            path.suffix.lower()
+            in {
+                ".ps1",
+                ".psm1",
+                ".psd1",
+                ".py",
+                ".sh",
+                ".bash",
+                ".bat",
+                ".cmd",
+                ".js",
+                ".mjs",
+                ".ts",
+            }
+            or (not path.suffix and path.read_bytes()[:2] == b"#!")
+        )
     )
     call_graph = _build_call_graph(entries)
     duplicate_blocks = _find_duplicate_blocks(
@@ -145,7 +162,7 @@ def build_scripts_inventory_report(
         generated_at_utc=clock or datetime.now(UTC),
         repository_root=str(root),
         scripts_root=_relative_path(scripts_root, root),
-        status="PASS",
+        status="INVENTORIED",
         script_count=len(entries),
         total_bytes=total_bytes,
         total_lines=total_lines,

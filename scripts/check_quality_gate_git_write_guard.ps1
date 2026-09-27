@@ -55,11 +55,7 @@ try {
     if ($null -eq $leaseProcess) {
         exit 0
     }
-    $recordedStartTime = [DateTimeOffset]::Parse(
-        [string]$lease.process_started_at_utc,
-        [Globalization.CultureInfo]::InvariantCulture,
-        [Globalization.DateTimeStyles]::RoundtripKind
-    ).UtcDateTime
+    $recordedStartTime = ([DateTimeOffset]$lease.process_started_at_utc).UtcDateTime
     $actualStartTime = $leaseProcess.StartTime.ToUniversalTime()
     if ($recordedStartTime.Ticks -ne $actualStartTime.Ticks) {
         exit 0

@@ -31,6 +31,20 @@ def test_live_readiness_application_exports_are_resolvable() -> None:
     assert vars(application_package)["LiveReadinessEvidence"] is LiveReadinessEvidence
 
 
+@pytest.mark.parametrize("name", application_package.__all__)
+def test_application_lazy_exports_preserve_canonical_identity(name: str) -> None:
+    exported = application_package.__getattr__(name)
+    assert getattr(application_package, name) is exported
+
+
+def test_application_exports_reject_unregistered_module(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(application_package._EXPORTS, "TestOnly", "unregistered")
+    with pytest.raises(AttributeError, match="unregistered application export"):
+        application_package.__getattr__("TestOnly")
+
+
 def test_live_readiness_bridge_getattr_falls_back_and_rejects_unknown_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

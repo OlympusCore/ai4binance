@@ -34,14 +34,14 @@ function Write-MonitorHealth {
         promotion_status = "RESEARCH_ONLY"
         live_eligibility_status = "LIVE_ORDER_BLOCKED"
     }
-    $temporary = "$healthPath.tmp"
+    $temporary = "$healthPath.$PID.tmp"
     $payload | ConvertTo-Json -Depth 4 -Compress |
         Set-Content -LiteralPath $temporary -Encoding UTF8
     Move-Item -LiteralPath $temporary -Destination $healthPath -Force
 }
 
 function Invoke-RepositoryGovernanceValidation {
-    $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
+    $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ") + "-" + [guid]::NewGuid().ToString("N")
     $jsonPath = Join-Path $artifactDirectory "repository-governance-$stamp.json"
     $markdownPath = Join-Path $reportDirectory "REPOSITORY_GOVERNANCE_$stamp.md"
     $latestJsonPath = Join-Path $artifactDirectory "repository-governance-latest.json"
@@ -53,6 +53,7 @@ function Invoke-RepositoryGovernanceValidation {
         --repository-root $root `
         --output-json $jsonPath `
         --output-markdown $markdownPath `
+        --monitor-health $healthPath `
         --quiet `
         2>> $stderrPath
     $exitCode = [int]$LASTEXITCODE
@@ -64,12 +65,14 @@ function Invoke-RepositoryGovernanceValidation {
         Copy-Item -LiteralPath $markdownPath -Destination $latestMarkdownPath -Force
     }
 
-    $status = if ($exitCode -eq 0) { "PASS" } else { "RUNNING_WITH_BLOCKERS" }
-    Write-MonitorHealth `
-        -Status $status `
-        -ExitCode $exitCode `
-        -JsonPath $latestJsonPath `
-        -MarkdownPath $latestMarkdownPath
+    if ($exitCode -ne 0) {
+        Write-MonitorHealth -Status "RUNNING_WITH_BLOCKERS" -ExitCode $exitCode `
+            -JsonPath $jsonPath -MarkdownPath $markdownPath
+    }
+    elseif (-not (Test-Path -LiteralPath $jsonPath -PathType Leaf)) {
+        Write-MonitorHealth -Status "RUNNING_WITH_BLOCKERS" -ExitCode 2
+    }
+
 }
 
 if ($IntervalSeconds -lt 30) {

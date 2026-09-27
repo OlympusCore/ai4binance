@@ -6,6 +6,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 
 from ai4binance.governance.enforcement.contracts import (
     AuditReceipt,
@@ -68,6 +69,7 @@ def _parse_timestamp(value: str) -> datetime:
 class DeterministicEnforcementEngine:
     registry: EnforcementProfileRegistry
     policy_engine: PolicyAsCodeEngine | None = None
+    evidence_root: Path | None = None
 
     def evaluate(
         self,
@@ -607,6 +609,41 @@ class DeterministicEnforcementEngine:
             return f"{attestation.gate.value}_ATTESTATION_NOT_VERIFIED"
         if _parse_timestamp(attestation.valid_until) < _utcnow():
             return f"{attestation.gate.value}_ATTESTATION_STALE"
+        if _parse_timestamp(attestation.evaluated_at) > _utcnow():
+            return f"{attestation.gate.value}_ATTESTATION_FUTURE"
+        provider = self.registry.attestation_providers.get(attestation.provider_id)
+        gates = None if provider is None else provider.get("gates")
+        if (
+            provider is None
+            or not isinstance(gates, list | tuple)
+            or attestation.gate.value not in gates
+        ):
+            return f"{attestation.gate.value}_ATTESTATION_PROVIDER_UNTRUSTED"
+        if attestation.provider_version != provider.get(
+            "provider_version"
+        ) or attestation.policy_version != provider.get("policy_version"):
+            return f"{attestation.gate.value}_ATTESTATION_POLICY_MISMATCH"
+        return self._attestation_evidence_error(attestation)
+
+    def _attestation_evidence_error(
+        self, attestation: VerificationAttestation
+    ) -> str | None:
+        if self.evidence_root is None:
+            return f"{attestation.gate.value}_ATTESTATION_EVIDENCE_UNAVAILABLE"
+        root = self.evidence_root.resolve()
+        hashes: dict[str, str] = {}
+        try:
+            for reference in attestation.evidence_refs:
+                path = (root / reference).resolve()
+                if not path.is_relative_to(root) or not path.is_file():
+                    return f"{attestation.gate.value}_ATTESTATION_EVIDENCE_UNAVAILABLE"
+                if path.stat().st_size > 2_000_000:
+                    return f"{attestation.gate.value}_ATTESTATION_EVIDENCE_TOO_LARGE"
+                hashes[reference] = hashlib.sha256(path.read_bytes()).hexdigest()
+        except OSError:
+            return f"{attestation.gate.value}_ATTESTATION_EVIDENCE_UNAVAILABLE"
+        if _sha256(hashes) != attestation.evidence_hash:
+            return f"{attestation.gate.value}_ATTESTATION_EVIDENCE_MISMATCH"
         return None
 
     def _validate_approval_set(

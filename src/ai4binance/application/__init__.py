@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from importlib import import_module
+from types import ModuleType
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -133,7 +133,26 @@ def __getattr__(name: str) -> object:
     module_path = _EXPORTS.get(name)
     if module_path is None:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-    module = import_module(module_path)
+    module: ModuleType
+    match module_path:
+        case "ai4binance.application.runtime":
+            from ai4binance.application import runtime as module
+        case "ai4binance.application.live_readiness":
+            from ai4binance.application import live_readiness as module
+        case "ai4binance.application.research":
+            from ai4binance.application import research as module
+        case "ai4binance.application.validation_pipeline":
+            from ai4binance.application import validation_pipeline as module
+        case "ai4binance.application.services.virtual_runtime":
+            from ai4binance.application.services import virtual_runtime as module
+        case "ai4binance.application.virtual_runtime_performance":
+            from ai4binance.application import virtual_runtime_performance as module
+        case "ai4binance.application.orchestration.whale_fusion":
+            from ai4binance.application.orchestration import whale_fusion as module
+        case _:
+            raise AttributeError(
+                f"unregistered application export module: {module_path}"
+            )
     value = getattr(module, name)
     globals()[name] = value
     return value

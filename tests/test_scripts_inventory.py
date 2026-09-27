@@ -70,7 +70,7 @@ function Register-Task {
         clock=NOW,
     )
 
-    assert report.status == "PASS"
+    assert report.status == "INVENTORIED"
     assert report.execution_allowed is False
     assert report.promotion_status == "RESEARCH_ONLY"
     assert report.live_eligibility_status == "LIVE_ORDER_BLOCKED"
@@ -102,7 +102,7 @@ def test_scripts_inventory_persists_verified_json_and_cli_summary(
     persist_scripts_inventory_report(report, output)
 
     persisted = json.loads(output.read_text(encoding="utf-8"))
-    assert persisted["status"] == "PASS"
+    assert persisted["status"] == "INVENTORIED"
     assert persisted["script_count"] == 1
     assert persisted["execution_allowed"] is False
 
@@ -122,7 +122,16 @@ def test_scripts_inventory_persists_verified_json_and_cli_summary(
         "duplicate_block_count": 0,
         "evidence_path": "runtime/artifacts/scripts_kaizen/latest.json",
         "script_count": 1,
-        "status": "PASS",
+        "status": "INVENTORIED",
         "top_script": "scripts/speak.ps1",
         "total_lines": 1,
     }
+
+
+def test_inventory_includes_extensionless_git_hooks(tmp_path: Path) -> None:
+    hook = tmp_path / "scripts/git-hooks/pre-commit"
+    hook.parent.mkdir(parents=True)
+    hook.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+    report = build_scripts_inventory_report(tmp_path)
+    assert [item.path for item in report.entries] == ["scripts/git-hooks/pre-commit"]
+    assert report.status == "INVENTORIED"

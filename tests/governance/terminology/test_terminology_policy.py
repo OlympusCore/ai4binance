@@ -232,3 +232,17 @@ def test_terminology_scan_covers_deprecated_missing_and_projection_drift(
     assert terminology_module._read_bounded_text(tmp_path, "oversized.txt") is None
     with pytest.raises(ValueError, match="duplicate terminology term identifier"):
         replace(policy, terms=(policy.terms[0], policy.terms[0]))
+
+
+def test_semantic_concept_alias_cannot_collapse_declared_boundary(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "src/example.py"
+    target.parent.mkdir()
+    target.write_text("Opportunity = Signal\n", encoding="utf-8")
+    findings = evaluate_terminology_policy(
+        tmp_path, load_terminology_policy(ROOT), ("src/example.py",)
+    )
+    assert any(
+        item.code == "TERMINOLOGY_SEMANTIC_BOUNDARY_COLLAPSE" for item in findings
+    )

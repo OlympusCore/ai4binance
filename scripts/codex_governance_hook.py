@@ -27,6 +27,7 @@ from ai4binance.governance.technology_language_policy import (
     load_technology_language_policy,
 )
 from ai4binance.infrastructure.persistence.safe_json import write_json_object_verified
+from ai4binance.ops.quality_gate.telemetry import quality_completion_blockers
 
 ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE_ROOT = Path("runtime/artifacts/repository_validation/governance/codex_hooks")
@@ -232,6 +233,10 @@ def handle_event(payload: dict[str, object], root: Path = ROOT) -> dict[str, obj
         for finding in report.findings
         if finding.blocker
     ]
+    blockers.extend(
+        {"kind": reason, "path": "runtime/artifacts/quality/gate/latest.json"}
+        for reason in quality_completion_blockers(root, before)
+    )
     if after != before:
         blockers.append({"kind": "WORKSPACE_CHANGED_DURING_VALIDATION", "path": "."})
     receipt_path = destination / "runs" / f"{uuid4().hex}.json"

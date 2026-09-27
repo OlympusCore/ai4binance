@@ -9,6 +9,8 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "src" / "ai4binance" / "local_dashboard"
 
@@ -57,6 +59,39 @@ def test_dashboard_deployer_preserves_machine_state_and_private_profile() -> Non
     assert "runtime/dashboard/browser-profile" in deployer
     assert "source-manifest.json" in deployer
     assert 'live_eligibility_status = "LIVE_ORDER_BLOCKED"' in deployer
+
+
+def test_dashboard_packaging_reads_operations_from_canonical_owner(
+    tmp_path: Path,
+) -> None:
+    shell = shutil.which("pwsh") or shutil.which("powershell")
+    if shell is None:
+        pytest.skip("PowerShell is required for the Windows packaging test")
+    receipt = tmp_path / "test-only-dashboard-package.json"
+    completed = subprocess.run(  # noqa: S603
+        [
+            shell,
+            "-NoProfile",
+            "-File",
+            str(ROOT / "scripts/deploy_local_dashboard.ps1"),
+            "-ReceiptPath",
+            str(receipt),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        cwd=ROOT,
+    )
+    assert completed.returncode == 0, completed.stderr
+    payload = json.loads(receipt.read_text(encoding="utf-8-sig"))
+    assert payload["applied"] is False
+    assert payload["restart_required"] is False
+    records = {item["path"]: item["sha256"] for item in payload["source_files"]}
+    for name in ("install.ps1.in", "launch.ps1.in"):
+        path = ROOT / "scripts/local_dashboard" / name
+        assert records[path.relative_to(ROOT).as_posix()] == _sha256(path)
+        assert not (SOURCE / name).exists()
 
 
 def test_dashboard_exposes_useful_cycle_and_producer_health() -> None:

@@ -6220,3 +6220,65 @@ def test_repository_validator_cli_is_deterministic_json(tmp_path: Path) -> None:
     assert payload["execution_allowed"] is False
     assert payload["promotion_status"] == "RESEARCH_ONLY"
     assert "root_inventory" in payload
+
+
+def test_dynamic_import_boundaries_resolve_literals_and_reject_unknown_targets() -> (
+    None
+):
+    targets = tuple(
+        repository_validator_module._import_targets_for_module(
+            'from importlib import import_module as load; load("ai4binance.cli.futures_multitf")',
+            "ai4binance.core.example",
+            "src/ai4binance/core/example.py",
+        )
+    )
+    assert "ai4binance.cli.futures_multitf" in targets
+    with pytest.raises(ValueError, match="UNRESOLVED_DYNAMIC_IMPORT"):
+        tuple(
+            repository_validator_module._import_targets_for_module(
+                "import importlib; importlib.import_module(runtime_name)",
+                "ai4binance.core.example",
+                "src/ai4binance/core/example.py",
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        'importlib.import_module(".live_readiness", "ai4binance.execution")',
+        'importlib.import_module(name=".live_readiness", package="ai4binance.execution")',
+    ],
+)
+def test_dynamic_import_uses_explicit_package_instead_of_callers_package(
+    call: str,
+) -> None:
+    targets = tuple(
+        repository_validator_module._import_targets_for_module(
+            "import importlib; " + call,
+            "ai4binance.application.example",
+            "src/ai4binance/application/example.py",
+        )
+    )
+    assert "ai4binance.execution.live_readiness" in targets
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        'importlib.import_module(".dependency")',
+        'importlib.import_module(".dependency", package=runtime_package)',
+        "importlib.import_module(**runtime_arguments)",
+        '__import__("dependency", level=1)',
+        '__import__("dependency", level=runtime_level)',
+    ],
+)
+def test_dynamic_import_rejects_unresolved_package_or_level(call: str) -> None:
+    with pytest.raises(ValueError, match="UNRESOLVED_DYNAMIC_IMPORT"):
+        tuple(
+            repository_validator_module._import_targets_for_module(
+                "import importlib; " + call,
+                "ai4binance.application.example",
+                "src/ai4binance/application/example.py",
+            )
+        )

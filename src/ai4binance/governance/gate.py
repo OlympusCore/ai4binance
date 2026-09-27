@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from ai4binance import governance_primitives as governance_primitives_module
 from ai4binance.enterprise.contracts import (
@@ -2658,11 +2658,180 @@ def load_approval_records_with_fallback(
     report_path: Path | None = None,
 ) -> tuple[ApprovalRecord, ...]:
     default_candidate = repository_root.resolve() / DEFAULT_APPROVAL_RECORD_REPORT
-    if report_path is not None and report_path.is_file():
+    if report_path is not None:
+        if not report_path.is_file():
+            raise ValueError("EXPLICIT_APPROVAL_RECORD_MISSING")
         return load_approval_records(report_path)
     if not default_candidate.is_file():
         return ()
     return load_approval_records(default_candidate)
+
+
+def _approval_replay_source(root: Path, reference: str) -> Path:
+    allowed = root / "runtime/artifacts/quality/gate/runs"
+    path = (root / reference).resolve()
+    if not path.is_relative_to(allowed):
+        raise ValueError("APPROVAL_REPLAY_SOURCE_OUTSIDE_RUN_DIRECTORY")
+    if not path.is_file():
+        raise ValueError("APPROVAL_REPLAY_SOURCE_MISSING")
+    return path
+
+
+def _approval_replay_read(path: Path) -> dict[str, Any]:
+    if path.stat().st_size > 20_000_000:
+        raise ValueError("APPROVAL_REPLAY_SOURCE_TOO_LARGE")
+    value = json.loads(path.read_text(encoding="utf-8-sig"))
+    if not isinstance(value, dict):
+        raise ValueError("APPROVAL_REPLAY_SOURCE_INVALID")
+    return value
+
+
+def load_approval_replay_context(
+    root: Path,
+    approval_path: Path,
+    attestation: dict[str, object],
+) -> dict[str, object]:
+    """Verify frozen replay inputs in the canonical governance owner."""
+    root = root.resolve()
+
+    def require(condition: bool, reason: str) -> None:
+        if not condition:
+            raise ValueError("APPROVAL_REPLAY_" + reason)
+
+    def hash_check(path: Path, expected: str, name: str) -> None:
+        require(
+            hashlib.sha256(path.read_bytes()).hexdigest() == expected.lower(),
+            "ARTIFACT_DRIFT:" + name,
+        )
+
+    # Reuse typed approval parsing; this only validates replay inputs. The
+    # independent approval verifier still decides whether the action is allowed.
+    records = load_approval_records_with_fallback(root, approval_path)
+    require(bool(records), "RECORDS_MISSING")
+    refs = {record.subject_ref for record in records}
+    require(len(refs) == 1, "SUBJECT_REF_AMBIGUOUS")
+    for record in records:
+        require(record.execution_allowed is False, "EXECUTION_AUTHORITY_FORBIDDEN")
+        require(
+            record.live_eligibility_status == "LIVE_ORDER_BLOCKED",
+            "LIVE_BOUNDARY_MISMATCH",
+        )
+    governance_path = _approval_replay_source(root, next(iter(refs)))
+    require(
+        governance_path.name == "governance-gate-approval-required.json",
+        "SUBJECT_REF_NOT_FROZEN",
+    )
+    directory = governance_path.parent
+    governance = _approval_replay_read(governance_path)
+    require(
+        governance.get("status") == "RUNNING_WITH_BLOCKERS", "SOURCE_NOT_APPROVAL_ONLY"
+    )
+    blockers = governance.get("blockers")
+    require(
+        isinstance(blockers, list)
+        and all(
+            isinstance(item, str) and item.startswith("APPROVAL_") for item in blockers
+        ),
+        "SOURCE_NOT_APPROVAL_ONLY",
+    )
+    require(
+        governance["approval_verification"]["required_approval_count"] >= 1,
+        "SOURCE_NOT_APPROVAL_ONLY",
+    )
+    for gate in (
+        "deterministic_quality_gate",
+        "repository_hygiene",
+        "constitution_sync",
+        "repository_conformance",
+        "repository_validator_gate",
+    ):
+        require(governance[gate]["status"] == "PASS", "SOURCE_GATE_NOT_PASSING")
+    require(
+        governance.get("execution_allowed") is False
+        and governance.get("promotion_status") == "RESEARCH_ONLY"
+        and governance.get("live_eligibility_status") == "LIVE_ORDER_BLOCKED",
+        "SOURCE_SAFETY_BOUNDARY_MISMATCH",
+    )
+    subject = governance["subject_digest"]
+    require(
+        all(
+            attestation.get(key) == subject.get(key)
+            for key in ("repository_tree_sha256", "git_commit")
+        ),
+        "SUBJECT_DRIFT",
+    )
+    quality_path = _approval_replay_source(
+        root, str(directory / "deterministic-quality-gate.json")
+    )
+    validator_path = _approval_replay_source(
+        root, str(directory / "repository-validator.json")
+    )
+    coverage_summary_path = _approval_replay_source(
+        root, str(directory / "coverage-summary.json")
+    )
+    coverage_markdown_path = _approval_replay_source(
+        root, str(directory / "coverage-summary.md")
+    )
+    quality = _approval_replay_read(quality_path)
+    validator = _approval_replay_read(validator_path)
+    coverage_summary = _approval_replay_read(coverage_summary_path)
+    require(
+        quality.get("status") == "PASS"
+        and quality.get("gate_evidence_sha256")
+        == governance["deterministic_quality_gate"]["gate_evidence_sha256"]
+        and all(
+            quality["subject_digest"].get(key) == subject.get(key)
+            for key in ("subject_id", "change_set_sha256")
+        ),
+        "DETERMINISTIC_QUALITY_DRIFT",
+    )
+    quality_evidence = quality["quality_evidence_gate"]["quality_gate"]
+    require(
+        attestation.get("change_set_sha256")
+        == quality_evidence["workspace_attestation"]["change_set_sha256"],
+        "WORKSPACE_ATTESTATION_DRIFT",
+    )
+    require(validator.get("status") == "PASS", "REPOSITORY_VALIDATOR_NOT_PASSING")
+    for name in ("docs_hygiene", "artifact_hygiene", "constitution_sync_tests"):
+        evidence = governance[name]
+        require(evidence.get("passed") is True, "HYGIENE_EVIDENCE_NOT_PASSING")
+        path = _approval_replay_source(root, evidence["evidence_path"])
+        require(path.parent == directory, "HYGIENE_EVIDENCE_NOT_RUN_SCOPED")
+        hash_check(path, evidence["evidence_sha256"], evidence["check_id"])
+    pytest_path = _approval_replay_source(
+        root, governance["docs_hygiene"]["evidence_path"]
+    )
+    bandit_path = _approval_replay_source(
+        root, quality["security_scan"]["evidence_path"]
+    )
+    hash_check(bandit_path, quality["security_scan"]["evidence_sha256"], "BANDIT")
+    hash_check(
+        coverage_markdown_path,
+        quality_evidence["coverage_realism_proof_sha256"],
+        "COVERAGE_REALISM_PROOF",
+    )
+    require(
+        abs(
+            coverage_summary["total_coverage_percent"]
+            - quality_evidence["coverage_percent"]
+        )
+        <= 0.01,
+        "COVERAGE_SUMMARY_DRIFT",
+    )
+    coverage_path = _approval_replay_source(root, str(directory / "coverage.json"))
+    return {
+        "approval_record_path": str(approval_path),
+        "governance": governance,
+        "quality": quality,
+        "governance_path": str(governance_path),
+        "quality_path": str(quality_path),
+        "validator_path": str(validator_path),
+        "pytest_path": str(pytest_path),
+        "coverage_path": str(coverage_path),
+        "bandit_path": str(bandit_path),
+        "coverage_summary_path": str(coverage_summary_path),
+        "coverage_markdown_path": str(coverage_markdown_path),
+    }
 
 
 def load_frozen_traceability_audit(

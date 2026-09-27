@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import gzip
 import re
 from collections.abc import Iterable, Mapping
@@ -32,6 +33,8 @@ class TerminologyTerm:
     allowed_aliases: tuple[str, ...]
     deprecated_aliases: tuple[str, ...]
     prohibited_terms: tuple[str, ...]
+    canonical_concept: str = ""
+    semantic_boundaries: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,6 +157,55 @@ def evaluate_terminology_policy(
                         blocker=False,
                     )
                 )
+        if relative.endswith((".py", ".py.in")):
+            violations.extend(_semantic_alias_violations(text, relative, policy))
+    return tuple(violations)
+
+
+def _semantic_alias_violations(
+    text: str,
+    relative: str,
+    policy: TerminologyPolicy,
+) -> tuple[TerminologyViolation, ...]:
+    violations: list[TerminologyViolation] = []
+    concepts = {
+        term.canonical_concept: term for term in policy.terms if term.canonical_concept
+    }
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        violations.append(
+            TerminologyViolation(
+                "TERMINOLOGY_SEMANTIC_SCAN_UNRESOLVED",
+                relative,
+                "Python source could not be parsed for concept aliases.",
+                True,
+            )
+        )
+        return tuple(violations)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Name):
+            continue
+        source_term = concepts.get(node.value.id)
+        if source_term is None:
+            continue
+        for target in node.targets:
+            target_term = (
+                concepts.get(target.id) if isinstance(target, ast.Name) else None
+            )
+            if (
+                target_term is not None
+                and source_term.canonical_term in target_term.semantic_boundaries
+            ):
+                violations.append(
+                    TerminologyViolation(
+                        "TERMINOLOGY_SEMANTIC_BOUNDARY_COLLAPSE",
+                        relative,
+                        f"{target_term.canonical_concept} aliases "
+                        f"distinct concept {source_term.canonical_concept}.",
+                        True,
+                    )
+                )
     return tuple(violations)
 
 
@@ -248,6 +300,10 @@ def _term(value: object) -> TerminologyTerm:
         prohibited_terms=_strings(
             mapping["prohibited_terms"],
             "prohibited_terms",
+        ),
+        canonical_concept=_string(mapping["canonical_concept"], "canonical_concept"),
+        semantic_boundaries=_strings(
+            mapping["semantic_boundaries"], "semantic_boundaries"
         ),
     )
 

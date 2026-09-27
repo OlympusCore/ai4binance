@@ -28,7 +28,7 @@ def test_requirement_assurance_chain_validates_full_linkage_without_authority() 
             item.assurance_decision is RequirementAssuranceDecision.ASSURED
             for item in chains
         )
-        == 17
+        == 0
     )
     assured = next(item for item in chains if item.requirement_id == "RQ-002")
     assert assured.snapshot_bound is True
@@ -46,7 +46,7 @@ def test_requirement_assurance_keeps_external_evidence_gaps_blocked() -> None:
 
     chains = {item.requirement_id: item for item in traceability.assurance_chains(ROOT)}
 
-    assert chains["RQ-001"].assurance_decision is RequirementAssuranceDecision.ASSURED
+    assert chains["RQ-001"].assurance_decision is RequirementAssuranceDecision.BLOCKED
     assert chains["RQ-003"].enforcement_points == ("market_snapshot_wire_validation",)
     assert chains["RQ-009"].enforcement_points == ("governed_memory_candidate_intake",)
     assert chains["RQ-013"].assurance_decision is RequirementAssuranceDecision.BLOCKED

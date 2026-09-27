@@ -5,7 +5,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+$python = Join-Path $repositoryRoot ".venv\Scripts\python.exe"
 $sourceRoot = Join-Path $repositoryRoot "src\ai4binance\local_dashboard"
+$operationsRoot = Join-Path $PSScriptRoot "local_dashboard"
 $deploymentRoot = Join-Path $repositoryRoot "runtime\dashboard"
 $processRoot = Join-Path $repositoryRoot "runtime\tmp\process\dashboard-deploy"
 $runId = [DateTimeOffset]::UtcNow.ToString("yyyyMMddTHHmmssfffZ")
@@ -50,8 +52,6 @@ function Get-Sha256 {
 $sourceFiles = @(
     "build.py.in",
     "design_source.html",
-    "install.ps1.in",
-    "launch.ps1.in",
     "local_views.js",
     "lucide.js.gz",
     "market_views.py.in",
@@ -59,6 +59,7 @@ $sourceFiles = @(
     "refresh_learning.py.in",
     "server.py.in"
 )
+$operationsFiles = @("install.ps1.in", "launch.ps1.in")
 $deploymentFiles = @(
     "app.css",
     "app.js",
@@ -79,11 +80,19 @@ foreach ($name in $sourceFiles) {
         throw "DASHBOARD_CANONICAL_SOURCE_MISSING:$name"
     }
 }
+foreach ($name in $operationsFiles) {
+    if (-not (Test-Path -LiteralPath (Join-Path $operationsRoot $name) -PathType Leaf)) {
+        throw "DASHBOARD_OPERATION_SOURCE_MISSING:$name"
+    }
+}
 
 New-Item -ItemType Directory -Path $stageRoot -Force | Out-Null
 try {
     foreach ($name in $sourceFiles) {
         Copy-Item -LiteralPath (Join-Path $sourceRoot $name) -Destination $stageRoot -Force
+    }
+    foreach ($name in $operationsFiles) {
+        Copy-Item -LiteralPath (Join-Path $operationsRoot $name) -Destination $stageRoot -Force
     }
     foreach ($template in @(
         "build.py",
@@ -122,7 +131,7 @@ try {
     finally {
         $compressedStream.Dispose()
     }
-    & python (Join-Path $stageRoot "build.py") (Join-Path $stageRoot "design_source.html") | Out-Null
+    & $python -B (Join-Path $stageRoot "build.py") (Join-Path $stageRoot "design_source.html") | Out-Null
     if ($LASTEXITCODE -ne 0) {
         throw "DASHBOARD_BUILD_FAILED:$LASTEXITCODE"
     }
@@ -180,7 +189,10 @@ try {
             "runtime/dashboard/health.json",
             "runtime/dashboard/guardian.log"
         )
-        source_files = @($sourceFiles | ForEach-Object { Get-FileRecord -Path (Join-Path $sourceRoot $_) })
+        source_files = @(
+            $sourceFiles | ForEach-Object { Get-FileRecord -Path (Join-Path $sourceRoot $_) }
+            $operationsFiles | ForEach-Object { Get-FileRecord -Path (Join-Path $operationsRoot $_) }
+        )
         deployment_files = @($deploymentFiles | ForEach-Object { Get-FileRecord -Path (Join-Path $stageRoot $_) })
         execution_allowed = $false
         live_eligibility_status = "LIVE_ORDER_BLOCKED"

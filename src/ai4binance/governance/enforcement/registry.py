@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from types import MappingProxyType
 
 import yaml
 
@@ -14,6 +15,7 @@ from ai4binance.governance.enforcement.contracts import (
     EnforcementProfile,
 )
 from ai4binance.governance.repository_validator import KnowledgeObjectType
+from ai4binance.schema_validation import validate_local_definition
 
 DEFAULT_ENFORCEMENT_PROFILE_REGISTRY_PATH = Path(
     "config/governance/enforcement_profiles.yaml"
@@ -28,6 +30,9 @@ def expected_governed_object_types() -> tuple[str, ...]:
 class EnforcementProfileRegistry:
     version: str
     profiles: tuple[EnforcementProfile, ...]
+    attestation_providers: Mapping[str, Mapping[str, object]] = field(
+        default_factory=dict
+    )
 
     def __post_init__(self) -> None:
         if not self.version.strip():
@@ -40,6 +45,13 @@ class EnforcementProfileRegistry:
         object_types = tuple(profile.object_type for profile in self.profiles)
         if len(set(object_types)) != len(object_types):
             raise ValueError("enforcement profiles must be unique per object_type")
+        providers: dict[str, Mapping[str, object]] = {}
+        for name, provider in self.attestation_providers.items():
+            gates = provider.get("gates")
+            if not isinstance(gates, list | tuple) or not gates:
+                raise ValueError("attestation provider gates are required")
+            providers[name] = MappingProxyType({**provider, "gates": tuple(gates)})
+        object.__setattr__(self, "attestation_providers", MappingProxyType(providers))
 
     def profile_for_object_type(self, object_type: str) -> EnforcementProfile | None:
         for profile in self.profiles:
@@ -69,12 +81,22 @@ def load_enforcement_profile_registry(
     payload = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(payload, Mapping):
         raise ValueError("enforcement profile registry must be a mapping")
+    validate_local_definition(
+        Path(__file__).resolve().parents[4]
+        / "schemas/governance/governed_object_enforcement.schema.json",
+        "EnforcementProfileRegistry",
+        payload,
+    )
     version = str(payload.get("version", "")).strip()
     raw_profiles = payload.get("profiles")
     if not isinstance(raw_profiles, list):
         raise ValueError("enforcement profile registry profiles must be a list")
     profiles = tuple(_profile_from_payload(item) for item in raw_profiles)
-    registry = EnforcementProfileRegistry(version=version, profiles=profiles)
+    registry = EnforcementProfileRegistry(
+        version=version,
+        profiles=profiles,
+        attestation_providers=payload.get("attestation_providers", {}),
+    )
     registry.assert_full_coverage()
     return registry
 

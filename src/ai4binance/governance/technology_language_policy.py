@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -219,7 +220,11 @@ def evaluate_technology_language_policy(
     for relative in paths:
         if _excluded_path(relative):
             continue
-        rule = _rule_for_path(policy.languages, relative)
+        classified = relative
+        for wrapper in (".gz", ".in", ".template", ".j2"):
+            if classified.endswith(wrapper):
+                classified = classified.removesuffix(wrapper)
+        rule = _rule_for_path(policy.languages, classified)
         source = _read_bounded_text(root, relative)
         if source is not None and source.startswith("#!"):
             interpreter_rule = _rule_for_shebang(policy.languages, source)
@@ -237,8 +242,36 @@ def evaluate_technology_language_policy(
             rule = interpreter_rule
         if rule is None:
             if any(
-                relative.lower().endswith(suffix)
+                classified.lower().endswith(suffix)
                 for suffix in policy.unowned_source_suffixes
+            ) or (
+                relative.startswith(
+                    (
+                        "src/",
+                        "scripts/",
+                        "tests/",
+                        "frontend/",
+                        "native/",
+                        "services/",
+                        "research/",
+                    )
+                )
+                and Path(classified).suffix.lower()
+                not in {
+                    ".md",
+                    ".txt",
+                    ".json",
+                    ".csv",
+                    ".svg",
+                    ".png",
+                    ".ico",
+                    ".jpg",
+                    ".woff",
+                    ".woff2",
+                    ".lock",
+                    ".gitkeep",
+                }
+                and Path(classified).name not in {"py.typed", ".gitkeep"}
             ):
                 violations.append(
                     TechnologyLanguageViolation(
@@ -251,7 +284,7 @@ def evaluate_technology_language_policy(
         present_languages.add(rule.language)
         if (
             any(
-                relative.lower().endswith(suffix)
+                classified.lower().endswith(suffix)
                 for suffix in rule.legacy_only_suffixes
             )
             and relative not in rule.legacy_source_paths
@@ -285,19 +318,9 @@ def evaluate_technology_language_policy(
                 )
             )
             continue
-        for pattern in rule.forbidden_content_patterns:
-            if re.search(pattern, source):
-                violations.append(
-                    TechnologyLanguageViolation(
-                        code="FORBIDDEN_CAPABILITY_OWNERSHIP",
-                        path=relative,
-                        detail=(
-                            f"{rule.language} source declares a capability forbidden "
-                            "by the canonical technology standard."
-                        ),
-                    )
-                )
-                break
+        violations.extend(
+            _content_capability_violations(source, relative, classified, rule)
+        )
         if any(
             _path_matches_allowed(relative, production_root)
             for production_root in policy.production_roots
@@ -352,6 +375,55 @@ def evaluate_technology_language_policy(
     return tuple(violations)
 
 
+def _content_capability_violations(
+    source: str,
+    relative: str,
+    classified: str,
+    rule: LanguageRule,
+) -> tuple[TechnologyLanguageViolation, ...]:
+    violations: list[TechnologyLanguageViolation] = []
+    declarations = re.findall(
+        r"(?im)^\s*(?:#|//|/\*|--|<!--)\s*capability\s*:\s*([a-z][a-z0-9_]*)",
+        source,
+    )
+    for capability in declarations:
+        if (
+            capability in rule.forbidden_capabilities
+            or capability not in rule.allowed_capabilities
+        ):
+            violations.append(
+                TechnologyLanguageViolation(
+                    "FORBIDDEN_CAPABILITY_OWNERSHIP",
+                    relative,
+                    f"Capability {capability} is not owned by {rule.language}.",
+                )
+            )
+    if classified.endswith((".html", ".css")) and re.search(
+        r"(?i)<script\b|\bon[a-z]+\s*=|javascript\s*:", source
+    ):
+        violations.append(
+            TechnologyLanguageViolation(
+                "EMBEDDED_EXECUTABLE_SOURCE",
+                relative,
+                "Presentation embeds logic requiring a TypeScript owner.",
+            )
+        )
+    for pattern in rule.forbidden_content_patterns:
+        if re.search(pattern, source):
+            violations.append(
+                TechnologyLanguageViolation(
+                    code="FORBIDDEN_CAPABILITY_OWNERSHIP",
+                    path=relative,
+                    detail=(
+                        f"{rule.language} source declares a capability forbidden "
+                        "by the canonical technology standard."
+                    ),
+                )
+            )
+            break
+    return tuple(violations)
+
+
 def _rule_for_path(
     rules: tuple[LanguageRule, ...],
     relative: str,
@@ -402,8 +474,12 @@ def _read_bounded_text(root: Path, relative: str) -> str | None:
         path.relative_to(root)
         if not path.is_file() or path.stat().st_size > 2_000_000:
             return None
+        if relative.endswith(".gz"):
+            with gzip.open(path, "rb") as stream:
+                raw = stream.read(2_000_001)
+            return raw.decode("utf-8") if len(raw) <= 2_000_000 else None
         return path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError, ValueError):
+    except (OSError, UnicodeError, ValueError, EOFError):
         return None
 
 

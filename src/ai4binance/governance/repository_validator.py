@@ -1631,6 +1631,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Repository-relative or absolute repository validator policy JSON.",
     )
     parser.add_argument("--output-json", type=Path)
+    parser.add_argument("--monitor-health", type=Path)
     parser.add_argument("--output-markdown", type=Path)
     parser.add_argument("--output-migration-map", type=Path)
     parser.add_argument("--output-findings-json", type=Path)
@@ -1647,6 +1648,17 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(arguments: Sequence[str] | None = None) -> int:
     parsed = build_parser().parse_args(arguments)
+    monitor_subject = None
+    if parsed.monitor_health is not None:
+        from ai4binance.governance.constitution_sync import (
+            build_quality_gate_workspace_attestation,
+        )
+
+        if parsed.output_json is None or parsed.output_markdown is None:
+            raise ValueError("Monitor requires both output artifacts")
+        monitor_subject = build_quality_gate_workspace_attestation(
+            parsed.repository_root
+        ).to_payload()
     if parsed.check_mirror_manifest is not None:
         policy_path = (
             parsed.mirror_policy
@@ -1723,7 +1735,47 @@ def main(arguments: Sequence[str] | None = None) -> int:
                 repository_report.to_payload(), ensure_ascii=True, sort_keys=True
             )
         )
-    return 0 if repository_report.status is RepositoryValidationStatus.PASS else 2
+    exit_code = 0 if repository_report.status is RepositoryValidationStatus.PASS else 2
+    if parsed.monitor_health is not None and monitor_subject is not None:
+        from ai4binance.governance.constitution_sync import (
+            build_quality_gate_workspace_attestation,
+        )
+        from ai4binance.infrastructure.persistence.safe_json import (
+            write_json_object_verified,
+        )
+
+        after = build_quality_gate_workspace_attestation(
+            parsed.repository_root
+        ).to_payload()
+        observed = json.loads(parsed.output_json.read_text(encoding="utf-8"))
+        stable = monitor_subject == after
+        valid = (
+            observed == json.loads(json.dumps(repository_report.to_payload()))
+            and stable
+        )
+        if not valid:
+            exit_code = 2
+        health = {
+            "service": "repository-governance",
+            "schema_version": 2,
+            "status": "PASS" if valid and exit_code == 0 else "RUNNING_WITH_BLOCKERS",
+            "updated_at": datetime.now(UTC).isoformat(),
+            "pid": os.getpid(),
+            "run_id": parsed.output_json.stem,
+            "exit_code": exit_code,
+            "latest_json_path": str(parsed.output_json),
+            "latest_markdown_path": str(parsed.output_markdown),
+            "report_sha256": _sha256(parsed.output_json),
+            "workspace_attestation": monitor_subject,
+            "workspace_stable": stable,
+            "execution_allowed": False,
+            "promotion_status": "RESEARCH_ONLY",
+            "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+        }
+        write_json_object_verified(
+            parsed.monitor_health, health, blocker="MONITOR_HEALTH_WRITE_FAILED"
+        )
+    return exit_code
 
 
 def _yaml_string(payload: dict[object, object], key: str) -> str:
@@ -2800,8 +2852,11 @@ def _naming_findings(
 ) -> Iterable[RepositoryValidationFinding]:
     relative = artifact.canonical_path
     path = root / relative
-    if _is_under(relative, policy.source_roots) and path.suffix == ".py":
-        if not _PYTHON_FILE_RE.match(path.name):
+    python_name = path.name.removesuffix(".in")
+    if _is_under(
+        relative, (*policy.source_roots, *policy.test_roots, "scripts")
+    ) and python_name.endswith(".py"):
+        if not _PYTHON_FILE_RE.match(python_name):
             yield _blocker(
                 RepositoryFindingKind.PYTHON_FILE_NAMING_VIOLATION,
                 relative,
@@ -2819,7 +2874,12 @@ def _naming_findings(
                 relative,
                 "Source filename must not substitute for Git/version metadata.",
             )
-        for parent in path.relative_to(root / "src" / "ai4binance").parents:
+        package_root = (
+            root / "src" / "ai4binance"
+            if _is_under(relative, policy.source_roots)
+            else root / relative.split("/")[0]
+        )
+        for parent in path.relative_to(package_root).parents:
             if str(parent) == ".":
                 continue
             for part in parent.parts:
@@ -3001,6 +3061,7 @@ def _import_targets_for_module(
     package_name = module_name if relative.endswith("/__init__.py") else ""
     if not package_name:
         package_name = module_name.rpartition(".")[0]
+    yield from _dynamic_import_targets(tree)
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
@@ -3022,6 +3083,76 @@ def _import_targets_for_module(
             )
         relative_name = "." * node.level + (node.module or "")
         yield importlib.util.resolve_name(relative_name, package_name)
+
+
+def _dynamic_import_argument(
+    node: ast.Call, position: int, keyword: str
+) -> ast.expr | None:
+    if len(node.args) > position:
+        return node.args[position]
+    return next((item.value for item in node.keywords if item.arg == keyword), None)
+
+
+def _resolve_literal_dynamic_import(node: ast.Call, *, builtin: bool) -> str:
+    if any(item.arg is None for item in node.keywords):
+        raise ValueError("UNRESOLVED_DYNAMIC_IMPORT_KEYWORDS")
+    argument = _dynamic_import_argument(node, 0, "name")
+    if not isinstance(argument, ast.Constant) or not isinstance(argument.value, str):
+        raise ValueError("UNRESOLVED_DYNAMIC_IMPORT")
+    target = argument.value
+    if builtin:
+        level = _dynamic_import_argument(node, 4, "level")
+        if level is not None and not (
+            isinstance(level, ast.Constant)
+            and type(level.value) is int
+            and level.value == 0
+        ):
+            raise ValueError("UNRESOLVED_DYNAMIC_IMPORT_LEVEL")
+    if target.startswith("."):
+        package = _dynamic_import_argument(node, 1, "package")
+        if (
+            builtin
+            or not isinstance(package, ast.Constant)
+            or not isinstance(package.value, str)
+        ):
+            raise ValueError("UNRESOLVED_DYNAMIC_IMPORT_PACKAGE")
+        target = importlib.util.resolve_name(target, package.value)
+    return target
+
+
+def _dynamic_import_targets(tree: ast.AST) -> Iterable[str]:
+    importlib_names = {"importlib"}
+    import_functions = {"__import__"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            importlib_names.update(
+                alias.asname or alias.name
+                for alias in node.names
+                if alias.name == "importlib"
+            )
+        elif isinstance(node, ast.ImportFrom) and node.module == "importlib":
+            import_functions.update(
+                alias.asname or alias.name
+                for alias in node.names
+                if alias.name == "import_module"
+            )
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            function = node.func
+            dynamic = (
+                isinstance(function, ast.Name) and function.id in import_functions
+            ) or (
+                isinstance(function, ast.Attribute)
+                and function.attr == "import_module"
+                and isinstance(function.value, ast.Name)
+                and function.value.id in importlib_names
+            )
+            if dynamic:
+                yield _resolve_literal_dynamic_import(
+                    node,
+                    builtin=isinstance(function, ast.Name)
+                    and function.id == "__import__",
+                )
 
 
 def _knowledge_findings(

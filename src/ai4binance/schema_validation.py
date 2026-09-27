@@ -208,6 +208,24 @@ class OfflineSchemaRegistry:
             ) from error
 
 
+def validate_local_definition(path: Path, definition: str, instance: object) -> None:
+    """Validate a local contract definition without remote reference resolution."""
+    contents = json.loads(path.read_text(encoding="utf-8"))
+    Draft202012Validator.check_schema(contents)
+    _reject_remote_references(contents, path)
+    if definition not in contents.get("$defs", {}):
+        raise SchemaValidationError(f"unregistered schema definition: {definition}")
+    selected = {
+        "$schema": contents["$schema"],
+        "$id": contents["$id"],
+        "$defs": contents["$defs"],
+        "$ref": f"#/$defs/{definition}",
+    }
+    OfflineSchemaRegistry(
+        (RegisteredSchema(selected["$id"], path, selected),)
+    ).validate(selected["$id"], instance)
+
+
 def _walk_references(value: object) -> Iterator[str]:
     if isinstance(value, Mapping):
         for key, child in value.items():

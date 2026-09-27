@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
@@ -11,6 +12,7 @@ from pathlib import Path
 import yaml
 
 from ai4binance.governance.enforcement.registry import EnforcementProfileRegistry
+from ai4binance.schema_validation import validate_local_definition
 
 DEFAULT_ENFORCEMENT_INVENTORY_PATH = Path(
     "config/governance/enforcement_inventory.yaml"
@@ -285,8 +287,13 @@ class RequirementTraceabilityRegistry:
         repository_root: Path,
     ) -> tuple[RequirementAssuranceChain, ...]:
         """Evaluate requirement links without granting authority from evidence."""
+        from ai4binance.governance.constitution_sync import (
+            build_quality_gate_workspace_attestation,
+        )
+
+        subject = build_quality_gate_workspace_attestation(repository_root).to_payload()
         return tuple(
-            _requirement_assurance_chain(repository_root, entry)
+            _requirement_assurance_chain(repository_root, entry, subject)
             for entry in self.entries
         )
 
@@ -294,6 +301,7 @@ class RequirementTraceabilityRegistry:
 def _requirement_assurance_chain(
     repository_root: Path,
     entry: RequirementTraceabilityEntry,
+    subject: Mapping[str, object],
 ) -> RequirementAssuranceChain:
     root = repository_root.resolve()
     blockers: list[str] = []
@@ -325,6 +333,23 @@ def _requirement_assurance_chain(
         else:
             if evidence_sha256 != entry.evidence_sha256:
                 blockers.append("SNAPSHOT_EVIDENCE_HASH_MISMATCH")
+            else:
+                from ai4binance.ops.quality_gate.telemetry import (
+                    verify_quality_evidence,
+                )
+
+                try:
+                    payload = json.loads(evidence_path.read_text(encoding="utf-8-sig"))
+                    blockers.extend(
+                        verify_quality_evidence(
+                            root,
+                            payload,
+                            workspace_attestation=subject,
+                            required_tests=entry.test_refs,
+                        )
+                    )
+                except (OSError, ValueError):
+                    blockers.append("BEHAVIORAL_TEST_EVIDENCE_UNREADABLE")
 
     blockers.extend(
         blocker.split(":", maxsplit=1)[1] for blocker in entry.blocker_codes
@@ -346,7 +371,7 @@ def _requirement_assurance_chain(
         capability=entry.canonical_meaning,
         implementing_components=entry.implementation_refs,
         enforcement_points=entry.enforcement_entrypoints,
-        executed_behavioral_tests=entry.test_refs,
+        executed_behavioral_tests=entry.test_refs if not unique_blockers else (),
         snapshot_evidence_ref=entry.evidence_ref,
         snapshot_evidence_sha256=evidence_sha256,
         snapshot_bound=snapshot_bound,
@@ -562,6 +587,12 @@ def load_enforcement_inventory(
         raise ValueError("enforcement inventory could not be loaded") from error
     if not isinstance(payload, Mapping):
         raise ValueError("enforcement inventory must be a mapping")
+    validate_local_definition(
+        Path(__file__).resolve().parents[4]
+        / "schemas/governance/governed_object_enforcement.schema.json",
+        "EnforcementInventoryRegistry",
+        payload,
+    )
     version = str(payload.get("version", "")).strip()
     raw_entries = payload.get("entries")
     if not isinstance(raw_entries, list):

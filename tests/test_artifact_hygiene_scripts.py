@@ -49,6 +49,11 @@ def _quality_function_preamble() -> str:
 
 
 def _write_quality_harness(tmp_path: Path, body: str) -> Path:
+    # Each harness owns an isolated Git common directory. Production mutexes
+    # must remain active even when the canonical runner executes these tests.
+    git = shutil.which("git")
+    assert git is not None
+    subprocess.run([git, "init", str(tmp_path)], check=True, capture_output=True)  # noqa: S603
     harness_dir = tmp_path / "scripts"
     harness_dir.mkdir(exist_ok=True)
     harness_path = harness_dir / "quality_harness.ps1"
@@ -1276,6 +1281,8 @@ profiles:
     canonical_quality_authority: false
     format_check: ruff
     lint: ruff
+    maintainability_check: ruff_ratchet
+    execution_trigger: test_fixture
     type_check: dmypy
     pytest_scope: affected
     fail_fast: true
@@ -1285,6 +1292,8 @@ profiles:
     canonical_quality_authority: false
     format_check: ruff
     lint: ruff
+    maintainability_check: ruff_ratchet
+    execution_trigger: test_fixture
     type_check: mypy
     pytest_scope: required
     fail_fast: true
@@ -1294,10 +1303,22 @@ profiles:
     canonical_quality_authority: true
     format_check: ruff
     lint: ruff
+    maintainability_check: ruff_ratchet
+    execution_trigger: test_fixture
     type_check: mypy
     pytest_scope: full
     fail_fast: false
     full_suite: true
+runtime:
+  evidence_root: runtime/quality
+  compatibility_evidence_root: runtime/artifacts/quality/gate
+  capture_timing: true
+  capture_exit_code: true
+  compact_console_output: true
+governance:
+  fast_pass_is_not_full_verified: true
+  dmypy_is_local_accelerator_only: true
+  unknown_affected_scope_escalates: standard
 affected_tests:
   default_when_clean:
     - tests/test_artifact_hygiene_scripts.py
@@ -1470,9 +1491,24 @@ def test_external_helper_timeout_force_cleans_process_tree() -> None:
 def test_quality_script_evidence_helpers_write_fail_closed_payload(
     tmp_path: Path,
 ) -> None:
+    policy_path = tmp_path / "config/quality/gates.yaml"
+    policy_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ROOT / "config/quality/gates.yaml", policy_path)
     payload = _run_quality_function_harness(
         tmp_path,
         r"""
+New-Item -ItemType Directory -Path $qualityRunDirectory -Force | Out-Null
+$testXml = '<testsuites><testsuite>' +
+    '<testcase file="tests/test_fixture.py" name="test_fixture" />' +
+    '</testsuite></testsuites>'
+Set-Content -LiteralPath (Join-Path $qualityRunDirectory "pytest-results.xml") `
+    -Encoding UTF8 -Value $testXml
+$script:qualityInitialWorkspaceAttestation = @{
+    repository_root = $repoRoot
+    repository_tree_sha256 = ('1' * 64)
+    git_commit = ('2' * 40)
+    change_set_sha256 = ('3' * 64)
+}
 Remove-Item -LiteralPath @(
     $pytestOutputPath,
     $coverageJsonPath,
@@ -2590,6 +2626,17 @@ def test_quality_script_replays_only_hash_bound_same_subject_full_evidence(
                 "approval_records": [
                     {
                         "subject_ref": relative(governance_path),
+                        "approval_id": "test-only-approval",
+                        "approver_id": "test-only-reviewer",
+                        "approver_role": "GovernanceOwner",
+                        "status": "APPROVED_FOR_IMPLEMENTATION",
+                        "change_class": "C3_GOVERNED",
+                        "subject_sha256": "4" * 64,
+                        "scope_hash": "8" * 64,
+                        "quality_gate_evidence_sha256": quality_gate_hash,
+                        "governance_gate_evidence_sha256": governance_gate_hash,
+                        "approved_at_utc": "2026-09-27T00:00:00Z",
+                        "evidence_refs": ["test-only-fixture"],
                         "execution_allowed": False,
                         "live_eligibility_status": "LIVE_ORDER_BLOCKED",
                     }
@@ -2953,9 +3000,24 @@ def test_prepare_c3_human_governance_closure_request_supports_c2_single_approval
 def test_quality_script_green_evidence_refreshes_latest_artifact(
     tmp_path: Path,
 ) -> None:
+    policy_path = tmp_path / "config/quality/gates.yaml"
+    policy_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ROOT / "config/quality/gates.yaml", policy_path)
     payload = _run_quality_function_harness(
         tmp_path,
         r"""
+New-Item -ItemType Directory -Path $qualityRunDirectory -Force | Out-Null
+$testXml = '<testsuites><testsuite>' +
+    '<testcase file="tests/test_fixture.py" name="test_fixture" />' +
+    '</testsuite></testsuites>'
+Set-Content -LiteralPath (Join-Path $qualityRunDirectory "pytest-results.xml") `
+    -Encoding UTF8 -Value $testXml
+$script:qualityInitialWorkspaceAttestation = @{
+    repository_root = $repoRoot
+    repository_tree_sha256 = ('1' * 64)
+    git_commit = ('2' * 40)
+    change_set_sha256 = ('3' * 64)
+}
 function Get-FileHash {
     [pscustomobject]@{
         Hash = "ABCDEF"
@@ -4440,3 +4502,57 @@ def test_qwen_prompter_startup_task_is_visible_and_advisory_only() -> None:
     assert "RequireQwenPrompterTask" in status_text
     assert "AI4BINANCE-Qwen3-Prompter" in status_text
     assert "qwen-prompter-health.json" in status_text
+
+
+def test_quality_lease_preserves_foreign_owner_and_independent_approval(
+    tmp_path: Path,
+) -> None:
+    payload = _run_quality_function_harness(
+        tmp_path,
+        r"""
+New-Item -ItemType Directory -Path $qualityGateArtifactDirectory -Force | Out-Null
+Set-Content -LiteralPath $approvalRecordPath -Value 'test-only-independent-approval'
+Reset-LatestQualityGateArtifacts
+$approvalPreserved = Test-Path -LiteralPath $approvalRecordPath
+$leasePath = Get-QualityGateGitWriteLeasePath
+$script:qualityGateGitWriteLeasePath = $leasePath
+@{
+    run_id = 'test-only-foreign-run'
+    process_id = $PID
+    process_started_at_utc = (
+        Get-Process -Id $PID
+    ).StartTime.ToUniversalTime().ToString('o')
+} | ConvertTo-Json | Set-Content -LiteralPath $leasePath
+$errorCode = try { Remove-QualityGateGitWriteLease; 'NO_ERROR' }
+catch { $_.Exception.Message }
+@{
+    approval_preserved = $approvalPreserved
+    lease_preserved = Test-Path -LiteralPath $leasePath
+    error_code = $errorCode
+} | ConvertTo-Json
+""",
+    )
+    assert payload["approval_preserved"] is True
+    assert payload["lease_preserved"] is True
+    assert payload["error_code"] == "QUALITY_GATE_LEASE_OWNER_MISMATCH"
+
+
+def test_quality_full_collects_failures_before_dependent_steps(tmp_path: Path) -> None:
+    payload = _run_quality_function_harness(
+        tmp_path,
+        r"""
+$script:qualityProfilePolicy = @{ fail_fast = $false }
+Invoke-QualityStep -Name 'Test-only failure one' `
+    -Arguments @('-c', 'raise SystemExit(7)')
+Invoke-QualityStep -Name 'Test-only failure two' `
+    -Arguments @('-c', 'raise SystemExit(8)')
+$errorCode = try { Assert-QualityWorkspaceStable -Stage 'TEST_ONLY'; 'NO_ERROR' }
+catch { $_.Exception.Message }
+@{
+    failures = @($script:qualityStepFailures)
+    error_code = $errorCode
+} | ConvertTo-Json
+""",
+    )
+    assert payload["failures"] == ["Test-only failure one", "Test-only failure two"]
+    assert payload["error_code"].startswith("QUALITY_STEPS_FAILED:")

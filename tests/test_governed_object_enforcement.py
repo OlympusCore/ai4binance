@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import replace
 from pathlib import Path
+from typing import TypedDict
 
 import pytest
 
@@ -43,6 +45,7 @@ from ai4binance.governance.enforcement.inventory import (
     uncovered_consequential_entrypoint_ids,
 )
 from ai4binance.governance.enforcement.registry import (
+    EnforcementProfileRegistry,
     expected_governed_object_types,
     load_enforcement_profile_registry,
 )
@@ -74,6 +77,15 @@ pytestmark = [
     pytest.mark.contract,
     pytest.mark.governance,
 ]
+
+
+class AttestationChanges(TypedDict, total=False):
+    provider_id: str
+    policy_version: str
+    provider_version: str
+    evaluated_at: str
+    evidence_hash: str
+    evidence_refs: tuple[str, ...]
 
 
 def _knowledge_object(
@@ -155,9 +167,45 @@ def _attestation(
         evaluated_at=evaluated_at,
         valid_until=valid_until,
         evidence_refs=(f"{gate.value.lower()}-proof",),
-        evidence_hash="b" * 64,
+        evidence_hash=hashlib.sha256(
+            json.dumps(
+                {
+                    f"{gate.value.lower()}-proof": hashlib.sha256(
+                        b"test-only"
+                    ).hexdigest()
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest(),
         result=result,
         reason_codes=(f"{gate.value}_VERIFIED",),
+    )
+
+
+def _test_engine(
+    tmp_path: Path,
+    *,
+    registry: EnforcementProfileRegistry,
+    policy_engine: PolicyAsCodeEngine | None = None,
+) -> DeterministicEnforcementEngine:
+    """Create an explicitly trusted test provider with real test-only evidence."""
+    for gate in EnforcementGate:
+        (tmp_path / f"{gate.value.lower()}-proof").write_bytes(b"test-only")
+    registry = replace(
+        registry,
+        attestation_providers={
+            "test-provider": {
+                "provider_version": "1.0.0",
+                "policy_version": "1.0.0",
+                "gates": [gate.value for gate in EnforcementGate],
+            }
+        },
+    )
+    return DeterministicEnforcementEngine(
+        registry=registry,
+        policy_engine=policy_engine,
+        evidence_root=tmp_path,
     )
 
 
@@ -244,6 +292,100 @@ def test_governed_object_enforcement_schema_contains_canonical_contracts() -> No
     assert "EnforcementRequest" in schema["$defs"]
     assert "EnforcementProfile" in schema["$defs"]
     assert "EnforcementDecision" in schema["$defs"]
+
+
+@pytest.mark.parametrize(
+    ("changes", "reason"),
+    [
+        ({"provider_id": "unregistered"}, "PROVIDER_UNTRUSTED"),
+        ({"policy_version": "unknown"}, "POLICY_MISMATCH"),
+        ({"provider_version": "unknown"}, "POLICY_MISMATCH"),
+        ({"evaluated_at": "2098-01-01T00:00:00Z"}, "FUTURE"),
+        ({"evidence_hash": "0" * 64}, "EVIDENCE_MISMATCH"),
+        ({"evidence_refs": ("../outside.json",)}, "EVIDENCE_UNAVAILABLE"),
+        ({"evidence_refs": ("missing.json",)}, "EVIDENCE_UNAVAILABLE"),
+    ],
+)
+def test_attestation_requires_verified_provenance(
+    tmp_path: Path,
+    changes: AttestationChanges,
+    reason: str,
+) -> None:
+    engine = _test_engine(tmp_path, registry=load_enforcement_profile_registry())
+    envelope = envelope_from_repository_artifact(_repository_artifact())
+    attestation = _attestation(EnforcementGate.IDENTITY, envelope.object_hash)
+    assert engine._attestation_error(attestation, envelope) is None
+    assert engine._attestation_error(replace(attestation, **changes), envelope) == (
+        f"IDENTITY_ATTESTATION_{reason}"
+    )
+    (tmp_path / "identity-proof").write_bytes(b"changed test evidence")
+    assert engine._attestation_error(attestation, envelope) == (
+        "IDENTITY_ATTESTATION_EVIDENCE_MISMATCH"
+    )
+
+
+def test_decision_wire_schema_matches_model_and_safety_constants() -> None:
+    from ai4binance.core.serialization import to_primitive
+    from ai4binance.schema_validation import validate_local_definition
+
+    engine = DeterministicEnforcementEngine(load_enforcement_profile_registry())
+    envelope = envelope_from_repository_artifact(_repository_artifact())
+    decision = engine.evaluate(
+        envelope,
+        EnforcementRequest(
+            request_id="test-only-request",
+            action="READ",
+            actor="test-only-actor",
+            environment="TEST",
+            execution_mode="RESEARCH_ONLY",
+        ),
+    )
+    payload = to_primitive(decision)
+    assert isinstance(payload, dict)
+    schema = Path("schemas/governance/governed_object_enforcement.schema.json")
+    validate_local_definition(schema, "EnforcementDecision", payload)
+    assert "scope_hash" in payload
+    for key, value in (
+        ("execution_allowed", True),
+        ("promotion_status", "LIVE"),
+        ("live_eligibility_status", "LIVE_ELIGIBLE"),
+    ):
+        with pytest.raises(ValueError, match="instance validation failed"):
+            validate_local_definition(
+                schema, "EnforcementDecision", {**payload, key: value}
+            )
+
+
+def test_default_registry_does_not_trust_self_declared_attestations() -> None:
+    engine = DeterministicEnforcementEngine(load_enforcement_profile_registry())
+    envelope = envelope_from_repository_artifact(_repository_artifact())
+    assert (
+        engine._attestation_error(
+            _attestation(EnforcementGate.IDENTITY, envelope.object_hash),
+            envelope,
+        )
+        == "IDENTITY_ATTESTATION_PROVIDER_UNTRUSTED"
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"), [("unexpected", True), ("version", "99.0.0")]
+)
+def test_registry_rejects_unknown_fields_and_versions(
+    tmp_path: Path,
+    field: str,
+    value: object,
+) -> None:
+    import yaml
+
+    payload = yaml.safe_load(
+        Path("config/governance/enforcement_profiles.yaml").read_text()
+    )
+    payload[field] = value
+    path = tmp_path / "registry.yaml"
+    path.write_text(yaml.safe_dump(payload))
+    with pytest.raises(ValueError, match="instance validation failed"):
+        load_enforcement_profile_registry(path)
 
 
 def test_enforcement_inventory_tracks_current_enforcers_and_bypass_surfaces() -> None:
@@ -530,9 +672,9 @@ def test_enforcement_inventory_reports_uncovered_consequential_gap_set() -> None
     inventory.assert_exit_invariant()
 
 
-def test_enforcement_engine_denies_unknown_profile_fail_closed() -> None:
+def test_enforcement_engine_denies_unknown_profile_fail_closed(tmp_path: Path) -> None:
     registry = load_enforcement_profile_registry()
-    engine = DeterministicEnforcementEngine(registry=registry)
+    engine = _test_engine(tmp_path, registry=registry)
     envelope = GovernedObjectEnvelope(
         object_id="x-1",
         object_type="UNKNOWN_OBJECT",
@@ -563,7 +705,9 @@ def test_enforcement_engine_denies_unknown_profile_fail_closed() -> None:
     assert "UNKNOWN_ENFORCEMENT_PROFILE" in decision.reason_codes
 
 
-def test_enforcement_engine_requires_evidence_and_approval_for_policy_change() -> None:
+def test_enforcement_engine_requires_evidence_and_approval_for_policy_change(
+    tmp_path: Path,
+) -> None:
     registry = load_enforcement_profile_registry()
     policy_doc = PolicyAsCodeDocument(
         policy_id="policy-1",
@@ -585,7 +729,8 @@ def test_enforcement_engine_requires_evidence_and_approval_for_policy_change() -
             ),
         ),
     )
-    engine = DeterministicEnforcementEngine(
+    engine = _test_engine(
+        tmp_path,
         registry=registry,
         policy_engine=PolicyAsCodeEngine(policy_doc),
     )
@@ -619,9 +764,9 @@ def test_enforcement_engine_requires_evidence_and_approval_for_policy_change() -
     assert "1.0.0" in decision.policy_versions
 
 
-def test_enforcement_engine_denies_missing_required_evidence() -> None:
+def test_enforcement_engine_denies_missing_required_evidence(tmp_path: Path) -> None:
     registry = load_enforcement_profile_registry()
-    engine = DeterministicEnforcementEngine(registry=registry)
+    engine = _test_engine(tmp_path, registry=registry)
     envelope = envelope_from_governed_knowledge(
         _knowledge_object(knowledge_type=KnowledgeObjectType.RISK_MODEL)
     )
@@ -651,9 +796,11 @@ def test_enforcement_engine_denies_missing_required_evidence() -> None:
     assert "EVIDENCE_MISSING:risk_validation" in decision.blockers
 
 
-def test_enforcement_engine_denies_active_blockers_before_consequence() -> None:
+def test_enforcement_engine_denies_active_blockers_before_consequence(
+    tmp_path: Path,
+) -> None:
     registry = load_enforcement_profile_registry()
-    engine = DeterministicEnforcementEngine(registry=registry)
+    engine = _test_engine(tmp_path, registry=registry)
     envelope = GovernedObjectEnvelope(
         object_id="strategy-1",
         object_type=KnowledgeObjectType.STRATEGY_DEFINITION.value,
@@ -700,9 +847,9 @@ def test_enforcement_engine_denies_active_blockers_before_consequence() -> None:
     assert "ACTIVE_BLOCKERS_PRESENT" in decision.reason_codes
 
 
-def test_enforcement_engine_denies_invalid_lifecycle_transition() -> None:
+def test_enforcement_engine_denies_invalid_lifecycle_transition(tmp_path: Path) -> None:
     registry = load_enforcement_profile_registry()
-    engine = DeterministicEnforcementEngine(registry=registry)
+    engine = _test_engine(tmp_path, registry=registry)
     envelope = envelope_from_governed_knowledge(
         _knowledge_object(
             knowledge_type=KnowledgeObjectType.PARAMETER_SET,
@@ -762,9 +909,9 @@ def test_enforcement_adapters_preserve_existing_governed_metadata() -> None:
     assert execution.permission_profile_ref == "VIRTUAL_AUTONOMOUS_SIMULATION_V1"
 
 
-def test_enforcement_replay_fingerprint_is_deterministic() -> None:
+def test_enforcement_replay_fingerprint_is_deterministic(tmp_path: Path) -> None:
     registry = load_enforcement_profile_registry()
-    engine = DeterministicEnforcementEngine(registry=registry)
+    engine = _test_engine(tmp_path, registry=registry)
     envelope = envelope_from_repository_artifact(_repository_artifact())
     request = EnforcementRequest(
         request_id="req-6",
@@ -794,9 +941,12 @@ def test_enforcement_replay_fingerprint_is_deterministic() -> None:
     assert len(first.scope_hash) == 64
 
 
-def test_enforcement_engine_requires_approval_for_tool_permission_grant() -> None:
+def test_enforcement_engine_requires_approval_for_tool_permission_grant(
+    tmp_path: Path,
+) -> None:
     registry = load_enforcement_profile_registry()
-    engine = DeterministicEnforcementEngine(
+    engine = _test_engine(
+        tmp_path,
         registry=registry,
         policy_engine=PolicyAsCodeEngine(
             PolicyAsCodeDocument(
@@ -879,11 +1029,12 @@ def test_enforcement_engine_requires_approval_for_tool_permission_grant() -> Non
     assert approved.outcome is EnforcementOutcome.ALLOW
 
 
-def test_enforcement_engine_evaluates_execution_profile_via_universal_contract() -> (
-    None
-):
+def test_enforcement_engine_evaluates_execution_profile_via_universal_contract(
+    tmp_path: Path,
+) -> None:
     registry = load_enforcement_profile_registry()
-    engine = DeterministicEnforcementEngine(
+    engine = _test_engine(
+        tmp_path,
         registry=registry,
         policy_engine=PolicyAsCodeEngine(
             PolicyAsCodeDocument(
@@ -948,9 +1099,9 @@ def test_enforcement_inventory_reports_bypassable_routed_paths() -> None:
     assert bypassable_consequential_entrypoint_ids(inventory) == ()
 
 
-def test_enforcement_engine_denies_stale_identity_attestation() -> None:
+def test_enforcement_engine_denies_stale_identity_attestation(tmp_path: Path) -> None:
     registry = load_enforcement_profile_registry()
-    engine = DeterministicEnforcementEngine(registry=registry)
+    engine = _test_engine(tmp_path, registry=registry)
     envelope = envelope_from_repository_artifact(_repository_artifact())
     request = EnforcementRequest(
         request_id="req-stale",
@@ -977,9 +1128,9 @@ def test_enforcement_engine_denies_stale_identity_attestation() -> None:
     assert "IDENTITY_ATTESTATION_STALE" in decision.reason_codes
 
 
-def test_enforcement_engine_denies_missing_blocker_snapshot() -> None:
+def test_enforcement_engine_denies_missing_blocker_snapshot(tmp_path: Path) -> None:
     registry = load_enforcement_profile_registry()
-    engine = DeterministicEnforcementEngine(registry=registry)
+    engine = _test_engine(tmp_path, registry=registry)
     envelope = envelope_from_repository_artifact(_repository_artifact())
     request = EnforcementRequest(
         request_id="req-blocker",
@@ -1005,9 +1156,9 @@ def test_enforcement_engine_denies_missing_blocker_snapshot() -> None:
     assert "BLOCKER_SNAPSHOT_MISSING" in decision.reason_codes
 
 
-def test_enforcement_engine_denies_missing_audit_receipt() -> None:
+def test_enforcement_engine_denies_missing_audit_receipt(tmp_path: Path) -> None:
     registry = load_enforcement_profile_registry()
-    engine = DeterministicEnforcementEngine(registry=registry)
+    engine = _test_engine(tmp_path, registry=registry)
     envelope = envelope_from_repository_artifact(_repository_artifact())
     request = EnforcementRequest(
         request_id="req-audit",
@@ -1033,10 +1184,10 @@ def test_enforcement_engine_denies_missing_audit_receipt() -> None:
     assert "AUDIT_RECEIPT_MISSING" in decision.reason_codes
 
 
-def test_enforcement_internal_guards_reject_mismatched_evidence() -> None:
+def test_enforcement_internal_guards_reject_mismatched_evidence(tmp_path: Path) -> None:
     """Attestations, approvals, and receipts remain exact-subject bound."""
     registry = load_enforcement_profile_registry()
-    engine = DeterministicEnforcementEngine(registry=registry)
+    engine = _test_engine(tmp_path, registry=registry)
     envelope = envelope_from_tool_policy_document(
         ToolPolicyDocument(policy_id="tool-policy-guard", version="1.0.0")
     )
@@ -1107,10 +1258,10 @@ def test_enforcement_internal_guards_reject_mismatched_evidence() -> None:
     assert audit_result.reason_codes == ("AUDIT_RECEIPT_SUBJECT_MISMATCH",)
 
 
-def test_enforcement_gate_branches_remain_fail_closed() -> None:
+def test_enforcement_gate_branches_remain_fail_closed(tmp_path: Path) -> None:
     """Direct gate checks preserve every guarded denial and read-only path."""
     registry = load_enforcement_profile_registry()
-    engine = DeterministicEnforcementEngine(registry=registry)
+    engine = _test_engine(tmp_path, registry=registry)
     envelope = envelope_from_tool_policy_document(
         ToolPolicyDocument(policy_id="tool-policy-branches", version="1.0.0")
     )
@@ -1147,7 +1298,8 @@ def test_enforcement_gate_branches_remain_fail_closed() -> None:
     )
     assert policy_unavailable.reason_codes == ("POLICY_ENGINE_UNAVAILABLE",)
 
-    denied_policy_engine = DeterministicEnforcementEngine(
+    denied_policy_engine = _test_engine(
+        tmp_path,
         registry=registry,
         policy_engine=PolicyAsCodeEngine(
             PolicyAsCodeDocument(
@@ -1217,10 +1369,12 @@ def test_enforcement_gate_branches_remain_fail_closed() -> None:
     assert audit.reason_codes == ("AUDIT_NOT_REQUIRED",)
 
 
-def test_enforcement_precondition_gates_reject_incomplete_context() -> None:
+def test_enforcement_precondition_gates_reject_incomplete_context(
+    tmp_path: Path,
+) -> None:
     """Schema, authority, and lifecycle preconditions reject incomplete input."""
     registry = load_enforcement_profile_registry()
-    engine = DeterministicEnforcementEngine(registry=registry)
+    engine = _test_engine(tmp_path, registry=registry)
     envelope = envelope_from_tool_policy_document(
         ToolPolicyDocument(policy_id="tool-policy-preconditions", version="1.0.0")
     )

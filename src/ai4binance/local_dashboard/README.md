@@ -1,8 +1,9 @@
 # Local dashboard installation
 
-This directory is the tracked canonical source bundle. Python and PowerShell
-deployment templates use an `.in` suffix so they are not imported or treated
-as repository-owned executable modules. Run `scripts/deploy_local_dashboard.ps1`
+This directory contains the tracked dashboard source bundle. Windows operation
+templates are owned by `scripts/local_dashboard/`. The `.in` suffix marks
+packaging templates; their content remains subject to language ownership and
+repository validation. Run `scripts/deploy_local_dashboard.ps1`
 for a dry-run or add `-Apply`
 to build and copy the deterministic deployment into `runtime/dashboard`.
 Deployment preserves machine-specific configuration, health, logs, and the

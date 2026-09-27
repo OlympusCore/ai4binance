@@ -39,6 +39,164 @@ REQUIRED_TESTS = (
 )
 
 
+@pytest.mark.parametrize("value", ["false", 0, None])
+def test_policy_rejects_coerced_booleans(tmp_path: Path, value: object) -> None:
+    import yaml
+
+    payload = yaml.safe_load(POLICY_PATH.read_text())
+    payload["profiles"]["full"]["full_suite"] = value
+    path = tmp_path / "gates.yaml"
+    path.write_text(yaml.safe_dump(payload))
+    with pytest.raises(ValueError, match="must be a boolean"):
+        load_quality_gate_policy(path)
+
+
+def test_standard_rejects_unknown_scope_and_missing_required_tests(
+    tmp_path: Path,
+) -> None:
+    policy = load_quality_gate_policy(POLICY_PATH)
+    with pytest.raises(AffectedScopeResolutionError, match="unknown"):
+        resolve_standard_pytest_arguments(policy, ROOT, ("src/new_unmapped.py",))
+    with pytest.raises(AffectedScopeResolutionError, match="missing"):
+        resolve_standard_pytest_arguments(policy, tmp_path, ())
+
+
+def test_shared_quality_evidence_rejects_mutation_subject_and_missing_tests(
+    tmp_path: Path,
+) -> None:
+    from ai4binance.ops.quality_gate.telemetry import (
+        bind_quality_evidence,
+        verify_quality_evidence,
+    )
+
+    policy_path = tmp_path / "config/quality/gates.yaml"
+    policy_path.parent.mkdir(parents=True)
+    policy_path.write_bytes(POLICY_PATH.read_bytes())
+    junit = tmp_path / "results.xml"
+    junit.write_text(
+        '<testsuites><testsuite><testcase file="tests/test_example.py" '
+        'name="test_actual" /></testsuite></testsuites>'
+    )
+    subject = {
+        "repository_root": str(tmp_path),
+        "repository_tree_sha256": "1" * 64,
+        "git_commit": "2" * 40,
+        "change_set_sha256": "3" * 64,
+    }
+    payload = bind_quality_evidence(
+        tmp_path,
+        {
+            "profile": "standard",
+            "schema_version": 2,
+            "status": "STANDARD_PROFILE_PASS",
+            "verification_status": "STANDARD_VERIFIED",
+            "generated_at_utc": datetime.now(UTC).isoformat(),
+            "step_exit_codes": dict.fromkeys(
+                (
+                    "Ruff format",
+                    "Ruff lint",
+                    "Ruff maintainability ratchet",
+                    "MyPy",
+                    "Repository governance validator",
+                    "Pytest required",
+                ),
+                0,
+            ),
+            "execution_allowed": False,
+            "promotion_status": "RESEARCH_ONLY",
+            "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+        },
+        run_id="test-only-run",
+        junit_path=junit,
+        workspace_attestation=subject,
+    )
+    assert (
+        verify_quality_evidence(
+            tmp_path,
+            payload,
+            workspace_attestation=subject,
+            required_tests=("tests/test_example.py",),
+        )
+        == ()
+    )
+    assert "QUALITY_SUBJECT_MISMATCH" in verify_quality_evidence(
+        tmp_path, payload, workspace_attestation={}
+    )
+    assert (
+        "QUALITY_REQUIRED_TEST_NOT_EXECUTED:tests/missing.py"
+        in verify_quality_evidence(
+            tmp_path,
+            payload,
+            workspace_attestation=subject,
+            required_tests=("tests/missing.py",),
+        )
+    )
+    altered = dict(payload, run_id="tampered")
+    assert "QUALITY_EVIDENCE_HASH_MISMATCH" in verify_quality_evidence(
+        tmp_path, altered, workspace_attestation=subject
+    )
+    junit.write_text("<testsuites />")
+    assert "QUALITY_TEST_EVIDENCE_MISMATCH" in verify_quality_evidence(
+        tmp_path, payload, workspace_attestation=subject
+    )
+
+
+def test_failed_quality_run_binds_subject_without_fabricated_test_results(
+    tmp_path: Path,
+) -> None:
+    from ai4binance.ops.quality_gate.telemetry import (
+        bind_quality_failure_evidence,
+        verify_quality_evidence,
+    )
+
+    policy = tmp_path / "config/quality/gates.yaml"
+    policy.parent.mkdir(parents=True)
+    policy.write_bytes(POLICY_PATH.read_bytes())
+    subject = {
+        "repository_root": str(tmp_path),
+        "repository_tree_sha256": "1" * 64,
+        "git_commit": "2" * 40,
+        "change_set_sha256": "3" * 64,
+    }
+    bound = bind_quality_failure_evidence(
+        tmp_path,
+        {
+            "schema_version": 2,
+            "profile": "standard",
+            "status": "QUALITY_GATE_FAILED",
+            "verification_status": "NOT_VERIFIED",
+            "generated_at_utc": datetime.now(UTC).isoformat(),
+            "step_exit_codes": {"Repository governance validator": 2},
+            "execution_allowed": False,
+            "promotion_status": "RESEARCH_ONLY",
+            "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+        },
+        run_id="test-only-failed-run",
+        workspace_attestation=subject,
+    )
+    assert "junit_path" not in bound
+    assert "test_results" not in bound
+    assert verify_quality_evidence(tmp_path, bound, workspace_attestation=subject) == (
+        "QUALITY_RESULT_FAILED",
+    )
+    assert "QUALITY_SUBJECT_MISMATCH" in verify_quality_evidence(
+        tmp_path, bound, workspace_attestation={}
+    )
+    assert "QUALITY_EVIDENCE_HASH_MISMATCH" in verify_quality_evidence(
+        tmp_path, dict(bound, run_id="tampered"), workspace_attestation=subject
+    )
+    forged_pass = dict(
+        bound, status="STANDARD_PROFILE_PASS", verification_status="STANDARD_VERIFIED"
+    )
+    assert verify_quality_evidence(
+        tmp_path, forged_pass, workspace_attestation=subject
+    ) == ("QUALITY_EVIDENCE_CONTRACT_INVALID",)
+    with pytest.raises(ValueError, match="QUALITY_FAILURE_STATUS_REQUIRED"):
+        bind_quality_failure_evidence(
+            tmp_path, forged_pass, run_id="test-only", workspace_attestation=subject
+        )
+
+
 def test_quality_gate_policy_locks_profile_authority_and_tooling() -> None:
     policy = load_quality_gate_policy(POLICY_PATH)
 
@@ -522,3 +680,68 @@ def test_quality_gate_module_entrypoint_returns_cli_exit_code(
         )
 
     assert raised.value.code == 7
+
+
+def test_junit_binding_preserves_class_and_parameterized_node_ids(
+    tmp_path: Path,
+) -> None:
+    from ai4binance.ops.quality_gate.telemetry import bind_quality_evidence
+
+    policy = tmp_path / "config/quality/gates.yaml"
+    policy.parent.mkdir(parents=True)
+    policy.write_bytes(POLICY_PATH.read_bytes())
+    junit = tmp_path / "results.xml"
+    junit.write_text(
+        '<testsuites><testsuite><testcase file="tests/test_sample.py" '
+        'classname="tests.test_sample.TestSample" name="test_case[value]" />'
+        "</testsuite></testsuites>",
+        encoding="utf-8",
+    )
+    payload = bind_quality_evidence(
+        tmp_path,
+        {
+            "schema_version": 2,
+            "profile": "standard",
+            "generated_at_utc": datetime.now(UTC).isoformat(),
+            "execution_allowed": False,
+            "promotion_status": "RESEARCH_ONLY",
+            "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+        },
+        run_id="test-only-run",
+        junit_path=junit,
+        workspace_attestation={
+            "repository_root": str(tmp_path),
+            "repository_tree_sha256": "1" * 64,
+            "git_commit": "2" * 40,
+            "change_set_sha256": "3" * 64,
+        },
+    )
+    assert payload["test_results"] == [
+        {
+            "node_id": "tests/test_sample.py::TestSample::test_case[value]",
+            "result": "PASS",
+        }
+    ]
+
+
+def test_clean_pr_discovery_includes_committed_base_head_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import subprocess
+    from unittest.mock import Mock
+
+    from ai4binance.ops.quality_gate import policy as policy_module
+
+    runner = Mock(
+        side_effect=[
+            subprocess.CompletedProcess([], 0, stdout=""),
+            subprocess.CompletedProcess([], 0, stdout=""),
+            subprocess.CompletedProcess([], 0, stdout="scripts/quality.ps1\n"),
+        ]
+    )
+    monkeypatch.setattr(subprocess, "run", runner)
+    assert policy_module.changed_repository_paths(
+        tmp_path, base="base-sha", head="head-sha"
+    ) == ("scripts/quality.ps1",)
+    assert "base-sha...head-sha" in runner.call_args_list[-1].args[0]

@@ -40,6 +40,11 @@ def hook(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     monkeypatch.setattr(module, "_snapshot", lambda _root: {"subject": "before"})
+    # Lifecycle unit tests isolate the quality consumer; evidence verification is
+    # exercised separately with persisted, hash-bound test output.
+    monkeypatch.setattr(
+        module, "quality_completion_blockers", lambda _root, _subject: ()
+    )
     return module
 
 
@@ -92,6 +97,24 @@ def test_read_only_turn_does_not_run_validator_or_claim_compliance(
     assert "canonical owners" in context["hookSpecificOutput"]["additionalContext"]
     assert hook.handle_event(_event("Stop"), tmp_path) == {}
     validator.assert_not_called()
+
+
+def test_stop_rejects_missing_quality_even_when_repository_passes(
+    hook: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai4binance.ops.quality_gate.telemetry import quality_completion_blockers
+
+    monkeypatch.setattr(
+        hook, "quality_completion_blockers", quality_completion_blockers
+    )
+    monkeypatch.setattr(
+        hook, "validate_repository", lambda _root: _report(blocked=False)
+    )
+    result = hook.handle_event(_event("Stop"), tmp_path)
+    assert result["decision"] == "block"
+    assert "QUALITY_EVIDENCE_OR_POLICY_UNAVAILABLE" in result["reason"]
 
 
 @pytest.mark.parametrize("blocked", [True, False])

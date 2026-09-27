@@ -68,6 +68,7 @@ def load_quality_gate_policy(path: Path) -> QualityGatePolicy:
     payload = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("quality gate policy must be a mapping")
+    _validate_policy_payload(payload)
     profiles_payload = _mapping(payload, "profiles")
     profiles = {
         name: _profile(name, _mapping(profiles_payload, name))
@@ -98,14 +99,28 @@ def load_quality_gate_policy(path: Path) -> QualityGatePolicy:
     )
 
 
-def changed_repository_paths(repository_root: Path) -> tuple[str, ...]:
+def changed_repository_paths(
+    repository_root: Path,
+    *,
+    base: str | None = None,
+    head: str | None = None,
+) -> tuple[str, ...]:
     """Return git changed and untracked paths as repository-relative POSIX strings."""
     root = repository_root.resolve()
+    if bool(base) != bool(head):
+        raise ValueError("both base and head are required")
+    if any(ref.startswith("-") for ref in (base, head) if ref):
+        raise ValueError("revision cannot be a command option")
     changed: list[str] = []
-    for arguments in (
+    commands = [
         ("git", "-C", str(root), "diff", "--name-only", "HEAD", "--"),
         ("git", "-C", str(root), "ls-files", "--others", "--exclude-standard"),
-    ):
+    ]
+    if base and head:
+        commands.append(
+            ("git", "-C", str(root), "diff", "--name-only", f"{base}...{head}", "--")
+        )
+    for arguments in commands:
         completed = subprocess.run(  # noqa: S603  # nosec B603
             arguments,
             cwd=root,
@@ -129,6 +144,9 @@ def resolve_profile_pytest_arguments(
     profile: str,
     repository_root: Path,
     changed_paths: Sequence[str] = (),
+    *,
+    base: str | None = None,
+    head: str | None = None,
 ) -> tuple[str, ...]:
     """Resolve pytest arguments for a profile from the canonical policy."""
     normalized_profile = profile.strip().lower()
@@ -137,7 +155,9 @@ def resolve_profile_pytest_arguments(
     gate_profile = policy.profiles[normalized_profile]
     if gate_profile.pytest_scope == "affected":
         actual_changed_paths = tuple(changed_paths) or changed_repository_paths(
-            repository_root
+            repository_root,
+            base=base,
+            head=head,
         )
         return resolve_affected_pytest_arguments(
             policy,
@@ -148,7 +168,9 @@ def resolve_profile_pytest_arguments(
         if not policy.required_tests:
             raise ValueError("standard profile requires configured required_tests")
         actual_changed_paths = tuple(changed_paths) or changed_repository_paths(
-            repository_root
+            repository_root,
+            base=base,
+            head=head,
         )
         return resolve_standard_pytest_arguments(
             policy,
@@ -172,14 +194,24 @@ def resolve_standard_pytest_arguments(
         _normalize_path(path) for path in changed_paths if path.strip()
     )
     selected_tests: list[str] = list(policy.required_tests)
+    unknown_paths: list[str] = []
     for changed_path in normalized_changed_paths:
-        for mapping in _most_specific_matching_mappings(
+        mappings = _most_specific_matching_mappings(
             changed_path,
             policy.standard_impact_mappings,
-        ):
+        ) or _most_specific_matching_mappings(changed_path, policy.affected_mappings)
+        if not mappings:
+            unknown_paths.append(changed_path)
+        for mapping in mappings:
             selected_tests.extend(mapping.tests)
             if mapping.tests_from_changed_paths and changed_path.endswith(".py"):
                 selected_tests.append(changed_path)
+    if unknown_paths:
+        raise AffectedScopeResolutionError(
+            "STANDARD impact scope is unknown; run FULL: " + ", ".join(unknown_paths),
+            unknown_paths=tuple(sorted(set(unknown_paths))),
+            escalate_to="full",
+        )
     return _existing_tests_with_no_cov(repository_root, selected_tests)
 
 
@@ -229,11 +261,19 @@ def _existing_tests_with_no_cov(
     root = repository_root.resolve()
     existing_tests: list[str] = []
     seen_tests: set[str] = set()
-    for test in tests:
+    requested = tuple(tests)
+    whole_files = {_normalize_path(test) for test in requested if "::" not in test}
+    for test in requested:
         normalized = _normalize_path(test)
         if normalized in seen_tests:
             continue
         if not _pytest_selection_exists(root, normalized):
+            raise AffectedScopeResolutionError(
+                f"Configured pytest selection is missing: {normalized}",
+                unknown_paths=(normalized,),
+                escalate_to="full",
+            )
+        if "::" in normalized and normalized.split("::", 1)[0] in whole_files:
             continue
         existing_tests.append(normalized)
         seen_tests.add(normalized)
@@ -262,6 +302,111 @@ def _profile(name: str, payload: Mapping[str, Any]) -> QualityGateProfile:
         full_suite=bool(payload.get("full_suite", False)),
         execution_trigger=str(payload.get("execution_trigger", "")),
     )
+
+
+def _validate_policy_payload(payload: Mapping[str, Any]) -> None:
+    """Reject ambiguous types and unknown configuration before coercion."""
+
+    _policy_keys(
+        payload,
+        {
+            "version",
+            "profiles",
+            "runtime",
+            "affected_tests",
+            "standard_impact_tests",
+            "required_tests",
+            "governance",
+        },
+    )
+    if type(payload.get("version")) is not int or payload["version"] != 1:
+        raise ValueError("unsupported quality policy version")
+    _validate_policy_profiles(payload)
+    _validate_policy_mappings(payload)
+    _validate_policy_auxiliary(payload)
+
+
+def _policy_keys(value: Mapping[str, Any], allowed: set[str]) -> None:
+    if set(value) - allowed:
+        raise ValueError(
+            "unknown quality policy fields: " + ", ".join(sorted(set(value) - allowed))
+        )
+
+
+def _validate_policy_profiles(payload: Mapping[str, Any]) -> None:
+    profiles = _mapping(payload, "profiles")
+    _policy_keys(profiles, {"fast", "standard", "full"})
+    for name in ("fast", "standard", "full"):
+        profile = _mapping(profiles, name)
+        booleans = {"canonical_quality_authority", "fail_fast", "full_suite"}
+        strings = {
+            "verification_status",
+            "format_check",
+            "lint",
+            "maintainability_check",
+            "type_check",
+            "pytest_scope",
+            "execution_trigger",
+        }
+        _policy_keys(profile, booleans | strings)
+        for key in booleans:
+            if type(profile.get(key)) is not bool:
+                raise ValueError(f"{name}.{key} must be a boolean")
+        for key in strings:
+            if not isinstance(profile.get(key), str) or not profile[key].strip():
+                raise ValueError(f"{name}.{key} must be a non-empty string")
+
+
+def _validate_policy_mappings(payload: Mapping[str, Any]) -> None:
+    for section in ("affected_tests", "standard_impact_tests"):
+        value = _optional_mapping(payload, section)
+        _policy_keys(
+            value,
+            {"mappings", "default_when_clean", "unknown_impact_escalates_to"}
+            if section == "affected_tests"
+            else {"mappings"},
+        )
+        for item in _optional_sequence(value, "mappings"):
+            if not isinstance(item, dict):
+                raise ValueError("test mapping must be an object")
+            _policy_keys(
+                item, {"name", "path_prefixes", "tests", "tests_from_changed_paths"}
+            )
+            if type(item.get("tests_from_changed_paths", False)) is not bool:
+                raise ValueError("tests_from_changed_paths must be a boolean")
+            if not isinstance(item.get("name"), str) or not item["name"].strip():
+                raise ValueError("mapping name is required")
+            _string_sequence(item.get("path_prefixes"))
+            _string_sequence(item.get("tests", ()))
+
+
+def _validate_policy_auxiliary(payload: Mapping[str, Any]) -> None:
+    runtime = _mapping(payload, "runtime")
+    _policy_keys(
+        runtime,
+        {
+            "evidence_root",
+            "compatibility_evidence_root",
+            "capture_timing",
+            "capture_exit_code",
+            "compact_console_output",
+        },
+    )
+    for key in ("capture_timing", "capture_exit_code", "compact_console_output"):
+        if type(runtime.get(key)) is not bool:
+            raise ValueError(f"runtime.{key} must be a boolean")
+    governance = _mapping(payload, "governance")
+    _policy_keys(
+        governance,
+        {
+            "fast_pass_is_not_full_verified",
+            "dmypy_is_local_accelerator_only",
+            "unknown_affected_scope_escalates",
+        },
+    )
+    for key in ("fast_pass_is_not_full_verified", "dmypy_is_local_accelerator_only"):
+        if governance.get(key) is not True:
+            raise ValueError(f"governance.{key} must be true")
 
 
 def _affected_mapping(payload: object) -> AffectedTestMapping:
@@ -306,8 +451,10 @@ def _optional_sequence(payload: Mapping[str, Any], key: str) -> Sequence[object]
 
 def _string_sequence(value: object) -> tuple[str, ...]:
     if not isinstance(value, list | tuple):
-        return ()
-    return tuple(str(item) for item in value if str(item).strip())
+        raise ValueError("expected a sequence of strings")
+    if any(not isinstance(item, str) or not item.strip() for item in value):
+        raise ValueError("expected non-empty strings")
+    return tuple(value)
 
 
 def _matches_any_prefix(path: str, prefixes: Sequence[str]) -> bool:

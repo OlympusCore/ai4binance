@@ -1491,7 +1491,7 @@ def test_governance_gate_blocks_revoked_bound_approval_records(tmp_path: Path) -
     assert "APPROVAL_REVOKED:approval-1" in report.blockers
 
 
-def test_load_approval_records_with_fallback_uses_canonical_artifact_when_missing(
+def test_load_approval_records_uses_default_only_when_path_is_omitted(
     tmp_path: Path,
 ) -> None:
     approved_at = _fresh_approved_at()
@@ -1540,10 +1540,11 @@ def test_load_approval_records_with_fallback_uses_canonical_artifact_when_missin
         encoding="utf-8",
     )
 
-    approvals = load_approval_records_with_fallback(
-        tmp_path,
-        tmp_path / "runtime" / "artifacts" / "quality" / "gate" / "missing.json",
-    )
+    with pytest.raises(ValueError, match="EXPLICIT_APPROVAL_RECORD_MISSING"):
+        load_approval_records_with_fallback(
+            tmp_path, approval_path.with_name("missing.json")
+        )
+    approvals = load_approval_records_with_fallback(tmp_path)
 
     assert len(approvals) == 1
     assert approvals[0].approval_id == "approval-1"
