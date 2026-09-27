@@ -6,7 +6,7 @@ import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from hashlib import sha256
 
@@ -213,6 +213,99 @@ class ClosedTradeAttribution:
 
 
 @dataclass(frozen=True, slots=True)
+class TradeClosureAssessment:
+    """Observed closure diagnostics, never empirical accuracy or promotion proof.
+
+    The referenced immutable decision evidence retains methods, rule definitions,
+    conflicts and scenario alternatives. An exit event alone cannot establish
+    which method was accurate or whether a different entry/target was optimal.
+    """
+
+    decision_evidence_sha256: str
+    decision_lineage_status: str
+    selected_scenario_id: str | None
+    entry_quality: str
+    stop_quality: str
+    target_quality: str
+    method_accuracy: str = "NOT_EVALUABLE_NO_METHOD_OUTCOME_LABELS"
+    scenario_accuracy: str = "NOT_EVALUABLE_NO_SCENARIO_OUTCOME_LABELS"
+    execution_quality: str = "NOT_EVALUABLE_NO_FILL_BENCHMARK"
+    rule_evaluation_status: str = "NOT_EVALUABLE_NO_RULE_EXECUTION_TRACE"
+
+    @classmethod
+    def build(
+        cls,
+        evidence: TradeDecisionEvidence,
+        *,
+        entry_time: datetime,
+        entry_price: Decimal,
+        exit_reason: str,
+    ) -> TradeClosureAssessment:
+        causal = (
+            evidence.status == "RECORDED_AT_DECISION"
+            and evidence.as_of is not None
+            and entry_time.utcoffset() is not None
+            and evidence.as_of <= entry_time
+        )
+        factors = json.loads(evidence.factors_json) if causal else {}
+        state = factors.get("state")
+        scenario_id: str | None = None
+        if isinstance(state, dict):
+            selected_id = state.get("selected_scenario_id")
+            scenarios = state.get("scenarios", [])
+            if (
+                isinstance(selected_id, str)
+                and isinstance(scenarios, list)
+                and any(
+                    isinstance(row, dict) and row.get("scenario_id") == selected_id
+                    for row in scenarios
+                )
+            ):
+                scenario_id = selected_id
+        return cls(
+            decision_evidence_sha256=evidence.sha256,
+            decision_lineage_status=(
+                "CAUSAL_DECISION_EVIDENCE"
+                if causal
+                else "NOT_EVALUABLE_MISSING_OR_NONCAUSAL_DECISION_EVIDENCE"
+            ),
+            selected_scenario_id=scenario_id,
+            entry_quality=cls._entry_quality(factors.get("entry_zone"), entry_price),
+            stop_quality=(
+                "INITIAL_STOP_EXIT_RECORDED"
+                if exit_reason in {"HARD_STOP", "STOP_LOSS_EXIT"}
+                else "TRAILING_STOP_EXIT_RECORDED"
+                if exit_reason in {"TRAILING_STOP", "TRAILING_STOP_EXIT"}
+                else "NO_STOP_EXIT_RECORDED"
+            ),
+            target_quality=(
+                "TARGET_EXIT_RECORDED"
+                if exit_reason in {"TARGET", "TAKE_PROFIT_EXIT"}
+                else "NO_FINAL_TARGET_EXIT_RECORDED"
+            ),
+        )
+
+    @staticmethod
+    def _entry_quality(zone: object, price: Decimal) -> str:
+        if not isinstance(zone, dict):
+            return "NOT_EVALUABLE_NO_RECORDED_ENTRY_ZONE"
+        try:
+            low, high = Decimal(str(zone.get("lower"))), Decimal(str(zone.get("upper")))
+        except InvalidOperation:
+            return "NOT_EVALUABLE_INVALID_RECORDED_ENTRY_ZONE"
+        if (
+            not all(value.is_finite() for value in (low, high, price))
+            or not ZERO < low <= high
+        ):
+            return "NOT_EVALUABLE_INVALID_RECORDED_ENTRY_ZONE"
+        return (
+            "FILL_WITHIN_RECORDED_ENTRY_ZONE"
+            if low <= price <= high
+            else "FILL_OUTSIDE_RECORDED_ENTRY_ZONE"
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class TradeEdgeAggregateView:
     """Deterministic closed-trade edge summary for one grouping key."""
 
@@ -281,6 +374,7 @@ class VirtualClosedTradeRecord:
     parameter_methods: TradeParameterMethods = field(
         default_factory=TradeParameterMethods
     )
+    closure_assessment: TradeClosureAssessment = field(init=False)
 
     def __post_init__(self) -> None:
         if not self.trade_id.strip():
@@ -296,6 +390,16 @@ class VirtualClosedTradeRecord:
             )
         ):
             raise ValueError("virtual closed trade governance lineage is required")
+        object.__setattr__(
+            self,
+            "closure_assessment",
+            TradeClosureAssessment.build(
+                self.attribution.decision_evidence,
+                entry_time=self.entry_time,
+                entry_price=self.entry_price,
+                exit_reason=self.exit_reason.value,
+            ),
+        )
 
 
 @dataclass(frozen=True, slots=True)

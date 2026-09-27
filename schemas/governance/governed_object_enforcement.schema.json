@@ -1055,6 +1055,10 @@
         "entries"
       ],
       "properties": {
+        "quality_binding_mode": {
+          "type": "string",
+          "enum": ["PINNED_QUALITY_EVIDENCE", "HISTORICAL_PROVENANCE_AND_CURRENT_QUALITY"]
+        },
         "canonical_owner": {
           "type": "string",
           "minLength": 1
@@ -1116,7 +1120,7 @@
       ],
       "properties": {
         "version": {
-          "const": "1.4.2"
+          "const": "1.4.3"
         },
         "non_consequential_examples": {
           "type": "array",
@@ -1275,6 +1279,23 @@
         "workspace_attestation": {"$ref": "#/$defs/QualityEvidenceBinding/properties/workspace_attestation"},
         "policy_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
         "evidence_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "execution_allowed": {"const": false},
+        "promotion_status": {"const": "RESEARCH_ONLY"},
+        "live_eligibility_status": {"const": "LIVE_ORDER_BLOCKED"}
+      }
+    },
+    "RequirementQualityReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "subject_sha256", "inventory_sha256", "run_id", "outcome", "proof_ref", "proof_sha256", "execution_allowed", "promotion_status", "live_eligibility_status"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "subject_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "inventory_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "run_id": {"type": "string", "pattern": "^[0-9]{8}T[0-9]{6}Z$"},
+        "outcome": {"enum": ["FAILED", "COMPLETED"]},
+        "proof_ref": {"type": "string", "minLength": 1},
+        "proof_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
         "execution_allowed": {"const": false},
         "promotion_status": {"const": "RESEARCH_ONLY"},
         "live_eligibility_status": {"const": "LIVE_ORDER_BLOCKED"}

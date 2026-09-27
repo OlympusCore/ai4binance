@@ -95,6 +95,10 @@ def test_staged_targets_partially_then_fully_close_position() -> None:
     assert closed.closure_review.htf_weakness is True
     assert closed.closure_review.staged_exit_alternative == "USED"
     assert closed.realized_pnl_usdt > Decimal("29")
+    assert partial.closure_assessment is None
+    assert closed.closure_assessment is not None
+    assert closed.closure_assessment.target_quality == "TARGET_EXIT_RECORDED"
+    assert closed.closure_assessment.method_accuracy.startswith("NOT_EVALUABLE")
 
 
 def test_stop_first_prevents_optimistic_same_bar_staged_exit() -> None:

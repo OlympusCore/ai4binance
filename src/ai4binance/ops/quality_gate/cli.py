@@ -41,9 +41,11 @@ def build_parser() -> argparse.ArgumentParser:
     binder.add_argument("--repository-root", type=Path, required=True)
     binder.add_argument("--run-id", required=True)
     binder.add_argument("--junit-path", type=Path, required=True)
+    binder.add_argument("--archive-run", action="store_true")
     failure_binder = subparsers.add_parser("bind-failure-evidence")
     failure_binder.add_argument("--repository-root", type=Path, required=True)
     failure_binder.add_argument("--run-id", required=True)
+    failure_binder.add_argument("--archive-run", action="store_true")
     profile = subparsers.add_parser("profile")
     profile.add_argument("--config", type=Path, required=True)
     profile.add_argument(
@@ -67,35 +69,39 @@ def main(arguments: Sequence[str] | None = None) -> int:
         )
         return 0
     if parsed.command == "bind-evidence":
-        from ai4binance.ops.quality_gate.telemetry import bind_quality_evidence
+        from ai4binance.ops.quality_gate.telemetry import (
+            archive_quality_evidence,
+            bind_quality_evidence,
+        )
 
         payload = json.load(sys.stdin)
-        print(
-            json.dumps(
-                bind_quality_evidence(
-                    parsed.repository_root,
-                    payload,
-                    run_id=parsed.run_id,
-                    junit_path=parsed.junit_path,
-                    workspace_attestation=payload["workspace_attestation"],
-                )
-            )
+        bound = bind_quality_evidence(
+            parsed.repository_root,
+            payload,
+            run_id=parsed.run_id,
+            junit_path=parsed.junit_path,
+            workspace_attestation=payload["workspace_attestation"],
         )
+        if parsed.archive_run:
+            archive_quality_evidence(parsed.repository_root, bound)
+        print(json.dumps(bound))
         return 0
     if parsed.command == "bind-failure-evidence":
-        from ai4binance.ops.quality_gate.telemetry import bind_quality_failure_evidence
+        from ai4binance.ops.quality_gate.telemetry import (
+            archive_quality_evidence,
+            bind_quality_failure_evidence,
+        )
 
         payload = json.load(sys.stdin)
-        print(
-            json.dumps(
-                bind_quality_failure_evidence(
-                    parsed.repository_root,
-                    payload,
-                    run_id=parsed.run_id,
-                    workspace_attestation=payload["workspace_attestation"],
-                )
-            )
+        bound = bind_quality_failure_evidence(
+            parsed.repository_root,
+            payload,
+            run_id=parsed.run_id,
+            workspace_attestation=payload["workspace_attestation"],
         )
+        if parsed.archive_run:
+            archive_quality_evidence(parsed.repository_root, bound)
+        print(json.dumps(bound))
         return 0
     print(json.dumps({"status": "ERROR", "error": "unknown command"}))
     return 2

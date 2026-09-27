@@ -1,4 +1,4 @@
-"""Deterministic independent-cluster evidence fusion with no decision authority."""
+"""Deterministic dependency-aware evidence fusion with no decision authority."""
 
 from __future__ import annotations
 
@@ -7,7 +7,10 @@ from dataclasses import dataclass
 from math import fsum
 
 from ai4binance.agents.registry import AgentDefinition, AgentRegistry, AgentStage
-from ai4binance.intelligence.method_registry import current_method_registry
+from ai4binance.intelligence.method_registry import (
+    current_method_registry,
+    recorded_lineage,
+)
 from ai4binance.schemas import (
     AgentResult,
     AgentStatus,
@@ -45,6 +48,7 @@ def _dependency_groups(
         definition = registry.get(result.agent_name)
         roots = set(_root_keys(definition, result))
         roots.add(f"cluster:{definition.evidence_cluster}")
+        roots.update(_registry_dependency_roots(result))
         rows = [result]
         retained = []
         for group_roots, group_rows in groups:
@@ -62,9 +66,25 @@ def _dependency_groups(
     )
 
 
+def _registry_dependency_roots(result: AgentResult) -> frozenset[str]:
+    """Declared shared inputs only add dependencies to verified method lineage."""
+    lineage = recorded_lineage(result.calculation_metadata)
+    if lineage is None:
+        return frozenset()
+    registry = current_method_registry()
+    method = registry.method(lineage.method_id)
+    identities = {method.method_id, method.family}
+    return frozenset(
+        "registry_dependency:" + "|".join(sorted((edge.left, edge.right)))
+        for edge in registry.interactions
+        if edge.relationship in {"SHARED_INPUT", "SHARED_PIVOTS"}
+        and identities & {edge.left, edge.right}
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class EvidenceFusionEngine:
-    """Fuse independent analytical evidence without risk or execution authority."""
+    """Fuse dependency-filtered evidence without claiming statistical independence."""
 
     definition: AgentDefinition
     registry: AgentRegistry
@@ -144,6 +164,7 @@ class EvidenceFusionEngine:
             observations.append(
                 {
                     "agent": name,
+                    "evidence_family": definition.evidence_cluster,
                     "vote": result.directional_vote,
                     "blockers": result.blockers,
                     "warnings": result.warnings,

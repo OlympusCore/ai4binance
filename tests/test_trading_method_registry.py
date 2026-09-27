@@ -373,6 +373,9 @@ def test_legacy_snapshot_restores_original_lineage_without_optional_metadata() -
     raw = current_method_registry().model_dump(mode="json")
     for method in raw["methods"]:
         method.pop("reference")
+        method.pop("rule_stages")
+    for rule in raw["rules"]:
+        rule.pop("semantics")
     for source in raw["sources"]:
         source.pop("bibliography")
     method = next(row for row in raw["methods"] if row["method_id"] == "fibonacci")
@@ -420,3 +423,101 @@ def test_legacy_snapshot_restores_original_lineage_without_optional_metadata() -
     assert changed.method("fibonacci").reference is not None
     with pytest.raises(ValueError, match="registered definition"):
         changed.validate_lineage(legacy)
+
+
+@pytest.mark.parametrize(
+    "mutation", ["missing", "self", "cycle", "conflict", "duplicate", "foreign_stage"]
+)
+def test_rule_dependency_graph_rejects_invalid_links(mutation: str) -> None:
+    raw = current_method_registry().model_dump(mode="json")
+    first, second = raw["rules"][:2]
+    semantics = {
+        "invalidation_effect": "Test-only invalidation",
+        "prerequisite_rules": [second["rule_id"]],
+    }
+    first["semantics"] = semantics
+    if mutation == "missing":
+        semantics["prerequisite_rules"] = ["missing.rule"]
+    elif mutation == "self":
+        semantics["prerequisite_rules"] = [first["rule_id"]]
+    elif mutation == "cycle":
+        second["semantics"] = {
+            "invalidation_effect": "Test-only",
+            "prerequisite_rules": [first["rule_id"]],
+        }
+    elif mutation == "conflict":
+        semantics["conflicting_rules"] = [second["rule_id"]]
+    elif mutation == "duplicate":
+        semantics["prerequisite_rules"] = [second["rule_id"], second["rule_id"]]
+    else:
+        method = raw["methods"][0]
+        foreign = next(
+            rule["rule_id"]
+            for rule in raw["rules"]
+            if rule["rule_id"] not in method["rule_ids"]
+        )
+        method["rule_stages"] = {"anchor": [foreign]}
+    with pytest.raises(ValueError, match=r"reference|rule|prerequisite"):
+        TradingMethodRegistry.model_validate(raw)
+
+
+def test_reference_manual_projects_chapter_gaps_and_rule_stages() -> None:
+    from ai4binance.intelligence.inventory import (
+        reference_gaps,
+        render_reference_manual,
+    )
+
+    raw = current_method_registry().model_dump(mode="json")
+    method = raw["methods"][0]
+    method["reference"] = reference_payload()
+    method["reference"]["chapter"] = {
+        "bullish_interpretation": "Test-only bullish context"
+    }
+    method["rule_stages"] = {"formation": method["rule_ids"]}
+    registry = TradingMethodRegistry.model_validate(raw)
+    gaps = reference_gaps(registry.methods[0])
+    assert "bearish_interpretation" in gaps
+    assert "bullish_interpretation" not in gaps
+    assert "rule_stages" not in gaps
+    manual = render_reference_manual(registry)
+    assert "Bullish Interpretation: Test-only bullish context" in manual
+    assert "Bearish Interpretation: NOT_VERIFIED" in manual
+    assert "Formation: " + method["rule_ids"][0] in manual
+    assert "LIVE_ORDER_BLOCKED" in manual
+
+
+def test_reference_acceptance_projects_limits_without_claiming_master_completion() -> (
+    None
+):
+    from ai4binance.intelligence.inventory import reference_acceptance_projection
+
+    registry = current_method_registry()
+    report = reference_acceptance_projection(registry)
+    assert report["registry_sha256"] == registry.snapshot_payload()["sha256"]
+    assert report["status"] == "PARTIALLY_VERIFIED"
+    assert not report["execution_allowed"]
+    methods = report["methods"]
+    assert isinstance(methods, list)
+    assert len(methods) == len(registry.methods)
+    assert all(method.reference is not None for method in registry.methods)
+    assert any(row["missing_reference_fields"] for row in methods)
+    assert all(row["oos_status"] == "METHOD_LEVEL_OOS_NOT_VERIFIED" for row in methods)
+
+
+def test_source_rules_remain_distinct_from_executable_implementation_rules() -> None:
+    registry = current_method_registry()
+    source_rules = [
+        rule for rule in registry.rules if rule.rule_type.startswith("SOURCE_")
+    ]
+    assert {rule.rule_type for rule in source_rules} >= {
+        "SOURCE_RULE",
+        "SOURCE_GUIDELINE",
+        "SOURCE_DEFINITION",
+    }
+    assert all(rule.implementation_ref is None for rule in source_rules)
+    assert (
+        registry.method("harmonic_patterns.ab_cd").implementation_status
+        == "CATALOG_ONLY"
+    )
+    with pytest.raises(ValueError, match="catalog method"):
+        registry.lineage("harmonic_patterns.ab_cd", "1.0.0", "1.0.0")

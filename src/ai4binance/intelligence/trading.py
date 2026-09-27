@@ -5,13 +5,18 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from hashlib import sha256
+from itertools import combinations
 
 from ai4binance.domain import Action, CandidateStatus, TradeCandidate
 from ai4binance.intelligence.contracts import (
     CalibrationState,
     ConfidenceComponent,
     ConfirmedSwing,
+    ConfluenceEvidence,
     DerivativesContextEvidence,
+    DirectionalConsensusEvidence,
+    EvidenceOverlap,
+    MultiMethodEvidence,
     PatternHypothesisEvidence,
     ScenarioDirection,
     ScenarioHypothesis,
@@ -140,6 +145,19 @@ class ScenarioEngine:
         )
         if blockers:
             selected_id = None
+        try:
+            dimensions = self._analysis_dimensions(
+                snapshot,
+                agent_results,
+                structures,
+                levels,
+                pattern_hypotheses,
+                next(
+                    (row for row in scenarios if row.scenario_id == selected_id), None
+                ),
+            )
+        except (TypeError, ValueError):
+            return self.blocked(snapshot, (*blockers, "MULTI_METHOD_EVIDENCE_INVALID"))
         return TradingIntelligenceState(
             snapshot_id=snapshot.snapshot_id,
             symbol=snapshot.symbol,
@@ -165,6 +183,7 @@ class ScenarioEngine:
             market_type=snapshot.market_type.upper(),
             transaction_cost_ratio=transaction_cost,
             funding_periods=periods if periods is not None and periods >= 0 else None,
+            multi_method_evidence=dimensions,
             event_context=event_context,
             method_diversity_count=self._integer(
                 fusion_metadata.get("method_diversity_count")
@@ -205,7 +224,220 @@ class ScenarioEngine:
             selected_scenario_id=None,
             blockers=unique,
             market_type=snapshot.market_type.upper(),
+            multi_method_evidence=MultiMethodEvidence(snapshot_id=snapshot.snapshot_id),
         )
+
+    @classmethod
+    def _directional_consensus(
+        cls, results: Mapping[str, AgentResult]
+    ) -> DirectionalConsensusEvidence:
+        """Reuse fusion's dependency selection; never recompute a directional score."""
+        fusion = results.get("confluence")
+        if fusion is None or not is_usable_agent_result(fusion):
+            return DirectionalConsensusEvidence()
+        metadata = fusion.calculation_metadata
+        raw_groups = metadata.get("dependency_groups", ())
+        if not raw_groups:
+            return DirectionalConsensusEvidence()
+        if not isinstance(raw_groups, (tuple, list)):
+            raise ValueError("dependency groups must be a sequence")
+        groups = tuple(cls._string_tuple(group) for group in raw_groups)
+        selected = cls._string_tuple(metadata.get("selected_agents", ()))
+        members = tuple(name for group in groups for name in group)
+        if (
+            not selected
+            or any(
+                name not in results or not is_usable_agent_result(results[name])
+                for name in members
+            )
+            or not set(selected) <= set(members)
+        ):
+            raise ValueError("consensus references unavailable dependency evidence")
+        vote = fusion.directional_vote
+        return DirectionalConsensusEvidence(
+            supporting_refs=tuple(
+                sorted(
+                    name
+                    for name in selected
+                    if results[name].directional_vote * vote > 0
+                )
+            ),
+            opposing_refs=tuple(
+                sorted(
+                    name
+                    for name in members
+                    if results[name].directional_vote * vote < 0
+                    or (vote == 0 and results[name].directional_vote != 0)
+                )
+            ),
+            neutral_refs=tuple(
+                sorted(name for name in members if results[name].directional_vote == 0)
+            ),
+            dependency_groups=groups,
+            evidence_families=cls._string_tuple(metadata.get("evidence_clusters", ())),
+            direction=ScenarioDirection.LONG
+            if vote > 0
+            else ScenarioDirection.SHORT
+            if vote < 0
+            else ScenarioDirection.NEUTRAL,
+        )
+
+    @staticmethod
+    def _zone_confluence(
+        zones: tuple[tuple[str, Decimal, Decimal], ...],
+        counter_evidence: tuple[str, ...] = (),
+    ) -> ConfluenceEvidence:
+        """Intersect existing zones exactly without a second tolerance model."""
+        if any(
+            not low.is_finite() or not high.is_finite() or not ZERO < low <= high
+            for _, low, high in zones
+        ):
+            raise ValueError("confluence zones must be finite positive intervals")
+        unique = tuple(sorted(set(zones)))
+        by_ref = {ref: (low, high) for ref, low, high in unique}
+        if len(by_ref) != len(unique):
+            raise ValueError("one evidence reference cannot name conflicting zones")
+        overlaps = tuple(
+            EvidenceOverlap(
+                evidence_refs=(left[0], right[0]),
+                price_low=max(left[1], right[1]),
+                price_high=min(left[2], right[2]),
+            )
+            for left, right in combinations(unique, 2)
+            if max(left[1], right[1]) <= min(left[2], right[2])
+        )
+        return ConfluenceEvidence(
+            available_refs=tuple(by_ref),
+            overlaps=overlaps,
+            counter_evidence=tuple(sorted(set(counter_evidence))),
+        )
+
+    @staticmethod
+    def _timing_confluence(
+        structures: tuple[TimeframeStructureEvidence, ...],
+    ) -> ConfluenceEvidence:
+        """Only identical observed event times and directions establish overlap."""
+        observations = tuple(event for row in structures for event in row.events)
+        events = {event.evidence_ref: event for event in observations}
+        if any(events[event.evidence_ref] != event for event in observations):
+            raise ValueError(
+                "one event reference cannot describe conflicting observations"
+            )
+        overlaps = tuple(
+            EvidenceOverlap(
+                evidence_refs=(left.evidence_ref, right.evidence_ref),
+                occurred_at=left.occurred_at,
+            )
+            for left, right in combinations(
+                sorted(events.values(), key=lambda event: event.evidence_ref), 2
+            )
+            if left.occurred_at == right.occurred_at
+            and left.direction is right.direction
+        )
+        conflicts = tuple(
+            f"TIMING_DIRECTION_CONFLICT:{left.evidence_ref}:{right.evidence_ref}"
+            for left, right in combinations(
+                sorted(events.values(), key=lambda event: event.evidence_ref), 2
+            )
+            if left.occurred_at == right.occurred_at
+            and left.direction is not right.direction
+        )
+        return ConfluenceEvidence(
+            available_refs=tuple(sorted(events)),
+            overlaps=overlaps,
+            counter_evidence=conflicts,
+        )
+
+    @classmethod
+    def _analysis_dimensions(
+        cls,
+        snapshot: MarketSnapshot,
+        results: Mapping[str, AgentResult],
+        structures: tuple[TimeframeStructureEvidence, ...],
+        levels: tuple[StructuralLevelEvidence, ...],
+        patterns: tuple[PatternHypothesisEvidence, ...],
+        selected: ScenarioHypothesis | None,
+    ) -> MultiMethodEvidence:
+        """Project observed geometry; overlaps never increase scenario confidence."""
+        fresh = tuple(row for row in levels if row.freshness in {"FRESH", "AGING"})
+        zones = [(row.level_id, row.price_low, row.price_high) for row in fresh]
+        for pattern in patterns:
+            if pattern.lifecycle_state not in {
+                "POTENTIAL",
+                "CONFIRMED",
+                "CONTEXT_ONLY",
+            }:
+                continue
+            attributes = dict(pattern.attributes)
+            low, high = (
+                cls._decimal(attributes.get("prz_low")),
+                cls._decimal(attributes.get("prz_high")),
+            )
+            if low is not None and high is not None and ZERO < low <= high:
+                zones.append((pattern.hypothesis_id, low, high))
+        direction = (
+            selected.direction if selected is not None else ScenarioDirection.NEUTRAL
+        )
+        structure_state = (
+            StructureState.BULLISH
+            if direction is ScenarioDirection.LONG
+            else StructureState.BEARISH
+        )
+        invalidations = tuple(
+            (
+                f"STRUCTURE_INVALIDATION:{row.timeframe}:{row.method}",
+                row.invalidation_level,
+                row.invalidation_level,
+            )
+            for row in structures
+            if direction is not ScenarioDirection.NEUTRAL
+            and row.state is structure_state
+            and row.invalidation_level is not None
+        )
+        conflicts = tuple(
+            f"STRUCTURE_DIRECTION_CONFLICT:{row.timeframe}"
+            for row in structures
+            if direction is not ScenarioDirection.NEUTRAL
+            and row.state in {StructureState.BULLISH, StructureState.BEARISH}
+            and row.state is not structure_state
+        )
+        targets = cls._target_zones(snapshot, fresh, direction)
+        return MultiMethodEvidence(
+            snapshot_id=snapshot.snapshot_id,
+            directional_consensus=cls._directional_consensus(results),
+            location_confluence=cls._zone_confluence(tuple(zones)),
+            timing_confluence=cls._timing_confluence(structures),
+            invalidation_confluence=cls._zone_confluence(invalidations, conflicts),
+            target_confluence=cls._zone_confluence(targets),
+        )
+
+    @staticmethod
+    def _target_zones(
+        snapshot: MarketSnapshot,
+        levels: tuple[StructuralLevelEvidence, ...],
+        direction: ScenarioDirection,
+    ) -> tuple[tuple[str, Decimal, Decimal], ...]:
+        """Observe favorable level alignment, not trade-plan target selection."""
+        price = snapshot.latest_price
+        if price is None or direction is ScenarioDirection.NEUTRAL:
+            return ()
+        zones = []
+        for row in levels:
+            if row.level_type not in {"SUPPORT", "RESISTANCE"}:
+                continue
+            role = (
+                ("SUPPORT" if row.level_type == "RESISTANCE" else "RESISTANCE")
+                if row.role_flip
+                else row.level_type
+            )
+            favorable = (
+                role == "RESISTANCE" and row.price_low > price
+                if direction is ScenarioDirection.LONG
+                else role == "SUPPORT" and row.price_high < price
+            )
+            if favorable:
+                zones.append((row.level_id, row.price_low, row.price_high))
+        return tuple(zones)
 
     def bind_candidates(
         self,

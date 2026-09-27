@@ -2671,7 +2671,7 @@ function Write-QualityGateFailureEvidence {
         $payload.workspace_attestation = $script:qualityInitialWorkspaceAttestation
         $bound = ($payload | ConvertTo-Json -Depth 20) |
             & $python -B -m ai4binance.ops.quality_gate bind-failure-evidence `
-                --repository-root $repoRoot --run-id $qualityRunTimestamp
+                --repository-root $repoRoot --run-id $qualityRunTimestamp --archive-run
         if ($LASTEXITCODE -ne 0) { throw "QUALITY_FAILURE_EVIDENCE_BINDING_FAILED" }
         $bound | Set-Content -LiteralPath $qualityEvidencePath -Encoding UTF8
         return
@@ -2686,7 +2686,7 @@ function Complete-QualityEvidenceBinding {
     $Payload.workspace_attestation = $script:qualityInitialWorkspaceAttestation
     $json = $Payload | ConvertTo-Json -Depth 20
     $bound = $json | & $python -B -m ai4binance.ops.quality_gate bind-evidence `
-        --repository-root $repoRoot --run-id $qualityRunTimestamp `
+        --repository-root $repoRoot --run-id $qualityRunTimestamp --archive-run `
         --junit-path (Join-Path $qualityRunDirectory "pytest-results.xml")
     if ($LASTEXITCODE -ne 0) { throw "QUALITY_EVIDENCE_BINDING_FAILED" }
     return $bound

@@ -1,10 +1,11 @@
-version: 1.4.2
+version: 1.4.3
 non_consequential_examples:
   - calculate_rsi
   - calculate_atr
   - score_evidence
   - risk_math
 requirement_traceability:
+  quality_binding_mode: HISTORICAL_PROVENANCE_AND_CURRENT_QUALITY
   canonical_owner: docs/compliance/registry_compliance_matrix.md
   source_class: DESIGN_INPUT
   source_corpus_sha256: a215f3e632f240271d38173ae32d6af6ac10f62d04fe98349547aba864111f2f

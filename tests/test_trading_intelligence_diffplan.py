@@ -268,6 +268,7 @@ def test_structural_plan_uses_real_targets_and_conservative_tick_rounding(
     )
     assert result.take_profit_levels == (D(".89") if short else D("1.33"),)
     assert result.stop_loss == (D("1.25") if short else D(".97"))
+    assert result.invalidation_level == scenario.invalidation_level
     assert result.target_sources == ("observed-zone",)
     missing = TradePlanEngine().structural_candidate(
         candidate, scenario, replace(state, levels=()), snapshot

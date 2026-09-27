@@ -630,7 +630,7 @@ def detect_chart_pattern(
     market: str = "UNKNOWN",
     structure: TimeframeStructureEvidence | None = None,
 ) -> ChartPatternObservation | None:
-    """Detect a small double-top/bottom family without future pivot leakage."""
+    """Interpret confirmed chart geometry without future pivot leakage."""
     _require_aware(decision_time, "pattern decision time")
     if timeframe not in TIMEFRAME_DURATIONS:
         raise ValueError("chart-pattern timeframe is unsupported")
@@ -807,6 +807,20 @@ def _reversal_boundaries(
                 upper,
                 lower,
             )
+        if max(left, head, right) - min(left, head, right) <= tolerance:
+            neck = (min if sign > ZERO else max)(points[1].price, points[3].price)
+            upper, lower = (
+                (max(p.price for p in points[::2]) + tolerance, neck)
+                if sign > ZERO
+                else (neck, min(p.price for p in points[::2]) - tolerance)
+            )
+            return _ChartBoundaries(
+                "TRIPLE_TOP" if sign > ZERO else "TRIPLE_BOTTOM",
+                CandleDirection.BEARISH if sign > ZERO else CandleDirection.BULLISH,
+                points,
+                upper,
+                lower,
+            )
     a, b, c = points[-3:]
     if a.kind is not c.kind or abs(a.price - c.price) > tolerance:
         return None
@@ -828,6 +842,7 @@ def _reversal_boundaries(
 def _converging_boundaries(
     points: tuple[ConfirmedSwing, ...],
     duration: timedelta,
+    tolerance: Decimal = ZERO,
 ) -> _ChartBoundaries | None:
     if len(points) < 4:
         return None
@@ -849,15 +864,37 @@ def _converging_boundaries(
     lower = lows[0].price - lower_slope * Decimal(
         str((lows[0].occurred_at - origin) / duration)
     )
-    if upper_slope >= lower_slope or upper <= lower:
+    flat_high = abs(highs[1].price - highs[0].price) <= tolerance
+    flat_low = abs(lows[1].price - lows[0].price) <= tolerance
+    if flat_high:
+        upper, upper_slope = max(p.price for p in highs), ZERO
+    if flat_low:
+        lower, lower_slope = min(p.price for p in lows), ZERO
+    if upper <= lower:
         return None
-    if upper_slope > ZERO and lower_slope > ZERO:
-        kind, bias = "RISING_WEDGE", CandleDirection.BEARISH
-    elif upper_slope < ZERO and lower_slope < ZERO:
-        kind, bias = "FALLING_WEDGE", CandleDirection.BULLISH
-    else:
-        kind, bias = "CONVERGING_TRIANGLE", CandleDirection.NEUTRAL
+    if flat_high and flat_low:
+        return _ChartBoundaries(
+            "RECTANGLE", CandleDirection.NEUTRAL, points, upper, lower
+        )
+    if upper_slope >= lower_slope:
+        return None
+    kind, bias = _consolidation_kind(upper_slope, lower_slope)
     return _ChartBoundaries(kind, bias, points, upper, lower, upper_slope, lower_slope)
+
+
+def _consolidation_kind(
+    upper_slope: Decimal, lower_slope: Decimal
+) -> tuple[str, CandleDirection]:
+    """Name frozen boundaries without turning a textbook tendency into direction."""
+    if upper_slope == ZERO:
+        return "ASCENDING_TRIANGLE", CandleDirection.NEUTRAL
+    if lower_slope == ZERO:
+        return "DESCENDING_TRIANGLE", CandleDirection.NEUTRAL
+    if upper_slope > ZERO:
+        return "RISING_WEDGE", CandleDirection.BEARISH
+    if lower_slope < ZERO:
+        return "FALLING_WEDGE", CandleDirection.BULLISH
+    return "CONVERGING_TRIANGLE", CandleDirection.NEUTRAL
 
 
 def _chart_lifecycle(
@@ -932,8 +969,12 @@ def _confirmed_chart_pattern(
     if tolerance <= ZERO:
         return None
     duration = TIMEFRAME_DURATIONS[timeframe]
-    geometry = _reversal_boundaries(points, tolerance) or _converging_boundaries(
-        points, duration
+    reversal = _reversal_boundaries(points, tolerance)
+    consolidation = _converging_boundaries(points, duration, tolerance)
+    geometry = (
+        consolidation or reversal
+        if reversal is None or reversal.kind in {"DOUBLE_TOP", "DOUBLE_BOTTOM"}
+        else reversal
     )
     if geometry is None:
         return None

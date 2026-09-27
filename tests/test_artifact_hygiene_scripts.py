@@ -54,8 +54,18 @@ def _write_quality_harness(tmp_path: Path, body: str) -> Path:
     git = shutil.which("git")
     assert git is not None
     subprocess.run([git, "init", str(tmp_path)], check=True, capture_output=True)  # noqa: S603
+    # Live capture files are generated evidence, not fixture source. Git may
+    # append line-ending diagnostics while a clean-worktree test stages files.
+    with (tmp_path / ".git/info/exclude").open("a", encoding="utf-8") as exclude:
+        exclude.write(
+            "\n/scripts/quality_harness.stdout.txt"
+            "\n/scripts/quality_harness.stderr.txt\n"
+        )
     harness_dir = tmp_path / "scripts"
     harness_dir.mkdir(exist_ok=True)
+    inventory_path = tmp_path / "config/governance/enforcement_inventory.yaml"
+    inventory_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ROOT / "config/governance/enforcement_inventory.yaml", inventory_path)
     harness_path = harness_dir / "quality_harness.ps1"
     python_path = Path(".venv") / "Scripts" / "python.exe"
     coverage_reader = Path("scripts") / "read_coverage_percent.py"
@@ -2051,7 +2061,7 @@ git -C $repoRoot config user.name 'Quality Gate'
 git -C $repoRoot add -A
 git -C $repoRoot commit -m 'test cache subject' | Out-Null
 $subject = Get-RepositoryValidatorCacheSubject
-[ordered]@{
+$result = [ordered]@{
     status = $script:repositoryValidatorCacheStatus
     reason = $script:repositoryValidatorCacheReason
     subject_key_present = -not [string]::IsNullOrWhiteSpace($subject.subject_key)
@@ -2065,7 +2075,13 @@ $subject = Get-RepositoryValidatorCacheSubject
         $subject.subject.quality_gate_script_sha256
     )
     cache_scope = $subject.subject.cache_scope
-} | ConvertTo-Json -Depth 8
+}
+Add-Content -LiteralPath $repositoryValidatorModulePath -Value 'CHANGED_SOURCE'
+$dirtySubject = Get-RepositoryValidatorCacheSubject
+$result.dirty_source_status = $script:repositoryValidatorCacheStatus
+$result.dirty_source_reason = $script:repositoryValidatorCacheReason
+$result.dirty_source_subject_missing = $null -eq $dirtySubject
+$result | ConvertTo-Json -Depth 8
 """,
     )
 
@@ -2076,6 +2092,9 @@ $subject = Get-RepositoryValidatorCacheSubject
     assert payload["validator_hash_present"] is True
     assert payload["quality_script_hash_present"] is True
     assert payload["cache_scope"] == "clean_worktree_same_head_policy_and_code"
+    assert payload["dirty_source_status"] == "DISABLED"
+    assert payload["dirty_source_reason"] == "worktree is not clean"
+    assert payload["dirty_source_subject_missing"] is True
 
 
 def test_quality_script_cache_subject_ignores_blank_git_status_output(
@@ -3107,6 +3126,8 @@ New-Item `
 Write-QualityGateGreenEvidence
 $first = Get-Content -LiteralPath $qualityEvidencePath -Raw | ConvertFrom-Json
 Start-Sleep -Milliseconds 50
+$nextRun = [datetime]::ParseExact($qualityRunTimestamp, 'yyyyMMddTHHmmssZ', $null)
+$qualityRunTimestamp = $nextRun.AddSeconds(1).ToString('yyyyMMddTHHmmssZ')
 Set-Content -LiteralPath $pytestOutputPath -Value "13 passed in 0.10s" -Encoding UTF8
 Write-QualityGateGreenEvidence
 $second = Get-Content -LiteralPath $qualityEvidencePath -Raw | ConvertFrom-Json

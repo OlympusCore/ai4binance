@@ -9,6 +9,9 @@ from pathlib import Path
 import pytest
 
 from ai4binance.application.learning_loop import ControlledLearningLoop
+from ai4binance.domain.research.virtual_runtime_attribution import (
+    TradeClosureAssessment,
+)
 from ai4binance.intelligence.inventory import TradingIntelligenceInventory
 from ai4binance.learning.engine import ControlledLearningEngine
 from ai4binance.learning.storage import LearningStore
@@ -67,6 +70,93 @@ def test_spot_outcome_retains_values_and_parameter_sources() -> None:
     assert outcome.decision_evidence == evidence()
     assert outcome.parameter_methods.leverage == "NOT_APPLICABLE_SPOT"
     assert "NOT_RECORDED" not in asdict(outcome.parameter_methods).values()
+
+
+@pytest.mark.parametrize("exit_reason", ["TARGET", "HARD_STOP", "END_OF_DATA"])
+def test_closure_distinguishes_observed_exit_from_method_accuracy(
+    exit_reason: str,
+) -> None:
+    original = evidence()
+    recorded = replace(
+        original,
+        factors_json=json.dumps(
+            {
+                "entry_zone": {"lower": "99", "upper": "101"},
+                "state": {
+                    "selected_scenario_id": "scenario-1",
+                    "scenarios": [
+                        {
+                            "scenario_id": "scenario-1",
+                            "evidence_for": ["observed-trigger"],
+                            "evidence_against": ["observed-conflict"],
+                        }
+                    ],
+                },
+            }
+        ),
+    )
+    assessment = TradeClosureAssessment.build(
+        recorded,
+        entry_time=NOW,
+        entry_price=Decimal("100"),
+        exit_reason=exit_reason,
+    )
+    assert assessment.decision_evidence_sha256 == recorded.sha256
+    assert assessment.selected_scenario_id == "scenario-1"
+    assert assessment.entry_quality == "FILL_WITHIN_RECORDED_ENTRY_ZONE"
+    assert assessment.method_accuracy.startswith("NOT_EVALUABLE")
+    assert assessment.scenario_accuracy.startswith("NOT_EVALUABLE")
+    assert assessment.execution_quality.startswith("NOT_EVALUABLE")
+    assert assessment.rule_evaluation_status.startswith("NOT_EVALUABLE")
+    assert (assessment.target_quality == "TARGET_EXIT_RECORDED") is (
+        exit_reason == "TARGET"
+    )
+    assert json.loads(recorded.factors_json)["state"]["scenarios"][0][
+        "evidence_against"
+    ] == ["observed-conflict"]
+
+
+@pytest.mark.parametrize("kind", ["missing", "future", "reconstructed"])
+def test_closure_cannot_upgrade_noncausal_or_reconstructed_evidence(kind: str) -> None:
+    from ai4binance.domain.research.virtual_runtime_attribution import (
+        TradeDecisionEvidence,
+    )
+
+    recorded = replace(
+        evidence(), factors_json='{"entry_zone":{"lower":"99","upper":"101"}}'
+    )
+    if kind == "missing":
+        recorded = TradeDecisionEvidence()
+    elif kind == "future":
+        recorded = replace(recorded, as_of=NOW + timedelta(seconds=1))
+    else:
+        recorded = replace(recorded, status="RECONSTRUCTED_FROM_ARCHIVE")
+    assessment = TradeClosureAssessment.build(
+        recorded, entry_time=NOW, entry_price=Decimal("100"), exit_reason="TARGET"
+    )
+    assert assessment.decision_lineage_status.startswith("NOT_EVALUABLE")
+    assert assessment.entry_quality.startswith("NOT_EVALUABLE")
+    assert assessment.selected_scenario_id is None
+
+
+def test_learning_retains_observed_closure_diagnostics_without_promotion() -> None:
+    result = recorded_result()
+    outcome = replace(
+        result.trade_outcomes[0],
+        decision_evidence=replace(
+            evidence(), factors_json='{"entry_zone":{"lower":"90","upper":"91"}}'
+        ),
+    )
+    summary = ControlledLearningEngine().analyze(
+        created_at=NOW, trade_outcomes=(outcome,)
+    )
+    payload = json.loads(summary.evidence_cases[0].payload_json)
+    assessment = payload["closure_assessment"]
+    assert assessment["entry_quality"] == "FILL_OUTSIDE_RECORDED_ENTRY_ZONE"
+    assert "ENTRY_FILL_OUTSIDE_RECORDED_ZONE" in summary.evidence_cases[0].tags
+    assert assessment["decision_evidence_sha256"] == outcome.decision_evidence.sha256
+    assert not summary.execution_allowed
+    assert not summary.risk_change_allowed
 
 
 @pytest.mark.parametrize("direction", tuple(TradeDirection))

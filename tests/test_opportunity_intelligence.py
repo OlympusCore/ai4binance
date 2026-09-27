@@ -9,6 +9,12 @@ import pytest
 
 import ai4binance.opportunity_intelligence as opportunity_intelligence
 from ai4binance.domain.opportunity_observation import OpportunityLifecycleState
+from ai4binance.intelligence.contracts import (
+    ConfirmedSwing,
+    StructureState,
+    SwingKind,
+    TimeframeStructureEvidence,
+)
 from ai4binance.opportunity_intelligence import (
     CandleDirection,
     CandlestickPattern,
@@ -383,3 +389,185 @@ def test_outcomes_remain_post_hoc_until_horizon_is_complete() -> None:
 def test_hot_path_does_not_import_post_outcome_contracts() -> None:
     source = Path("src/ai4binance/opportunity_radar.py").read_text(encoding="utf-8")
     assert "opportunity_outcomes" not in source
+
+
+def _confirmed_pattern_structure(
+    prices: tuple[str, ...], high_first: bool
+) -> TimeframeStructureEvidence:
+    """Test-only confirmed observations with explicit availability times."""
+    swings = tuple(
+        ConfirmedSwing(
+            timeframe="1h",
+            kind=SwingKind.HIGH if (index % 2 == 0) == high_first else SwingKind.LOW,
+            candle_index=15 + index * 3,
+            occurred_at=DECISION_TIME - timedelta(hours=25 - index * 3),
+            available_at=DECISION_TIME - timedelta(hours=22 - index * 3),
+            price=Decimal(price),
+            label="PIVOT",
+            atr_significance=Decimal("1"),
+        )
+        for index, price in enumerate(prices)
+    )
+    return TimeframeStructureEvidence(
+        timeframe="1h",
+        state=StructureState.RANGE,
+        method="CONFIRMED_SWING_GRAPH",
+        range_low=min(row.price for row in swings),
+        range_high=max(row.price for row in swings),
+        invalidation_level=None,
+        confidence=0.7,
+        swings=swings,
+    )
+
+
+@pytest.mark.parametrize(
+    ("prices", "high_first", "family", "close", "bias"),
+    [
+        (
+            ("110", "100", "110.1", "102"),
+            True,
+            "ASCENDING_TRIANGLE",
+            "112",
+            CandleDirection.BULLISH,
+        ),
+        (
+            ("110", "100", "108", "100.1"),
+            True,
+            "DESCENDING_TRIANGLE",
+            "98",
+            CandleDirection.BEARISH,
+        ),
+        (
+            ("110", "100", "110.1", "100.1"),
+            True,
+            "RECTANGLE",
+            "112",
+            CandleDirection.BULLISH,
+        ),
+        (
+            ("110", "100", "110.1", "100.1", "110.2"),
+            True,
+            "TRIPLE_TOP",
+            "98",
+            CandleDirection.BEARISH,
+        ),
+        (
+            ("100", "110", "100.1", "110.1", "100.2"),
+            False,
+            "TRIPLE_BOTTOM",
+            "112",
+            CandleDirection.BULLISH,
+        ),
+    ],
+)
+def test_extended_chart_families_are_causal_and_terminal(
+    prices: tuple[str, ...],
+    high_first: bool,
+    family: str,
+    close: str,
+    bias: CandleDirection,
+) -> None:
+    structure = _confirmed_pattern_structure(prices, high_first)
+    available = structure.swings[-1].available_at
+    rows = tuple(
+        candle(
+            DECISION_TIME - timedelta(hours=40 - index),
+            open_="105",
+            high="106",
+            low="104",
+            close="105",
+        )
+        for index in range(40)
+        if DECISION_TIME - timedelta(hours=40 - index) < available
+    )
+    potential = detect_chart_pattern(
+        rows,
+        timeframe="1h",
+        snapshot_id="potential",
+        decision_time=available,
+        structure=structure,
+    )
+    assert potential is not None
+    assert potential.pattern_type == family
+    assert potential.state is ChartPatternLifecycleState.POTENTIAL
+    if "TRIPLE" not in family:
+        assert potential.directional_bias is CandleDirection.NEUTRAL
+    breakout = candle(available, open_="105", high="113", low="97", close=close)
+    confirmed_time = available + timedelta(hours=1)
+    confirmed = detect_chart_pattern(
+        (*rows, breakout),
+        timeframe="1h",
+        snapshot_id="confirmed",
+        decision_time=confirmed_time,
+        structure=structure,
+    )
+    assert confirmed is not None
+    assert confirmed.state is ChartPatternLifecycleState.CONFIRMED
+    assert confirmed.directional_bias is bias
+    future = candle(confirmed_time, open_="900", high="9999", low="800", close="999")
+    future_swing = replace(
+        structure.swings[-1],
+        available_at=confirmed_time + timedelta(hours=1),
+        occurred_at=confirmed_time,
+        price=Decimal("999"),
+    )
+    unaffected = detect_chart_pattern(
+        (*rows, breakout, future),
+        timeframe="1h",
+        snapshot_id="confirmed",
+        decision_time=confirmed_time,
+        structure=replace(structure, swings=(*structure.swings, future_swing)),
+    )
+    assert unaffected == confirmed
+    returned = candle(confirmed_time, open_="105", high="106", low="104", close="105")
+    retrigger = replace(breakout, timestamp=confirmed_time + timedelta(hours=1))
+    failed = detect_chart_pattern(
+        (*rows, breakout, returned, retrigger),
+        timeframe="1h",
+        snapshot_id="failed",
+        decision_time=confirmed_time + timedelta(hours=2),
+        structure=structure,
+    )
+    assert failed is not None
+    assert failed.state is ChartPatternLifecycleState.FAILED
+    assert failed.pattern_id == confirmed.pattern_id == potential.pattern_id
+    assert failed.observation_id != confirmed.observation_id
+
+
+@pytest.mark.parametrize("close", ["98", "112"])
+@pytest.mark.parametrize(
+    ("prices", "family"),
+    [
+        (("110", "100", "110.1", "100.1"), "RECTANGLE"),
+        (("110", "100", "110.1", "102"), "ASCENDING_TRIANGLE"),
+        (("110", "100", "108", "100.1"), "DESCENDING_TRIANGLE"),
+    ],
+)
+def test_continuation_geometry_does_not_preassign_breakout_direction(
+    close: str, prices: tuple[str, ...], family: str
+) -> None:
+    structure = _confirmed_pattern_structure(prices, True)
+    available = structure.swings[-1].available_at
+    rows = tuple(
+        candle(
+            available - timedelta(hours=30 - index),
+            open_="105",
+            high="106",
+            low="104",
+            close="105",
+        )
+        for index in range(30)
+    )
+    result = detect_chart_pattern(
+        (*rows, candle(available, open_="105", high="113", low="97", close=close)),
+        timeframe="1h",
+        snapshot_id="rectangle",
+        decision_time=available + timedelta(hours=1),
+        structure=structure,
+    )
+    assert result is not None
+    assert result.pattern_type == family
+    assert result.state is ChartPatternLifecycleState.CONFIRMED
+    assert result.directional_bias is (
+        CandleDirection.BULLISH if close == "112" else CandleDirection.BEARISH
+    )

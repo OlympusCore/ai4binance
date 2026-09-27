@@ -64,6 +64,27 @@ class SourceDefinition(RegistryRecord):
     bibliography: SourceBibliography | None = None
 
 
+class RuleSemantics(RegistryRecord):
+    """Descriptive rule dependencies; never an executable expression or authority."""
+
+    prerequisite_rules: tuple[Text, ...] = ()
+    conflicting_rules: tuple[Text, ...] = ()
+    parameter_refs: tuple[Text, ...] = ()
+    invalidation_effect: Text
+    authority: Literal["EVIDENCE_ONLY"] = "EVIDENCE_ONLY"
+
+
+class MethodRuleStages(RegistryRecord):
+    """References to the existing rule registry, separated by lifecycle purpose."""
+
+    anchor: tuple[Text, ...] = ()
+    formation: tuple[Text, ...] = ()
+    confirmation: tuple[Text, ...] = ()
+    invalidation: tuple[Text, ...] = ()
+    failure: tuple[Text, ...] = ()
+    target: tuple[Text, ...] = ()
+
+
 class RuleDefinition(RegistryRecord):
     rule_id: Text
     version: Version
@@ -87,6 +108,7 @@ class RuleDefinition(RegistryRecord):
         "Exact implementation constants; not empirically calibrated."
     )
     ambiguity: Text = "Method-level OOS evidence is unavailable."
+    semantics: RuleSemantics | None = None
 
 
 class SourceReview(RegistryRecord):
@@ -104,6 +126,28 @@ class SourceReview(RegistryRecord):
         return self
 
 
+class ReferenceChapter(RegistryRecord):
+    """Reviewed chapter interpretation; absent fields remain explicit research gaps."""
+
+    bullish_interpretation: Text | None = None
+    bearish_interpretation: Text | None = None
+    neutral_interpretation: Text | None = None
+    multi_timeframe_behavior: Text | None = None
+    support_resistance_interaction: Text | None = None
+    volume_interaction: Text | None = None
+    volatility_interaction: Text | None = None
+    derivatives_context: Text | None = None
+    fibonacci_relationships: Text | None = None
+    target_measurement: Text | None = None
+    structural_invalidation: Text | None = None
+    common_misidentifications: Text | None = None
+    implementation_notes: Text | None = None
+    research_backtest_notes: Text | None = None
+    regime_sensitivity: Text | None = None
+    source_conflicts: Text | None = None
+    canonical_interpretation: Text | None = None
+
+
 class MethodReference(RegistryRecord):
     """Explicit interpretation and limitations for the generated reference manual."""
 
@@ -118,6 +162,7 @@ class MethodReference(RegistryRecord):
     timeframe_semantics: Text
     known_failure_modes: tuple[Text, ...] = Field(min_length=1)
     ambiguity_notes: Text
+    chapter: ReferenceChapter | None = None
 
 
 class MethodDefinition(RegistryRecord):
@@ -141,6 +186,7 @@ class MethodDefinition(RegistryRecord):
     )
     governance_status: Literal["RESEARCH_ONLY"] = "RESEARCH_ONLY"
     reference: MethodReference | None = None
+    rule_stages: MethodRuleStages | None = None
 
 
 class FamilyCoverage(RegistryRecord):
@@ -203,6 +249,7 @@ class TradingMethodRegistry(RegistryRecord):
         _unique(self.scope, "family")
         self._validate_sources()
         self._validate_method_links(rules, sources)
+        self._validate_rule_dependencies(rules)
         self._validate_aliases(methods)
         self._validate_coverage()
         _unique(self.source_reviews, "source_id")
@@ -230,6 +277,35 @@ class TradingMethodRegistry(RegistryRecord):
             interactions.add(pair)
         return self
 
+    def _validate_rule_dependencies(self, known: set[str]) -> None:
+        pending: dict[str, set[str]] = {}
+        for rule in self.rules:
+            semantics = rule.semantics
+            if semantics is None:
+                continue
+            required = set(semantics.prerequisite_rules)
+            conflicts = set(semantics.conflicting_rules)
+            _references(
+                semantics.prerequisite_rules + semantics.conflicting_rules, known
+            )
+            if rule.rule_id in required | conflicts or required & conflicts:
+                raise ValueError("rule cannot require itself or a conflicting rule")
+            if len(required) != len(semantics.prerequisite_rules) or len(
+                conflicts
+            ) != len(semantics.conflicting_rules):
+                raise ValueError("duplicate rule dependency")
+            pending[rule.rule_id] = required
+        resolved = known - pending.keys()
+        while pending:
+            ready = {
+                key for key, dependencies in pending.items() if dependencies <= resolved
+            }
+            if not ready:
+                raise ValueError("cyclic rule prerequisites")
+            resolved.update(ready)
+            for key in ready:
+                pending.pop(key)
+
     def _validate_coverage(self) -> None:
         for row in self.coverage:
             method = self.method(row.family)
@@ -253,6 +329,11 @@ class TradingMethodRegistry(RegistryRecord):
     def _validate_method_links(self, rules: set[str], sources: set[str]) -> None:
         for method in self.methods:
             _references(method.rule_ids, rules)
+            if method.rule_stages is not None:
+                for refs in method.rule_stages.model_dump().values():
+                    _references(refs, set(method.rule_ids))
+                    if len(refs) != len(set(refs)):
+                        raise ValueError("duplicate method stage rule")
             _references(method.source_ids, sources)
             if method.implementation_status != "CATALOG_ONLY" and not (
                 method.module and method.owner and method.rule_ids and method.source_ids
@@ -293,12 +374,9 @@ class TradingMethodRegistry(RegistryRecord):
             source for source in self.sources if source.source_id in source_ids
         )
         definition = {
-            "method": method.model_dump(
-                mode="json",
-                exclude={"reference"} if method.reference is None else set(),
-            ),
+            "method": _definition_payload(method),
             "rules": [
-                rule.model_dump(mode="json")
+                _definition_payload(rule)
                 for rule in sorted(rules, key=lambda r: r.rule_id)
             ],
             "sources": [
@@ -336,6 +414,18 @@ class TradingMethodRegistry(RegistryRecord):
             payload, sort_keys=True, separators=(",", ":"), allow_nan=False
         )
         return {"definition": payload, "sha256": sha256(encoded.encode()).hexdigest()}
+
+
+def _definition_payload(record: MethodDefinition | RuleDefinition) -> dict[str, object]:
+    """Do not retroactively add optional metadata to archived lineage hashes."""
+    payload = record.model_dump(mode="json")
+    for name in ("reference", "rule_stages", "semantics"):
+        if payload.get(name) is None:
+            payload.pop(name, None)
+    reference = payload.get("reference")
+    if isinstance(reference, dict) and reference.get("chapter") is None:
+        reference.pop("chapter", None)
+    return payload
 
 
 def restore_registry_snapshot(payload: Mapping[str, object]) -> TradingMethodRegistry:

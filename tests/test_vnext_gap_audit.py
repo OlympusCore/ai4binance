@@ -243,7 +243,10 @@ def test_vnext_traceability_rejects_legacy_quality_snapshots(
     inventory_path.parent.mkdir(parents=True, exist_ok=True)
     inventory_path.write_text("# Test-only injected inventory.\n", encoding="utf-8")
     fixture_inventory = replace(
-        inventory, requirement_traceability=replace(registry, entries=entries)
+        inventory,
+        requirement_traceability=replace(
+            registry, entries=entries, quality_binding_mode="PINNED_QUALITY_EVIDENCE"
+        ),
     )
     monkeypatch.setattr(
         audit_module, "load_enforcement_inventory", lambda _: fixture_inventory

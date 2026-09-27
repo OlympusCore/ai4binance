@@ -814,6 +814,20 @@ def test_backtest_result_persists_as_redacted_jsonl(tmp_path: Path) -> None:
     assert payload["payload"]["result"]["trades"][0]["blocker_history"] == []
     assert payload["payload"]["result"]["trade_outcomes"][0] == {
         "decision_evidence": to_primitive(TradeDecisionEvidence()),
+        "closure_assessment": {
+            "decision_evidence_sha256": TradeDecisionEvidence().sha256,
+            "decision_lineage_status": (
+                "NOT_EVALUABLE_MISSING_OR_NONCAUSAL_DECISION_EVIDENCE"
+            ),
+            "selected_scenario_id": None,
+            "entry_quality": "NOT_EVALUABLE_NO_RECORDED_ENTRY_ZONE",
+            "stop_quality": "NO_STOP_EXIT_RECORDED",
+            "target_quality": "TARGET_EXIT_RECORDED",
+            "method_accuracy": "NOT_EVALUABLE_NO_METHOD_OUTCOME_LABELS",
+            "scenario_accuracy": "NOT_EVALUABLE_NO_SCENARIO_OUTCOME_LABELS",
+            "execution_quality": "NOT_EVALUABLE_NO_FILL_BENCHMARK",
+            "rule_evaluation_status": "NOT_EVALUABLE_NO_RULE_EXECUTION_TRACE",
+        },
         "blocker_history": [],
         "dge_status": "DGE_PASS",
         "direction": "LONG",

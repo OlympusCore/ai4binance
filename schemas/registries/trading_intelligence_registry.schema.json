@@ -1,4 +1,7 @@
 {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ai4binance:schema:registries:trading-intelligence:1.0.0",
+  "description": "Offline trading-method registry; evidence only and no trading authority.",
   "$defs": {
     "FamilyCoverage": {
       "additionalProperties": false,
@@ -263,6 +266,17 @@
             }
           ],
           "default": null
+        },
+        "rule_stages": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MethodRuleStages"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -391,6 +405,17 @@
           "pattern": "\\S",
           "title": "Ambiguity Notes",
           "type": "string"
+        },
+        "chapter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReferenceChapter"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -405,6 +430,320 @@
         "ambiguity_notes"
       ],
       "title": "MethodReference",
+      "type": "object"
+    },
+    "MethodRuleStages": {
+      "additionalProperties": false,
+      "description": "References to the existing rule registry, separated by lifecycle purpose.",
+      "properties": {
+        "anchor": {
+          "default": [],
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "title": "Anchor",
+          "type": "array"
+        },
+        "formation": {
+          "default": [],
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "title": "Formation",
+          "type": "array"
+        },
+        "confirmation": {
+          "default": [],
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "title": "Confirmation",
+          "type": "array"
+        },
+        "invalidation": {
+          "default": [],
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "title": "Invalidation",
+          "type": "array"
+        },
+        "failure": {
+          "default": [],
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "title": "Failure",
+          "type": "array"
+        },
+        "target": {
+          "default": [],
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "title": "Target",
+          "type": "array"
+        }
+      },
+      "title": "MethodRuleStages",
+      "type": "object"
+    },
+    "ReferenceChapter": {
+      "additionalProperties": false,
+      "description": "Reviewed chapter interpretation; absent fields remain explicit research gaps.",
+      "properties": {
+        "bullish_interpretation": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bullish Interpretation"
+        },
+        "bearish_interpretation": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bearish Interpretation"
+        },
+        "neutral_interpretation": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Neutral Interpretation"
+        },
+        "multi_timeframe_behavior": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Multi Timeframe Behavior"
+        },
+        "support_resistance_interaction": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Support Resistance Interaction"
+        },
+        "volume_interaction": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Volume Interaction"
+        },
+        "volatility_interaction": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Volatility Interaction"
+        },
+        "derivatives_context": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Derivatives Context"
+        },
+        "fibonacci_relationships": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fibonacci Relationships"
+        },
+        "target_measurement": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Measurement"
+        },
+        "structural_invalidation": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Invalidation"
+        },
+        "common_misidentifications": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Common Misidentifications"
+        },
+        "implementation_notes": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Implementation Notes"
+        },
+        "research_backtest_notes": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Research Backtest Notes"
+        },
+        "regime_sensitivity": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Regime Sensitivity"
+        },
+        "source_conflicts": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Conflicts"
+        },
+        "canonical_interpretation": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Canonical Interpretation"
+        }
+      },
+      "title": "ReferenceChapter",
       "type": "object"
     },
     "RuleDefinition": {
@@ -494,6 +833,17 @@
           "pattern": "\\S",
           "title": "Ambiguity",
           "type": "string"
+        },
+        "semantics": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RuleSemantics"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -506,6 +856,59 @@
         "test_refs"
       ],
       "title": "RuleDefinition",
+      "type": "object"
+    },
+    "RuleSemantics": {
+      "additionalProperties": false,
+      "description": "Descriptive rule dependencies; never an executable expression or authority.",
+      "properties": {
+        "prerequisite_rules": {
+          "default": [],
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "title": "Prerequisite Rules",
+          "type": "array"
+        },
+        "conflicting_rules": {
+          "default": [],
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "title": "Conflicting Rules",
+          "type": "array"
+        },
+        "parameter_refs": {
+          "default": [],
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "title": "Parameter Refs",
+          "type": "array"
+        },
+        "invalidation_effect": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Invalidation Effect",
+          "type": "string"
+        },
+        "authority": {
+          "const": "EVIDENCE_ONLY",
+          "default": "EVIDENCE_ONLY",
+          "title": "Authority",
+          "type": "string"
+        }
+      },
+      "required": [
+        "invalidation_effect"
+      ],
+      "title": "RuleSemantics",
       "type": "object"
     },
     "ScopeDefinition": {
@@ -909,8 +1312,5 @@
     "interactions"
   ],
   "title": "TradingMethodRegistry",
-  "type": "object",
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:ai4binance:schema:registries:trading-intelligence:1.0.0",
-  "description": "Offline trading-method registry; evidence only and no trading authority."
+  "type": "object"
 }

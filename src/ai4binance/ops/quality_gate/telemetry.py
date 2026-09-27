@@ -342,6 +342,114 @@ def quality_completion_blockers(
     )
 
 
+def _subject_digest(subject: Mapping[str, object]) -> str:
+    return hashlib.sha256(
+        json.dumps(dict(subject), sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def _write_immutable(path: Path, payload: Mapping[str, object]) -> None:
+    encoded = json.dumps(dict(payload), sort_keys=True, indent=2) + "\n"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with path.open("x", encoding="utf-8", newline="\n") as stream:
+            stream.write(encoded)
+    except FileExistsError:
+        if path.read_text(encoding="utf-8") != encoded:
+            raise ValueError("QUALITY_IMMUTABLE_RUN_CONFLICT") from None
+
+
+def archive_quality_evidence(root: Path, payload: dict[str, object]) -> None:
+    """Publish an immutable run and subject receipt without changing its source.
+
+    A receipt is a locator, never an approval or a substitute for verification.
+    Failed runs are archived too, preventing fallback to an older passing run.
+    """
+    _validate_quality_binding(payload)
+    run_id = str(payload.get("run_id", ""))
+    if re.fullmatch(r"\d{8}T\d{6}Z", run_id) is None:
+        raise ValueError("QUALITY_RUN_ID_INVALID")
+    subject = payload.get("workspace_attestation")
+    if not isinstance(subject, dict):
+        raise ValueError("QUALITY_SUBJECT_MISSING")
+    subject_hash = _subject_digest(subject)
+    failed = payload.get("status") == "QUALITY_GATE_FAILED"
+    proof_name = "quality_failure_evidence.json" if failed else "quality_evidence.json"
+    proof_ref = f"runtime/artifacts/quality/gate/runs/{run_id}/{proof_name}"
+    proof = (root / proof_ref).resolve()
+    if not proof.is_relative_to(root.resolve()):
+        raise ValueError("QUALITY_ARCHIVE_PATH_INVALID")
+    _write_immutable(proof, payload)
+    inventory = root / "config/governance/enforcement_inventory.yaml"
+    receipt = {
+        "schema_version": 1,
+        "subject_sha256": subject_hash,
+        "inventory_sha256": hashlib.sha256(inventory.read_bytes()).hexdigest(),
+        "run_id": run_id,
+        "outcome": "FAILED" if failed else "COMPLETED",
+        "proof_ref": proof_ref,
+        "proof_sha256": hashlib.sha256(proof.read_bytes()).hexdigest(),
+        "execution_allowed": False,
+        "promotion_status": "RESEARCH_ONLY",
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+    }
+    receipt_path = (
+        root
+        / "runtime/artifacts/quality/gate/subjects"
+        / subject_hash
+        / f"{run_id}{'_failed' if failed else ''}.json"
+    ).resolve()
+    if not receipt_path.is_relative_to(root.resolve()):
+        raise ValueError("QUALITY_ARCHIVE_PATH_INVALID")
+    _write_immutable(receipt_path, receipt)
+
+
+def resolve_requirement_quality_evidence(
+    root: Path, subject: Mapping[str, object]
+) -> tuple[object, tuple[str, ...]]:
+    """Resolve the newest immutable receipt; never fall back after a failure."""
+    subject_hash = _subject_digest(subject)
+    directory = root / "runtime/artifacts/quality/gate/subjects" / subject_hash
+    try:
+        receipts = sorted(directory.glob("*.json"))
+        if not receipts:
+            return None, ("REQUIREMENT_QUALITY_RECEIPT_MISSING",)
+        path = _evidence_file(root, str(receipts[-1]))
+        receipt = json.loads(path.read_text(encoding="utf-8"))
+        schema = (
+            Path(__file__).resolve().parents[4]
+            / "schemas/governance/governed_object_enforcement.schema.json"
+        )
+        validate_local_definition(schema, "RequirementQualityReceipt", receipt)
+        run_id = receipt["run_id"]
+        failed = receipt["outcome"] == "FAILED"
+        inventory_hash = hashlib.sha256(
+            (root / "config/governance/enforcement_inventory.yaml").read_bytes()
+        ).hexdigest()
+        proof_name = (
+            "quality_failure_evidence.json" if failed else "quality_evidence.json"
+        )
+        expected_ref = f"runtime/artifacts/quality/gate/runs/{run_id}/{proof_name}"
+        if (
+            path.stem != run_id + ("_failed" if failed else "")
+            or receipt["subject_sha256"] != subject_hash
+            or receipt["inventory_sha256"] != inventory_hash
+            or receipt["proof_ref"] != expected_ref
+        ):
+            return None, ("REQUIREMENT_QUALITY_RECEIPT_MISMATCH",)
+        proof = _evidence_file(root, expected_ref)
+        if hashlib.sha256(proof.read_bytes()).hexdigest() != receipt["proof_sha256"]:
+            return None, ("REQUIREMENT_QUALITY_PROOF_HASH_MISMATCH",)
+        payload = json.loads(proof.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict) or payload.get("run_id") != run_id:
+            return None, ("REQUIREMENT_QUALITY_RECEIPT_MISMATCH",)
+        if failed != (payload.get("status") == "QUALITY_GATE_FAILED"):
+            return None, ("REQUIREMENT_QUALITY_RECEIPT_MISMATCH",)
+        return payload, ()
+    except (OSError, ValueError, KeyError, TypeError):
+        return None, ("REQUIREMENT_QUALITY_RECEIPT_INVALID",)
+
+
 @dataclass(frozen=True, slots=True)
 class QualityStepTelemetry:
     """Bounded telemetry for one quality gate step."""

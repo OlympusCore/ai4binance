@@ -4,10 +4,15 @@ from collections.abc import Mapping
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
+from typing import cast
 
 import pytest
 
+import ai4binance.agents.evidence_fusion as evidence_fusion
+from ai4binance.agents.catalog import build_default_registry
+from ai4binance.agents.evidence_fusion import EvidenceFusionEngine
 from ai4binance.agents.orchestrator import EnterpriseOrchestrator
+from ai4binance.agents.registry import AgentRegistry
 from ai4binance.agents.validation_gate import ValidationGate
 from ai4binance.domain import (
     Action,
@@ -17,13 +22,24 @@ from ai4binance.domain import (
 )
 from ai4binance.intelligence.contracts import (
     CalibrationState,
+    ConfluenceEvidence,
+    DirectionalConsensusEvidence,
+    EvidenceOverlap,
+    MultiMethodEvidence,
+    PatternHypothesisEvidence,
     PatternLifecycleState,
     ScenarioDirection,
     ScenarioState,
     ScenarioType,
+    StructuralLevelEvidence,
+    StructureEvent,
     StructureState,
 )
 from ai4binance.intelligence.derivatives import FuturesContextEngine
+from ai4binance.intelligence.method_registry import (
+    MethodInteraction,
+    current_method_registry,
+)
 from ai4binance.intelligence.patterns import PatternHypothesisFabric
 from ai4binance.intelligence.structure import MarketStructureEngine
 from ai4binance.intelligence.trading import TradingIntelligenceEngine
@@ -888,3 +904,322 @@ def test_missing_and_future_directional_structure_cannot_confirm_scenario() -> N
     state = TradingIntelligenceEngine().build(_costed_snapshot(), results)
     assert state.selected_scenario is None
     assert "DIRECTION_STRUCTURE_UNAVAILABLE" in state.blockers
+
+
+def test_analysis_dimensions_preserve_deduplicated_direction_and_opposition() -> None:
+    base = _costed_snapshot()
+    results = _evidence_results()
+    results.update(
+        data_quality=_result("data_quality"),
+        universe_liquidity=_result("universe_liquidity"),
+        trend=_result("trend", confidence=0.95),
+        volume=_result("volume", vote=-1.0, confidence=0.3),
+    )
+    registry = build_default_registry()
+    results["confluence"] = EvidenceFusionEngine(
+        registry.get("confluence"), registry
+    ).fuse(base, results)
+    state = TradingIntelligenceEngine().build(base, results)
+    dimensions = state.multi_method_evidence
+    assert dimensions is not None
+    consensus = dimensions.directional_consensus
+    assert consensus.supporting_refs == ("trend",)
+    assert consensus.opposing_refs == ("volume",)
+    assert consensus.independent_confirmation_count == 0
+    assert consensus.calibration_state is CalibrationState.NOT_CALIBRATED
+    assert consensus.direction is ScenarioDirection.LONG
+    assert dimensions.target_confluence.status == "DATA_UNAVAILABLE"
+    assert dimensions.location_confluence.status == "DATA_UNAVAILABLE"
+    assert dimensions.timing_confluence.status == "DATA_UNAVAILABLE"
+    without_fusion = TradingIntelligenceEngine().build(
+        base, {key: value for key, value in results.items() if key != "confluence"}
+    )
+    assert state.scenarios == without_fusion.scenarios
+    assert state.selected_scenario_id == without_fusion.selected_scenario_id
+    assert (
+        TradingIntelligenceEngine()
+        .build(base, dict(reversed(tuple(results.items()))))
+        .multi_method_evidence
+        == dimensions
+    )
+
+
+def test_price_confluence_requires_actual_overlap_and_deduplicates_observations() -> (
+    None
+):
+    zones = (
+        ("level:one", Decimal("1"), Decimal("1.2")),
+        ("pattern:prz", Decimal("1.1"), Decimal("1.3")),
+    )
+    result = TradingIntelligenceEngine._zone_confluence((*zones, zones[0]))
+    assert result.status == "OBSERVED_OVERLAP"
+    assert result.overlaps == (
+        EvidenceOverlap(("level:one", "pattern:prz"), Decimal("1.1"), Decimal("1.2")),
+    )
+    assert result.independence_status == "NOT_MEASURED"
+    assert TradingIntelligenceEngine._zone_confluence(tuple(reversed(zones))) == result
+    assert (
+        TradingIntelligenceEngine._zone_confluence(zones[:1]).status
+        == "INSUFFICIENT_EVIDENCE"
+    )
+    assert (
+        TradingIntelligenceEngine._zone_confluence(
+            (zones[0], ("distant", Decimal("2"), Decimal("3")))
+        ).status
+        == "NO_OBSERVED_OVERLAP"
+    )
+    with pytest.raises(ValueError, match="conflicting zones"):
+        TradingIntelligenceEngine._zone_confluence(
+            (zones[0], ("level:one", Decimal("2"), Decimal("3")))
+        )
+    with pytest.raises(ValueError, match="finite positive"):
+        TradingIntelligenceEngine._zone_confluence(
+            (("invalid", Decimal("NaN"), Decimal("1")),)
+        )
+
+
+def test_shared_dimensions_use_fresh_zones_prz_and_directional_invalidation() -> None:
+    base = _costed_snapshot()
+    engine = TradingIntelligenceEngine()
+    state = engine.build(base, _evidence_results())
+    assert state.selected_scenario is not None
+    level = StructuralLevelEvidence(
+        level_id="level:one",
+        level_type="RESISTANCE",
+        price_low=Decimal("2"),
+        price_high=Decimal("2.2"),
+        source_timeframe="4h",
+        touch_count=2,
+        break_count=0,
+        freshness="FRESH",
+        role_flip=False,
+        confidence=0.5,
+        evidence_ref="support_resistance:4h",
+    )
+    levels = (
+        level,
+        replace(
+            level, level_id="level:two", source_timeframe="1h", price_low=Decimal("2.1")
+        ),
+        replace(level, level_id="stale", freshness="STALE"),
+    )
+    pattern = PatternHypothesisEvidence(
+        hypothesis_id="harmonic:one",
+        family="HARMONIC_PATTERN",
+        direction=ScenarioDirection.LONG,
+        lifecycle_state="POTENTIAL",
+        confidence=0.5,
+        evidence_for=("CONFIRMED_XABCD",),
+        attributes=(("prz_low", "2.15"), ("prz_high", "2.25")),
+    )
+    structures = tuple(
+        replace(row, invalidation_level=Decimal("1")) for row in state.structures
+    )
+    dimensions = engine._analysis_dimensions(
+        base,
+        _evidence_results(),
+        structures,
+        levels,
+        (pattern,),
+        state.selected_scenario,
+    )
+    assert dimensions.location_confluence.available_refs == (
+        "harmonic:one",
+        "level:one",
+        "level:two",
+    )
+    assert dimensions.target_confluence.available_refs == ("level:one", "level:two")
+    assert dimensions.target_confluence.status == "OBSERVED_OVERLAP"
+    assert dimensions.invalidation_confluence.status == "OBSERVED_OVERLAP"
+    unavailable = engine._analysis_dimensions(
+        base,
+        {},
+        structures,
+        levels,
+        (replace(pattern, lifecycle_state="INVALIDATED"),),
+        None,
+    )
+    assert "harmonic:one" not in unavailable.location_confluence.available_refs
+    assert unavailable.invalidation_confluence.status == "DATA_UNAVAILABLE"
+    assert unavailable.target_confluence.status == "DATA_UNAVAILABLE"
+    opposing = replace(structures[0], state=StructureState.BEARISH)
+    conflicted = engine._analysis_dimensions(
+        base, {}, (opposing, *structures[1:]), levels, (), state.selected_scenario
+    )
+    assert conflicted.invalidation_confluence.counter_evidence == (
+        f"STRUCTURE_DIRECTION_CONFLICT:{opposing.timeframe}",
+    )
+
+
+def test_timing_confluence_retains_conflicts_without_inventing_time_windows() -> None:
+    engine = TradingIntelligenceEngine()
+    state = engine.build(_costed_snapshot(), _evidence_results())
+    event = StructureEvent(
+        "BOS", ScenarioDirection.LONG, Decimal("1"), NOW, "event:one"
+    )
+    events = (
+        event,
+        replace(event, evidence_ref="event:two"),
+        replace(
+            event, evidence_ref="event:opposite", direction=ScenarioDirection.SHORT
+        ),
+        replace(
+            event, evidence_ref="event:later", occurred_at=NOW + timedelta(seconds=1)
+        ),
+    )
+    structure = replace(state.structures[0], events=events)
+    result = engine._timing_confluence((structure, structure))
+    assert result.overlaps == (
+        EvidenceOverlap(("event:one", "event:two"), occurred_at=NOW),
+    )
+    assert len(result.counter_evidence) == 2
+    assert not any(
+        "later" in ref for row in result.overlaps for ref in row.evidence_refs
+    )
+    with pytest.raises(ValueError, match="conflicting observations"):
+        engine._timing_confluence(
+            (
+                structure,
+                replace(
+                    structure,
+                    events=(replace(event, direction=ScenarioDirection.SHORT),),
+                ),
+            )
+        )
+
+
+def test_dimension_contracts_reject_unbound_future_and_false_independence() -> None:
+    state = TradingIntelligenceEngine().build(_costed_snapshot(), _evidence_results())
+    with pytest.raises(ValueError, match="canonical snapshot"):
+        replace(state, multi_method_evidence=MultiMethodEvidence(snapshot_id="foreign"))
+    with pytest.raises(ValueError, match="typed evidence contracts"):
+        replace(
+            MultiMethodEvidence(snapshot_id=state.snapshot_id),
+            location_confluence=cast(ConfluenceEvidence, {}),
+        )
+    future = ConfluenceEvidence(
+        available_refs=("a", "b"),
+        overlaps=(EvidenceOverlap(("a", "b"), occurred_at=NOW + timedelta(seconds=1)),),
+    )
+    with pytest.raises(ValueError, match="future evidence"):
+        replace(
+            state,
+            multi_method_evidence=MultiMethodEvidence(
+                snapshot_id=state.snapshot_id, timing_confluence=future
+            ),
+        )
+    with pytest.raises(ValueError, match="unmeasured independence"):
+        DirectionalConsensusEvidence(independent_confirmation_count=1)
+    with pytest.raises(ValueError, match="unmeasured independence"):
+        DirectionalConsensusEvidence(independent_confirmation_count=False)
+    with pytest.raises(ValueError, match="disjoint"):
+        DirectionalConsensusEvidence(
+            supporting_refs=("a",), opposing_refs=("a",), dependency_groups=(("a",),)
+        )
+    with pytest.raises(ValueError, match="dependent evidence"):
+        DirectionalConsensusEvidence(
+            supporting_refs=("a", "b"), dependency_groups=(("a", "b"),)
+        )
+    with pytest.raises(ValueError, match="available dimension evidence"):
+        ConfluenceEvidence(
+            overlaps=(EvidenceOverlap(("a", "b"), Decimal("1"), Decimal("1")),)
+        )
+    with pytest.raises(ValueError, match="statistical independence"):
+        ConfluenceEvidence(independence_status="INDEPENDENT")
+
+
+def test_corrupt_consensus_dependency_binding_blocks_shared_state() -> None:
+    results = _evidence_results()
+    results["confluence"] = _result(
+        "confluence",
+        metadata={"selected_agents": ("absent",), "dependency_groups": (("absent",),)},
+    )
+    state = TradingIntelligenceEngine().build(_costed_snapshot(), results)
+    assert state.selected_scenario is None
+    assert state.blockers == ("MULTI_METHOD_EVIDENCE_INVALID",)
+    assert state.live_eligibility_status == "LIVE_ORDER_BLOCKED"
+    assert state.multi_method_evidence is not None
+    assert not state.multi_method_evidence.directional_consensus.supporting_refs
+
+
+def test_registry_interactions_add_dependencies_without_erasing_observed_roots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test-only distinct input declarations isolate registry edge enforcement."""
+    registry = build_default_registry()
+    independent_inputs = AgentRegistry(
+        tuple(
+            replace(row, required_data=(row.name,), evidence_cluster=row.name)
+            if row.name in {"fibonacci", "harmonic_pattern"}
+            else row
+            for row in registry.definitions
+        )
+    )
+    methods = current_method_registry()
+    results = {
+        "data_quality": _result("data_quality"),
+        "universe_liquidity": _result("universe_liquidity"),
+        "fibonacci": _result("fibonacci", confidence=0.9),
+        "harmonic_pattern": _result("harmonic_pattern", confidence=0.8),
+    }
+    engine = EvidenceFusionEngine(
+        independent_inputs.get("confluence"), independent_inputs
+    )
+    base = _costed_snapshot()
+    before = engine.fuse(base, results)
+    assert before.calculation_metadata["effective_dependency_group_count"] == 2
+    for agent, method in (
+        ("fibonacci", "fibonacci"),
+        ("harmonic_pattern", "harmonic_patterns.gartley"),
+    ):
+        results[agent] = replace(
+            results[agent],
+            calculation_metadata={
+                "method_lineage": methods.lineage(method, "1.0.0", "1.0.0").to_payload()
+            },
+        )
+    declared = engine.fuse(base, results)
+    assert declared.calculation_metadata["dependency_groups"] == (
+        ("fibonacci", "harmonic_pattern"),
+    )
+    assert declared.evidence == ("fibonacci",)
+    assert declared.confidence == results["fibonacci"].confidence
+    assert declared.calculation_metadata["independent_confluence_count"] == 0
+    assert engine.fuse(base, dict(reversed(tuple(results.items())))) == declared
+    contextual = methods.model_copy(
+        update={
+            "interactions": (
+                MethodInteraction(
+                    left="fibonacci",
+                    right="harmonic_patterns",
+                    relationship="CONTEXT_ONLY",
+                ),
+            )
+        }
+    )
+    monkeypatch.setattr(evidence_fusion, "current_method_registry", lambda: contextual)
+    no_shared_declaration = engine.fuse(base, results)
+    assert (
+        no_shared_declaration.calculation_metadata["effective_dependency_group_count"]
+        == 2
+    )
+    for agent in ("fibonacci", "harmonic_pattern"):
+        results[agent] = replace(
+            results[agent],
+            calculation_metadata={
+                **results[agent].calculation_metadata,
+                "pivot_ids": ("observed-shared-pivot",),
+            },
+        )
+    observed = engine.fuse(base, results)
+    assert observed.calculation_metadata["effective_dependency_group_count"] == 1
+    recorded_payload = results["fibonacci"].calculation_metadata["method_lineage"]
+    assert isinstance(recorded_payload, Mapping)
+    payload = dict(recorded_payload)
+    payload["definition_sha256"] = "0" * 64
+    results["fibonacci"] = replace(
+        results["fibonacci"], calculation_metadata={"method_lineage": payload}
+    )
+    invalid = engine.fuse(base, results)
+    assert invalid.status is AgentStatus.FAILED
+    assert invalid.blockers == ("AGENT_INTERNAL_ERROR",)

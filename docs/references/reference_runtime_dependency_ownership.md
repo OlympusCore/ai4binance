@@ -2,7 +2,7 @@
 document_id: AI4B-REF-RUNTIME-001
 title: Runtime Dependency Ownership Reference
 document_type: REFERENCE
-version: 1.0.0
+version: 1.2.0
 status: ACTIVE
 owner: Enterprise Architecture
 authority_level: REFERENCE
@@ -25,12 +25,21 @@ implemented_by:
   - src/ai4binance/application/virtual_runtime_engine.py
   - src/ai4binance/application/services/live_readiness.py
   - src/ai4binance/ops/architecture_migration.py
+  - src/ai4binance/agents/evidence_fusion.py
+  - src/ai4binance/intelligence/contracts.py
+  - src/ai4binance/intelligence/inventory.py
+  - src/ai4binance/intelligence/method_registry.py
+  - src/ai4binance/intelligence/plan.py
 validated_by:
   - tests/test_virtual_runtime_bridge.py
   - tests/test_live_readiness_bridge.py
   - tests/test_repository_cleanup_audit.py
   - tests/test_kaizen_quality.py
   - tests/test_governance_constitution_sync.py
+  - tests/test_trading_method_registry.py
+  - tests/test_trading_method_lineage.py
+  - tests/test_trading_intelligence.py
+  - tests/test_structural_entries.py
 ---
 
 # Runtime Dependency Ownership Reference
@@ -120,6 +129,41 @@ Pure extractions preserve the original calculation bodies. The corresponding
 legacy modules expose the same objects. Partial extractions retain their
 remaining I/O responsibilities and are not represented as complete facades.
 
+## Trading intelligence and method reference ownership
+
+The single editable method-definition source is
+`docs/registries/registry_trading_intelligence.yaml`. Its descriptive rules,
+source reviews and coverage states remain distinct from empirical validation,
+risk policy and execution authority. The following ownership projection applies
+the governing deterministic-first, traceability and single-owner rules; it does
+not introduce a second registry or new trading thresholds.
+
+| Canonical source | Implemented responsibility and evidence boundary |
+| --- | --- |
+| `src/ai4binance/intelligence/method_registry.py` | Loads the typed registry and validates unique identities, references, rule prerequisites/conflicts and stage links. Historical snapshots preserve their definition hashes. Source definitions, rules and guidelines do not become validated implementation or OOS evidence. |
+| `src/ai4binance/intelligence/inventory.py` | Projects the registry into the human reference manual, snapshot and per-method acceptance evidence. Missing chapter fields, catalog-only methods and absent OOS evidence remain explicit; a generated manual is not another source of authority. |
+| `src/ai4binance/intelligence/contracts.py` | Owns typed snapshot-bound method evidence and separate directional, location, timing, invalidation and target dimensions. Invalid geometry, timestamps, evidence references or contradictory membership are rejected. Statistical independence and calibrated probability require separate empirical evidence. |
+| `src/ai4binance/agents/evidence_fusion.py` | Groups shared inputs, observed roots/pivots, registered clusters and verified method relationships before fusion. Declared dependencies can add grouping but cannot remove observed dependencies. Supporting and counter-evidence remain separate; grouping does not grant risk or execution authority. |
+| `src/ai4binance/intelligence/trading.py` | Orchestrates those observations from one canonical snapshot and projects the five evidence dimensions. Diagnostic overlap does not increase scenario confidence or clear an existing veto. |
+| `src/ai4binance/intelligence/plan.py` | Composes observed entry/invalidation geometry into typed stop and target candidates with selection or rejection reasons. Raw thesis invalidation remains separate from executable rounded stop geometry. Targets retain structural provenance; missing cost, liquidity or calibration evidence is not invented. Quantity, leverage and permission stay with their existing deterministic owners. |
+
+The registry schema is
+`schemas/registries/trading_intelligence_registry.schema.json`. Decision-time
+lineage retains the method/rule definitions actually observed; later source
+changes do not rewrite historical decisions. The existing closure owner in
+`src/ai4binance/domain/research/virtual_runtime_attribution.py` derives assessment
+from recorded decision evidence and fills/exits. Missing method outcomes,
+execution benchmarks or fired/failed rule traces remain `NOT_EVALUABLE`.
+
+`tests/test_trading_method_registry.py` and
+`tests/test_trading_method_lineage.py` cover registry integrity and snapshot
+compatibility. `tests/test_trading_intelligence.py` covers typed dimensions,
+dependency grouping and invalid evidence. `tests/test_structural_entries.py`
+covers causal plan geometry, candidate provenance, rounding and rejection.
+`tests/test_trade_method_learning.py` and `tests/test_backtest_engine.py` cover
+closure assessment and its persisted contract. These tests do not constitute
+method-level OOS validation or human approval.
+
 ## Evidence contracts and operational ownership
 
 | Canonical source | Preserved operational boundary |
@@ -133,6 +177,32 @@ historical OOS, approval, quality, or traceability evidence. Each evidence
 consumer retains its original identity, hash, freshness, and veto checks.
 
 ## Verification links
+
+### Requirement assurance evidence ownership
+
+`config/governance/enforcement_inventory.yaml` selects
+`HISTORICAL_PROVENANCE_AND_CURRENT_QUALITY` for requirement assurance. Its pinned
+historical evidence remains immutable provenance and must retain its recorded
+hash. It is not treated as current technical validation.
+
+The canonical quality helper in `ops/quality_gate/telemetry.py` archives the
+runner's bound output under `runtime/artifacts/quality/gate/runs/<run_id>/` and
+publishes an immutable receipt under `runtime/artifacts/quality/gate/subjects/`.
+The receipt binds the exact workspace attestation, inventory bytes and proof
+bytes without writing the proof hash back into the source it validates. The
+contract is `RequirementQualityReceipt` in the existing governed-object schema.
+
+The inventory consumer resolves the latest run for that exact subject, then
+uses the unchanged quality verifier for freshness, policy, executed tests,
+result digests and safety checks. A failed run takes precedence over an earlier
+pass, including a failure following initial evidence publication in the same
+run. Missing, altered or conflicting receipts fail closed. Existing convergence
+blockers, including OOS, external security and compatibility evidence, remain
+independent vetoes. A receipt never grants approval or execution authority.
+
+Legacy registry payloads retain `PINNED_QUALITY_EVIDENCE` behavior. No legacy
+summary is rewritten into modern proof and no producer result is relabeled.
+Behavioral rejection coverage is in `tests/test_requirement_assurance_chain.py`.
 
 Cold-import, lazy loading, full public identity, and stub export parity are
 verified in `tests/test_virtual_runtime_bridge.py` and

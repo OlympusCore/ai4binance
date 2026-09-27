@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 from decimal import Decimal
+from typing import cast
 
 import pytest
 
@@ -216,3 +217,133 @@ def test_indicator_votes_cannot_reverse_a_structural_entry() -> None:
         "confluence": _result("confluence", vote=-1),
     }
     assert StrategyEngine().generate(snapshot, contrary) == baseline
+
+
+@pytest.mark.parametrize("short", [False, True])
+def test_planning_candidates_preserve_selection_provenance_and_unknowns(
+    short: bool,
+) -> None:
+    snapshot, results = structural_context(short=short)
+    state = ScenarioEngine().build(snapshot, results)
+    (candidate,) = TradePlanEngine().propose(snapshot, state)
+    selected_stop = next(row for row in candidate.stop_candidates if row.selected)
+    assert selected_stop.price == candidate.stop_loss
+    assert selected_stop.distance == abs(candidate.entry_price - candidate.stop_loss)
+    assert selected_stop.atr_distance == selected_stop.distance / candidate.atr
+    assert selected_stop.spread_buffer == snapshot.spread
+    assert selected_stop.noise_risk == "NOT_CALIBRATED"
+    assert selected_stop.liquidity_exposure == "NOT_MEASURED"
+    assert len([row for row in candidate.stop_candidates if row.selected]) == 1
+    assert (
+        tuple(row.price for row in candidate.target_candidates if row.selected)
+        == candidate.take_profit_levels
+    )
+    assert all(row.expected_r is None for row in candidate.target_candidates)
+    assert all(
+        row.reachability == "NOT_CALIBRATED" for row in candidate.target_candidates
+    )
+    assert '"stop_candidates"' in candidate.decision_evidence.factors_json
+    assert '"target_candidates"' in candidate.decision_evidence.factors_json
+    with pytest.raises(ValueError, match="selected stop"):
+        replace(
+            candidate,
+            stop_candidates=(replace(selected_stop, price=selected_stop.price / 2),),
+        )
+    with pytest.raises(ValueError, match="boolean"):
+        replace(selected_stop, selected=cast(bool, "true"))
+    with pytest.raises(ValueError, match="distance"):
+        replace(
+            candidate,
+            stop_candidates=(replace(selected_stop, atr_distance=Decimal("0")),),
+        )
+    selected_target = next(row for row in candidate.target_candidates if row.selected)
+    with pytest.raises(ValueError, match="boolean"):
+        replace(selected_target, selected=cast(bool, 1))
+    with pytest.raises(ValueError, match="finite"):
+        replace(selected_target, observed_price=Decimal("NaN"))
+
+
+def test_target_selection_is_order_independent_and_retains_rejections() -> None:
+    snapshot, results = structural_context()
+    assert snapshot.latest_price is not None
+    state = ScenarioEngine().build(snapshot, results)
+    (baseline,) = TradePlanEngine().propose(snapshot, state)
+    selected = next(row for row in baseline.target_candidates if row.selected)
+    level = next(row for row in state.levels if row.level_id == selected.source)
+    extra = (
+        replace(level, level_id="zzz-duplicate"),
+        replace(level, level_id="stale", freshness="STALE"),
+        replace(
+            level,
+            level_id="wrong-side",
+            price_low=snapshot.latest_price / 2,
+            price_high=snapshot.latest_price / 2,
+        ),
+    )
+    expanded = replace(state, levels=(*state.levels, *extra))
+    (first,) = TradePlanEngine().propose(snapshot, expanded)
+    (permuted,) = TradePlanEngine().propose(
+        snapshot, replace(expanded, levels=tuple(reversed(expanded.levels)))
+    )
+    assert first.target_candidates == permuted.target_candidates
+    reasons = {row.reason for row in first.target_candidates}
+    assert "DUPLICATE_TARGET_PRICE" in reasons
+    assert "TARGET_FRESHNESS_UNAVAILABLE_OR_STALE" in reasons
+    assert "TARGET_NOT_BEYOND_ENTRY" in reasons
+    assert first.take_profit_levels == baseline.take_profit_levels
+
+
+def test_stop_inside_measured_execution_buffer_is_blocked_without_widening() -> None:
+    snapshot, results = structural_context()
+    state = ScenarioEngine().build(snapshot, results)
+    (baseline,) = TradePlanEngine().propose(snapshot, state)
+    expensive = replace(
+        snapshot,
+        market_metadata={**snapshot.market_metadata, "estimated_slippage_ratio": "1"},
+    )
+    (candidate,) = TradePlanEngine().propose(expensive, state)
+    assert candidate.stop_loss == baseline.stop_loss
+    assert candidate.status is CandidateStatus.RESEARCH_ONLY
+    assert "STOP_WITHIN_OBSERVED_EXECUTION_BUFFER" in candidate.blockers
+
+
+def test_target_ladder_backfills_after_tick_rounding_collapses_levels() -> None:
+    snapshot, results = structural_context()
+    state = ScenarioEngine().build(snapshot, results)
+    (baseline,) = TradePlanEngine().propose(snapshot, state)
+    selected = next(row for row in baseline.target_candidates if row.selected)
+    level = next(row for row in state.levels if row.level_id == selected.source)
+    levels = tuple(
+        replace(
+            level,
+            level_id=f"level-{index}",
+            price_low=Decimal(price),
+            price_high=Decimal(price),
+        )
+        for index, price in enumerate(("1.071", "1.072", "1.081", "1.091"))
+    )
+    candidates = TradePlanEngine()._target_candidates(
+        replace(state, levels=levels), baseline.entry_price, True, Decimal(".01")
+    )
+    assert tuple(row.price for row in candidates if row.selected) == (
+        Decimal("1.07"),
+        Decimal("1.08"),
+        Decimal("1.09"),
+    )
+    assert sum(row.reason == "DUPLICATE_TARGET_PRICE" for row in candidates) == 1
+
+
+def test_stop_candidates_do_not_invent_missing_slippage_measurement() -> None:
+    snapshot, results = structural_context()
+    state = ScenarioEngine().build(snapshot, results)
+    (baseline,) = TradePlanEngine().propose(snapshot, state)
+    assert state.selected_scenario is not None
+    missing = replace(snapshot, market_metadata={})
+    candidate = TradePlanEngine().structural_candidate(
+        replace(baseline, stop_candidates=(), target_candidates=()),
+        state.selected_scenario,
+        state,
+        missing,
+    )
+    assert all(row.slippage_buffer is None for row in candidate.stop_candidates)
+    assert candidate.stop_loss == baseline.stop_loss

@@ -14,6 +14,7 @@ from ai4binance.domain.research.virtual_runtime_attribution import (
     ClosedTradeAttribution as ClosedTradeAttribution,
 )
 from ai4binance.domain.research.virtual_runtime_attribution import (
+    TradeClosureAssessment,
     TradeDecisionEvidence,
     TradeParameterMethods,
 )
@@ -412,6 +413,19 @@ class TradeOutcome:
     parameter_methods: TradeParameterMethods = field(
         default_factory=TradeParameterMethods
     )
+    closure_assessment: TradeClosureAssessment = field(init=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "closure_assessment",
+            TradeClosureAssessment.build(
+                self.decision_evidence,
+                entry_time=self.entry_time,
+                entry_price=self.entry_price,
+                exit_reason=self.exit_reason.value,
+            ),
+        )
 
 
 @dataclass(frozen=True, slots=True)

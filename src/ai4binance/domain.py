@@ -183,6 +183,93 @@ class PriceZone:
 
 
 @dataclass(frozen=True, slots=True)
+class StopCandidate:
+    """Observed invalidation alternative; measurements confer no risk authority."""
+
+    source: str
+    source_method: str
+    source_family: str
+    timeframe: str
+    structural_meaning: str
+    price: Decimal
+    distance: Decimal
+    atr_distance: Decimal
+    selected: bool
+    reason: str
+    spread_buffer: Decimal | None = None
+    slippage_buffer: Decimal | None = None
+    liquidity_exposure: str = "NOT_MEASURED"
+    noise_risk: str = "NOT_CALIBRATED"
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.selected, bool):
+            raise ValueError("stop candidate selected must be a boolean")
+        for value in (
+            self.source,
+            self.source_method,
+            self.source_family,
+            self.timeframe,
+            self.structural_meaning,
+            self.reason,
+        ):
+            if not value.strip():
+                raise ValueError("stop candidate requires provenance and rationale")
+        for measurement in (self.price, self.distance, self.atr_distance):
+            if not measurement.is_finite() or measurement < ZERO:
+                raise ValueError("stop candidate measurements must be finite")
+        if self.price <= ZERO:
+            raise ValueError("stop candidate price must be positive")
+        for buffer in (self.spread_buffer, self.slippage_buffer):
+            if buffer is not None and (not buffer.is_finite() or buffer < ZERO):
+                raise ValueError("stop buffer must be nonnegative when measured")
+
+
+@dataclass(frozen=True, slots=True)
+class TargetCandidate:
+    """Structural target with deterministic selection and no success probability."""
+
+    source: str
+    evidence_ref: str
+    source_family: str
+    timeframe: str
+    price: Decimal
+    observed_price: Decimal
+    structural_strength: float
+    selected: bool
+    reason: str
+    reachability: str = "NOT_CALIBRATED"
+    liquidity_context: str = "NOT_MEASURED"
+    expected_r: None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.selected, bool):
+            raise ValueError("target candidate selected must be a boolean")
+        for value in (
+            self.source,
+            self.evidence_ref,
+            self.source_family,
+            self.timeframe,
+            self.reason,
+        ):
+            if not value.strip():
+                raise ValueError("target candidate requires provenance and rationale")
+        if any(
+            not value.is_finite() or value <= ZERO
+            for value in (self.price, self.observed_price)
+        ):
+            raise ValueError("target candidate prices must be finite and positive")
+        if (
+            not isfinite(self.structural_strength)
+            or not 0 <= self.structural_strength <= 1
+        ):
+            raise ValueError("target structural strength must be between zero and one")
+        if self.expected_r is not None:
+            raise ValueError(
+                "target expected R requires a separate calibration contract"
+            )
+
+
+@dataclass(frozen=True, slots=True)
 class TradeCandidate:
     """Immutable strategy proposal with no execution authority."""
 
@@ -229,6 +316,8 @@ class TradeCandidate:
     target_conditional_pnl_per_unit: tuple[Decimal, ...] = ()
     signed_funding_cost_ratio: Decimal | None = None
     stop_alternatives: tuple[tuple[str, Decimal], ...] = ()
+    stop_candidates: tuple[StopCandidate, ...] = ()
+    target_candidates: tuple[TargetCandidate, ...] = ()
 
     def __post_init__(self) -> None:
         """Validate identity, geometry and market semantics."""
@@ -267,6 +356,7 @@ class TradeCandidate:
         self._validate_plan_metrics()
         self._validate_entry_contract()
         self._validate_economics()
+        self._validate_planning_candidates()
         self._validate_scenario_contract()
         self._validate_geometry()
         if self.status is CandidateStatus.READY_FOR_RISK and self.blockers:
@@ -310,6 +400,27 @@ class TradeCandidate:
             raise ValueError("candidate timestamp must be timezone-aware")
         if self.action not in {Action.BUY, Action.SELL}:
             raise ValueError("trade candidate action must be BUY or SELL")
+
+    def _validate_planning_candidates(self) -> None:
+        """Prevent evidence from naming a different selected stop or ladder."""
+        if self.stop_candidates:
+            selected = tuple(row.price for row in self.stop_candidates if row.selected)
+            if selected != (self.stop_loss,):
+                raise ValueError("selected stop evidence must match the initial stop")
+            if any(
+                row.distance != abs(self.entry_price - row.price)
+                or row.atr_distance != row.distance / self.atr
+                for row in self.stop_candidates
+            ):
+                raise ValueError("stop evidence distance must match entry geometry")
+        if self.target_candidates:
+            selected_targets = tuple(
+                row.price for row in self.target_candidates if row.selected
+            )
+            if selected_targets and selected_targets != self.take_profit_levels:
+                raise ValueError("selected target evidence must match the ladder")
+            if not selected_targets and self.status is CandidateStatus.READY_FOR_RISK:
+                raise ValueError("ready plan requires a selected structural target")
 
     def _validate_entry_contract(self) -> None:
         """Validate entry lifecycle, expiry, and target provenance."""

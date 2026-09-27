@@ -411,6 +411,153 @@ class ConfidenceComponent:
 
 
 @dataclass(frozen=True, slots=True)
+class DirectionalConsensusEvidence:
+    """Dependency-filtered agreement, never a claim of measured independence."""
+
+    supporting_refs: tuple[str, ...] = ()
+    opposing_refs: tuple[str, ...] = ()
+    neutral_refs: tuple[str, ...] = ()
+    dependency_groups: tuple[tuple[str, ...], ...] = ()
+    evidence_families: tuple[str, ...] = ()
+    direction: ScenarioDirection = ScenarioDirection.NEUTRAL
+    calibration_state: CalibrationState = CalibrationState.NOT_CALIBRATED
+    independent_confirmation_count: int = 0
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.direction, ScenarioDirection):
+            raise ValueError("directional consensus requires a typed direction")
+        if (
+            self.calibration_state is not CalibrationState.NOT_CALIBRATED
+            or isinstance(self.independent_confirmation_count, bool)
+            or not isinstance(self.independent_confirmation_count, int)
+            or self.independent_confirmation_count != 0
+        ):
+            raise ValueError(
+                "directional agreement cannot claim unmeasured independence"
+            )
+        for refs in (self.supporting_refs, self.opposing_refs, self.neutral_refs):
+            _require_nonblank("directional evidence", refs)
+            if len(set(refs)) != len(refs):
+                raise ValueError("directional evidence references must be unique")
+        classifications = self.supporting_refs + self.opposing_refs + self.neutral_refs
+        if len(set(classifications)) != len(classifications):
+            raise ValueError("directional evidence classifications must be disjoint")
+        members = tuple(ref for group in self.dependency_groups for ref in group)
+        _require_nonblank("dependency group members", members)
+        _require_nonblank("evidence families", self.evidence_families)
+        if len(set(members)) != len(members) or any(
+            not group for group in self.dependency_groups
+        ):
+            raise ValueError("dependency groups must be nonempty and disjoint")
+        if not set(
+            self.supporting_refs + self.opposing_refs + self.neutral_refs
+        ) <= set(members):
+            raise ValueError("directional evidence must retain its dependency group")
+        if any(
+            len(set(group) & set(self.supporting_refs)) > 1
+            for group in self.dependency_groups
+        ):
+            raise ValueError("dependent evidence cannot add directional confirmations")
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceOverlap:
+    """Exact observed intersection, with no invented tolerance or probability."""
+
+    evidence_refs: tuple[str, ...]
+    price_low: Decimal | None = None
+    price_high: Decimal | None = None
+    occurred_at: datetime | None = None
+
+    def __post_init__(self) -> None:
+        _require_nonblank("overlap evidence", self.evidence_refs)
+        if len(set(self.evidence_refs)) < 2 or len(set(self.evidence_refs)) != len(
+            self.evidence_refs
+        ):
+            raise ValueError("overlap requires distinct evidence references")
+        if self.occurred_at is not None:
+            _require_aware("overlap timestamp", self.occurred_at)
+            if self.price_low is not None or self.price_high is not None:
+                raise ValueError("time overlap cannot claim a price intersection")
+        elif (
+            self.price_low is None
+            or self.price_high is None
+            or not self.price_low.is_finite()
+            or not self.price_high.is_finite()
+            or not ZERO < self.price_low <= self.price_high
+        ):
+            raise ValueError("price overlap requires a finite positive intersection")
+
+
+@dataclass(frozen=True, slots=True)
+class ConfluenceEvidence:
+    """Observable alignment separate from directional consensus and confidence."""
+
+    available_refs: tuple[str, ...] = ()
+    overlaps: tuple[EvidenceOverlap, ...] = ()
+    counter_evidence: tuple[str, ...] = ()
+    independence_status: str = "NOT_MEASURED"
+
+    def __post_init__(self) -> None:
+        _require_nonblank("confluence evidence", self.available_refs)
+        _require_nonblank("confluence counter evidence", self.counter_evidence)
+        if len(set(self.available_refs)) != len(self.available_refs):
+            raise ValueError("confluence evidence references must be unique")
+        if self.independence_status != "NOT_MEASURED":
+            raise ValueError(
+                "geometric overlap cannot establish statistical independence"
+            )
+        if any(
+            not set(row.evidence_refs) <= set(self.available_refs)
+            for row in self.overlaps
+        ):
+            raise ValueError("overlap must reference available dimension evidence")
+
+    @property
+    def status(self) -> str:
+        """Missing observations are not measured absence or confirmed confluence."""
+        if not self.available_refs:
+            return "DATA_UNAVAILABLE"
+        if len(self.available_refs) < 2:
+            return "INSUFFICIENT_EVIDENCE"
+        return "OBSERVED_OVERLAP" if self.overlaps else "NO_OBSERVED_OVERLAP"
+
+
+@dataclass(frozen=True, slots=True)
+class MultiMethodEvidence:
+    """Five explicit snapshot-bound dimensions without a combined authority score."""
+
+    snapshot_id: str
+    directional_consensus: DirectionalConsensusEvidence = field(
+        default_factory=DirectionalConsensusEvidence
+    )
+    location_confluence: ConfluenceEvidence = field(default_factory=ConfluenceEvidence)
+    timing_confluence: ConfluenceEvidence = field(default_factory=ConfluenceEvidence)
+    invalidation_confluence: ConfluenceEvidence = field(
+        default_factory=ConfluenceEvidence
+    )
+    target_confluence: ConfluenceEvidence = field(default_factory=ConfluenceEvidence)
+
+    def __post_init__(self) -> None:
+        if not self.snapshot_id.strip():
+            raise ValueError("multi-method evidence requires snapshot identity")
+        if not isinstance(
+            self.directional_consensus, DirectionalConsensusEvidence
+        ) or any(
+            not isinstance(row, ConfluenceEvidence)
+            for row in (
+                self.location_confluence,
+                self.timing_confluence,
+                self.invalidation_confluence,
+                self.target_confluence,
+            )
+        ):
+            raise ValueError(
+                "multi-method dimensions must use typed evidence contracts"
+            )
+
+
+@dataclass(frozen=True, slots=True)
 class ScenarioHypothesis:
     """Snapshot-bound scenario before candidate planning and risk."""
 
@@ -485,6 +632,7 @@ class TradingIntelligenceState:
     evidence_conflicts: tuple[str, ...] = ()
     transaction_cost_ratio: Decimal | None = None
     funding_periods: int | None = None
+    multi_method_evidence: MultiMethodEvidence | None = None
 
     def __post_init__(self) -> None:
         if not self.snapshot_id.strip() or not self.symbol.strip():
@@ -544,6 +692,16 @@ class TradingIntelligenceState:
 
     def _validate_evidence_binding(self) -> None:
         """Reject cross-cycle evidence and contradictory scenario selection."""
+        if self.multi_method_evidence is not None:
+            if self.multi_method_evidence.snapshot_id != self.snapshot_id:
+                raise ValueError(
+                    "multi-method evidence must match the canonical snapshot"
+                )
+            if any(
+                row.occurred_at is not None and row.occurred_at > self.timestamp
+                for row in self.multi_method_evidence.timing_confluence.overlaps
+            ):
+                raise ValueError("timing confluence cannot use future evidence")
         scenario_ids = tuple(item.scenario_id for item in self.scenarios)
         if any(item.snapshot_id != self.snapshot_id for item in self.scenarios):
             raise ValueError("scenario snapshot identity must match shared state")

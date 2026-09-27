@@ -13,6 +13,7 @@ from ai4binance.domain.research.paper_models import (
 )
 from ai4binance.domain.research.trailing import update_long_trailing_stop
 from ai4binance.domain.research.virtual_runtime_attribution import (
+    TradeClosureAssessment,
     TradeDecisionEvidence,
     TradeParameterMethods,
 )
@@ -119,6 +120,7 @@ class LifecyclePosition:
     parameter_methods: TradeParameterMethods = field(
         default_factory=TradeParameterMethods
     )
+    closure_assessment: TradeClosureAssessment | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         if not self.position_id.strip() or not self.candidate_id.strip():
@@ -156,6 +158,17 @@ class LifecyclePosition:
         risk = self.entry_price - self.stop_loss
         reward = self.plan.targets[0] - self.entry_price
         object.__setattr__(self, "planned_rr", reward / risk if risk > ZERO else None)
+        if self.status is PositionStatus.CLOSED and self.exits:
+            object.__setattr__(
+                self,
+                "closure_assessment",
+                TradeClosureAssessment.build(
+                    self.decision_evidence,
+                    entry_time=self.opened_at,
+                    entry_price=self.entry_price,
+                    exit_reason=self.exits[-1].reason.value,
+                ),
+            )
 
 
 @dataclass(frozen=True, slots=True)

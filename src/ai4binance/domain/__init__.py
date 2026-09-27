@@ -36,6 +36,8 @@ SetupScanDisposition = _legacy_domain.SetupScanDisposition
 SetupTier = _legacy_domain.SetupTier
 Signal = _legacy_domain.Signal
 SignalSubScores = _legacy_domain.SignalSubScores
+StopCandidate = _legacy_domain.StopCandidate
+TargetCandidate = _legacy_domain.TargetCandidate
 TradeCandidate = _legacy_domain.TradeCandidate
 ValidationStatus = _legacy_domain.ValidationStatus
 ZERO = _legacy_domain.ZERO
@@ -57,6 +59,8 @@ __all__ = (
     "SetupTier",
     "Signal",
     "SignalSubScores",
+    "StopCandidate",
+    "TargetCandidate",
     "TradeCandidate",
     "UniverseFilterPolicy",
     "UniverseFilterResult",

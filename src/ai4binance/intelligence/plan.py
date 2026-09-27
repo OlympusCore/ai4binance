@@ -12,13 +12,21 @@ from itertools import pairwise
 from typing import cast
 
 from ai4binance.data.timeframes import timeframe_duration
-from ai4binance.domain import Action, CandidateStatus, PriceZone, TradeCandidate
+from ai4binance.domain import (
+    Action,
+    CandidateStatus,
+    PriceZone,
+    StopCandidate,
+    TargetCandidate,
+    TradeCandidate,
+)
 from ai4binance.domain.research.virtual_runtime_attribution import TradeDecisionEvidence
 from ai4binance.indicators import atr
 from ai4binance.intelligence.contracts import (
     ScenarioDirection,
     ScenarioHypothesis,
     ScenarioState,
+    StructuralLevelEvidence,
     SwingKind,
     TradingIntelligenceState,
 )
@@ -299,25 +307,101 @@ class TradePlanEngine:
     def _targets(
         state: TradingIntelligenceState, entry: Decimal, long: bool
     ) -> dict[Decimal, str]:
-        targets: dict[Decimal, str] = {}
-        for level in state.levels:
-            if level.level_type not in {"SUPPORT", "RESISTANCE"}:
-                continue
-            effective_type = (
-                ("RESISTANCE" if level.level_type == "SUPPORT" else "SUPPORT")
-                if level.role_flip
-                else level.level_type
-            )
-            if level.freshness not in {"FRESH", "AGING"} or effective_type != (
-                "RESISTANCE" if long else "SUPPORT"
-            ):
-                continue
-            price = level.price_low if long else level.price_high
-            if price > entry if long else ZERO < price < entry:
-                targets.setdefault(price, level.level_id)
         return {
-            price: targets[price] for price in sorted(targets, reverse=not long)[:3]
+            row.price: row.source
+            for row in TradePlanEngine._target_candidates(state, entry, long)
+            if row.selected
         }
+
+    @staticmethod
+    def _target_rejection(
+        level: StructuralLevelEvidence, price: Decimal, entry: Decimal, long: bool
+    ) -> str | None:
+        if level.level_type not in {"SUPPORT", "RESISTANCE"}:
+            return "UNSUPPORTED_STRUCTURAL_TARGET_SOURCE"
+        if level.freshness not in {"FRESH", "AGING"}:
+            return "TARGET_FRESHNESS_UNAVAILABLE_OR_STALE"
+        effective_type = (
+            ("RESISTANCE" if level.level_type == "SUPPORT" else "SUPPORT")
+            if level.role_flip
+            else level.level_type
+        )
+        if effective_type != ("RESISTANCE" if long else "SUPPORT"):
+            return "NOT_OPPOSING_STRUCTURE"
+        if not (price > entry if long else ZERO < price < entry):
+            return "TARGET_NOT_BEYOND_ENTRY"
+        return None
+
+    @staticmethod
+    def _target_candidates(
+        state: TradingIntelligenceState,
+        entry: Decimal,
+        long: bool,
+        tick: Decimal | None = None,
+    ) -> tuple[TargetCandidate, ...]:
+        """Keep rejected zones; nearest opposing levels win with stable tie breaks."""
+        rows: list[TargetCandidate] = []
+        for level in state.levels:
+            rejection: str | None
+            observed = level.price_low if long else level.price_high
+            price = (
+                observed
+                if tick is None
+                else (
+                    (observed / tick).to_integral_value(
+                        rounding=ROUND_FLOOR if long else ROUND_CEILING
+                    )
+                    * tick
+                )
+            )
+            # A nonpositive rounded price is not a valid financial candidate.
+            if price <= ZERO:
+                price = observed
+                rejection = "TARGET_TICK_GEOMETRY_INVALID"
+            else:
+                rejection = TradePlanEngine._target_rejection(level, price, entry, long)
+            rows.append(
+                TargetCandidate(
+                    source=level.level_id,
+                    evidence_ref=level.evidence_ref,
+                    source_family="SUPPORT_RESISTANCE",
+                    timeframe=level.source_timeframe,
+                    price=price,
+                    observed_price=observed,
+                    structural_strength=level.rejection_strength,
+                    selected=False,
+                    reason=rejection or "ELIGIBLE_OPPOSING_STRUCTURE",
+                )
+            )
+        rows.sort(
+            key=lambda row: (
+                row.price if long else -row.price,
+                row.source,
+                row.evidence_ref,
+                row.timeframe,
+                row.observed_price,
+                row.structural_strength,
+                row.reason,
+            )
+        )
+        selected: set[Decimal] = set()
+        result: list[TargetCandidate] = []
+        for row in rows:
+            if row.reason != "ELIGIBLE_OPPOSING_STRUCTURE":
+                result.append(row)
+                continue
+            reason = (
+                "DUPLICATE_TARGET_PRICE"
+                if row.price in selected
+                else "TARGET_LADDER_CAPACITY"
+                if len(selected) == 3
+                else "SELECTED_NEAREST_OPPOSING_STRUCTURE"
+            )
+            chosen = reason == "SELECTED_NEAREST_OPPOSING_STRUCTURE"
+            if chosen:
+                selected.add(row.price)
+            result.append(replace(row, selected=chosen, reason=reason))
+        return tuple(result)
 
     def structural_candidate(
         self,
@@ -347,32 +431,134 @@ class TradePlanEngine:
             )
         long = candidate.action is Action.BUY
         entry_rounding = ROUND_CEILING if long else ROUND_FLOOR
-        target_rounding = ROUND_FLOOR if long else ROUND_CEILING
         entry = (candidate.entry_price / tick).to_integral_value(
             rounding=entry_rounding
         ) * tick
         stop = (invalidation / tick).to_integral_value(rounding=entry_rounding) * tick
         if not (ZERO < stop < entry if long else stop > entry > ZERO):
             return self._unavailable(candidate, "STRUCTURAL_PLAN_STOP_GEOMETRY_INVALID")
-        targets: dict[Decimal, str] = {}
-        for edge, source in self._targets(state, entry, long).items():
-            price = (edge / tick).to_integral_value(rounding=target_rounding) * tick
-            if price > entry if long else ZERO < price < entry:
-                targets.setdefault(price, source)
-        ordered = tuple(sorted(targets, reverse=not long))[:3]
+        target_candidates = self._target_candidates(state, entry, long, tick)
+        targets = {row.price: row.source for row in target_candidates if row.selected}
+        ordered = tuple(targets)
         if not ordered:
-            return self._unavailable(candidate, "STRUCTURAL_PLAN_TARGET_UNAVAILABLE")
-        return replace(
+            return replace(
+                self._unavailable(candidate, "STRUCTURAL_PLAN_TARGET_UNAVAILABLE"),
+                target_candidates=target_candidates,
+            )
+        result = replace(
             candidate,
             entry_zone=PriceZone(entry, entry),
             stop_loss=stop,
-            invalidation_level=stop,
+            invalidation_level=invalidation,
             trailing_stop=stop,
             take_profit_levels=ordered,
             risk_reward=abs(ordered[0] - entry) / abs(entry - stop),
             target_sources=tuple(targets[target] for target in ordered),
+            target_candidates=target_candidates,
             evidence=tuple(dict.fromkeys((*candidate.evidence, "STRUCTURAL_PLAN_V2"))),
         )
+        result = replace(
+            result,
+            stop_candidates=self._stop_candidates(result, scenario, state, snapshot),
+        )
+        selected_stop = result.stop_candidates[0]
+        if (
+            selected_stop.spread_buffer is not None
+            and selected_stop.slippage_buffer is not None
+            and selected_stop.distance
+            <= selected_stop.spread_buffer + selected_stop.slippage_buffer
+        ):
+            return self._unavailable(result, "STOP_WITHIN_OBSERVED_EXECUTION_BUFFER")
+        return result
+
+    @staticmethod
+    def _stop_candidates(
+        candidate: TradeCandidate,
+        scenario: ScenarioHypothesis,
+        state: TradingIntelligenceState,
+        snapshot: MarketSnapshot | None = None,
+    ) -> tuple[StopCandidate, ...]:
+        """Preserve the selected thesis boundary, never optimize an alternate.
+
+        A competing timeframe cannot replace the already selected scenario's
+        invalidation or widen initial risk. Missing noise/liquidity calibration
+        does not justify scoring stop alternatives. Observed execution buffers
+        can veto the selected stop; they never move its price.
+        """
+        spread = snapshot.spread if snapshot is not None else None
+        slippage: Decimal | None = None
+        if snapshot is not None:
+            try:
+                ratio = Decimal(
+                    str(snapshot.market_metadata.get("estimated_slippage_ratio"))
+                )
+                if ratio.is_finite() and ratio >= ZERO:
+                    slippage = ratio * candidate.entry_price
+            except InvalidOperation:
+                pass
+        structural = "STRUCTURAL_PLAN_V2" in candidate.evidence
+        alternatives = (
+            (
+                f"SCENARIO:{scenario.scenario_id}"
+                if structural
+                else f"STRATEGY:{candidate.setup_name}",
+                "SELECTED_SCENARIO" if structural else "STRATEGY_INITIAL_STOP",
+                candidate.timeframe,
+                candidate.stop_loss,
+                True,
+            ),
+            *(
+                (
+                    f"STRUCTURE:{row.timeframe}",
+                    row.method,
+                    row.timeframe,
+                    row.invalidation_level,
+                    False,
+                )
+                for row in sorted(state.structures, key=lambda row: row.timeframe)
+                if row.invalidation_level is not None
+            ),
+        )
+        result: list[StopCandidate] = []
+        for source, method, timeframe, price, selected in alternatives:
+            distance = abs(candidate.entry_price - price)
+            valid = (
+                ZERO < price < candidate.entry_price
+                if candidate.action is Action.BUY
+                else price > candidate.entry_price
+            )
+            reason = (
+                "SELECTED_SCENARIO_INVALIDATION_NO_WIDENING"
+                if selected and structural
+                else "SELECTED_STRATEGY_INITIAL_STOP"
+                if selected
+                else "NOT_SELECTED_SCENARIO_INVALIDATION"
+                if valid
+                else "STOP_NOT_ON_LOSS_SIDE"
+            )
+            result.append(
+                StopCandidate(
+                    source=source,
+                    source_method=method,
+                    source_family="MARKET_STRUCTURE",
+                    timeframe=timeframe,
+                    structural_meaning=(
+                        "SCENARIO_THESIS_INVALIDATION"
+                        if selected and structural
+                        else "STRATEGY_INITIAL_STOP"
+                        if selected
+                        else "TIMEFRAME_INVALIDATION"
+                    ),
+                    price=price,
+                    distance=distance,
+                    atr_distance=distance / candidate.atr,
+                    selected=selected,
+                    reason=reason,
+                    spread_buffer=spread,
+                    slippage_buffer=slippage,
+                )
+            )
+        return tuple(result)
 
     @staticmethod
     def _unavailable(candidate: TradeCandidate, blocker: str) -> TradeCandidate:
@@ -504,12 +690,15 @@ class TradePlanEngine:
     def _plan_factors(candidate: TradeCandidate) -> dict[str, object]:
         return {
             "method_registry": current_method_registry().snapshot_payload(),
+            "entry_zone": candidate.entry_zone,
             "target_net_risk_rewards": candidate.target_net_risk_rewards,
             "target_conditional_pnl_per_unit": (
                 candidate.target_conditional_pnl_per_unit
             ),
             "signed_funding_cost_ratio": candidate.signed_funding_cost_ratio,
             "stop_alternatives": candidate.stop_alternatives,
+            "stop_candidates": candidate.stop_candidates,
+            "target_candidates": candidate.target_candidates,
         }
 
     def _economics(
@@ -518,6 +707,11 @@ class TradePlanEngine:
         scenario: ScenarioHypothesis,
         state: TradingIntelligenceState,
     ) -> TradeCandidate:
+        if not candidate.stop_candidates:
+            candidate = replace(
+                candidate,
+                stop_candidates=self._stop_candidates(candidate, scenario, state),
+            )
         funding = ZERO
         if state.market_type == "USD_M_FUTURES":
             if (

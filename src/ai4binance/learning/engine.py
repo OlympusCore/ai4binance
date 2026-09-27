@@ -10,6 +10,9 @@ from itertools import pairwise
 from math import isfinite
 from typing import TYPE_CHECKING
 
+from ai4binance.domain.research.virtual_runtime_attribution import (
+    TradeClosureAssessment,
+)
 from ai4binance.execution.lifecycle import LifecyclePosition
 from ai4binance.learning.models import (
     ExperimentCandidate,
@@ -77,7 +80,7 @@ class ControlledLearningEngine:
             ),
         )
         for outcome in outcomes:
-            tags = []
+            tags = list(self._closure_tags(outcome.closure_assessment))
             if outcome.decision_evidence.status != "RECORDED_AT_DECISION":
                 tags.append("DECISION_TIME_EVIDENCE_MISSING")
             if outcome.net_pnl < 0:
@@ -131,10 +134,17 @@ class ControlledLearningEngine:
         for position in paper_positions:
             if position.closure_review is not None:
                 self._add(counts, position.closure_review.lesson_candidate, 1)
+                closure_tags = (
+                    self._closure_tags(position.closure_assessment)
+                    if position.closure_assessment is not None
+                    else ()
+                )
+                for tag in closure_tags:
+                    self._add(counts, tag, 1)
                 case = LearningEvidenceCase(
                     "PAPER_POSITION",
                     json.dumps(to_primitive(position)),
-                    (position.closure_review.lesson_candidate,),
+                    (position.closure_review.lesson_candidate, *closure_tags),
                 )
                 cases[case.sha256] = case
         for snapshot in performance_snapshots:
@@ -202,6 +212,15 @@ class ControlledLearningEngine:
             profitability_loop=profitability_loop,
             evidence_cases=tuple(cases[key] for key in sorted(cases)),
         )
+
+    @staticmethod
+    def _closure_tags(assessment: TradeClosureAssessment) -> tuple[str, ...]:
+        tags: list[str] = []
+        if assessment.decision_lineage_status != "CAUSAL_DECISION_EVIDENCE":
+            tags.append("DECISION_LINEAGE_NOT_EVALUABLE")
+        if assessment.entry_quality == "FILL_OUTSIDE_RECORDED_ENTRY_ZONE":
+            tags.append("ENTRY_FILL_OUTSIDE_RECORDED_ZONE")
+        return tuple(tags)
 
     @staticmethod
     def _add(counts: dict[str, int], code: str, amount: int) -> None:

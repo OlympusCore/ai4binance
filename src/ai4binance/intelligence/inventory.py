@@ -8,6 +8,8 @@ from pathlib import Path
 
 from ai4binance.intelligence.method_registry import (
     MethodDefinition,
+    MethodRuleStages,
+    ReferenceChapter,
     TradingMethodRegistry,
     current_method_registry,
 )
@@ -313,6 +315,7 @@ def render_reference_manual(registry: TradingMethodRegistry | None = None) -> st
             )
             lines.extend((f"Aliases: {'; '.join(aliases) or 'None registered'}.", ""))
             lines.extend(_method_reference_lines(method))
+            lines.extend(_method_stage_lines(method))
             for rule_id in method.rule_ids:
                 rule = rules[rule_id]
                 lines.extend(
@@ -326,6 +329,11 @@ def render_reference_manual(registry: TradingMethodRegistry | None = None) -> st
                         f"tests: {', '.join(rule.test_refs) or 'NOT_VERIFIED'}.",
                     )
                 )
+                if rule.semantics is not None:
+                    lines.extend(
+                        f"  {key.replace('_', ' ').title()}: {value}"
+                        for key, value in rule.semantics.model_dump().items()
+                    )
             lines.extend(
                 (
                     "",
@@ -359,7 +367,7 @@ def _method_reference_lines(method: MethodDefinition) -> list[str]:
             "for this catalog entry.",
             "",
         ]
-    return [
+    lines = [
         f"Definition: {reference.definition}",
         f"Purpose: {reference.purpose}",
         f"Origin / school: {reference.origin_or_school}",
@@ -371,6 +379,88 @@ def _method_reference_lines(method: MethodDefinition) -> list[str]:
         f"Ambiguity: {reference.ambiguity_notes}",
         "",
     ]
+    chapter = reference.chapter
+    if reference.standardization_status == "NOT_VERIFIED":
+        lines.append(
+            "Detailed reference definition: NOT_VERIFIED. The description records "
+            "research scope; it is not an admitted methodology specification."
+        )
+    for field in ReferenceChapter.model_fields:
+        value = getattr(chapter, field) if chapter is not None else None
+        lines.append(f"{field.replace('_', ' ').title()}: {value or 'NOT_VERIFIED'}")
+    lines.extend(
+        ("", "Missing reference fields: " + ", ".join(reference_gaps(method)), "")
+    )
+    return lines
+
+
+def reference_gaps(method: MethodDefinition) -> tuple[str, ...]:
+    """Expose descriptive completeness separately from implementation and OOS."""
+    if method.reference is None:
+        return ("reference",)
+    chapter = method.reference.chapter
+    missing = [
+        key
+        for key in ReferenceChapter.model_fields
+        if chapter is None
+        or getattr(chapter, key) is None
+        or getattr(chapter, key).startswith("NOT_VERIFIED")
+    ]
+    if method.rule_stages is None or not any(method.rule_stages.model_dump().values()):
+        missing.append("rule_stages")
+    if method.reference.standardization_status == "NOT_VERIFIED":
+        missing.append("standardization_status")
+    if not method.source_ids:
+        missing.append("source_ids")
+    return tuple(missing)
+
+
+def _method_stage_lines(method: MethodDefinition) -> list[str]:
+    stages = method.rule_stages
+    lines = ["Rule stages (references, not executable policy):"]
+    for key in MethodRuleStages.model_fields:
+        refs = getattr(stages, key) if stages is not None else ()
+        lines.append(f"- {key.title()}: {', '.join(refs) or 'NOT_VERIFIED'}")
+    return [*lines, ""]
+
+
+def reference_acceptance_projection(
+    registry: TradingMethodRegistry | None = None,
+) -> dict[str, object]:
+    """Project master sections 11--14 and D6 without granting acceptance authority."""
+    registry = registry or current_method_registry()
+    rules = {row.rule_id: row for row in registry.rules}
+    methods = [
+        {
+            "method_id": method.method_id,
+            "master_requirements": ["11", "12", "13", "14", "D6"],
+            "implementation_status": method.implementation_status,
+            "owner": method.module,
+            "symbol": method.owner,
+            "source_ids": list(method.source_ids),
+            "test_refs": sorted(
+                {ref for key in method.rule_ids for ref in rules[key].test_refs}
+            ),
+            "missing_reference_fields": list(reference_gaps(method)),
+            "validation_status": method.validation_status,
+            "oos_status": method.oos_status,
+            "implementation_limits": method.limitations,
+        }
+        for method in registry.methods
+    ]
+    return {
+        "source_of_truth": False,
+        "registry_version": registry.version,
+        "registry_sha256": registry.snapshot_payload()["sha256"],
+        "status": "PARTIALLY_VERIFIED",
+        "methods": methods,
+        "scope": (
+            "Descriptive reference coverage only; "
+            "not the complete master acceptance decision."
+        ),
+        "execution_allowed": False,
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+    }
 
 
 def _registry_reference_lines(registry: TradingMethodRegistry) -> list[str]:
@@ -443,6 +533,13 @@ def write_reference_manual(directory: Path) -> Path:
         target / "method_registry_snapshot.json",
         registry.snapshot_payload(),
         blocker="METHOD_REGISTRY_SNAPSHOT_WRITE_FAILED",
+        subject_id=f"trading-methods:{registry.version}",
+        indent=2,
+    )
+    write_json_object_verified(
+        target / "reference_acceptance.json",
+        reference_acceptance_projection(registry),
+        blocker="REFERENCE_ACCEPTANCE_WRITE_FAILED",
         subject_id=f"trading-methods:{registry.version}",
         indent=2,
     )

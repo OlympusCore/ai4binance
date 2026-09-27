@@ -215,8 +215,14 @@ class RequirementTraceabilityRegistry:
     invariants: RequirementTraceabilityInvariants
     allowed_trace_statuses: tuple[RequirementTraceStatus, ...]
     entries: tuple[RequirementTraceabilityEntry, ...]
+    quality_binding_mode: str = "PINNED_QUALITY_EVIDENCE"
 
     def __post_init__(self) -> None:
+        if self.quality_binding_mode not in {
+            "PINNED_QUALITY_EVIDENCE",
+            "HISTORICAL_PROVENANCE_AND_CURRENT_QUALITY",
+        }:
+            raise ValueError("requirement quality binding mode is invalid")
         for field_name in ("canonical_owner", "source_class"):
             if not str(getattr(self, field_name)).strip():
                 raise ValueError(f"requirement traceability {field_name} is required")
@@ -292,8 +298,19 @@ class RequirementTraceabilityRegistry:
         )
 
         subject = build_quality_gate_workspace_attestation(repository_root).to_payload()
+        current_quality: tuple[object, tuple[str, ...]] | None = None
+        if self.quality_binding_mode == "HISTORICAL_PROVENANCE_AND_CURRENT_QUALITY":
+            from ai4binance.ops.quality_gate.telemetry import (
+                resolve_requirement_quality_evidence,
+            )
+
+            current_quality = resolve_requirement_quality_evidence(
+                repository_root, subject
+            )
         return tuple(
-            _requirement_assurance_chain(repository_root, entry, subject)
+            _requirement_assurance_chain(
+                repository_root, entry, subject, current_quality
+            )
             for entry in self.entries
         )
 
@@ -302,6 +319,7 @@ def _requirement_assurance_chain(
     repository_root: Path,
     entry: RequirementTraceabilityEntry,
     subject: Mapping[str, object],
+    current_quality: tuple[object, tuple[str, ...]] | None = None,
 ) -> RequirementAssuranceChain:
     root = repository_root.resolve()
     blockers: list[str] = []
@@ -318,38 +336,13 @@ def _requirement_assurance_chain(
     if entry.trace_status is not RequirementTraceStatus.AUDIT_VERIFIED:
         blockers.append("BEHAVIORAL_TEST_EXECUTION_UNPROVEN")
 
-    evidence_path = _repository_file(root, entry.evidence_ref)
-    evidence_sha256 = ""
     snapshot_bound = not _is_mutable_evidence_reference(entry.evidence_ref)
     if not snapshot_bound:
         blockers.append("SNAPSHOT_EVIDENCE_MUTABLE")
-    if evidence_path is None:
-        blockers.append("SNAPSHOT_EVIDENCE_MISSING")
-    else:
-        try:
-            evidence_sha256 = sha256(evidence_path.read_bytes()).hexdigest()
-        except OSError:
-            blockers.append("SNAPSHOT_EVIDENCE_UNREADABLE")
-        else:
-            if evidence_sha256 != entry.evidence_sha256:
-                blockers.append("SNAPSHOT_EVIDENCE_HASH_MISMATCH")
-            else:
-                from ai4binance.ops.quality_gate.telemetry import (
-                    verify_quality_evidence,
-                )
-
-                try:
-                    payload = json.loads(evidence_path.read_text(encoding="utf-8-sig"))
-                    blockers.extend(
-                        verify_quality_evidence(
-                            root,
-                            payload,
-                            workspace_attestation=subject,
-                            required_tests=entry.test_refs,
-                        )
-                    )
-                except (OSError, ValueError):
-                    blockers.append("BEHAVIORAL_TEST_EVIDENCE_UNREADABLE")
+    evidence_sha256, evidence_blockers = _requirement_evidence_blockers(
+        root, entry, subject, current_quality
+    )
+    blockers.extend(evidence_blockers)
 
     blockers.extend(
         blocker.split(":", maxsplit=1)[1] for blocker in entry.blocker_codes
@@ -378,6 +371,37 @@ def _requirement_assurance_chain(
         assurance_decision=decision,
         blockers=unique_blockers,
     )
+
+
+def _requirement_evidence_blockers(
+    root: Path,
+    entry: RequirementTraceabilityEntry,
+    subject: Mapping[str, object],
+    current_quality: tuple[object, tuple[str, ...]] | None,
+) -> tuple[str, tuple[str, ...]]:
+    """Historical provenance and current technical execution are separate proofs."""
+    from ai4binance.ops.quality_gate.telemetry import verify_quality_evidence
+
+    path = _repository_file(root, entry.evidence_ref)
+    if path is None:
+        return "", ("SNAPSHOT_EVIDENCE_MISSING",)
+    try:
+        digest = sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return "", ("SNAPSHOT_EVIDENCE_UNREADABLE",)
+    if digest != entry.evidence_sha256:
+        return digest, ("SNAPSHOT_EVIDENCE_HASH_MISMATCH",)
+    try:
+        payload: object = json.loads(path.read_text(encoding="utf-8-sig"))
+        receipt_blockers: tuple[str, ...] = ()
+        if current_quality is not None:
+            payload, receipt_blockers = current_quality
+        blockers = verify_quality_evidence(
+            root, payload, workspace_attestation=subject, required_tests=entry.test_refs
+        )
+        return digest, (*receipt_blockers, *blockers)
+    except (OSError, ValueError):
+        return digest, ("BEHAVIORAL_TEST_EVIDENCE_UNREADABLE",)
 
 
 @dataclass(frozen=True, slots=True)
@@ -676,6 +700,9 @@ def _traceability_from_payload(
             for status in raw_allowed_statuses
         ),
         entries=tuple(_traceability_entry_from_payload(entry) for entry in raw_entries),
+        quality_binding_mode=str(
+            payload.get("quality_binding_mode", "PINNED_QUALITY_EVIDENCE")
+        ),
     )
 
 
