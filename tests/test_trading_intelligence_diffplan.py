@@ -10,7 +10,7 @@ from typing import NotRequired, TypedDict, cast
 
 import pytest
 
-from ai4binance.application.opportunity_observation import analyze_futures_snapshot
+from ai4binance.cli.futures_multitf import analyze_futures_snapshot
 from ai4binance.data.acquisition import LocalMarketSnapshotTransport
 from ai4binance.domain import Action
 from ai4binance.intelligence.contracts import (

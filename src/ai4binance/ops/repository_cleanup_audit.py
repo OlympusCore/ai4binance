@@ -965,6 +965,15 @@ def _classify_static_unimported(
             ("pyproject.toml:ai4binance", "src/ai4binance/cli.py:__main__"),
             "Public CLI dispatcher and console script target.",
         ),
+        "src/ai4binance/intelligence/inventory.py": FileClassification(
+            "src/ai4binance/intelligence/inventory.py",
+            "ENTRY_POINT",
+            (
+                "src/ai4binance/intelligence/inventory.py:__main__",
+                "tests/test_trading_context_packages.py",
+            ),
+            "Generate the research-only method manual and pinned registry archive.",
+        ),
         "src/ai4binance/cli/futures_oos.py": FileClassification(
             "src/ai4binance/cli/futures_oos.py",
             "ENTRY_POINT",

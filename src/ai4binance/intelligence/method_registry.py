@@ -50,7 +50,9 @@ class RuleDefinition(RegistryRecord):
     source_ids: tuple[Text, ...] = Field(min_length=1)
     test_refs: tuple[Text, ...]
     applicability: Text = "Research-only implementation; not a universal market rule."
-    tolerance_policy: Text = "Exact implementation constants; not empirically calibrated."
+    tolerance_policy: Text = (
+        "Exact implementation constants; not empirically calibrated."
+    )
     ambiguity: Text = "Method-level OOS evidence is unavailable."
 
 
@@ -261,13 +263,20 @@ class TradingMethodRegistry(RegistryRecord):
     def snapshot_payload(self) -> dict[str, object]:
         """Embed the exact offline definitions used at decision time for replay."""
         payload = self.model_dump(mode="json")
-        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        encoded = json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), allow_nan=False
+        )
         return {"definition": payload, "sha256": sha256(encoded.encode()).hexdigest()}
 
 
 def restore_registry_snapshot(payload: Mapping[str, object]) -> TradingMethodRegistry:
     """Validate archived definitions without consulting the current mutable registry."""
-    encoded = json.dumps(payload.get("definition"), sort_keys=True, separators=(",", ":"), allow_nan=False)
+    encoded = json.dumps(
+        payload.get("definition"),
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
     if sha256(encoded.encode()).hexdigest() != payload.get("sha256"):
         raise ValueError("archived method registry digest mismatch")
     return TradingMethodRegistry.model_validate(payload.get("definition"))

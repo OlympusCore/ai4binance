@@ -583,18 +583,33 @@ class AdvancedTechnicalAgent(BaseAgent):
         if context.status != "AVAILABLE":
             return self._insufficient(snapshot, context.warnings[0])
         return self.result(
-            snapshot, status=AgentStatus.PARTIAL,
-            data_quality=snapshot.data_quality, applicable=True,
-            directional_vote=0.0, score=0.0, confidence=0.0,
+            snapshot,
+            status=AgentStatus.PARTIAL,
+            data_quality=snapshot.data_quality,
+            applicable=True,
+            directional_vote=0.0,
+            score=0.0,
+            confidence=0.0,
             evidence=tuple(row.observation_id for row in context.observations),
             blockers=context.blockers,
             warnings=("ADVISORY_EVENT_CONTEXT_ONLY", *context.warnings),
             reason_codes=("POINT_IN_TIME_EVENT_CONTEXT_RECORDED",),
             calculation_metadata={
                 "evidence_root_ids": context.root_ids,
+                "method_lineage": current_method_registry()
+                .lineage(
+                    "sentiment_events.news"
+                    if self.definition.name == "news"
+                    else "sentiment_events.social",
+                    "1.1.0",
+                    "1.1.0",
+                )
+                .to_payload(),
                 "measurement_status": context.measurement_status,
                 "independence_status": "NOT_MEASURED",
-                "source_count": len({ref for row in context.observations for ref in row.source_refs}),
+                "source_count": len(
+                    {ref for row in context.observations for ref in row.source_refs}
+                ),
             },
         )
 

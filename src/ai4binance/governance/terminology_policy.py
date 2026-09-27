@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -118,6 +119,14 @@ def evaluate_terminology_policy(
             continue
         text = _read_bounded_text(root, relative)
         if text is None:
+            violations.append(
+                TerminologyViolation(
+                    "TERMINOLOGY_SOURCE_UNREADABLE",
+                    relative,
+                    "Registered terminology source could not be read safely.",
+                    True,
+                )
+            )
             continue
         for term, owners in prohibited.items():
             if _contains_term(text, term):
@@ -182,6 +191,11 @@ def _validate_term_uniqueness(terms: tuple[TerminologyTerm, ...]) -> None:
     seen_ids: set[str] = set()
     canonical_by_scope: set[tuple[str, str]] = set()
     aliases: dict[str, str] = {}
+    canonical_owners: dict[str, set[str]] = {}
+    for term in terms:
+        canonical_owners.setdefault(
+            " ".join(term.canonical_term.casefold().split()), set()
+        ).add(term.term_id)
     for term in terms:
         if term.term_id in seen_ids:
             raise ValueError(f"duplicate terminology term identifier: {term.term_id}")
@@ -194,11 +208,17 @@ def _validate_term_uniqueness(terms: tuple[TerminologyTerm, ...]) -> None:
             )
         canonical_by_scope.add(scope_key)
         for alias in (*term.allowed_aliases, *term.deprecated_aliases):
-            normalized = alias.casefold()
+            normalized = " ".join(alias.casefold().split())
+            if canonical_owners.get(normalized, set()) - {term.term_id}:
+                raise ValueError(
+                    f"terminology alias collision with canonical term: {alias}"
+                )
             owner = aliases.setdefault(normalized, term.term_id)
             if owner != term.term_id:
                 raise ValueError(f"terminology alias collision: {alias}")
-        overlap = set(term.deprecated_aliases) & set(term.prohibited_terms)
+        overlap = {value.casefold() for value in term.deprecated_aliases} & {
+            value.casefold() for value in term.prohibited_terms
+        }
         if overlap:
             raise ValueError("deprecated terminology must not also be prohibited")
 
@@ -257,18 +277,25 @@ def _is_scanned_path(relative: str, roots: tuple[str, ...]) -> bool:
 
 
 def _contains_term(text: str, term: str) -> bool:
-    pattern = rf"(?<![A-Za-z0-9_]){re.escape(term)}(?![A-Za-z0-9_])"
+    normalized = r"\s+".join(re.escape(word) for word in term.split())
+    pattern = rf"(?<![A-Za-z0-9_]){normalized}(?![A-Za-z0-9_])"
     return re.search(pattern, text, re.I) is not None
 
 
 def _read_bounded_text(root: Path, relative: str) -> str | None:
-    path = (root / relative).resolve()
     try:
+        path = (root / relative).resolve()
         path.relative_to(root)
         if not path.is_file() or path.stat().st_size > 2_000_000:
             return None
+        if path.suffix == ".gz":
+            with gzip.open(path, "rb") as compressed:
+                content = compressed.read(2_000_001)
+            if len(content) > 2_000_000:
+                return None
+            return content.decode("utf-8")
         return path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError, ValueError):
+    except (OSError, EOFError, UnicodeError, ValueError):
         return None
 
 

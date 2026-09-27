@@ -1,0 +1,47 @@
+{
+  "description": "Capture the workspace baseline and validate Codex changes through the existing governance enforcement fabric. Review and trust these hooks before use.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "root=\"$(git rev-parse --show-toplevel)\" || exit 2; PYTHONPATH=\"$root/src\" \"$root/.venv/bin/python\" -B \"$root/scripts/codex_governance_hook.py\" || exit 2",
+            "commandWindows": "& { try { $ErrorActionPreference = 'Stop'; $hookInput = [Console]::In.ReadToEnd(); $root = git rev-parse --show-toplevel; if ($LASTEXITCODE -ne 0) { throw 'Repository root unavailable' }; $env:PYTHONPATH = Join-Path $root 'src'; $hookInput | & (Join-Path $root '.venv/Scripts/python.exe') -B (Join-Path $root 'scripts/codex_governance_hook.py'); if ($LASTEXITCODE -ne 0) { exit 2 } } catch { [Console]::Error.WriteLine('CODEX_GOVERNANCE_BOOTSTRAP_FAILED'); exit 2 } }",
+            "timeout": 180,
+            "additionalContextLimit": 6000,
+            "statusMessage": "Verifying repository authority and production instructions"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "root=\"$(git rev-parse --show-toplevel)\" || exit 2; PYTHONPATH=\"$root/src\" \"$root/.venv/bin/python\" -B \"$root/scripts/codex_governance_hook.py\" || exit 2",
+            "commandWindows": "& { try { $ErrorActionPreference = 'Stop'; $hookInput = [Console]::In.ReadToEnd(); $root = git rev-parse --show-toplevel; if ($LASTEXITCODE -ne 0) { throw 'Repository root unavailable' }; $env:PYTHONPATH = Join-Path $root 'src'; $hookInput | & (Join-Path $root '.venv/Scripts/python.exe') -B (Join-Path $root 'scripts/codex_governance_hook.py'); if ($LASTEXITCODE -ne 0) { exit 2 } } catch { [Console]::Error.WriteLine('CODEX_GOVERNANCE_BOOTSTRAP_FAILED'); exit 2 } }",
+            "timeout": 180,
+            "additionalContextLimit": 6000,
+            "statusMessage": "Verifying repository authority and production instructions"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "root=\"$(git rev-parse --show-toplevel)\" || exit 2; PYTHONPATH=\"$root/src\" \"$root/.venv/bin/python\" -B \"$root/scripts/codex_governance_hook.py\" || exit 2",
+            "commandWindows": "& { try { $ErrorActionPreference = 'Stop'; $hookInput = [Console]::In.ReadToEnd(); $root = git rev-parse --show-toplevel; if ($LASTEXITCODE -ne 0) { throw 'Repository root unavailable' }; $env:PYTHONPATH = Join-Path $root 'src'; $hookInput | & (Join-Path $root '.venv/Scripts/python.exe') -B (Join-Path $root 'scripts/codex_governance_hook.py'); if ($LASTEXITCODE -ne 0) { exit 2 } } catch { [Console]::Error.WriteLine('CODEX_GOVERNANCE_BOOTSTRAP_FAILED'); exit 2 } }",
+            "timeout": 180,
+            "statusMessage": "Checking canonical repository governance"
+          }
+        ]
+      }
+    ]
+  }
+}

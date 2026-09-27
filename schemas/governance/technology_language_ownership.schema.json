@@ -20,9 +20,11 @@
     "authority",
     "safety",
     "interoperability",
-    "languages"
+    "languages",
+    "unowned_source_suffixes"
   ],
   "properties": {
+    "unowned_source_suffixes": {"$ref": "#/$defs/stringList"},
     "document_id": {"const": "AI4B-GOV-TECH-LANG-001"},
     "policy_id": {"const": "AI4B-GOV-TECH-LANG-001"},
     "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
@@ -174,6 +176,9 @@
       "properties": {
         "role": {"type": "string", "minLength": 1},
         "suffixes": {"$ref": "#/$defs/stringList"},
+        "interpreters": {"$ref": "#/$defs/stringList"},
+        "legacy_only_suffixes": {"$ref": "#/$defs/stringList"},
+        "legacy_source_paths": {"$ref": "#/$defs/stringList"},
         "enforce_placement": {"type": "boolean"},
         "allowed_paths": {"$ref": "#/$defs/pathList"},
         "allowed_capabilities": {"$ref": "#/$defs/stringList"},

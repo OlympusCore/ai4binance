@@ -51,9 +51,27 @@ affected_tests:
         - src/ai4binance/agents/advanced.py
         - src/ai4binance/agents/technical.py
         - src/ai4binance/opportunity_intelligence.py
+        - src/ai4binance/agents/evidence_fusion.py
+        - src/ai4binance/runtime_research_context.py
+        - schemas/evidence/event_context.schema.json
+        - src/ai4binance/core/serialization.py
+        - src/ai4binance/reporting.py
+        - src/ai4binance/application/opportunity_observation.py
+        - src/ai4binance/application/validation_pipeline.py
+        - src/ai4binance/cli/futures_multitf.py
+        - src/ai4binance/domain.py
+        - src/ai4binance/domain/research/virtual_runtime_attribution.py
+        - src/ai4binance/validation/overfit.py
+        - src/ai4binance/external_intel/integration/decision_governance_adapter.py
+        - src/ai4binance/whale_fusion/social/context_adapter.py
       tests:
         - tests/test_trading_method_registry.py
         - tests/test_trading_method_lineage.py
+        - tests/test_trading_context_packages.py
+        - tests/test_futures_multitf.py
+        - tests/test_domain.py
+        - tests/test_agents.py
+        - tests/test_runtime_research_context.py
         - tests/test_trading_intelligence.py
         - tests/test_trading_intelligence_phase_ownership.py
         - tests/test_trading_intelligence_diffplan.py
@@ -62,6 +80,9 @@ affected_tests:
         - tests/test_technical_agents.py
         - tests/test_opportunity_intelligence.py
         - tests/test_trade_method_learning.py
+        - tests/test_governed_extensions.py
+        - tests/test_repository_cleanup_audit.py
+        - tests/test_coverage_recovery.py
     - name: instruction_contracts
       path_prefixes:
         - AGENTS.md
@@ -169,6 +190,9 @@ affected_tests:
         - tests/test_quality_gate_profiles.py
     - name: semantic_governance_enforcement_fabric
       path_prefixes:
+        - .codex/hooks.json
+        - .codex/config.toml
+        - scripts/codex_governance_hook.py
         - config/governance/governance_enforcement_fabric.yaml
         - config/governance/canonical_terminology_registry.yaml
         - config/governance/technology_language_ownership.yaml
@@ -183,6 +207,8 @@ affected_tests:
         - src/ai4binance/governance/terminology_policy.py
         - src/ai4binance/governance/technology_language_policy.py
       tests:
+        - tests/test_codex_governance_hook.py
+        - tests/governance/terminology/test_terminology_policy.py
         - tests/governance/terminology/test_governance_enforcement_fabric.py
         - tests/governance/architecture/test_technology_language_policy.py
         - tests/test_repository_validator.py
@@ -245,9 +271,27 @@ standard_impact_tests:
         - src/ai4binance/agents/advanced.py
         - src/ai4binance/agents/technical.py
         - src/ai4binance/opportunity_intelligence.py
+        - src/ai4binance/agents/evidence_fusion.py
+        - src/ai4binance/runtime_research_context.py
+        - schemas/evidence/event_context.schema.json
+        - src/ai4binance/core/serialization.py
+        - src/ai4binance/reporting.py
+        - src/ai4binance/application/opportunity_observation.py
+        - src/ai4binance/application/validation_pipeline.py
+        - src/ai4binance/cli/futures_multitf.py
+        - src/ai4binance/domain.py
+        - src/ai4binance/domain/research/virtual_runtime_attribution.py
+        - src/ai4binance/validation/overfit.py
+        - src/ai4binance/external_intel/integration/decision_governance_adapter.py
+        - src/ai4binance/whale_fusion/social/context_adapter.py
       tests:
         - tests/test_trading_method_registry.py
         - tests/test_trading_method_lineage.py
+        - tests/test_trading_context_packages.py
+        - tests/test_futures_multitf.py
+        - tests/test_domain.py
+        - tests/test_agents.py
+        - tests/test_runtime_research_context.py
         - tests/test_trading_intelligence.py
         - tests/test_trading_intelligence_phase_ownership.py
         - tests/test_trading_intelligence_diffplan.py
@@ -256,6 +300,9 @@ standard_impact_tests:
         - tests/test_technical_agents.py
         - tests/test_opportunity_intelligence.py
         - tests/test_trade_method_learning.py
+        - tests/test_governed_extensions.py
+        - tests/test_repository_cleanup_audit.py
+        - tests/test_coverage_recovery.py
     - name: instruction_contracts
       path_prefixes:
         - AGENTS.md
@@ -314,6 +361,9 @@ standard_impact_tests:
         - tests/test_requirement_assurance_chain.py
     - name: critical_semantic_governance_enforcement_fabric
       path_prefixes:
+        - .codex/hooks.json
+        - .codex/config.toml
+        - scripts/codex_governance_hook.py
         - config/governance/governance_enforcement_fabric.yaml
         - config/governance/canonical_terminology_registry.yaml
         - config/governance/technology_language_ownership.yaml
@@ -328,6 +378,8 @@ standard_impact_tests:
         - src/ai4binance/governance/terminology_policy.py
         - src/ai4binance/governance/technology_language_policy.py
       tests:
+        - tests/test_codex_governance_hook.py
+        - tests/governance/terminology/test_terminology_policy.py
         - tests/governance/terminology/test_governance_enforcement_fabric.py
         - tests/governance/architecture/test_technology_language_policy.py
         - tests/governance/authority/test_authority_development.py

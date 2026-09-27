@@ -273,6 +273,9 @@ class RuntimeResearchContextLoader:
 
     def _build_news_snapshot(self, snapshot: MarketSnapshot) -> _SectionBuildResult:
         rows, blockers = self._read_jsonl(self.news_feed_path, "LOCAL_NEWS_FEED")
+        typed = tuple(
+            row["event_observation"] for row in rows if "event_observation" in row
+        )
         events: list[_ParsedNewsEvent] = []
         vote_weight = Decimal("0")
         weighted_vote = Decimal("0")
@@ -280,6 +283,8 @@ class RuntimeResearchContextLoader:
         parse_blockers: list[str] = []
 
         for row in rows:
+            if "event_observation" in row:
+                continue
             event = self._parse_news_event(snapshot, row)
             if event is None:
                 parse_blockers.append("LOCAL_NEWS_EVENT_INVALID")
@@ -291,7 +296,7 @@ class RuntimeResearchContextLoader:
             weighted_vote += Decimal(str(vote)) * weight
             vote_weight += weight
 
-        if not events and not blockers and not parse_blockers:
+        if not events and not blockers and not parse_blockers and not typed:
             return _SectionBuildResult({}, ())
 
         deduped = {item.event_id: item for item in events}
@@ -316,6 +321,8 @@ class RuntimeResearchContextLoader:
             "high_impact_events": events_payload,
             "provider_blockers": all_blockers,
         }
+        if typed:
+            payload["observations"] = typed
         if not retrieved_times:
             return _SectionBuildResult(payload, observations)
 
@@ -346,24 +353,25 @@ class RuntimeResearchContextLoader:
             self.content_feed_path,
             "LOCAL_CONTENT_FEED",
         )
+        typed = tuple(
+            row["event_observation"]
+            for row in (*social_rows, *content_rows)
+            if "event_observation" in row
+        )
         entries: list[_ParsedSentimentEntry] = []
         parse_blockers: list[str] = []
         observations: list[_TrackedEvidenceObservation] = []
 
-        for row in social_rows:
-            parsed = self._parse_sentiment_entry(snapshot, row, "social")
-            if parsed is None:
-                parse_blockers.append("LOCAL_SOCIAL_EVENT_INVALID")
-                continue
-            entries.append(parsed)
-            observations.append(self._sentiment_observation(parsed))
-        for row in content_rows:
-            parsed = self._parse_sentiment_entry(snapshot, row, "content")
-            if parsed is None:
-                parse_blockers.append("LOCAL_CONTENT_EVENT_INVALID")
-                continue
-            entries.append(parsed)
-            observations.append(self._sentiment_observation(parsed))
+        for origin, feed_rows in (("social", social_rows), ("content", content_rows)):
+            for row in feed_rows:
+                if "event_observation" in row:
+                    continue
+                parsed = self._parse_sentiment_entry(snapshot, row, origin)
+                if parsed is None:
+                    parse_blockers.append(f"LOCAL_{origin.upper()}_EVENT_INVALID")
+                    continue
+                entries.append(parsed)
+                observations.append(self._sentiment_observation(parsed))
 
         blockers = tuple(
             dict.fromkeys((*social_blockers, *content_blockers, *parse_blockers))
@@ -372,6 +380,8 @@ class RuntimeResearchContextLoader:
             empty_payload: dict[str, object] = (
                 {"provider_blockers": blockers} if blockers else {}
             )
+            if typed:
+                empty_payload["observations"] = typed
             return _SectionBuildResult(empty_payload, tuple(observations))
 
         total_weight = Decimal("0")
@@ -393,6 +403,8 @@ class RuntimeResearchContextLoader:
             "sources": tuple(sorted(sources)),
             "provider_blockers": blockers,
         }
+        if typed:
+            payload["observations"] = typed
         return _SectionBuildResult(payload, tuple(observations))
 
     def _build_technology_context(

@@ -51,14 +51,16 @@ def test_advanced_ohlcv_agents_fail_closed_without_hard_gate() -> None:
         assert result.promotion_status is PromotionStatus.RESEARCH_ONLY
 
 
-def test_external_agents_require_sourced_numeric_snapshots() -> None:
+def test_external_agents_do_not_upgrade_legacy_scores_to_point_in_time_evidence() -> (
+    None
+):
     registry = build_default_registry()
     empty = technical_snapshot()
     sentiment = build_advanced_agent(registry.get("sentiment"))
     assert sentiment is not None
     missing = sentiment.analyze(empty, {})
     assert missing.status is AgentStatus.INSUFFICIENT_DATA
-    assert "EXTERNAL_EVIDENCE_MISSING_OR_UNSOURCED" in missing.blockers
+    assert "SENTIMENT_CONTEXT_UNAVAILABLE" in missing.blockers
 
     sourced = replace(
         empty,
@@ -71,10 +73,10 @@ def test_external_agents_require_sourced_numeric_snapshots() -> None:
         },
     )
     result = sentiment.analyze(sourced, {})
-    assert result.status is AgentStatus.PARTIAL
-    assert result.directional_vote == 0.4
-    assert result.score == 65.0
-    assert result.confidence <= 0.5
+    assert result.status is AgentStatus.INSUFFICIENT_DATA
+    assert result.directional_vote == 0.0
+    assert result.score == 0.0
+    assert result.confidence == 0.0
     assert result.hard_gate_eligible is False
 
     stale = sentiment.analyze(
@@ -91,7 +93,7 @@ def test_external_agents_require_sourced_numeric_snapshots() -> None:
         {},
     )
     assert stale.status is AgentStatus.INSUFFICIENT_DATA
-    assert stale.blockers == ("EXTERNAL_EVIDENCE_STALE_OR_FUTURE",)
+    assert stale.blockers == ("SENTIMENT_CONTEXT_UNAVAILABLE",)
 
 
 def test_derivatives_context_does_not_require_a_directional_prediction() -> None:

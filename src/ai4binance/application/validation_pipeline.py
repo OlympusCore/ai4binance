@@ -14,9 +14,9 @@ from pathlib import Path
 from time import perf_counter_ns
 from typing import Any, Protocol, cast
 
+from ai4binance.core.serialization import to_primitive
 from ai4binance.domain import ValidationStatus
 from ai4binance.domain.research.virtual_runtime_attribution import TradeDecisionEvidence
-from ai4binance.reporting import to_primitive
 
 VALIDATED_PLAYBOOKS = (
     "trend_continuation",

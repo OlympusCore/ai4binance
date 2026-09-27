@@ -1,22 +1,50 @@
 """Canonical Futures observation projection over the shared analysis pipeline."""
 
-from ai4binance.agents.orchestrator import EnterpriseOrchestrator
-from ai4binance.domain import Action
-from ai4binance.schemas import AnalysisState, MarketSnapshot
+from collections.abc import Callable
+from typing import Protocol
+
+from ai4binance.domain import Action, TradeCandidate
 
 
-def analyze_futures_snapshot(snapshot: MarketSnapshot) -> AnalysisState:
+class FuturesSnapshotLike(Protocol):
+    @property
+    def market_type(self) -> str: ...
+
+
+class IntelligenceLike(Protocol):
+    @property
+    def blockers(self) -> tuple[str, ...]: ...
+
+
+class FuturesAnalysisLike(Protocol):
+    @property
+    def snapshot_id(self) -> str: ...
+
+    @property
+    def blockers(self) -> tuple[str, ...]: ...
+
+    @property
+    def candidate_setups(self) -> tuple[TradeCandidate, ...]: ...
+
+    @property
+    def trading_intelligence(self) -> IntelligenceLike | None: ...
+
+
+def analyze_futures_snapshot[
+    SnapshotT: FuturesSnapshotLike,
+    StateT: FuturesAnalysisLike,
+](snapshot: SnapshotT, *, analyze: Callable[[SnapshotT], StateT]) -> StateT:
     """Use the same deterministic owner as historical and virtual research.
 
     No provider, wallet, clock, or OOS side effect is introduced here.
     """
     if snapshot.market_type != "USD_M_FUTURES":
         raise ValueError("Futures observation requires a USD-M snapshot")
-    return EnterpriseOrchestrator(max_workers=1).analyze(snapshot)
+    return analyze(snapshot)
 
 
 def project_futures_opportunity(
-    state: AnalysisState, timeframe: str
+    state: FuturesAnalysisLike, timeframe: str
 ) -> dict[str, object]:
     """Expose actual scenario-bound geometry without manufacturing missing targets."""
     intelligence = state.trading_intelligence
@@ -82,6 +110,19 @@ def project_futures_opportunity(
         if candidate.net_risk_reward is not None
         else None,
         target_sources=list(candidate.target_sources),
+        target_net_risk_rewards=[
+            str(value) for value in candidate.target_net_risk_rewards
+        ],
+        target_conditional_pnl_per_unit=[
+            str(value) for value in candidate.target_conditional_pnl_per_unit
+        ],
+        signed_funding_cost_ratio=str(candidate.signed_funding_cost_ratio)
+        if candidate.signed_funding_cost_ratio is not None
+        else None,
+        stop_alternatives=[
+            {"source": source, "price": str(price)}
+            for source, price in candidate.stop_alternatives
+        ],
         confidence=candidate.confidence,
         blockers=list(dict.fromkeys((*blockers, *candidate.blockers))),
         probability_calibration_state=candidate.probability_calibration_state,

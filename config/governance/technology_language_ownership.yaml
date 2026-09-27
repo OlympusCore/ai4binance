@@ -1,6 +1,6 @@
 document_id: "AI4B-GOV-TECH-LANG-001"
 policy_id: "AI4B-GOV-TECH-LANG-001"
-version: "1.0.0"
+version: "1.1.0"
 status: "ACTIVE"
 authority_layer: "L4_REPOSITORY_STANDARDS_CONTROLS_QUALITY_POLICIES"
 authority_effect: "IMPLEMENTATION"
@@ -39,10 +39,12 @@ interoperability:
   forbidden_production_references:
     - "research/julia/"
     - "research.julia"
+unowned_source_suffixes: [".c", ".h", ".cc", ".cpp", ".cxx", ".hpp", ".cs", ".rb", ".php", ".pl", ".lua", ".swift", ".kt", ".kts", ".scala", ".r", ".dart", ".vue", ".svelte", ".ipynb", ".bat", ".cmd", ".exe", ".dll", ".so", ".wasm"]
 languages:
   python:
     role: "canonical_application_language"
     suffixes: [".py", ".pyi"]
+    interpreters: ["python", "python3", "python3.14"]
     enforce_placement: true
     allowed_paths: [".agents/", "src/", "tests/", "scripts/", "tools/", "publication/sanitize_publication.py"]
     allowed_capabilities: ["application_orchestration", "governance_integration", "risk_orchestration", "validation", "trading_intelligence"]
@@ -86,19 +88,25 @@ languages:
       evidence_refs: []
   typescript:
     role: "human_interface"
-    suffixes: [".ts", ".tsx", ".js"]
+    suffixes: [".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs", ".jsx"]
+    interpreters: ["node", "nodejs"]
+    legacy_only_suffixes: [".js", ".mjs", ".cjs", ".jsx"]
+    legacy_source_paths: ["src/ai4binance/local_dashboard/local_views.js"]
     enforce_placement: true
     allowed_paths: ["frontend/", "src/ai4binance/local_dashboard/local_views.js"]
     allowed_capabilities: ["web_ui", "visualization", "api_client", "user_interaction"]
     forbidden_capabilities: ["authoritative_trading_decision", "authoritative_risk_gate", "governance_enforcement", "order_authorization"]
     forbidden_content_patterns:
-      - "(?i)(?:function|class|const)\\s+[A-Za-z0-9_]*(?:trade[_A-Za-z0-9]*decision|risk[_A-Za-z0-9]*gate|governance[_A-Za-z0-9]*enforcement)"
+      - '(?i)\b(?:function\s*\*?|class|const|let|var)\s+[\w$]*(?:trade[_A-Za-z0-9]*decision|trading[_A-Za-z0-9]*decision|risk[_A-Za-z0-9]*gate|governance[_A-Za-z0-9]*enforcement|order[_A-Za-z0-9]*authorization)[\w$]*\b'
+      - '(?i)\b[\w$]*(?:trade[_A-Za-z0-9]*decision|trading[_A-Za-z0-9]*decision|risk[_A-Za-z0-9]*gate|governance[_A-Za-z0-9]*enforcement|order[_A-Za-z0-9]*authorization)[\w$]*\s*(?:\([^)]*\)\s*(?::[^{};\n]+)?\s*\{|[:=]\s*(?:async\s+)?(?:function\b|\([^)]*\)\s*(?::[^=;\n]+)?=>|[A-Za-z_$]\w*\s*=>))'
     adoption_gate:
       evidence_required_if_present: false
       evidence_refs: []
   css:
     role: "visual_presentation"
     suffixes: [".css", ".html"]
+    legacy_only_suffixes: [".html"]
+    legacy_source_paths: ["src/ai4binance/local_dashboard/design_source.html"]
     enforce_placement: true
     allowed_paths: ["frontend/", "src/ai4binance/local_dashboard/design_source.html"]
     allowed_capabilities: ["layout", "typography", "design_tokens", "presentation"]
@@ -143,25 +151,27 @@ languages:
       evidence_refs: []
   powershell:
     role: "windows_operations"
-    suffixes: [".ps1"]
+    suffixes: [".ps1", ".psm1", ".psd1"]
+    interpreters: ["pwsh", "powershell"]
     enforce_placement: true
     allowed_paths: [".agents/", "scripts/"]
     allowed_capabilities: ["windows_bootstrap", "environment_validation", "thin_cli_wrapper", "service_operations"]
     forbidden_capabilities: ["trading_logic", "strategy_logic", "risk_logic", "governance_decision", "portfolio_accounting"]
     forbidden_content_patterns:
-      - "(?i)function\\s+(?:Invoke-|Get-|Set-)?(?:TradeDecision|RiskGate|StrategyDecision|GovernanceDecision)"
+      - '(?i)(?:function\s+(?:[\w]+:)?[\w-]*|\$[\w:]*)(?:TradeDecision|RiskGate|StrategyDecision|GovernanceDecision)[\w-]*\s*(?:\{|\(|=)'
     adoption_gate:
       evidence_required_if_present: false
       evidence_refs: []
   bash:
     role: "linux_container_ci_operations"
     suffixes: [".sh", ".bash"]
+    interpreters: ["sh", "bash"]
     enforce_placement: true
     allowed_paths: ["scripts/"]
     allowed_capabilities: ["linux_bootstrap", "container_entrypoint", "ci_wrapper", "environment_validation"]
     forbidden_capabilities: ["trading_logic", "risk_logic", "governance_logic", "business_rule"]
     forbidden_content_patterns:
-      - "(?im)^\\s*(?:trade_decision|risk_gate|strategy_decision|governance_decision)\\s*\\(\\)"
+      - '(?im)^\s*(?:function\s+)?(?:trade_decision|risk_gate|strategy_decision|governance_decision)\s*(?:\(\)|\{)'
     adoption_gate:
       evidence_required_if_present: false
       evidence_refs: []

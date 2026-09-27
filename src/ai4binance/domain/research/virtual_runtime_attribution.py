@@ -48,8 +48,16 @@ class TradeParameterMethods:
 
     def __post_init__(self) -> None:
         if any(
-            not isinstance(getattr(self, key), str) or not getattr(self, key).strip()
-            for key in self.__dataclass_fields__
+            not isinstance(value, str) or not value.strip()
+            for value in (
+                self.quantity,
+                self.leverage,
+                self.stop_loss,
+                self.entry,
+                self.take_profit,
+                self.risk_reward,
+                self.pnl,
+            )
         ):
             raise ValueError("trade parameter methods must be nonblank strings")
 
@@ -98,9 +106,18 @@ class TradeDecisionEvidence:
             raise ValueError("decision factors must be a JSON object")
         registry = factors.get("method_registry")
         if registry is not None:
-            if not isinstance(registry, dict) or not isinstance(registry.get("definition"), dict):
-                raise ValueError("recorded method registry requires definitions and digest")
-            registry_json = json.dumps(registry["definition"], sort_keys=True, separators=(",", ":"), allow_nan=False)
+            if not isinstance(registry, dict) or not isinstance(
+                registry.get("definition"), dict
+            ):
+                raise ValueError(
+                    "recorded method registry requires definitions and digest"
+                )
+            registry_json = json.dumps(
+                registry["definition"],
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
             if sha256(registry_json.encode()).hexdigest() != registry.get("sha256"):
                 raise ValueError("recorded method registry digest mismatch")
         canonical = json.dumps(

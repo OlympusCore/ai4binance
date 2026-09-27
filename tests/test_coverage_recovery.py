@@ -1899,7 +1899,9 @@ def test_risk_engine_approves_caps_and_blocks_bad_contexts() -> None:
         engine.evaluate_many((), risk_snapshot(), RiskContext(), filters, limit=0)
     with pytest.raises(ValueError, match="risk ratios"):
         RiskConfig(max_risk_per_trade=Decimal("2"))
-    with pytest.raises(ValueError, match="cannot be negative"):
+    with pytest.raises(
+        ValueError, match="current_exposure_usdt must be finite and non-negative"
+    ):
         RiskContext(current_exposure_usdt=Decimal("-1"))
 
 

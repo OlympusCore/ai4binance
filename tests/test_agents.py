@@ -288,7 +288,7 @@ def agent_result(name: str, score: float, confidence: float) -> AgentResult:
     )
 
 
-def test_confluence_counts_independent_clusters_only() -> None:
+def test_confluence_collapses_shared_input_without_claiming_independence() -> None:
     registry = build_default_registry()
     agent = ConfluenceAgent(registry.get("confluence"), registry=registry)
     results = eligibility_results(snapshot())
@@ -301,10 +301,16 @@ def test_confluence_counts_independent_clusters_only() -> None:
     )
     result = agent.run(snapshot(), results)
     assert result.status is AgentStatus.PARTIAL
-    assert result.evidence == ("volume", "moving_average")
-    assert result.calculation_metadata["independent_confluence_count"] == 2
+    assert result.evidence == ("moving_average",)
+    assert result.calculation_metadata["independent_confluence_count"] == 0
+    assert result.calculation_metadata["effective_dependency_group_count"] == 1
+    assert result.calculation_metadata["method_diversity_count"] == 2
+    assert result.calculation_metadata["independence_status"] == "NOT_MEASURED"
     assert result.calculation_metadata["selected_agents"] == result.evidence
-    assert result.calculation_metadata["rejected_correlated_agents"] == ("trend",)
+    assert result.calculation_metadata["rejected_correlated_agents"] == (
+        "trend",
+        "volume",
+    )
     assert result.calculation_metadata["directional_agreement"] == 1.0
 
     engine_result = EvidenceFusionEngine(

@@ -902,7 +902,9 @@ def test_architecture_migration_ledger_classifies_every_repository_module() -> N
     assert by_path["src/ai4binance/sandbox.py"]["classification"] == "FACADE"
     assert by_path["src/ai4binance/risk.py"]["classification"] == "MOVE"
     assert by_path["src/ai4binance/domain.py"]["classification"] == "SPLIT"
-    assert by_path["src/ai4binance/reporting.py"]["classification"] == "MERGE"
+    reporting = by_path["src/ai4binance/reporting.py"]
+    assert reporting["classification"] == "FACADE"
+    assert reporting["target_paths"] == ["src/ai4binance/core/serialization.py"]
     assert (
         by_path["src/ai4binance/application/services/virtual_runtime.py"][
             "classification"
@@ -982,13 +984,13 @@ def test_architecture_migration_ledger_classifies_every_repository_module() -> N
             "status": "EXPECTED_FACADE",
         },
         {
-            "target_path": "src/ai4binance/core/serialization/primitives.py",
+            "target_path": "src/ai4binance/core/serialization.py",
             "source_paths": [
-                "src/ai4binance/opportunity_report.py",
+                "src/ai4binance/core/serialization.py",
                 "src/ai4binance/reporting.py",
             ],
-            "classifications": ["MERGE", "MERGE"],
-            "status": "EXPECTED_MERGE",
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
         },
         {
             "target_path": "src/ai4binance/domain/market/markets.py",

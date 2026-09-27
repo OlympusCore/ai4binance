@@ -218,6 +218,7 @@ def _architecture_migration_rule(relative_path: str) -> _ArchitectureMigrationRu
             "src/ai4binance/infrastructure/filesystem/opportunity_artifact_loader.py"
         ),
         "markets.py": "src/ai4binance/domain/market/markets.py",
+        "reporting.py": "src/ai4binance/core/serialization.py",
         "observability/__init__.py": (
             "src/ai4binance/infrastructure/observability/__init__.py"
         ),
@@ -769,6 +770,9 @@ def _target_path_metadata(
             "CONTRACT|01_REGISTRIES|DATA & EVIDENCE PLANE|SHARED_CONTRACT|1"
         ),
         "/core/serialization/": (
+            "SERIALIZATION|01_REGISTRIES|DATA & EVIDENCE PLANE|SHARED_CONTRACT|1"
+        ),
+        "/core/serialization.py": (
             "SERIALIZATION|01_REGISTRIES|DATA & EVIDENCE PLANE|SHARED_CONTRACT|1"
         ),
         "/domain/market/": (

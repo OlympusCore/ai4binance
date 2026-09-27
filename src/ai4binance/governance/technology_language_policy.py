@@ -35,6 +35,9 @@ class LanguageRule:
     forbidden_content_patterns: tuple[str, ...]
     evidence_required_if_present: bool
     evidence_refs: tuple[str, ...]
+    interpreters: tuple[str, ...] = ()
+    legacy_only_suffixes: tuple[str, ...] = ()
+    legacy_source_paths: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +52,7 @@ class TechnologyLanguagePolicy:
     research_only_roots: tuple[str, ...]
     forbidden_production_references: tuple[str, ...]
     languages: tuple[LanguageRule, ...]
+    unowned_source_suffixes: tuple[str, ...] = ()
     execution_allowed: bool = False
     promotion_status: str = "RESEARCH_ONLY"
     live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
@@ -147,6 +151,13 @@ def load_technology_language_policy(
                     adoption_gate["evidence_refs"],
                     "evidence_refs",
                 ),
+                interpreters=_strings(rule.get("interpreters", []), "interpreters"),
+                legacy_only_suffixes=_strings(
+                    rule.get("legacy_only_suffixes", []), "legacy_only_suffixes"
+                ),
+                legacy_source_paths=_safe_paths(
+                    rule.get("legacy_source_paths", []), "legacy_source_paths"
+                ),
             )
         )
     return TechnologyLanguagePolicy(
@@ -170,6 +181,9 @@ def load_technology_language_policy(
             "forbidden_production_references",
         ),
         languages=tuple(language_rules),
+        unowned_source_suffixes=_strings(
+            policy_mapping["unowned_source_suffixes"], "unowned_source_suffixes"
+        ),
         execution_allowed=_boolean(safety["execution_allowed"], "execution_allowed"),
         promotion_status=_string(safety["promotion_status"], "promotion_status"),
         live_eligibility_status=_string(
@@ -206,9 +220,49 @@ def evaluate_technology_language_policy(
         if _excluded_path(relative):
             continue
         rule = _rule_for_path(policy.languages, relative)
+        source = _read_bounded_text(root, relative)
+        if source is not None and source.startswith("#!"):
+            interpreter_rule = _rule_for_shebang(policy.languages, source)
+            if interpreter_rule is None or (
+                rule is not None and interpreter_rule.language != rule.language
+            ):
+                violations.append(
+                    TechnologyLanguageViolation(
+                        "UNRESOLVED_SOURCE_LANGUAGE",
+                        relative,
+                        "Interpreter is unowned or conflicts with the suffix owner.",
+                    )
+                )
+                continue
+            rule = interpreter_rule
         if rule is None:
+            if any(
+                relative.lower().endswith(suffix)
+                for suffix in policy.unowned_source_suffixes
+            ):
+                violations.append(
+                    TechnologyLanguageViolation(
+                        "UNOWNED_SOURCE_LANGUAGE",
+                        relative,
+                        "Source type has no admitted canonical language owner.",
+                    )
+                )
             continue
         present_languages.add(rule.language)
+        if (
+            any(
+                relative.lower().endswith(suffix)
+                for suffix in rule.legacy_only_suffixes
+            )
+            and relative not in rule.legacy_source_paths
+        ):
+            violations.append(
+                TechnologyLanguageViolation(
+                    "LEGACY_SOURCE_EXPANSION",
+                    relative,
+                    "Source type is restricted to registered legacy assets.",
+                )
+            )
         if rule.enforce_placement and not any(
             _path_matches_allowed(relative, allowed) for allowed in rule.allowed_paths
         ):
@@ -222,7 +276,6 @@ def evaluate_technology_language_policy(
                     ),
                 )
             )
-        source = _read_bounded_text(root, relative)
         if source is None:
             violations.append(
                 TechnologyLanguageViolation(
@@ -250,7 +303,11 @@ def evaluate_technology_language_policy(
             for production_root in policy.production_roots
         ):
             normalized_source = source.replace("\\", "/")
-            for forbidden_reference in policy.forbidden_production_references:
+            references = (
+                *policy.forbidden_production_references,
+                *policy.research_only_roots,
+            )
+            for forbidden_reference in references:
                 if forbidden_reference in normalized_source:
                     violations.append(
                         TechnologyLanguageViolation(
@@ -282,7 +339,7 @@ def evaluate_technology_language_policy(
             )
             continue
         for evidence_ref in rule.evidence_refs:
-            if not (root / evidence_ref).is_file():
+            if _read_bounded_text(root, evidence_ref) is None:
                 violations.append(
                     TechnologyLanguageViolation(
                         code="ADOPTION_EVIDENCE_UNAVAILABLE",
@@ -308,6 +365,26 @@ def _rule_for_path(
     return max(matches, key=lambda item: item[0])[1] if matches else None
 
 
+def _rule_for_shebang(
+    rules: tuple[LanguageRule, ...],
+    source: str,
+) -> LanguageRule | None:
+    """Resolve a literal interpreter; complex environment expressions stay blocked."""
+    words = source.splitlines()[0][2:].strip().split()
+    if not words:
+        return None
+    interpreter = words[0].replace("\\", "/").rsplit("/", 1)[-1]
+    if interpreter == "env":
+        words = words[1:]
+        if words and words[0] == "-S":
+            words = words[1:]
+        if not words or words[0].startswith("-") or "=" in words[0]:
+            return None
+        interpreter = words[0]
+    matches = [rule for rule in rules if interpreter in rule.interpreters]
+    return matches[0] if len(matches) == 1 else None
+
+
 def _path_matches_allowed(relative: str, allowed: str) -> bool:
     normalized = allowed.rstrip("/")
     return relative == normalized or relative.startswith(f"{normalized}/")
@@ -320,8 +397,8 @@ def _excluded_path(relative: str) -> bool:
 
 
 def _read_bounded_text(root: Path, relative: str) -> str | None:
-    path = (root / relative).resolve()
     try:
+        path = (root / relative).resolve()
         path.relative_to(root)
         if not path.is_file() or path.stat().st_size > 2_000_000:
             return None

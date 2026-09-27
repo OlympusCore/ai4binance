@@ -12,12 +12,15 @@ from decimal import Decimal
 from hashlib import sha256
 from pathlib import Path
 
+from ai4binance.agents.orchestrator import EnterpriseOrchestrator
 from ai4binance.application.opportunity_monitor import (
     monitor_directory,
     refresh_monitor,
 )
 from ai4binance.application.opportunity_observation import (
-    analyze_futures_snapshot,
+    analyze_futures_snapshot as analyze_futures_application,
+)
+from ai4binance.application.opportunity_observation import (
     project_futures_opportunity,
 )
 from ai4binance.config import Settings
@@ -61,6 +64,13 @@ _ADVERSE_OUTCOMES = frozenset({"INVALIDATED_FIRST", "ADVERSE"})
 _TUNING_TRIGGER_STREAK = 3
 _MAX_COMPLETED_TUNING_TRIGGERS = 200
 _UNIVERSE_MAX_AGE = timedelta(minutes=5)
+
+
+def analyze_futures_snapshot(snapshot: MarketSnapshot) -> AnalysisState:
+    """Compose the existing orchestrator outside the application boundary."""
+    return analyze_futures_application(
+        snapshot, analyze=EnterpriseOrchestrator(max_workers=1).analyze
+    )
 
 
 def _absolute(path: Path) -> Path:

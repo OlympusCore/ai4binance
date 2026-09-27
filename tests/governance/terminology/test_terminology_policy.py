@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 from dataclasses import replace
 from pathlib import Path
 
@@ -93,6 +94,65 @@ def test_registry_is_not_a_second_source_of_truth() -> None:
     assert payload["source_of_truth"] is False
     assert payload["authority"]["source_of_truth"] is False
     assert payload["authority"]["standard_path"] == STANDARD_PATH.as_posix()
+
+
+@pytest.mark.parametrize(
+    "content",
+    [None, b"\xff", b"x" * 2_000_001],
+    ids=["missing", "invalid_utf8", "oversized"],
+)
+def test_unreadable_registered_source_is_a_blocker(
+    tmp_path: Path,
+    content: bytes | None,
+) -> None:
+    target = tmp_path / "config" / "source.yaml"
+    target.parent.mkdir()
+    if content is not None:
+        target.write_bytes(content)
+    findings = evaluate_terminology_policy(
+        tmp_path,
+        load_terminology_policy(ROOT),
+        ("config/source.yaml",),
+    )
+    assert any(
+        item.code == "TERMINOLOGY_SOURCE_UNREADABLE" and item.blocker
+        for item in findings
+    )
+
+
+def test_alias_cannot_reassign_another_canonical_term() -> None:
+    policy = load_terminology_policy(ROOT)
+    first = TerminologyTerm("first", "Canonical Name", "one", (), (), ())
+    second = TerminologyTerm("second", "Other", "two", ("canonical   NAME",), (), ())
+    with pytest.raises(ValueError, match="alias collision with canonical"):
+        replace(policy, terms=(first, second))
+
+
+@pytest.mark.parametrize("oversized", [False, True])
+def test_compressed_sources_are_scanned_with_a_decompressed_size_bound(
+    tmp_path: Path,
+    oversized: bool,
+) -> None:
+    target = tmp_path / "src" / "source.js.gz"
+    target.parent.mkdir()
+    content = b"x" * 2_000_001 if oversized else b"signal = trade"
+    target.write_bytes(gzip.compress(content))
+    findings = evaluate_terminology_policy(
+        tmp_path,
+        load_terminology_policy(ROOT),
+        ("src/source.js.gz",),
+    )
+    expected = (
+        "TERMINOLOGY_SOURCE_UNREADABLE" if oversized else "TERMINOLOGY_PROHIBITED_TERM"
+    )
+    assert any(item.code == expected and item.blocker for item in findings)
+
+
+@pytest.mark.parametrize(
+    "text", ["signal  =  trade", "SIGNAL\t=\tTRADE", "signal\n=\ntrade"]
+)
+def test_registered_prohibition_cannot_escape_through_whitespace(text: str) -> None:
+    assert terminology_module._contains_term(text, "signal = trade")
 
 
 def test_terminology_helpers_and_policy_contract_fail_closed(tmp_path: Path) -> None:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 from ai4binance.governance import repository_validator
@@ -155,3 +156,105 @@ def test_repository_validator_blocks_an_incomplete_enforcement_chain(
     )
     assert "enforcement chain is incomplete" in findings[0].detail
     assert findings[0].blocker is True
+
+
+@pytest.mark.parametrize(
+    ("relative", "source", "expected"),
+    [
+        ("frontend/new.js", "const render = () => 1;", "LEGACY_SOURCE_EXPANSION"),
+        (
+            "frontend/new.mjs",
+            "export const render = () => 1;",
+            "LEGACY_SOURCE_EXPANSION",
+        ),
+        ("services/new.cpp", "int main() { return 0; }", "UNOWNED_SOURCE_LANGUAGE"),
+        ("scripts/new.rb", "puts 'sample'", "UNOWNED_SOURCE_LANGUAGE"),
+        ("scripts/new", "#!/usr/bin/ruby\nputs 'sample'", "UNRESOLVED_SOURCE_LANGUAGE"),
+        ("scripts/new.py", "#!/bin/bash\necho sample", "UNRESOLVED_SOURCE_LANGUAGE"),
+        (
+            "scripts/new",
+            "#!/usr/bin/env -S bash\nfunction risk_gate { true; }",
+            "FORBIDDEN_CAPABILITY_OWNERSHIP",
+        ),
+        (
+            "scripts/new.psm1",
+            "function Test-RiskGate { return $true }",
+            "FORBIDDEN_CAPABILITY_OWNERSHIP",
+        ),
+        (
+            "scripts/new.ps1",
+            "$riskGate = { return $true }",
+            "FORBIDDEN_CAPABILITY_OWNERSHIP",
+        ),
+        (
+            "frontend/new.ts",
+            "let riskGate = () => true;",
+            "FORBIDDEN_CAPABILITY_OWNERSHIP",
+        ),
+        (
+            "frontend/new.ts",
+            "var tradeDecision = () => 'BUY';",
+            "FORBIDDEN_CAPABILITY_OWNERSHIP",
+        ),
+        (
+            "frontend/new.ts",
+            "class Engine { riskGate() { return true; } }",
+            "FORBIDDEN_CAPABILITY_OWNERSHIP",
+        ),
+        (
+            "frontend/new.ts",
+            "const engine = { orderAuthorization: () => true };",
+            "FORBIDDEN_CAPABILITY_OWNERSHIP",
+        ),
+    ],
+)
+def test_source_classification_and_declaration_escape_paths_are_blocked(
+    tmp_path: Path,
+    relative: str,
+    source: str,
+    expected: str,
+) -> None:
+    """Synthetic rejection fixtures never represent production trading evidence."""
+    target = tmp_path / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(source, encoding="utf-8")
+    violations = evaluate_technology_language_policy(
+        tmp_path,
+        load_technology_language_policy(ROOT),
+        (relative,),
+    )
+    assert expected in {item.code for item in violations}
+
+
+def test_ui_external_gate_call_is_not_a_local_definition(tmp_path: Path) -> None:
+    target = tmp_path / "frontend" / "client.ts"
+    target.parent.mkdir()
+    target.write_text("canonical.riskGate(state);\n", encoding="utf-8")
+    assert (
+        evaluate_technology_language_policy(
+            tmp_path,
+            load_technology_language_policy(ROOT),
+            ("frontend/client.ts",),
+        )
+        == ()
+    )
+
+
+@pytest.mark.parametrize(
+    "header", ["#!/bin/sh", "#!/usr/bin/env bash", "#!/usr/bin/env -S bash -e"]
+)
+def test_extensionless_operational_wrappers_use_the_registered_owner(
+    tmp_path: Path,
+    header: str,
+) -> None:
+    target = tmp_path / "scripts" / "wrapper"
+    target.parent.mkdir()
+    target.write_text(header + "\necho 'operational wrapper'\n", encoding="utf-8")
+    assert (
+        evaluate_technology_language_policy(
+            tmp_path,
+            load_technology_language_policy(ROOT),
+            ("scripts/wrapper",),
+        )
+        == ()
+    )

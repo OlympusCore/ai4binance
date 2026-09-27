@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from importlib import import_module
+from pathlib import Path
 
-from ai4binance.intelligence.method_registry import current_method_registry
+from ai4binance.intelligence.method_registry import (
+    TradingMethodRegistry,
+    current_method_registry,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -234,3 +238,130 @@ class TradingIntelligenceInventory:
                 raise ValueError(
                     f"analysis method coverage is contradictory: {method.family}"
                 )
+
+
+def render_reference_manual(registry: TradingMethodRegistry | None = None) -> str:
+    """Generate a deterministic projection of the canonical registry."""
+    registry = registry or current_method_registry()
+    lines = [
+        "---",
+        "title: Trading Intelligence Reference Manual",
+        "source_of_truth: false",
+        "content_role: GENERATED_PROJECTION",
+        f"registry_version: {registry.version}",
+        f"registry_sha256: {registry.snapshot_payload()['sha256']}",
+        "promotion_status: RESEARCH_ONLY",
+        "live_eligibility_status: LIVE_ORDER_BLOCKED",
+        "---",
+        "",
+        "# Trading Intelligence Reference Manual",
+        "",
+        "Generated from docs/registries/registry_trading_intelligence.yaml. "
+        "Do not edit this projection.",
+        "",
+        "Catalog membership is not implementation, source agreement is not OOS "
+        "evidence, and confidence is not probability.",
+        "",
+        "News and sentiment are optional advisory context unless an explicit setup "
+        "policy requires them. Critical event review vetoes scenario selection.",
+        "",
+        "Dependency groups retain shared-input and opposing evidence. "
+        "Statistical independence is NOT_MEASURED.",
+        "",
+        "Target payoffs are conditional, with signed funding and explicit holding "
+        "periods. Partial exits require explicit weights; leverage and sizing "
+        "remain downstream risk decisions.",
+        "",
+    ]
+    sources = {row.source_id: row for row in registry.sources}
+    rules = {row.rule_id: row for row in registry.rules}
+    for scope in registry.scope:
+        lines.extend(
+            (
+                f"## {scope.family}",
+                "",
+                f"Scope status: {scope.status}. {scope.notes}",
+                "",
+            )
+        )
+        for key in scope.method_ids:
+            method = registry.method(key)
+            lines.extend(
+                (
+                    f"### {method.canonical_name}",
+                    "",
+                    f"Method: {method.method_id}@{method.version}; "
+                    f"rules: {method.rule_set_version}.",
+                    f"Implementation: {method.implementation_status}; "
+                    f"OOS: {method.oos_status}.",
+                    f"Owner: {method.module or 'NOT_IMPLEMENTED'} / "
+                    f"{method.owner or 'NOT_IMPLEMENTED'}.",
+                    f"Inputs: {', '.join(method.input_requirements)}.",
+                    f"Limits: {method.limitations}",
+                    "",
+                )
+            )
+            for rule_id in method.rule_ids:
+                rule = rules[rule_id]
+                lines.extend(
+                    (
+                        f"- {rule.rule_id}@{rule.version}: {rule.statement}",
+                        f"  Applicability: {rule.applicability}",
+                        f"  Tolerances: {rule.tolerance_policy}",
+                        f"  Ambiguity: {rule.ambiguity}",
+                    )
+                )
+            lines.extend(
+                (
+                    "",
+                    "Sources: "
+                    + "; ".join(sources[key].locator for key in method.source_ids),
+                    "",
+                )
+            )
+    lines.extend(("## Dated source comparisons", ""))
+    for review in registry.source_reviews:
+        lines.extend(
+            (
+                f"- [{review.source_id}]({sources[review.source_id].locator}) "
+                f"({review.reviewed_at.date()}): {review.finding} "
+                f"{review.implementation_consequence}",
+                "",
+            )
+        )
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def write_reference_manual(directory: Path) -> Path:
+    """Write a generated manual and pinned registry below repository runtime only."""
+    from ai4binance.storage import write_json_object_verified
+
+    runtime = Path(__file__).resolve().parents[3] / "runtime"
+    target = directory.resolve()
+    if not target.is_relative_to(runtime.resolve()):
+        raise ValueError("generated reference artifacts must remain below runtime")
+    target.mkdir(parents=True, exist_ok=True)
+    registry = current_method_registry()
+    manual = target / "reference_manual.md"
+    content = render_reference_manual(registry)
+    manual.write_text(content, encoding="utf-8")
+    if manual.read_text(encoding="utf-8") != content:
+        raise OSError("reference manual destination verification failed")
+    write_json_object_verified(
+        target / "method_registry_snapshot.json",
+        registry.snapshot_payload(),
+        blocker="METHOD_REGISTRY_SNAPSHOT_WRITE_FAILED",
+        subject_id=f"trading-methods:{registry.version}",
+        indent=2,
+    )
+    return manual
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Generate the trading reference projection."
+    )
+    parser.add_argument("--output-dir", type=Path, required=True)
+    print(write_reference_manual(parser.parse_args().output_dir))

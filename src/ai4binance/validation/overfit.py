@@ -4,10 +4,17 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from math import e, isfinite, log, sqrt
 from statistics import NormalDist, mean, stdev
+
+from ai4binance.validation.multiple_comparison import (
+    CandidatePerformance,
+    MultipleComparisonReport,
+    assess_multiple_comparisons,
+)
 
 _EULER_GAMMA = 0.5772156649015329
 
@@ -214,7 +221,10 @@ class OosProbabilityObservation:
         if not self.cost_model_id.strip():
             raise ValueError("OOS cost model identity cannot be blank")
         for digest in (self.dataset_sha256, self.method_registry_sha256):
-            if digest != "NOT_RECORDED" and (len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest)):
+            if digest != "NOT_RECORDED" and (
+                len(digest) != 64
+                or any(char not in "0123456789abcdef" for char in digest)
+            ):
                 raise ValueError("OOS provenance must contain a SHA256 digest")
 
 
@@ -332,6 +342,83 @@ def paired_ablation_delta(
             (b.net_r - a.net_r, (b.probability - y) ** 2 - (a.probability - y) ** 2)
         )
     return mean(d[0] for d in deltas), mean(d[1] for d in deltas), len(deltas)
+
+
+@dataclass(frozen=True, slots=True)
+class MethodAblationReport:
+    """Matched costs/cohorts with block-aware uncertainty and no promotion authority."""
+
+    sample_size: int
+    regime_counts: tuple[tuple[str, int], ...]
+    deltas: tuple[tuple[str, float, float], ...]
+    multiple_comparison: MultipleComparisonReport | None
+    blockers: tuple[str, ...]
+    promotion_status: str = "RESEARCH_ONLY"
+
+    def __post_init__(self) -> None:
+        if self.promotion_status != "RESEARCH_ONLY":
+            raise ValueError("method ablation cannot grant promotion authority")
+
+
+def assess_method_ablations(
+    baseline: tuple[OosProbabilityObservation, ...],
+    challengers: Mapping[str, tuple[OosProbabilityObservation, ...]],
+    *,
+    minimum_observations: int,
+    block_length: int,
+    bootstrap_samples: int = 999,
+    seed: int = 7,
+) -> MethodAblationReport:
+    """Compare baseline, sentiment and dependency variants on one archived cohort.
+
+    All tested variants must be supplied together. Missing provenance or sample
+    size blocks inference; the legacy descriptive delta API remains available.
+    """
+    diagnostic = assess_oos_probabilities(
+        baseline, minimum_observations=minimum_observations
+    )
+    if not challengers:
+        raise ValueError("ablation requires explicitly named challenger variants")
+    ordered = tuple(
+        sorted(baseline, key=lambda row: (row.predicted_at, row.observation_id))
+    )
+    ids = tuple(row.observation_id for row in ordered)
+    variants = []
+    deltas = []
+    blockers = list(diagnostic.blockers)
+    for name, rows in sorted(challengers.items()):
+        delta_r, delta_brier, _ = paired_ablation_delta(baseline, rows)
+        deltas.append((name, delta_r, delta_brier))
+        by_id = {row.observation_id: row for row in rows}
+        variants.append(
+            CandidatePerformance(name, tuple(by_id[key].net_r for key in ids))
+        )
+    if any(
+        "NOT_RECORDED"
+        in (row.cost_model_id, row.dataset_sha256, row.method_registry_sha256)
+        for rows in (baseline, *challengers.values())
+        for row in rows
+    ):
+        blockers.append("ABLATION_DECISION_TIME_PROVENANCE_MISSING")
+    if len(baseline) < 20:
+        blockers.append("ABLATION_BLOCK_BOOTSTRAP_SAMPLE_INSUFFICIENT")
+    comparison = None
+    if not blockers:
+        comparison = assess_multiple_comparisons(
+            benchmark_returns=tuple(row.net_r for row in ordered),
+            candidates=tuple(variants),
+            block_length=block_length,
+            bootstrap_samples=bootstrap_samples,
+            seed=seed,
+        )
+        blockers.extend(comparison.blockers)
+    return MethodAblationReport(
+        len(baseline),
+        diagnostic.regime_counts,
+        tuple(deltas),
+        comparison,
+        tuple(dict.fromkeys(blockers)),
+    )
 
 
 @dataclass(frozen=True, slots=True)

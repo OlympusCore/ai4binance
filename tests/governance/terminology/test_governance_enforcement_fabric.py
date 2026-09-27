@@ -41,7 +41,11 @@ ROOT = Path(__file__).parents[3]
                 "./src/unapproved_guard.ps1",
                 " \t",
             ),
-            {"LANGUAGE_PLACEMENT_VIOLATION", "TECHNOLOGY_SOURCE_UNREADABLE"},
+            {
+                "LANGUAGE_PLACEMENT_VIOLATION",
+                "TECHNOLOGY_SOURCE_UNREADABLE",
+                "TERMINOLOGY_SOURCE_UNREADABLE",
+            },
         ),
     ],
     ids=("empty", "valid", "violations"),

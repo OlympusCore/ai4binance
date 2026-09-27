@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from math import fsum
 
 from ai4binance.agents.registry import AgentDefinition, AgentRegistry, AgentStage
+from ai4binance.intelligence.method_registry import current_method_registry
 from ai4binance.schemas import (
     AgentResult,
     AgentStatus,
@@ -22,8 +23,13 @@ def _root_keys(definition: AgentDefinition, result: AgentResult) -> frozenset[st
     roots = {f"input:{name}" for name in definition.required_data}
     for field in ("evidence_root_ids", "duplicate_root_ids", "pivot_ids"):
         values = result.calculation_metadata.get(field, ())
-        if not isinstance(values, (tuple, list)) or any(
-            not isinstance(value, str) or not value.strip() for value in values
+        if (
+            not isinstance(values, (tuple, list))
+            or len(values) > 100
+            or any(
+                not isinstance(value, str) or not value.strip() or len(value) > 500
+                for value in values
+            )
         ):
             raise ValueError("evidence dependency roots must be nonblank strings")
         roots.update(f"root:{value}" for value in values)
@@ -121,21 +127,31 @@ class EvidenceFusionEngine:
             definition = self.registry.by_name.get(name)
             if definition is None or definition.stage is not AgentStage.ANALYSIS:
                 continue
-            if (result.agent_name, result.snapshot_id, result.symbol, result.timestamp) != (
-                name, snapshot.snapshot_id, snapshot.symbol, snapshot.created_at
-            ):
+            if (
+                result.agent_name,
+                result.snapshot_id,
+                result.symbol,
+                result.timestamp,
+            ) != (name, snapshot.snapshot_id, snapshot.symbol, snapshot.created_at):
                 return self._result(
-                    snapshot, status=AgentStatus.BLOCKED,
-                    data_quality=DataQuality.DATA_INVALID, applicable=False,
+                    snapshot,
+                    status=AgentStatus.BLOCKED,
+                    data_quality=DataQuality.DATA_INVALID,
+                    applicable=False,
                     blockers=("EVIDENCE_IDENTITY_MISMATCH",),
                     reason_codes=("CONFLUENCE_BLOCKED",),
                 )
-            observations.append({
-                "agent": name, "vote": result.directional_vote,
-                "blockers": result.blockers, "warnings": result.warnings,
-                "evidence": result.evidence, "status": result.status.value,
-                "counter_evidence": result.counter_evidence,
-            })
+            observations.append(
+                {
+                    "agent": name,
+                    "vote": result.directional_vote,
+                    "blockers": result.blockers,
+                    "warnings": result.warnings,
+                    "evidence": result.evidence,
+                    "status": result.status.value,
+                    "counter_evidence": result.counter_evidence,
+                }
+            )
             if is_usable_agent_result(result) and name not in {"news", "sentiment"}:
                 usable.append(result)
         groups = _dependency_groups(self.registry, tuple(usable))
@@ -147,7 +163,9 @@ class EvidenceFusionEngine:
         rejected_correlated = sorted(
             row.agent_name for row in usable if row.agent_name not in selected_names
         )
-        clusters = sorted({self.registry.get(row.agent_name).evidence_cluster for row in usable})
+        clusters = sorted(
+            {self.registry.get(row.agent_name).evidence_cluster for row in usable}
+        )
         if not selected:
             return self._result(
                 snapshot,
@@ -189,19 +207,37 @@ class EvidenceFusionEngine:
             score=round(score, 6),
             confidence=round(confidence, 6),
             evidence=tuple(result.agent_name for result in selected),
-            warnings=("OOS_VALIDATION_INCOMPLETE", "INDEPENDENCE_NOT_MEASURED") + (
-                ("DIRECTIONAL_CONFLICT",) if any(row.directional_vote > 0 for row in usable)
-                and any(row.directional_vote < 0 for row in usable) else ()
+            warnings=("OOS_VALIDATION_INCOMPLETE", "INDEPENDENCE_NOT_MEASURED")
+            + (
+                ("DIRECTIONAL_CONFLICT",)
+                if any(row.directional_vote > 0 for row in usable)
+                and any(row.directional_vote < 0 for row in usable)
+                else ()
             ),
             reason_codes=("DEPENDENCY_AWARE_CONFLUENCE_CALCULATED",),
             calculation_metadata={
                 "independent_confluence_count": 0,
                 "independence_status": "NOT_MEASURED",
+                "method_lineage": current_method_registry()
+                .lineage(
+                    "method_interactions.dependency_aware_confluence", "1.1.0", "1.1.0"
+                )
+                .to_payload(),
                 "effective_dependency_group_count": len(groups),
                 "method_diversity_count": len(clusters),
-                "dependency_groups": tuple(tuple(row.agent_name for row in rows) for rows in groups),
-                "observations": tuple(sorted(observations, key=lambda row: str(row["agent"]))),
-                "opposing_agents": tuple(sorted(row.agent_name for row in usable if row.directional_vote * vote < 0)),
+                "dependency_groups": tuple(
+                    tuple(row.agent_name for row in rows) for rows in groups
+                ),
+                "observations": tuple(
+                    sorted(observations, key=lambda row: str(row["agent"]))
+                ),
+                "opposing_agents": tuple(
+                    sorted(
+                        row.agent_name
+                        for row in usable
+                        if row.directional_vote * vote < 0
+                    )
+                ),
                 "evidence_clusters": tuple(clusters),
                 "selected_agents": tuple(result.agent_name for result in selected),
                 "rejected_correlated_agents": tuple(sorted(rejected_correlated)),

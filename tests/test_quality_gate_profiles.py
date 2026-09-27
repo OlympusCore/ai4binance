@@ -190,6 +190,8 @@ def test_quality_gate_selector_resolves_affected_and_standard_scopes() -> None:
         "--no-cov",
     )
     assert fabric_args == (
+        "tests/test_codex_governance_hook.py",
+        "tests/governance/terminology/test_terminology_policy.py",
         "tests/governance/terminology/test_governance_enforcement_fabric.py",
         "tests/governance/architecture/test_technology_language_policy.py",
         "tests/test_repository_validator.py",
@@ -314,6 +316,8 @@ def test_standard_scope_adds_critical_impacted_contract_and_determinism_tests() 
     )
     assert fabric_args == (
         *REQUIRED_TESTS,
+        "tests/test_codex_governance_hook.py",
+        "tests/governance/terminology/test_terminology_policy.py",
         "tests/governance/terminology/test_governance_enforcement_fabric.py",
         "tests/governance/architecture/test_technology_language_policy.py",
         "tests/governance/authority/test_authority_development.py",

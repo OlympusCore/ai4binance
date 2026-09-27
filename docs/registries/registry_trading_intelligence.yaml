@@ -1,5 +1,5 @@
 registry_id: AI4B-TRADING-METHODS-001
-version: 1.1.0
+version: 1.2.0
 source_of_truth: true
 source_of_truth_scope: trading_method_definitions
 authority_effect: EVIDENCE_ONLY
@@ -495,10 +495,11 @@ rules:
   ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
     variants are excluded.
 - rule_id: chart_analysis.implementation
-  version: 1.0.0
+  version: 1.1.0
   rule_type: AI4BINANCE_IMPLEMENTATION_RULE
-  statement: Reuse one snapshot-bound ScenarioEngine; hierarchy, trigger conflicts and data/derivatives
-    blockers precede selection. Confidence is the weakest required component and is not a calibrated probability.
+  statement: Reuse one snapshot-bound ScenarioEngine. Identity, data, derivatives, supplied malformed
+    event context, critical-event review and configured scenario-specific context requirements veto selection.
+    Confidence is not probability.
   implementation_ref: ai4binance.intelligence.trading:ScenarioEngine
   source_ids:
   - reference-03
@@ -507,6 +508,7 @@ rules:
   test_refs:
   - tests/test_trading_intelligence.py
   - tests/test_structural_entries.py
+  - tests/test_trading_context_packages.py
   applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
   tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
     source prose does not calibrate them.
@@ -587,34 +589,38 @@ rules:
   source_ids:
   - implementation-09
   test_refs: []
-  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  applicability: USD_M_FUTURES context only; Spot has no funding or Futures leverage semantics.
   tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
     source prose does not calibrate them.
   ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
     variants are excluded.
 - rule_id: sentiment_events.implementation
-  version: 1.0.0
+  version: 1.1.0
   rule_type: AI4BINANCE_IMPLEMENTATION_RULE
-  statement: Existing external snapshot adapter only. Rich sentiment features and provider availability
-    are not established.
+  statement: Bind bounded news and social observations to publication, first-seen, availability, revision
+    and window timestamps. Unknown metrics remain NOT_MEASURED. External context cannot add directional
+    score or execution authority.
   implementation_ref: ai4binance.agents.advanced:AdvancedTechnicalAgent._external
   source_ids:
   - implementation-08
-  test_refs: []
+  test_refs:
+  - tests/test_trading_context_packages.py
   applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
   tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
     source prose does not calibrate them.
   ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
     variants are excluded.
 - rule_id: method_interactions.implementation
-  version: 1.0.0
+  version: 1.1.0
   rule_type: AI4BINANCE_IMPLEMENTATION_RULE
-  statement: One representative per configured cluster exists. Empirical independence and shared-input
-    graph qualification are not established.
+  statement: Collapse connected components of canonical shared inputs, explicit original roots and configured
+    clusters. Preserve every observation and opposing evidence. Method diversity and dependency-group
+    count never assert statistical independence.
   implementation_ref: ai4binance.agents.evidence_fusion:EvidenceFusionEngine
   source_ids:
   - implementation-10
-  test_refs: []
+  test_refs:
+  - tests/test_trading_context_packages.py
   applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
   tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
     source prose does not calibrate them.
@@ -1274,6 +1280,7 @@ methods:
   source_ids:
   - reference-06
   - implementation-04
+  - reference-09
   input_requirements:
   - CLOSED_BAR_ASOF_EVIDENCE
   markets:
@@ -1296,6 +1303,7 @@ methods:
   rule_ids: []
   source_ids:
   - reference-06
+  - reference-09
   input_requirements:
   - SOURCE_AND_RULE_RESEARCH_REQUIRED
   markets:
@@ -1317,6 +1325,7 @@ methods:
   rule_ids: []
   source_ids:
   - reference-06
+  - reference-09
   input_requirements:
   - SOURCE_AND_RULE_RESEARCH_REQUIRED
   markets:
@@ -1338,6 +1347,7 @@ methods:
   rule_ids: []
   source_ids:
   - reference-06
+  - reference-09
   input_requirements:
   - SOURCE_AND_RULE_RESEARCH_REQUIRED
   markets:
@@ -1407,6 +1417,7 @@ methods:
   source_ids:
   - reference-07
   - implementation-04
+  - reference-08
   input_requirements:
   - CLOSED_BAR_ASOF_EVIDENCE
   markets:
@@ -1633,8 +1644,8 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: chart_analysis
-  version: 1.0.0
-  rule_set_version: 1.0.0
+  version: 1.1.0
+  rule_set_version: 1.1.0
   family: chart_analysis
   canonical_name: chart analysis
   implementation_status: PARTIAL
@@ -1652,8 +1663,9 @@ methods:
   - SPOT
   - USD_M_FUTURES
   lifecycle_scope: CONTEXT
-  limitations: Risk, validation and governance retain veto authority. Price/OI backtests are a separate
-    component.
+  limitations: Reuse one snapshot-bound ScenarioEngine. Identity, data, derivatives, supplied malformed
+    event context, critical-event review and configured scenario-specific context requirements veto selection.
+    Confidence is not probability. Empirical performance and promotion remain unverified.
   validation_status: NOT_VERIFIED
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
@@ -2470,8 +2482,8 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: sentiment_events
-  version: 1.0.0
-  rule_set_version: 1.0.0
+  version: 1.1.0
+  rule_set_version: 1.1.0
   family: sentiment_events
   canonical_name: sentiment events
   implementation_status: PARTIAL
@@ -2482,53 +2494,65 @@ methods:
   source_ids:
   - implementation-08
   input_requirements:
-  - CLOSED_BAR_ASOF_EVIDENCE
+  - POINT_IN_TIME_EVENT_OBSERVATIONS
+  - EXPLICIT_SOURCE_ROOTS_AND_VERIFICATION
   markets:
   - SPOT
   - USD_M_FUTURES
   lifecycle_scope: CONTEXT
-  limitations: Existing external snapshot adapter only. Rich sentiment features and provider availability
-    are not established.
+  limitations: Bind bounded news and social observations to publication, first-seen, availability, revision
+    and window timestamps. Unknown metrics remain NOT_MEASURED. External context cannot add directional
+    score or execution authority. Empirical performance and promotion remain unverified.
   validation_status: NOT_VERIFIED
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: sentiment_events.news
-  version: 1.0.0
-  rule_set_version: 1.0.0
+  version: 1.1.0
+  rule_set_version: 1.1.0
   family: sentiment_events
   canonical_name: 'sentiment events: news'
-  implementation_status: CATALOG_ONLY
-  module: null
-  owner: null
-  rule_ids: []
-  source_ids: []
+  implementation_status: PARTIAL
+  module: ai4binance.agents.advanced
+  owner: AdvancedTechnicalAgent._external
+  rule_ids:
+  - sentiment_events.implementation
+  source_ids:
+  - implementation-08
   input_requirements:
-  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  - POINT_IN_TIME_EVENT_OBSERVATIONS
+  - EXPLICIT_SOURCE_ROOTS_AND_VERIFICATION
   markets:
   - SPOT
   - USD_M_FUTURES
   lifecycle_scope: CONTEXT
-  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  limitations: Bind bounded news and social observations to publication, first-seen, availability, revision
+    and window timestamps. Unknown metrics remain NOT_MEASURED. External context cannot add directional
+    score or execution authority. Empirical performance and promotion remain unverified.
   validation_status: NOT_VERIFIED
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: sentiment_events.social
-  version: 1.0.0
-  rule_set_version: 1.0.0
+  version: 1.1.0
+  rule_set_version: 1.1.0
   family: sentiment_events
   canonical_name: 'sentiment events: social'
-  implementation_status: CATALOG_ONLY
-  module: null
-  owner: null
-  rule_ids: []
-  source_ids: []
+  implementation_status: PARTIAL
+  module: ai4binance.agents.advanced
+  owner: AdvancedTechnicalAgent._external
+  rule_ids:
+  - sentiment_events.implementation
+  source_ids:
+  - implementation-08
   input_requirements:
-  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  - POINT_IN_TIME_EVENT_OBSERVATIONS
+  - EXPLICIT_SOURCE_ROOTS_AND_VERIFICATION
   markets:
   - SPOT
   - USD_M_FUTURES
   lifecycle_scope: CONTEXT
-  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  limitations: Bind bounded news and social observations to publication, first-seen, availability, revision
+    and window timestamps. Unknown metrics remain NOT_MEASURED. External context cannot add directional
+    score or execution authority. Empirical performance and promotion remain unverified.
   validation_status: NOT_VERIFIED
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
@@ -2553,22 +2577,27 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: sentiment_events.event_risk
-  version: 1.0.0
-  rule_set_version: 1.0.0
+  version: 1.1.0
+  rule_set_version: 1.1.0
   family: sentiment_events
   canonical_name: 'sentiment events: event risk'
-  implementation_status: CATALOG_ONLY
-  module: null
-  owner: null
-  rule_ids: []
-  source_ids: []
+  implementation_status: PARTIAL
+  module: ai4binance.agents.advanced
+  owner: AdvancedTechnicalAgent._external
+  rule_ids:
+  - sentiment_events.implementation
+  source_ids:
+  - implementation-08
   input_requirements:
-  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  - POINT_IN_TIME_EVENT_OBSERVATIONS
+  - EXPLICIT_SOURCE_ROOTS_AND_VERIFICATION
   markets:
   - SPOT
   - USD_M_FUTURES
   lifecycle_scope: CONTEXT
-  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  limitations: Bind bounded news and social observations to publication, first-seen, availability, revision
+    and window timestamps. Unknown metrics remain NOT_MEASURED. External context cannot add directional
+    score or execution authority. Empirical performance and promotion remain unverified.
   validation_status: NOT_VERIFIED
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
@@ -2613,8 +2642,8 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: method_interactions
-  version: 1.0.0
-  rule_set_version: 1.0.0
+  version: 1.1.0
+  rule_set_version: 1.1.0
   family: method_interactions
   canonical_name: method interactions
   implementation_status: PARTIAL
@@ -2625,33 +2654,40 @@ methods:
   source_ids:
   - implementation-10
   input_requirements:
-  - CLOSED_BAR_ASOF_EVIDENCE
+  - SAME_SNAPSHOT_AGENT_RESULTS
+  - CANONICAL_INPUT_DEPENDENCIES
   markets:
   - SPOT
   - USD_M_FUTURES
   lifecycle_scope: CONTEXT
-  limitations: One representative per configured cluster exists. Empirical independence and shared-input
-    graph qualification are not established.
+  limitations: Collapse connected components of canonical shared inputs, explicit original roots and configured
+    clusters. Preserve every observation and opposing evidence. Method diversity and dependency-group
+    count never assert statistical independence. Empirical performance and promotion remain unverified.
   validation_status: NOT_VERIFIED
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: method_interactions.dependency_aware_confluence
-  version: 1.0.0
-  rule_set_version: 1.0.0
+  version: 1.1.0
+  rule_set_version: 1.1.0
   family: method_interactions
   canonical_name: 'method interactions: dependency aware confluence'
-  implementation_status: CATALOG_ONLY
-  module: null
-  owner: null
-  rule_ids: []
-  source_ids: []
+  implementation_status: IMPLEMENTED
+  module: ai4binance.agents.evidence_fusion
+  owner: EvidenceFusionEngine
+  rule_ids:
+  - method_interactions.implementation
+  source_ids:
+  - implementation-10
   input_requirements:
-  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  - SAME_SNAPSHOT_AGENT_RESULTS
+  - CANONICAL_INPUT_DEPENDENCIES
   markets:
   - SPOT
   - USD_M_FUTURES
   lifecycle_scope: CONTEXT
-  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  limitations: Collapse connected components of canonical shared inputs, explicit original roots and configured
+    clusters. Preserve every observation and opposing evidence. Method diversity and dependency-group
+    count never assert statistical independence. Empirical performance and promotion remain unverified.
   validation_status: NOT_VERIFIED
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
@@ -2983,7 +3019,9 @@ scope:
   status: PARTIAL
   method_ids:
   - chart_analysis
-  notes: Existing reviewed coverage is preserved; not an exhaustive family implementation claim.
+  notes: Reuse one snapshot-bound ScenarioEngine. Identity, data, derivatives, supplied malformed event
+    context, critical-event review and configured scenario-specific context requirements veto selection.
+    Confidence is not probability. Remaining catalog variants are not implemented.
 - family: dow_theory
   status: SOURCE_UNVERIFIED
   method_ids:
@@ -3078,16 +3116,18 @@ scope:
   - sentiment_events.event_risk
   - sentiment_events.manipulation
   - sentiment_events.divergence
-  notes: D0 scope inventory only. Catalog variants do not assert detector implementation or verified external
-    sources.
+  notes: Bind bounded news and social observations to publication, first-seen, availability, revision
+    and window timestamps. Unknown metrics remain NOT_MEASURED. External context cannot add directional
+    score or execution authority. Remaining catalog variants are not implemented.
 - family: method_interactions
   status: PARTIAL
   method_ids:
   - method_interactions
   - method_interactions.dependency_aware_confluence
   - method_interactions.empirical_independence
-  notes: D0 scope inventory only. Catalog variants do not assert detector implementation or verified external
-    sources.
+  notes: Collapse connected components of canonical shared inputs, explicit original roots and configured
+    clusters. Preserve every observation and opposing evidence. Method diversity and dependency-group
+    count never assert statistical independence. Remaining catalog variants are not implemented.
 aliases:
 - alias: formations
   context: legacy_inventory
@@ -3116,40 +3156,52 @@ interactions:
   independence_status: NOT_MEASURED
 source_reviews:
 - source_id: reference-01
-  reviewed_at: '2026-09-27T00:00:00Z'
+  reviewed_at: '2026-09-27T00:05:56Z'
   finding: Reversal geometry requires neckline or intervening-level confirmation. Similar highs alone
     are not a confirmed reversal.
   implementation_consequence: Keep local pivot tolerances explicit; no source-derived success probability.
 - source_id: reference-02
-  reviewed_at: '2026-09-27T00:00:00Z'
+  reviewed_at: '2026-09-27T00:05:56Z'
   finding: Triangles, rectangles, flags and pennants describe different consolidation geometries. Symmetric
     triangles have no predetermined breakout side.
   implementation_consequence: Unimplemented variants remain catalog-only; use closed-bar confirmation.
 - source_id: reference-03
-  reviewed_at: '2026-09-27T00:00:00Z'
+  reviewed_at: '2026-09-27T00:05:56Z'
   finding: Prior extrema and trend lines are possible support and resistance references, not guaranteed
     reversal levels.
   implementation_consequence: Retain invalidation and opposing structural targets.
 - source_id: reference-04
-  reviewed_at: '2026-09-27T00:00:00Z'
+  reviewed_at: '2026-09-27T00:05:56Z'
   finding: Impulse overlap rules distinguish cash markets from rare intraday Futures exceptions; complete
     wave degree requires additional structure.
   implementation_consequence: Keep the stricter local non-overlap rule and unresolved alternatives. Do
     not silently relax Futures validation.
 - source_id: reference-05
-  reviewed_at: '2026-09-27T00:00:00Z'
+  reviewed_at: '2026-09-27T00:05:56Z'
   finding: Corrections contain distinct families and combinations; a generic three-wave proxy cannot establish
     the full taxonomy.
   implementation_consequence: Corrective variants remain catalog-only until individually implemented and
     tested.
 - source_id: reference-08
-  reviewed_at: '2026-09-27T00:00:00Z'
+  reviewed_at: '2026-09-27T00:05:56Z'
   finding: Bat B retracement is below 0.618 with preferred 0.382/0.5 values; terminal XA retracement and
     BC extension define the potential reversal zone.
   implementation_consequence: The local B interval is deliberately narrower. Record local tolerances separately;
     a potential reversal is not a trade confirmation.
 - source_id: reference-09
-  reviewed_at: '2026-09-27T00:00:00Z'
+  reviewed_at: '2026-09-27T00:05:56Z'
   finding: The 50 percent midpoint is conventionally displayed alongside Fibonacci levels but is not a
     Fibonacci ratio.
   implementation_consequence: Label the midpoint as conventional and preserve confirmed-anchor causality.
+- source_id: reference-06
+  reviewed_at: '2026-09-27T00:18:58Z'
+  finding: Retracements use prior extrema, while extensions project distances beyond a move. The midpoint
+    is conventional rather than a Fibonacci sequence ratio.
+  implementation_consequence: Keep the local confirmed-anchor ratios explicit. Do not import all illustrative
+    source ratios or convert levels into calibrated targets.
+- source_id: reference-07
+  reviewed_at: '2026-09-27T00:18:58Z'
+  finding: The family index distinguishes several named harmonic geometries and points to separate pattern
+    definitions.
+  implementation_consequence: A family index is not proof that every variant is implemented. Preserve
+    individual catalog-only entries and pattern-specific source bindings.

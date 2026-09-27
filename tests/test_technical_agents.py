@@ -183,6 +183,15 @@ def test_orchestrator_populates_scores_but_remains_no_trade() -> None:
     assert state.final_decision.final_signal_score > 0
     assert state.final_decision.sub_scores.trend_score > 0
     assert state.final_decision.sub_scores.momentum_score > 0
-    assert state.final_decision.independent_confluence_count >= 5
+    assert state.final_decision.independent_confluence_count == 0
+    diversity = state.agent_results["confluence"].calculation_metadata[
+        "method_diversity_count"
+    ]
+    assert isinstance(diversity, int)
+    assert diversity >= 5
+    assert (
+        state.agent_results["confluence"].calculation_metadata["independence_status"]
+        == "NOT_MEASURED"
+    )
     assert state.agent_results["confluence"].status is AgentStatus.PARTIAL
     assert "OOS_APPROVAL_MISSING" in state.final_decision.blockers

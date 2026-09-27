@@ -1375,6 +1375,44 @@ class RepositoryValidationReport:
         return payload
 
 
+def read_verified_governed_document(repository_root: Path, relative: str) -> str:
+    """Read a registered instruction source using canonical lock validation."""
+    root = repository_root.resolve()
+    if not _is_safe_repository_relative_path(relative):
+        raise ValueError("governed context path is invalid")
+    path = (root / relative).resolve()
+    if not path.is_relative_to(root) or not path.is_file():
+        raise ValueError("governed context source is unavailable")
+    entries, approvals, error = _document_lock_manifest(root)
+    if error is not None or relative not in entries:
+        raise ValueError("governed context document lock is invalid")
+    metadata = _frontmatter(path)
+    if metadata is None:
+        raise ValueError("governed context metadata is unavailable")
+    knowledge = _knowledge_object(relative, metadata)
+    entry = entries[relative]
+    if not _requires_governed_document_lock(knowledge):
+        raise ValueError("governed context must be an active governed source")
+    if _document_lock_registration_error(knowledge, entry, root) is not None:
+        raise ValueError("governed context registration differs from its source")
+    content = path.read_bytes()
+    digest = hashlib.sha256(content).hexdigest()
+    if digest != entry.expected_hash and (relative, digest) not in approvals:
+        raise ValueError("governed context content lacks matching approval")
+    return content.decode("utf-8").replace("\r\n", "\n")
+
+
+def validate_governance_context(
+    repository_root: Path,
+) -> tuple[RepositoryValidationFinding, ...]:
+    """Check startup authority wiring without claiming whole-repository compliance."""
+    root = repository_root.resolve()
+    # Explicitly require the fabric: the general validator also supports bare repos.
+    load_governance_enforcement_fabric(root)
+    policy = load_repository_policy(root / REPOSITORY_VALIDATOR_POLICY_PATH)
+    return tuple(_governance_enforcement_fabric_findings(root, policy, ()))
+
+
 def validate_repository(
     repository_root: Path,
     *,

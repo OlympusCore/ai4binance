@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tomllib
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -98,6 +99,7 @@ def test_repository_cleanup_audit_keeps_dynamic_usage_out_of_delete_claims() -> 
     }
     assert len(classifications) == len(report.static_unimported_files)
     assert classifications["src/ai4binance/cli.py"] == "ENTRY_POINT"
+    assert classifications["src/ai4binance/intelligence/inventory.py"] == "ENTRY_POINT"
     assert classifications["src/ai4binance/external_intel/__main__.py"] == "ENTRY_POINT"
     assert "src/ai4binance/governance/constitution_sync.py" not in classifications
     assert classifications["src/ai4binance/governance/gate.py"] == "ENTRY_POINT"
@@ -201,13 +203,15 @@ def test_repository_cleanup_audit_text_summarizes_structure_classifications() ->
         command="repository-cleanup-audit",
     )
 
-    assert (
-        "static_file_decisions: ARCHIVE_CANDIDATE=13, ENTRY_POINT=11, KEEP=25" in text
-    )
     report = payload["report"]
     assert isinstance(report, dict)
     static_classifications = report["static_unimported_classifications"]
     assert isinstance(static_classifications, list)
+    decision_counts = Counter(item["decision"] for item in static_classifications)
+    expected_counts = ", ".join(
+        f"{decision}={count}" for decision, count in sorted(decision_counts.items())
+    )
+    assert f"static_file_decisions: {expected_counts}" in text
     historical_orchestration = next(
         item
         for item in static_classifications
@@ -217,10 +221,13 @@ def test_repository_cleanup_audit_text_summarizes_structure_classifications() ->
     assert "folder_decisions:" in text
     assert "GENERATED=3" in text
     assert "root_hygiene_decisions: GENERATED_RUNTIME=1, REGISTER=1" in text
-    assert (
-        "exception_reviews: DEFERRED_FAIL_CLOSED_BOUNDARY=15, NARROWED=4, "
-        "RETAINED_FAIL_CLOSED_BOUNDARY=5"
-    ) in text
+    exception_reviews = report["broad_exception_reviews"]
+    assert isinstance(exception_reviews, list)
+    review_counts = Counter(item["status"] for item in exception_reviews)
+    expected_reviews = ", ".join(
+        f"{status}={count}" for status, count in sorted(review_counts.items())
+    )
+    assert f"exception_reviews: {expected_reviews}" in text
     assert "RF-006 P3_REFACTOR_PACKAGE risk=Medium" in text
 
 

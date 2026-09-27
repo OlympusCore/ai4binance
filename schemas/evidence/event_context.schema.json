@@ -1,0 +1,203 @@
+{
+  "additionalProperties": false,
+  "description": "A revision available at a known time; unknown measurements remain absent.",
+  "properties": {
+    "observation_id": {
+      "maxLength": 500,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Observation Id",
+      "type": "string"
+    },
+    "symbol": {
+      "maxLength": 500,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Symbol",
+      "type": "string"
+    },
+    "market_type": {
+      "enum": [
+        "SPOT",
+        "USD_M_FUTURES"
+      ],
+      "title": "Market Type",
+      "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 500,
+        "minLength": 1,
+        "pattern": "\\S",
+        "type": "string"
+      },
+      "title": "Source Refs",
+      "type": "array"
+    },
+    "root_ids": {
+      "items": {
+        "maxLength": 500,
+        "minLength": 1,
+        "pattern": "\\S",
+        "type": "string"
+      },
+      "title": "Root Ids",
+      "type": "array"
+    },
+    "published_at": {
+      "format": "date-time",
+      "title": "Published At",
+      "type": "string"
+    },
+    "first_seen_at": {
+      "format": "date-time",
+      "title": "First Seen At",
+      "type": "string"
+    },
+    "available_at": {
+      "format": "date-time",
+      "title": "Available At",
+      "type": "string"
+    },
+    "window_start": {
+      "format": "date-time",
+      "title": "Window Start",
+      "type": "string"
+    },
+    "window_end": {
+      "format": "date-time",
+      "title": "Window End",
+      "type": "string"
+    },
+    "verification": {
+      "enum": [
+        "VERIFIED",
+        "UNVERIFIED",
+        "CONFLICTING"
+      ],
+      "title": "Verification",
+      "type": "string"
+    },
+    "source_quality": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Source Quality",
+      "type": "number"
+    },
+    "revision_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Revision At"
+    },
+    "polarity": {
+      "anyOf": [
+        {
+          "maximum": 1,
+          "minimum": -1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Polarity"
+    },
+    "volume": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Volume"
+    },
+    "velocity": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Velocity"
+    },
+    "delta": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Delta"
+    },
+    "event_severity": {
+      "default": "UNKNOWN",
+      "enum": [
+        "UNKNOWN",
+        "LOW",
+        "ELEVATED",
+        "HIGH",
+        "CRITICAL"
+      ],
+      "title": "Event Severity",
+      "type": "string"
+    },
+    "narrative": {
+      "default": "NOT_MEASURED",
+      "maxLength": 500,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Narrative",
+      "type": "string"
+    },
+    "crowding": {
+      "default": "NOT_MEASURED",
+      "maxLength": 500,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Crowding",
+      "type": "string"
+    },
+    "risk_review_required": {
+      "default": false,
+      "title": "Risk Review Required",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "observation_id",
+    "symbol",
+    "market_type",
+    "source_refs",
+    "root_ids",
+    "published_at",
+    "first_seen_at",
+    "available_at",
+    "window_start",
+    "window_end",
+    "verification",
+    "source_quality"
+  ],
+  "title": "EventObservation",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ai4binance:schema:evidence:event-context:1.0.0"
+}

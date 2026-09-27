@@ -6,8 +6,8 @@ from decimal import Decimal
 from enum import StrEnum
 from math import isfinite
 
-from ai4binance.intelligence.method_lineage import MethodLineage
 from ai4binance.intelligence.event_context import EventContextEvidence
+from ai4binance.intelligence.method_lineage import MethodLineage
 
 ZERO = Decimal("0")
 
@@ -501,13 +501,39 @@ class TradingIntelligenceState:
         ):
             raise ValueError("trading intelligence cost ratio is invalid")
         self._validate_evidence_binding()
+        self._validate_context_contract()
+
+    def _validate_context_contract(self) -> None:
+        """Preserve context identity, cost horizons and veto authority."""
         if any(row.snapshot_id != self.snapshot_id for row in self.event_context):
             raise ValueError("event context must belong to the canonical snapshot")
+        if any(
+            code not in self.blockers
+            for context in self.event_context
+            for code in context.blockers
+        ):
+            raise ValueError("event context vetoes must propagate to shared state")
+        if any(
+            (row.symbol, row.market_type) != (self.symbol, self.market_type)
+            or row.available_at > self.timestamp
+            for context in self.event_context
+            for row in context.observations
+        ):
+            raise ValueError(
+                "event observations must match shared-state identity and time"
+            )
         if self.method_diversity_count < 0 or self.dependency_group_count < 0:
             raise ValueError("evidence counts cannot be negative")
-        if self.transaction_cost_ratio is not None and (not self.transaction_cost_ratio.is_finite() or self.transaction_cost_ratio < ZERO):
+        if self.transaction_cost_ratio is not None and (
+            not self.transaction_cost_ratio.is_finite()
+            or self.transaction_cost_ratio < ZERO
+        ):
             raise ValueError("transaction cost ratio must be finite and nonnegative")
-        if self.funding_periods is not None and (isinstance(self.funding_periods, bool) or self.funding_periods < 0):
+        if self.funding_periods is not None and (
+            isinstance(self.funding_periods, bool)
+            or not isinstance(self.funding_periods, int)
+            or self.funding_periods < 0
+        ):
             raise ValueError("funding horizon must be a nonnegative period count")
         if (
             self.promotion_status != "RESEARCH_ONLY"

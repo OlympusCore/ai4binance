@@ -359,8 +359,13 @@ def test_market_context_is_explicit_sourced_and_research_only() -> None:
     assert [event.title for event in workflow.market_outlook.high_impact_data] == [
         "Scheduled macro release"
     ]
-    assert workflow.analysis.agent_results["news"].status is AgentStatus.PARTIAL
-    assert workflow.analysis.agent_results["sentiment"].status is AgentStatus.PARTIAL
+    # Calendar retrieval retains its outlook meaning. Missing publication-time
+    # sentiment observations cannot be upgraded from legacy aggregate scores.
+    for name in ("news", "sentiment"):
+        result = workflow.analysis.agent_results[name]
+        assert result.status is AgentStatus.INSUFFICIENT_DATA
+        assert result.score == 0
+        assert result.directional_vote == 0
 
 
 def test_market_context_provider_failures_are_isolated_and_visible() -> None:
