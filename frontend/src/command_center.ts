@@ -66,6 +66,7 @@ const commandCopy = {
     evidenceHelp: 'Source freshness and audit evidence; full decision lineage is not connected.',
     systemHelp: 'Service health and data readiness are separate observations.',
     overviewHelp: 'Understand safety, freshness and attention items before investigating.',
+    marketHelp: 'Separate Spot and Futures research observations from canonical sources.',
     workspace: 'Existing workspaces', inspection: 'Investigate', language: 'Language',
   },
   tr: {
@@ -89,6 +90,7 @@ const commandCopy = {
     evidenceHelp: 'Kaynak güncelliği ve denetim kanıtları; tam karar zinciri bağlı değil.',
     systemHelp: 'Servis sağlığı ve veri hazırlığı ayrı gözlemlerdir.',
     overviewHelp: 'Önce güvenlik, güncellik ve dikkat gerektiren durumları görün.',
+    marketHelp: 'Kanonik kaynaklardan ayrı Spot ve Futures araştırma gözlemleri.',
     workspace: 'Çalışma alanları', inspection: 'İnceleme', language: 'Dil',
   },
 };
@@ -121,6 +123,7 @@ function commandSummary(data: DashboardSnapshot | null) {
     health: ccValue(data?.operational_readiness?.status),
     freshness: ccValue(history?.freshness_status || history?.status),
     readiness: ccValue(history?.status),
+    sourceTime: history?.observed_at,
     findingCount: data?.operational_readiness?.high_priority_finding_count,
     decision: ccValue(observation?.virtual_decision_status),
     risk: typeof observation?.risk_approved === 'boolean'
@@ -154,11 +157,11 @@ function ccMetrics(): HTMLElement {
   const grid = ccNode('dl', '', 'cc-metrics');
   grid.append(
     ccMetric('health', summary.health),
-    ccMetric('freshness', summary.freshness, summary.readiness),
+    ccMetric('freshness', summary.freshness, `${summary.readiness} · ${observedTime(summary.sourceTime)}`),
     ccMetric('blockers', typeof summary.findingCount === 'number'
       ? String(summary.findingCount) : 'DATA_UNAVAILABLE'),
     ccMetric('current', summary.decision, `${summary.market} · ${summary.symbol}`),
-    ccMetric('risk', summary.risk, 'risk_approved'),
+    ccMetric('risk', summary.risk === 'TRUE' ? 'APPROVED' : summary.risk === 'FALSE' ? 'NOT_APPROVED' : summary.risk),
     ccMetric('validation', 'DATA_UNAVAILABLE', ccText('absent')),
     ccMetric('governance', 'DATA_UNAVAILABLE', ccText('absent')),
   );
@@ -175,6 +178,7 @@ function ccAttention(): HTMLElement {
     [...findings].sort((a, b) => (a.severity || 'P9').localeCompare(b.severity || 'P9'))
       .slice(0, 5).forEach(item => {
         const detail = ccNode('details');
+        detail.className = ['P0', 'P1'].includes(item.severity || '') ? 'critical' : ccTone(item.status || '');
         detail.append(ccNode('summary', `${item.severity || 'UNKNOWN'} · ${ccValue(item.finding_id)} · ${ccValue(item.status)}`));
         detail.append(ccNode('p', `${ccText('source')}: ${ccValue(item.evidence)}`));
         const row = ccNode('li'); row.append(detail); list.append(row);
@@ -212,6 +216,7 @@ function ccDecision(content: HTMLElement): void {
   technical.append(ccNode('summary', ccText('lineage')));
   technical.append(ccNode('p', 'decision_id · cycle_id · snapshot_id · evidence_bundle_id · risk_assessment_id · validation_id: DATA_UNAVAILABLE'));
   technical.append(ccNode('p', `${ccText('source')}: /api/state → virtual; ${summary.sourceStatus}`));
+  technical.append(ccNode('p', `risk_approved: ${summary.risk}`));
   result.append(technical, ccLink('evidence', 'evidence'));
   content.append(result, evidence);
 }
@@ -319,6 +324,7 @@ function enhanceCommandShell(focusKey?: string): void {
     root.querySelector('#aw-title')!.textContent = ccText(titles[state.page]);
     root.querySelector('#aw-subtitle')!.textContent = ccText(subtitles[state.page]);
   }
+  if (local && state.page === 'opportunities') root.querySelector('#aw-subtitle')!.textContent = ccText('marketHelp');
   root.querySelector('#aw-status')!.textContent = root.querySelector('#aw-title')!.textContent;
   root.querySelector('.cc-context')?.remove();
   if (local) {

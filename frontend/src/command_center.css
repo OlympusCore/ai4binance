@@ -25,6 +25,8 @@
 #a4-workspace .cc-findings { padding: 0; list-style: none; margin: 0; }
 #a4-workspace .cc-findings details { margin: 0; padding: 5px 0; }
 #a4-workspace .cc-findings summary { min-height: 30px; display: list-item; padding: 5px 0; }
+#a4-workspace .cc-findings .critical summary { color: var(--cc-critical); }
+#a4-workspace .cc-findings .warning summary { color: var(--cc-warning); }
 #a4-workspace .cc-blockers { padding-left: 20px; overflow-wrap: anywhere; font-size: 12px; }
 #a4-workspace .cc-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 #a4-workspace .cc-navlabel { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; padding: 8px 10px; color: var(--aw-muted); }
