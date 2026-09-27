@@ -1,0 +1,341 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/interface/assistant_request.schema.json",
+  "title": "Versioned local assistant request boundary",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "operation",
+        "input_text",
+        "state_path",
+        "now"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "AssistantRequest/v1"
+        },
+        "operation": {
+          "const": "wallet_answer"
+        },
+        "input_text": {
+          "type": "string"
+        },
+        "state_path": {
+          "type": "string"
+        },
+        "now": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "context_text": {
+          "type": "string"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "operation",
+        "answer"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "AssistantRequest/v1"
+        },
+        "operation": {
+          "const": "format_answer"
+        },
+        "answer": {
+          "type": "string"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "operation",
+        "system_prompt",
+        "messages"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "AssistantRequest/v1"
+        },
+        "operation": {
+          "const": "build_prompt"
+        },
+        "system_prompt": {
+          "type": "string"
+        },
+        "messages": {
+          "type": "array",
+          "maxItems": 201,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "role",
+              "content"
+            ],
+            "properties": {
+              "role": {
+                "enum": [
+                  "system",
+                  "user",
+                  "assistant"
+                ]
+              },
+              "content": {
+                "type": "string",
+                "maxLength": 32768
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "operation"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "AssistantRequest/v1"
+        },
+        "operation": {
+          "const": "system_prompt"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "operation",
+        "messages",
+        "role",
+        "content",
+        "max_turns"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "AssistantRequest/v1"
+        },
+        "operation": {
+          "const": "append_history"
+        },
+        "messages": {
+          "type": "array",
+          "maxItems": 201,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "role",
+              "content"
+            ],
+            "properties": {
+              "role": {
+                "enum": [
+                  "system",
+                  "user",
+                  "assistant"
+                ]
+              },
+              "content": {
+                "type": "string",
+                "maxLength": 32768
+              }
+            }
+          }
+        },
+        "role": {
+          "enum": [
+            "user",
+            "assistant"
+          ]
+        },
+        "content": {
+          "type": "string",
+          "maxLength": 32768
+        },
+        "max_turns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "operation",
+        "messages"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "AssistantRequest/v1"
+        },
+        "operation": {
+          "const": "recent_context"
+        },
+        "messages": {
+          "type": "array",
+          "maxItems": 201,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "role",
+              "content"
+            ],
+            "properties": {
+              "role": {
+                "enum": [
+                  "system",
+                  "user",
+                  "assistant"
+                ]
+              },
+              "content": {
+                "type": "string",
+                "maxLength": 32768
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "operation",
+        "input_text"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "AssistantRequest/v1"
+        },
+        "operation": {
+          "const": "is_status_query"
+        },
+        "input_text": {
+          "type": "string"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "operation",
+        "state_directory",
+        "now"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "AssistantRequest/v1"
+        },
+        "operation": {
+          "const": "runtime_status"
+        },
+        "state_directory": {
+          "type": "string"
+        },
+        "now": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "operation",
+        "input_text",
+        "state_path",
+        "state_directory",
+        "now"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "AssistantRequest/v1"
+        },
+        "operation": {
+          "const": "fast_answer"
+        },
+        "input_text": {
+          "type": "string"
+        },
+        "state_path": {
+          "type": "string"
+        },
+        "state_directory": {
+          "type": "string"
+        },
+        "now": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "context_text": {
+          "type": "string"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "operation",
+        "endpoint",
+        "prompt",
+        "timeout_seconds",
+        "max_tokens"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "AssistantRequest/v1"
+        },
+        "operation": {
+          "const": "complete"
+        },
+        "endpoint": {
+          "type": "string",
+          "pattern": "^http://(?:127\\.0\\.0\\.1|localhost):[0-9]+/?$"
+        },
+        "prompt": {
+          "type": "string",
+          "maxLength": 262144
+        },
+        "timeout_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2048
+        }
+      }
+    }
+  ]
+}

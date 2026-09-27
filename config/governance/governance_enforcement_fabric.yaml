@@ -34,8 +34,8 @@ families:
     authority_scope: "technology_language_ownership"
     standard_path: "docs/standards/standard_technology_language_ownership.md"
     standard_id: "AI4B-ARCH-STD-LANG-001"
-    standard_version: "1.0.1"
-    standard_content_sha256: "6f32b0af7880f453a08a31ce5db4ac91e540912999f740a7376e7cfc890a3beb"
+    standard_version: "1.0.2"
+    standard_content_sha256: "d634d411c972380231c49943451878fdb96800751488fa306fd45977187f7230"
     projection_path: "config/governance/technology_language_ownership.yaml"
     schema_path: "schemas/governance/technology_language_ownership.schema.json"
 quality_gate:

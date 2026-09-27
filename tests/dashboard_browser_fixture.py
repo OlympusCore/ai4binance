@@ -44,6 +44,7 @@ def prepare() -> None:
     )
     record["status"] = "STALE"
     payload = {
+        "schema_version": "DashboardSnapshot/v1",
         "generated_at": fixture["NOW"].isoformat(),
         "execution_allowed": False,
         "live_eligibility_status": "LIVE_ORDER_BLOCKED",

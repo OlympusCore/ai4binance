@@ -2325,6 +2325,12 @@ function Invoke-FullApprovalReplayQualityGate {
     Write-QualityRunMetadata -Status "RUNNING" -CurrentStep $script:qualityRunCurrentStep
     $context = Get-FullApprovalReplayContext
     Copy-ApprovalReplayArtifact `
+        -Source $context.junit_path `
+        -Destination (Join-Path $qualityRunDirectory "pytest-results.xml")
+    foreach ($sourceStep in $context.source_step_exit_codes.PSObject.Properties) {
+        $script:qualityStepExitCodes[$sourceStep.Name] = [int]$sourceStep.Value
+    }
+    Copy-ApprovalReplayArtifact `
         -Source $context.quality_path `
         -Destination $deterministicQualityGateReportPath
     Copy-ApprovalReplayArtifact `

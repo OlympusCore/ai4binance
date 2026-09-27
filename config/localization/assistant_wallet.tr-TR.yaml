@@ -1,0 +1,23 @@
+schema_version: Localization/v1
+component: assistant_wallet
+locale: tr-TR
+purpose: presentation_only
+messages:
+  LearningSummary: "Guncel arastirma ozetinde ders: {0}, deney: {1}. Bu ozet tek basina ogrenme servisinin aktif oldugunu kanitlamaz; canli emir ve risk degisikligi yetkisi yoktur."
+  LearningStatus: "Dogrulanmis kontrollu ogrenme durumu: {0}; ders: {1}, deney: {2}. Research-only kapsamindadir; canli emir ve risk degisikligi yetkisi yoktur."
+  LearningBoundary: "Kontrollu ogrenme research-only kapsamdadir; guncel faaliyet kaniti olmadan aktif oldugunu dogrulayamam. Canli emir veya risk degisikligi yetkisi yoktur."
+  RuntimeUnavailable: "Guncel ve dogrulanmis sistem durum verisi yok; calisma durumunu dogrulayamiyorum."
+  RuntimeStatus: "Dogrulanmis calisma durumu: {0}; aktif engel sayisi: {1}. Canli emir yetkisi kapali."
+  AccountUnavailable: "Dogrulanmis ve guncel yerel cuzdan verisi yok; bu nedenle mevcut durum, deger veya firsat hakkinda kesin bilgi veremem."
+  Definition: "Hayir; \"binance_wallet\" AI4Binance icinde kanonik bir bilesen adi degil. Dogrulanan yapi salt okunur Binance Spot cuzdan snapshotidir; son snapshot {0} itibariyla {1}."
+  Status: "Son dogrulanmis Binance Spot cuzdan snapshoti {0} itibariyla {1}; toplam portfoy degeri {2} USDT."
+  StatusWithoutValue: "Son dogrulanmis Binance Spot cuzdan snapshoti {0} itibariyla {1}; toplam portfoy degeri bu snapshotta yok."
+  Value: "Son dogrulanmis cuzdan snapshoti {0}: toplam portfoy degeri {1} USDT. Bu, yerel salt okunur snapshot degeridir."
+  ValueUnavailable: "Cuzdan snapshoti guncel, ancak toplam portfoy degeri dogrulanamadi."
+  Contents: "Son dogrulanmis snapshotta pozitif bakiyeli {0} varlik var: {1}. Bireysel bakiyeler bu sohbet ozetinde gosterilmez."
+  ContentsEmpty: "Son dogrulanmis snapshotta pozitif bakiyeli varlik kaydi yok."
+  Opportunity: "Cuzdanin kendisi bir firsat degildir. Son dogrulanmis snapshotta {0} research-only izleme adayi var; yurutulebilir firsat yok ve canli emir yetkisi kapali."
+  Ready: "hazir"
+  Blocked: "engelli"
+  Degraded: "kisitli"
+  Unknown: "bilinmiyor"

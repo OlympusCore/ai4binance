@@ -142,6 +142,43 @@ def test_policy_blocks_native_adoption_without_evidence(tmp_path: Path) -> None:
     assert violations[0].path == POLICY_PATH.as_posix()
 
 
+@pytest.mark.parametrize(
+    ("relative", "source", "code"),
+    [
+        (
+            "src/sample.py",
+            'QUERY = "SELECT value FROM records"',
+            "EMBEDDED_SQL_OWNERSHIP",
+        ),
+        (
+            "src/sample.py",
+            'HTML = "<style>body { color: red; }</style>"',
+            "EMBEDDED_CSS_OWNERSHIP",
+        ),
+        (
+            "scripts/sample.ps1",
+            "$body = @{ n_predict = 100; prompt = $input }",
+            "FORBIDDEN_CAPABILITY_OWNERSHIP",
+        ),
+    ],
+)
+def test_content_ownership_does_not_require_capability_comments(
+    tmp_path: Path,
+    relative: str,
+    source: str,
+    code: str,
+) -> None:
+    path = tmp_path / relative
+    path.parent.mkdir(parents=True)
+    path.write_text(source, encoding="utf-8")
+    violations = evaluate_technology_language_policy(
+        tmp_path,
+        load_technology_language_policy(ROOT),
+        (relative,),
+    )
+    assert code in {item.code for item in violations}
+
+
 def test_repository_validator_blocks_an_incomplete_enforcement_chain(
     tmp_path: Path,
 ) -> None:

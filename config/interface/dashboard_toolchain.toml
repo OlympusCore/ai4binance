@@ -1,0 +1,3 @@
+# Exact tested build inputs. Updating either version requires build verification.
+node = "24.21.0"
+typescript = "6.0.3"

@@ -63,6 +63,7 @@ from ai4binance.governance_primitives import (
     PLACEMENT_HINT_PREFIX,
 )
 from ai4binance.reporting import to_primitive
+from ai4binance.schema_validation import OfflineSchemaRegistry, SchemaValidationError
 
 
 class RepositoryValidationStatus(StrEnum):
@@ -4441,6 +4442,32 @@ def _non_code_content_language_findings(
                 artifact.canonical_path,
                 "Non-code repository content must be UTF-8 English text.",
             )
+            continue
+        if artifact.canonical_path.startswith("config/localization/"):
+            # Product translations are explicitly localized data, never policy.
+            try:
+                payload = yaml.safe_load(text)
+                OfflineSchemaRegistry.from_directory(
+                    root / "schemas/interface"
+                ).validate(
+                    "https://ai4binance.local/schemas/interface/localization.schema.json",
+                    payload,
+                )
+                if path.name != f"{payload['component']}.{payload['locale']}.yaml":
+                    raise ValueError("LOCALIZATION_IDENTITY_MISMATCH")
+            except (
+                OSError,
+                ValueError,
+                TypeError,
+                KeyError,
+                yaml.YAMLError,
+                SchemaValidationError,
+            ):
+                yield _blocker(
+                    RepositoryFindingKind.NON_CODE_CONTENT_LANGUAGE_VIOLATION,
+                    artifact.canonical_path,
+                    "Localization must satisfy its closed, presentation-only contract.",
+                )
             continue
         offenders = _non_english_markers(text)
         if offenders:

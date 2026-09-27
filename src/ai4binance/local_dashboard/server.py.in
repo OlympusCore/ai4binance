@@ -1398,10 +1398,13 @@ def decision_history(root, now):
 
 
 def snapshot(config):
+    from ai4binance.local_dashboard.contracts import SNAPSHOT_VERSION, validate_snapshot
+
     root = Path(config["repository_root"])
     state = root / "runtime" / "state"
     now = datetime.now(UTC)
     result = {
+        "schema_version": SNAPSHOT_VERSION,
         "generated_at": now.isoformat(),
         "execution_allowed": False,
         "live_eligibility_status": "LIVE_ORDER_BLOCKED",
@@ -1599,6 +1602,7 @@ def snapshot(config):
         result["health_findings"], result["services"]
     )
     result["decision_history"] = decision_history(root, now)
+    validate_snapshot(result)
     return result
 
 

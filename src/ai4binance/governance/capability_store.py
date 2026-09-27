@@ -15,22 +15,9 @@ from ai4binance.governance.tool_policy import (
     ToolPermission,
     ToolSideEffect,
 )
+from ai4binance.infrastructure.persistence.sql_resources import sql_statement
 
-_CREATE = """
-CREATE TABLE IF NOT EXISTS capability_leases (
-    lease_id TEXT PRIMARY KEY,
-    run_id TEXT NOT NULL,
-    project TEXT NOT NULL,
-    tool_name TEXT NOT NULL,
-    permission TEXT NOT NULL,
-    policy_hash TEXT NOT NULL,
-    issued_at TEXT NOT NULL,
-    expires_at TEXT NOT NULL,
-    scope_hash TEXT NOT NULL DEFAULT '',
-    consumed_at TEXT,
-    execution_id TEXT UNIQUE
-)
-"""
+_CREATE = sql_statement("capability_store", "statement_01")
 
 _PROHIBITED_EFFECTS = frozenset(
     {
@@ -131,12 +118,7 @@ class CapabilityStore:
             with connection:
                 _ensure_schema(connection)
                 connection.execute(
-                    """
-                    INSERT INTO capability_leases (
-                        lease_id, run_id, project, tool_name, permission, policy_hash,
-                        issued_at, expires_at, scope_hash
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
+                    sql_statement("capability_store", "statement_02"),
                     (
                         lease.lease_id,
                         lease.run_id,
@@ -162,11 +144,7 @@ class CapabilityStore:
             with connection:
                 _ensure_schema(connection)
                 row = connection.execute(
-                    """
-                    SELECT run_id, project, tool_name, permission, policy_hash,
-                           issued_at, expires_at, scope_hash, consumed_at
-                    FROM capability_leases WHERE lease_id = ?
-                    """,
+                    sql_statement("capability_store", "statement_03"),
                     (lease.lease_id,),
                 ).fetchone()
                 if row is None:
@@ -189,11 +167,7 @@ class CapabilityStore:
                     raise PermissionError("CAPABILITY_EXPIRED")
                 try:
                     updated = connection.execute(
-                        """
-                        UPDATE capability_leases
-                        SET consumed_at = ?, execution_id = ?
-                        WHERE lease_id = ? AND consumed_at IS NULL
-                        """,
+                        sql_statement("capability_store", "statement_04"),
                         (now.isoformat(), execution_id, lease.lease_id),
                     ).rowcount
                 except sqlite3.IntegrityError as exc:
@@ -233,11 +207,7 @@ class CapabilityStore:
             with connection:
                 _ensure_schema(connection)
                 row = connection.execute(
-                    """
-                    SELECT run_id, project, tool_name, permission, policy_hash,
-                           issued_at, expires_at, scope_hash, consumed_at, execution_id
-                    FROM capability_leases WHERE lease_id = ?
-                    """,
+                    sql_statement("capability_store", "statement_05"),
                     (lease.lease_id,),
                 ).fetchone()
         if row is None:
@@ -273,10 +243,7 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
     connection.execute(_CREATE)
     columns = {
         str(row[1])
-        for row in connection.execute("PRAGMA table_info(capability_leases)")
+        for row in connection.execute(sql_statement("capability_store", "statement_06"))
     }
     if "scope_hash" not in columns:
-        connection.execute(
-            "ALTER TABLE capability_leases "
-            "ADD COLUMN scope_hash TEXT NOT NULL DEFAULT ''"
-        )
+        connection.execute(sql_statement("capability_store", "statement_07"))

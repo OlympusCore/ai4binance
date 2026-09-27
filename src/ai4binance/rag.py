@@ -1123,6 +1123,16 @@ class LlamaCppAdvisoryRunner:
     repository_root: Path | None = None
     model_gateway: ModelGateway | None = None
     advisory_task: str = "ADVISORY_RESEARCH_SYNTHESIS"
+    num_predict: int = 384
+    stop_sequences: tuple[str, ...] = ("</s>",)
+
+    def __post_init__(self) -> None:
+        if type(self.num_predict) is not int or not 1 <= self.num_predict <= 2_048:
+            raise ValueError("llama.cpp advisory output token limit is invalid")
+        if not self.stop_sequences or not all(
+            isinstance(item, str) and item for item in self.stop_sequences
+        ):
+            raise ValueError("llama.cpp advisory stop sequences are invalid")
 
     def run(
         self,
@@ -1190,8 +1200,8 @@ class LlamaCppAdvisoryRunner:
             {
                 "prompt": prompt,
                 "temperature": 0,
-                "n_predict": 384,
-                "stop": ["</s>"],
+                "n_predict": self.num_predict,
+                "stop": list(self.stop_sequences),
             },
             sort_keys=True,
         ).encode("utf-8")

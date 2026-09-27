@@ -2,16 +2,16 @@
 interface SourceMeta {
   status?: string;
   freshness_status?: string;
-  observed_at?: string;
+  observed_at?: string | null;
   file?: string;
-  producer_status?: string;
+  producer_status?: string | null;
 }
 interface BackgroundObservation {
-  market?: string;
-  symbol?: string;
-  virtual_decision_status?: string;
-  risk_approved?: boolean;
-  last_success_at?: string;
+  market?: string | null;
+  symbol?: string | null;
+  virtual_decision_status?: string | null;
+  risk_approved?: boolean | null;
+  last_success_at?: string | null;
   blockers?: string[];
 }
 interface HealthFinding {
@@ -21,6 +21,7 @@ interface HealthFinding {
   evidence?: string;
 }
 interface DashboardSnapshot {
+  schema_version: 'DashboardSnapshot/v1';
   execution_allowed?: boolean;
   live_eligibility_status?: string;
   generated_at?: string;
@@ -61,7 +62,7 @@ declare function refreshLocal(): Promise<void>;
 declare function refreshLearning(): Promise<void>;
 declare function sourceInfo(name: string): SourceMeta;
 declare const lastLearningAttempt: number;
-declare function observedTime(value?: string): string;
+declare function observedTime(value?: string | null): string;
 declare function auditObserverPanel(): HTMLElement;
 declare function healthFindingsPanel(title: string[], limit?: number): HTMLElement;
 
@@ -178,10 +179,57 @@ async function commandFetch(url: string, timeout: number): Promise<DashboardSnap
   const response = await fetch(url, {cache: 'no-store', signal: AbortSignal.timeout(timeout)});
   if ([401, 403].includes(response.status)) throw new Error('UNAUTHORIZED');
   if (!response.ok) throw new Error('HTTP_ERROR');
-  let payload: DashboardSnapshot;
+  let payload: unknown;
   try { payload = await response.json(); } catch { throw new Error('INVALID_DATA'); }
-  if (!payload || payload.execution_allowed !== false || payload.live_eligibility_status !== 'LIVE_ORDER_BLOCKED') throw new Error('INVALID_DATA');
+  if (!isDashboardSnapshot(payload)) throw new Error('INVALID_DATA');
   return payload;
+}
+function isDashboardSnapshot(value: unknown): value is DashboardSnapshot {
+  const record = (item: unknown): item is Record<string, unknown> =>
+    item !== null && typeof item === 'object' && !Array.isArray(item);
+  const strings = (item: unknown): item is string[] =>
+    Array.isArray(item) && item.every(entry => typeof entry === 'string');
+  const optionalStrings = (item: Record<string, unknown>, keys: string[]) =>
+    keys.every(key => item[key] === undefined || typeof item[key] === 'string');
+  if (!record(value) || value.schema_version !== 'DashboardSnapshot/v1' ||
+      value.execution_allowed !== false || value.live_eligibility_status !== 'LIVE_ORDER_BLOCKED' ||
+      typeof value.generated_at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value.generated_at) ||
+      !Number.isFinite(Date.parse(value.generated_at)) ||
+      !record(value.sources) || !Array.isArray(value.services) ||
+      !Array.isArray(value.health_findings) || !record(value.operational_readiness) ||
+      typeof value.operational_readiness.status !== 'string' || !record(value.decision_history)) return false;
+  if (!Object.values(value.sources).every(source => record(source) && typeof source.status === 'string' &&
+      (source.observed_at === undefined || source.observed_at === null || typeof source.observed_at === 'string') &&
+      (source.producer_status === undefined || source.producer_status === null || typeof source.producer_status === 'string') &&
+      optionalStrings(source, ['file', 'freshness_status']) &&
+      (source.producer_blockers === undefined || strings(source.producer_blockers)))) return false;
+  if (value.virtual !== undefined && (!record(value.virtual) ||
+      !['market', 'symbol', 'virtual_decision_status', 'last_success_at'].every(key => {
+        const entry = (value.virtual as Record<string, unknown>)[key];
+        return entry === undefined || entry === null || typeof entry === 'string';
+      }) ||
+      (value.virtual.risk_approved !== undefined && value.virtual.risk_approved !== null && typeof value.virtual.risk_approved !== 'boolean') ||
+      (value.virtual.blockers !== undefined && !strings(value.virtual.blockers)))) return false;
+  if (!['finding_count', 'high_priority_finding_count'].every(key => {
+    const count = (value.operational_readiness as Record<string, unknown>)[key];
+    return count === undefined || (typeof count === 'number' && Number.isInteger(count) && count >= 0);
+  })) return false;
+  if (!value.services.every(service => record(service) && typeof service.service === 'string' &&
+      typeof service.required === 'boolean' && strings(service.blockers))) return false;
+  if (!value.health_findings.every(finding => record(finding) &&
+      ['finding_id', 'severity', 'status', 'evidence'].every(key => typeof finding[key] === 'string'))) return false;
+  const history = value.decision_history;
+  return typeof history.status === 'string' && Array.isArray(history.records) &&
+    history.records.every(item => record(item) &&
+      ['decision_id', 'cycle_id', 'snapshot_id', 'observed_at', 'status', 'source', 'receipt_status',
+       'payload_status', 'historical_authenticity', 'execution_surface', 'governance_status'].every(key => typeof item[key] === 'string') &&
+      strings(item.blockers) && strings(item.analysis_blockers) && Array.isArray(item.stages) &&
+      item.stages.every(stage => record(stage) && typeof stage.name === 'string' && typeof stage.status === 'string' && strings(stage.blockers)) &&
+      Array.isArray(item.references) && item.references.every(ref => record(ref) &&
+        ['artifact_id', 'artifact_kind', 'cycle_id', 'snapshot_id', 'payload_sha256', 'status'].every(key => typeof ref[key] === 'string') &&
+        (ref.payload === undefined || record(ref.payload))) &&
+      (item.timeframes === undefined || strings(item.timeframes))) &&
+    Array.isArray(history.findings) && history.findings.every(item => record(item) && typeof item.source === 'string' && typeof item.status === 'string');
 }
 async function commandRefreshLocal(): Promise<void> {
   if (commandRequest) return commandRequest;

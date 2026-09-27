@@ -25,6 +25,8 @@ SYNTHETIC_REPOSITORY_BOOTSTRAP_PATHS = (
     ".venv/Scripts/python.exe",
     ".venv/pyvenv.cfg",
     "src/ai4binance/__init__.py",
+    "src/ai4binance/governance/git_write_contract.py",
+    "schemas/governance/git_write_authorization.schema.json",
     "pyproject.toml",
 )
 
@@ -135,6 +137,12 @@ def _install_test_hooks(repository: Path) -> None:
         assert source.is_file(), source
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
+    # Test-only venv reuses the already installed dependencies without installation.
+    site_packages = repository / ".venv/Lib/site-packages"
+    site_packages.mkdir(parents=True, exist_ok=True)
+    (site_packages / "test_dependencies.pth").write_text(
+        str(REPOSITORY_ROOT / ".venv/Lib/site-packages") + "\n", encoding="utf-8"
+    )
     git = _required_executable("git")
     subprocess.run(  # noqa: S603
         [

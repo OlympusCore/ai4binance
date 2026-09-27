@@ -22,6 +22,41 @@ def test_dashboard_types_are_strictly_checked() -> None:
     assert completed.returncode == 0, completed.stdout + completed.stderr
 
 
+def test_combined_check_rejects_incompatible_ambient_contract_and_toolchain(
+    tmp_path: Path,
+) -> None:
+    """Only this disposable test copy contains the deliberate type mismatch."""
+    shutil.copytree(ROOT / "frontend", tmp_path / "frontend")
+    shutil.copytree(ROOT / "config/interface", tmp_path / "config/interface")
+    (tmp_path / "scripts").mkdir()
+    checker = tmp_path / "scripts/check_dashboard_types.py"
+    shutil.copyfile(ROOT / "scripts/check_dashboard_types.py", checker)
+    adapter = tmp_path / "frontend/src/command_center.ts"
+    source = adapter.read_text(encoding="utf-8")
+    adapter.write_text(
+        source.replace(
+            "declare function render(): void;",
+            "declare function render(): Promise<void>;",
+        )
+        + "\nconst testOnlyReturn: Promise<void> = render();\n",
+        encoding="utf-8",
+    )
+    command = [sys.executable, "-B", str(checker)]
+    result = subprocess.run(  # noqa: S603 - fixed test-only compiler command.
+        command, capture_output=True, text=True, check=False, timeout=60
+    )
+    assert result.returncode != 0
+    assert "dashboard-composed.ts" in result.stderr
+    assert "Type 'void' is not assignable to type 'Promise<void>'" in result.stderr
+    pins = tmp_path / "config/interface/dashboard_toolchain.toml"
+    pins.write_text('node = "0.0.0"\ntypescript = "0.0.0"\n', encoding="utf-8")
+    result = subprocess.run(  # noqa: S603 - fixed test-only compiler command.
+        command, capture_output=True, text=True, check=False, timeout=60
+    )
+    assert result.returncode != 0
+    assert "DASHBOARD_TOOLCHAIN_VERSION_MISMATCH" in result.stderr
+
+
 def test_dashboard_icons_preserve_geometry_and_decorative_rendering() -> None:
     """Test-only DOM fixture verifies the existing ten Lucide 1.17.0 icons."""
     node = shutil.which("node")
@@ -141,6 +176,11 @@ evaluate("state.language='en'");
 assert.equal(evaluate('commandLevel(null)'), 'DATA_UNAVAILABLE');
 assert.equal(evaluate('commandLevel(0).sortValue'), '0');
 context.AbortSignal={timeout:()=>undefined};
+const testSnapshot=()=>({schema_version:'DashboardSnapshot/v1',
+  generated_at:'2026-09-27T00:00:00Z',
+  execution_allowed:false,live_eligibility_status:'LIVE_ORDER_BLOCKED',sources:{},services:[],
+  health_findings:[],operational_readiness:{status:'UNAVAILABLE'},
+  decision_history:{status:'DATA_UNAVAILABLE',records:[],findings:[]}});
 context.localData=null;context.lastPollFailed=false;
 for(const [status,expected] of [[403,'UNAUTHORIZED'],[503,'HTTP_ERROR']]){
   context.fetch=async()=>({ok:false,status});
@@ -151,8 +191,7 @@ for(const [status,expected] of [[403,'UNAUTHORIZED'],[503,'HTTP_ERROR']]){
 context.fetch=async()=>({ok:true,status:200,json:async()=>({execution_allowed:true})});
 await evaluate('commandRefreshLocal()');
 assert.equal(evaluate('commandFailure'),'INVALID_DATA');
-context.fetch=async()=>({ok:true,status:200,json:async()=>({execution_allowed:false,
-  live_eligibility_status:'LIVE_ORDER_BLOCKED'})});
+context.fetch=async()=>({ok:true,status:200,json:async()=>testSnapshot()});
 await evaluate('commandRefreshLocal()');
 assert.equal(evaluate('commandFailure'),undefined);
 assert.equal(evaluate(`commandError(Object.assign(new Error('slow'),
@@ -162,8 +201,7 @@ context.fetch=()=>{requests++;return new Promise(resolve=>{finishRequest=resolve
 const firstRequest=evaluate('commandRefreshLocal()');
 const secondRequest=evaluate('commandRefreshLocal()');
 assert.equal(requests,1);
-finishRequest({ok:true,status:200,json:async()=>({execution_allowed:false,
-  live_eligibility_status:'LIVE_ORDER_BLOCKED'})});
+finishRequest({ok:true,status:200,json:async()=>testSnapshot()});
 await Promise.all([firstRequest,secondRequest]);
 assert.equal(JSON.stringify(evaluate(`commandTablePage([['a','10'],['b','2'],['c','2']],
   {query:'',column:1,descending:false,page:0})`)), '[1,2,0]');

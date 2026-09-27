@@ -2712,6 +2712,80 @@ catch {{
     assert payload["drift_error"] == "APPROVAL_REPLAY_ARTIFACT_DRIFT:DOCS_HYGIENE"
 
 
+@pytest.mark.parametrize("source_present", [True, False])
+def test_quality_approval_replay_copies_junit_before_publishing(
+    tmp_path: Path, source_present: bool
+) -> None:
+    source = tmp_path / "runtime/artifacts/quality/gate/runs/test-only-source"
+    source.mkdir(parents=True)
+    junit = (
+        b'<testsuites><testsuite><testcase file="tests/test_fixture.py" '
+        b'name="test_only" /></testsuite></testsuites>'
+    )
+    if source_present:
+        (source / "pytest-results.xml").write_bytes(junit)
+    (source / "evidence.json").write_text("{}", encoding="utf-8")
+    payload = _run_quality_function_harness(
+        tmp_path,
+        r"""
+$source = Join-Path $qualityGateArtifactDirectory "runs/test-only-source"
+$evidence = Join-Path $source "evidence.json"
+$script:testReplayContext = [pscustomobject]@{
+    governance_path = Join-Path $source "governance-gate-approval-required.json"
+    quality_path = $evidence
+    validator_path = $evidence
+    pytest_path = $evidence
+    coverage_path = $evidence
+    bandit_path = $evidence
+    coverage_summary_path = $evidence
+    coverage_markdown_path = $evidence
+    approval_record_path = $evidence
+    quality = @{ quality_evidence_gate = @{ quality_gate = @{
+        pytest_pass_count = 1; coverage_percent = 100.0
+    } } }
+    governance = @{ docs_hygiene = @{}; artifact_hygiene = @{};
+        constitution_sync_tests = @{} }
+}
+function Get-FullApprovalReplayContext { return $script:testReplayContext }
+function Write-QualityRunMetadata {}
+function Invoke-DeterministicGovernanceGateStep {
+    $script:testGovernanceReached = $true
+}
+function Invoke-GeneratedArtifactCleanup {}
+function Invoke-ProcessTempRetentionCleanup {}
+function Assert-QualityWorkspaceStable {}
+function Write-QualityGateGreenEvidence {
+    $script:testPublishedJUnitHash = Get-Sha256Hex -Path (
+        Join-Path $qualityRunDirectory "pytest-results.xml"
+    )
+}
+$script:testGovernanceReached = $false
+$script:testPublishedJUnitHash = ""
+New-Item -ItemType Directory -Path $qualityRunDirectory -Force | Out-Null
+$errorText = try {
+    Invoke-FullApprovalReplayQualityGate
+    ""
+} catch { $_.Exception.Message }
+[ordered]@{
+    error = $errorText
+    governance_reached = $script:testGovernanceReached
+    published_junit_sha256 = $script:testPublishedJUnitHash
+    source_junit_exists = Test-Path (Join-Path $source "pytest-results.xml")
+} | ConvertTo-Json
+""",
+    )
+    if source_present:
+        assert payload["error"] == ""
+        assert payload["governance_reached"] is True
+        assert payload["published_junit_sha256"] == hashlib.sha256(junit).hexdigest()
+        assert (source / "pytest-results.xml").read_bytes() == junit
+    else:
+        assert payload["error"].startswith("APPROVAL_REPLAY_SOURCE_MISSING:")
+        assert payload["governance_reached"] is False
+        assert payload["published_junit_sha256"] == ""
+        assert payload["source_junit_exists"] is False
+
+
 def test_prepare_c3_human_governance_closure_request_writes_bound_template(
     tmp_path: Path,
 ) -> None:
@@ -4520,32 +4594,32 @@ def test_qwen_prompter_startup_task_is_visible_and_advisory_only() -> None:
     assert "external_memory = $true" in prompter_text
     assert "LIVE_ORDER_BLOCKED" in prompter_text
     assert "New-SystemPrompt" in prompter_text
-    assert "docs\\runbooks\\runbook_read_only_runtime.md" in prompter_text
-    assert '$stateDirectory = Join-Path $root "runtime\\state"' in prompter_text
-    assert 'Join-Path $stateDirectory "runtime.json"' in prompter_text
-    assert (
-        "runtime\\artifacts\\decisions\\market_outlook\\runtime-state.json"
-        in prompter_text
+    assistant = Path("src/ai4binance/local_agent/assistant_context.py").read_text(
+        encoding="utf-8"
     )
+    prompt_config = Path("config/agents/local_assistant.yaml").read_text(
+        encoding="utf-8"
+    )
+    runner = Path("src/ai4binance/rag.py").read_text(encoding="utf-8")
+    assert 'operation = "system_prompt"' in prompter_text
+    assert '$stateDirectory = Join-Path $root "runtime\\state"' in prompter_text
+    assert "state_directory = $stateDirectory" in prompter_text
+    assert 'state_directory / "runtime.json"' in assistant
     assert "start_llama_server.ps1" in prompter_text
     assert "http://127.0.0.1:8080/completion" in prompter_text
     assert "Invoke-LlamaCompletion" in prompter_text
     assert "Start-Job" in prompter_text
     assert "Start-Sleep -Seconds 30" in prompter_text
-    assert "System.Net.Http.HttpClient" in prompter_text
-    assert "System.Net.Http.StringContent" in prompter_text
-    assert '"application/json"' in prompter_text
-    assert "Private state and Secrets are out of scope" in prompter_text
+    assert "System.Net.Http.HttpClient" not in prompter_text
+    assert "LlamaCppAdvisoryRunner" in assistant
+    assert '"application/json"' in runner
+    assert "files, or access external services" in prompt_config
     assert "Read-Host" in prompter_text
     assert "LLAMA_CPP_CHAT_FAILED" in prompter_text
     assert "Provider: llama.cpp" in prompter_text
-    assert "Sadece Turkce cevap ver." in prompter_text
-    assert "Ilk cumlede dogrudan cevabi ver." in prompter_text
-    assert (
-        "Basit durum, evet/hayir ve ozet sorularinda en fazla 2 kisa cumle kullan."
-        in prompter_text
-    )
-    assert "Trading sorularinda sadece gerekli alanlari kullan" in prompter_text
+    assert "Respond only in Turkish, directly and briefly." in prompt_config
+    assert "Use one short paragraph for simple status questions." in prompt_config
+    assert "Ground system, wallet, value, and opportunity claims" in prompt_config
     assert "llama.cpp server failed to start" in prompter_text
     assert "LLAMA_CPP_SERVER_START_FAILED" in local_llm_text
     assert "llama.cpp" in local_llm_text

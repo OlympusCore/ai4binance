@@ -29,6 +29,7 @@ from ai4binance.exchange.order_book import (
     OrderBookSnapshot,
     ReadOnlyOrderBook,
 )
+from ai4binance.infrastructure.persistence.sql_resources import sql_statement
 
 _URLS = {
     "spot": "wss://stream.binance.com:9443/stream",
@@ -114,17 +115,9 @@ class DepthJournal:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.lock = Lock()
         self.connection = sqlite3.connect(path, check_same_thread=False, timeout=10)
-        self.connection.execute("PRAGMA journal_mode=WAL")
-        self.connection.execute("PRAGMA synchronous=FULL")
-        self.connection.executescript("""
-            CREATE TABLE IF NOT EXISTS depth_events (
-                seq INTEGER PRIMARY KEY, market TEXT NOT NULL, symbol TEXT NOT NULL,
-                kind TEXT NOT NULL, payload BLOB NOT NULL, received_at REAL NOT NULL);
-            CREATE INDEX IF NOT EXISTS depth_stream ON depth_events(market,symbol,seq);
-            CREATE TABLE IF NOT EXISTS depth_heads (
-                market TEXT, symbol TEXT, checkpoint_seq INTEGER, latest_seq INTEGER,
-                status TEXT, received_at REAL, PRIMARY KEY(market,symbol));
-        """)
+        self.connection.execute(sql_statement("market_depth", "statement_01"))
+        self.connection.execute(sql_statement("market_depth", "statement_02"))
+        self.connection.executescript(sql_statement("market_depth", "statement_03"))
 
     def append(self, records: list[DepthRecord]) -> None:
         if not records:
@@ -142,8 +135,7 @@ class DepthJournal:
                     json.dumps(payload, separators=(",", ":"), allow_nan=False).encode()
                 )
                 seq = self.connection.execute(
-                    "INSERT INTO depth_events(market,symbol,kind,payload,received_at) "
-                    "VALUES(?,?,?,?,?)",
+                    sql_statement("market_depth", "statement_04"),
                     (market, symbol, kind, data, received),
                 ).lastrowid
                 checkpoint = seq if kind in {"snapshot", "checkpoint"} else None
@@ -155,19 +147,12 @@ class DepthJournal:
                     else "GAP"
                 )
                 self.connection.execute(
-                    """
-                    INSERT INTO depth_heads VALUES(?,?,?,?,?,?)
-                    ON CONFLICT(market,symbol) DO UPDATE SET
-                    checkpoint_seq=COALESCE(excluded.checkpoint_seq,depth_heads.checkpoint_seq),
-                    latest_seq=excluded.latest_seq,status=excluded.status,received_at=excluded.received_at
-                """,
+                    sql_statement("market_depth", "statement_05"),
                     (market, symbol, checkpoint, seq, status, received),
                 )
                 if checkpoint is not None:
                     self.connection.execute(
-                        "DELETE FROM depth_events WHERE seq IN ("
-                        "SELECT seq FROM depth_events WHERE market=? AND symbol=? "
-                        "AND seq<? ORDER BY seq LIMIT ?)",
+                        sql_statement("market_depth", "statement_06"),
                         (
                             market,
                             symbol,
@@ -192,8 +177,7 @@ class DepthJournal:
             observed = {
                 (str(row[0]), str(row[1]))
                 for row in self.connection.execute(
-                    "SELECT market,symbol FROM depth_heads UNION "
-                    "SELECT DISTINCT market,symbol FROM depth_events"
+                    sql_statement("market_depth", "statement_07")
                 ).fetchall()
             }
             removed_streams = observed - allowed_pairs
@@ -201,11 +185,11 @@ class DepthJournal:
             removed_heads = 0
             for market, symbol in sorted(removed_streams):
                 removed_events += self.connection.execute(
-                    "DELETE FROM depth_events WHERE market=? AND symbol=?",
+                    sql_statement("market_depth", "statement_08"),
                     (market, symbol),
                 ).rowcount
                 removed_heads += self.connection.execute(
-                    "DELETE FROM depth_heads WHERE market=? AND symbol=?",
+                    sql_statement("market_depth", "statement_09"),
                     (market, symbol),
                 ).rowcount
         return {
@@ -240,10 +224,9 @@ def read_local_depth(
     with closing(
         sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=10)
     ) as connection:
-        connection.execute("BEGIN")
+        connection.execute(sql_statement("market_depth", "statement_10"))
         head = connection.execute(
-            "SELECT checkpoint_seq,latest_seq,status,received_at FROM depth_heads "
-            "WHERE market=? AND symbol=?",
+            sql_statement("market_depth", "statement_11"),
             (market, book.symbol),
         ).fetchone()
         if (
@@ -253,8 +236,7 @@ def read_local_depth(
         ):
             raise ValueError("local depth unavailable, stale, or unsynchronized")
         rows = connection.execute(
-            "SELECT kind,payload FROM depth_events WHERE market=? AND symbol=? "
-            "AND seq>=? AND seq<=? ORDER BY seq LIMIT 100001",
+            sql_statement("market_depth", "statement_12"),
             (market, book.symbol, head[0], head[1]),
         ).fetchall()
         if (

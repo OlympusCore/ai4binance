@@ -649,6 +649,7 @@ def _legacy_target_candidate_specs() -> dict[str, str]:
         ),
         "learning": "domain/learning|infrastructure/persistence",
         "local_agent": ("domain/evidence|application/orchestration|integrations/llm"),
+        "local_dashboard": "core/contracts|application/ports/inbound|cli/presentation",
         "mcp": (
             "application/ports/inbound|integrations/mcp_clients|infrastructure/security"
         ),

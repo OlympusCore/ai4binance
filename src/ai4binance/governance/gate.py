@@ -43,6 +43,11 @@ from ai4binance.governance.framework import (
     ConstitutionalChangeControl,
 )
 from ai4binance.governance_primitives import TECHNICAL_QUALITY_PRIMARY_STATUS
+from ai4binance.ops.quality_gate.telemetry import (
+    _quality_execution_blockers,
+    bind_quality_evidence,
+    verify_quality_evidence,
+)
 
 DEFAULT_APPROVAL_RECORD_REPORT = (
     "runtime/artifacts/quality/gate/approval_record_latest.json"
@@ -2819,6 +2824,29 @@ def load_approval_replay_context(
         "COVERAGE_SUMMARY_DRIFT",
     )
     coverage_path = _approval_replay_source(root, str(directory / "coverage.json"))
+    junit_path = _approval_replay_source(root, str(directory / "pytest-results.xml"))
+    source_evidence = _approval_replay_read(
+        _approval_replay_source(root, str(directory / "quality_failure_evidence.json"))
+    )
+    require(
+        source_evidence.get("profile") == "full"
+        and source_evidence.get("run_id") == directory.name
+        and verify_quality_evidence(
+            root, source_evidence, workspace_attestation=attestation
+        ) == ("QUALITY_RESULT_FAILED",),
+        "SOURCE_EXECUTION_EVIDENCE_INVALID",
+    )
+    source_test_evidence = bind_quality_evidence(
+        root,
+        source_evidence,
+        run_id=directory.name,
+        junit_path=junit_path,
+        workspace_attestation=attestation,
+    )
+    require(
+        not _quality_execution_blockers(source_test_evidence, ()),
+        "SOURCE_EXECUTION_STEPS_INVALID",
+    )
     return {
         "approval_record_path": str(approval_path),
         "governance": governance,
@@ -2827,6 +2855,8 @@ def load_approval_replay_context(
         "quality_path": str(quality_path),
         "validator_path": str(validator_path),
         "pytest_path": str(pytest_path),
+        "junit_path": str(junit_path),
+        "source_step_exit_codes": source_evidence["step_exit_codes"],
         "coverage_path": str(coverage_path),
         "bandit_path": str(bandit_path),
         "coverage_summary_path": str(coverage_summary_path),

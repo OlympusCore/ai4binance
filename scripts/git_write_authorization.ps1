@@ -450,150 +450,32 @@ function Get-GitWriteSubject {
     }
 }
 
-function Assert-ChallengeShape {
-    param(
-        [Parameter(Mandatory = $true)]
-        [object]$Challenge
-    )
+function Invoke-GitContractValidation {
+    param([Parameter(Mandatory = $true)][System.Collections.IDictionary]$Request)
+    $ownerRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+    $python = Join-Path $ownerRoot ".venv\Scripts\python.exe"
+    $validator = Join-Path $ownerRoot "src\ai4binance\governance\git_write_contract.py"
+    $previousEncoding = $OutputEncoding
+    $previousPreference = $ErrorActionPreference
+    try {
+        $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+        $ErrorActionPreference = "Continue"
+        $response = ($Request | ConvertTo-Json -Depth 30 -Compress) | & $python -I -B $validator
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $OutputEncoding = $previousEncoding
+        $ErrorActionPreference = $previousPreference
+    }
+    if ($exitCode -ne 0 -or [string]$response -cne "VALID") {
+        if ([string]$response -cmatch '^GIT_WRITE_AUTHORIZATION_[A-Z_]+$') { throw [string]$response }
+        throw "GIT_WRITE_AUTHORIZATION_VALIDATOR_FAILED"
+    }
+}
 
-    Assert-ExactProperties $Challenge @(
-        "schema_version",
-        "status",
-        "operation",
-        "channel",
-        "nonce",
-        "created_at_utc",
-        "expires_at_utc",
-        "subject",
-        "execution_allowed",
-        "promotion_status",
-        "live_eligibility_status"
-    ) "GIT_WRITE_AUTHORIZATION_CHALLENGE_KEYS_INVALID"
-    Assert-ExactProperties $Challenge.subject @(
-        "repository_root_sha256",
-        "git_common_directory_sha256",
-        "head",
-        "branch",
-        "hooks_path",
-        "author_identity_sha256",
-        "committer_identity_sha256",
-        "placeholder_identity",
-        "staged_tree",
-        "remote_name",
-        "remote_url_sha256",
-        "push_updates"
-    ) "GIT_WRITE_AUTHORIZATION_SUBJECT_KEYS_INVALID"
-    if (
-        $Challenge.schema_version -isnot [int] -or
-        [int]$Challenge.schema_version -ne 1 -or
-        $Challenge.status -isnot [string] -or
-        [string]$Challenge.status -ne "PENDING" -or
-        $Challenge.operation -isnot [string] -or
-        [string]$Challenge.operation -notin @("COMMIT", "PUSH") -or
-        $Challenge.channel -isnot [string] -or
-        [string]$Challenge.channel -notin @("INTERACTIVE", "NONINTERACTIVE") -or
-        $Challenge.nonce -isnot [string] -or
-        [string]$Challenge.nonce -notmatch '^[0-9a-f]{64}$' -or
-        $Challenge.created_at_utc -isnot [string] -or
-        $Challenge.expires_at_utc -isnot [string] -or
-        $Challenge.execution_allowed -isnot [bool] -or
-        [bool]$Challenge.execution_allowed -or
-        $Challenge.promotion_status -isnot [string] -or
-        [string]$Challenge.promotion_status -ne "RESEARCH_ONLY" -or
-        $Challenge.live_eligibility_status -isnot [string] -or
-        [string]$Challenge.live_eligibility_status -ne "LIVE_ORDER_BLOCKED"
-    ) {
-        throw "GIT_WRITE_AUTHORIZATION_CHALLENGE_INVALID"
-    }
-    $created = [DateTimeOffset]::Parse(
-        [string]$Challenge.created_at_utc,
-        [Globalization.CultureInfo]::InvariantCulture,
-        [Globalization.DateTimeStyles]::RoundtripKind
-    )
-    $expires = [DateTimeOffset]::Parse(
-        [string]$Challenge.expires_at_utc,
-        [Globalization.CultureInfo]::InvariantCulture,
-        [Globalization.DateTimeStyles]::RoundtripKind
-    )
-    if ($expires -le $created -or ($expires - $created) -gt $script:authorizationLifetime) {
-        throw "GIT_WRITE_AUTHORIZATION_EXPIRY_INVALID"
-    }
-    foreach ($property in @(
-        "repository_root_sha256",
-        "git_common_directory_sha256",
-        "author_identity_sha256",
-        "committer_identity_sha256"
-    )) {
-        if (
-            $Challenge.subject.$property -isnot [string] -or
-            [string]$Challenge.subject.$property -notmatch '^[0-9a-f]{64}$'
-        ) {
-            throw "GIT_WRITE_AUTHORIZATION_SUBJECT_INVALID"
-        }
-    }
-    foreach ($property in @(
-        "head",
-        "branch",
-        "hooks_path",
-        "staged_tree",
-        "remote_name",
-        "remote_url_sha256"
-    )) {
-        if ($Challenge.subject.$property -isnot [string]) {
-            throw "GIT_WRITE_AUTHORIZATION_SUBJECT_INVALID"
-        }
-    }
-    if (
-        [string]$Challenge.subject.head -notmatch '^[0-9a-f]{40,64}$' -or
-        [string]::IsNullOrWhiteSpace([string]$Challenge.subject.branch) -or
-        [string]$Challenge.subject.hooks_path -cne "scripts/git-hooks" -or
-        $Challenge.subject.placeholder_identity -isnot [bool] -or
-        $null -eq $Challenge.subject.push_updates
-    ) {
-        throw "GIT_WRITE_AUTHORIZATION_SUBJECT_INVALID"
-    }
-    $updates = @($Challenge.subject.push_updates)
-    if ([string]$Challenge.operation -eq "COMMIT") {
-        if (
-            [string]$Challenge.subject.staged_tree -notmatch '^[0-9a-f]{40,64}$' -or
-            -not [string]::IsNullOrEmpty([string]$Challenge.subject.remote_name) -or
-            -not [string]::IsNullOrEmpty([string]$Challenge.subject.remote_url_sha256) -or
-            $updates.Count -ne 0
-        ) {
-            throw "GIT_WRITE_AUTHORIZATION_COMMIT_SUBJECT_INVALID"
-        }
-    }
-    else {
-        if (
-            -not [string]::IsNullOrEmpty([string]$Challenge.subject.staged_tree) -or
-            [string]::IsNullOrWhiteSpace([string]$Challenge.subject.remote_name) -or
-            [string]$Challenge.subject.remote_url_sha256 -notmatch '^[0-9a-f]{64}$' -or
-            $updates.Count -le 0 -or
-            $updates.Count -gt 256
-        ) {
-            throw "GIT_WRITE_AUTHORIZATION_PUSH_SUBJECT_INVALID"
-        }
-        foreach ($update in $updates) {
-            Assert-ExactProperties $update @(
-                "local_ref",
-                "local_oid",
-                "remote_ref",
-                "remote_oid"
-            ) "GIT_WRITE_AUTHORIZATION_PUSH_UPDATE_KEYS_INVALID"
-            if (
-                $update.local_ref -isnot [string] -or
-                $update.local_oid -isnot [string] -or
-                $update.remote_ref -isnot [string] -or
-                $update.remote_oid -isnot [string] -or
-                [string]$update.local_ref -notmatch '^(refs/|\(delete\))' -or
-                [string]$update.remote_ref -notmatch '^refs/' -or
-                [string]$update.local_oid -notmatch '^[0-9a-f]{40,64}$' -or
-                [string]$update.remote_oid -notmatch '^[0-9a-f]{40,64}$'
-            ) {
-                throw "GIT_WRITE_AUTHORIZATION_PUSH_UPDATE_INVALID"
-            }
-        }
-    }
+function Assert-ChallengeShape {
+    param([Parameter(Mandatory = $true)][object]$Challenge)
+    Invoke-GitContractValidation @{ operation = "shape"; challenge = $Challenge }
 }
 
 function Read-Challenge {
@@ -635,19 +517,8 @@ function Read-Challenge {
 }
 
 function Assert-ChallengeFresh {
-    param(
-        [Parameter(Mandatory = $true)]
-        [object]$Challenge
-    )
-
-    $expires = [DateTimeOffset]::Parse(
-        [string]$Challenge.expires_at_utc,
-        [Globalization.CultureInfo]::InvariantCulture,
-        [Globalization.DateTimeStyles]::RoundtripKind
-    )
-    if ($expires -le [DateTimeOffset]::UtcNow) {
-        throw "GIT_WRITE_AUTHORIZATION_EXPIRED"
-    }
+    param([Parameter(Mandatory = $true)][object]$Challenge)
+    Invoke-GitContractValidation @{ operation = "fresh"; challenge = $Challenge }
 }
 
 function Assert-ChallengeCurrent {
@@ -676,11 +547,7 @@ function Assert-ChallengeCurrent {
         -SelectedOperation $selectedOperation `
         -SelectedRemoteName $SelectedRemoteName `
         -SelectedPushUpdatesPath $SelectedPushUpdatesPath
-    $expectedJson = $Challenge.subject | ConvertTo-Json -Compress -Depth 12
-    $currentJson = $current | ConvertTo-Json -Compress -Depth 12
-    if ($expectedJson -cne $currentJson) {
-        throw "GIT_WRITE_AUTHORIZATION_SUBJECT_MISMATCH"
-    }
+    Invoke-GitContractValidation @{ operation = "subject"; challenge = $Challenge; current = $current }
 }
 
 function Remove-ExpiredPendingArtifacts {
@@ -741,9 +608,6 @@ function Invoke-Prepare {
         -SelectedOperation $Operation `
         -SelectedRemoteName $RemoteName `
         -SelectedPushUpdatesPath $PushUpdatesPath
-    if ($Channel -eq "Interactive" -and [bool]$subject.placeholder_identity) {
-        throw "GIT_WRITE_AUTHORIZATION_PLACEHOLDER_IDENTITY_BLOCKED"
-    }
     $now = [DateTimeOffset]::UtcNow
     $nonce = New-RandomNonce
     $challenge = [ordered]@{
@@ -759,6 +623,7 @@ function Invoke-Prepare {
         promotion_status = "RESEARCH_ONLY"
         live_eligibility_status = "LIVE_ORDER_BLOCKED"
     }
+    Assert-ChallengeShape ([pscustomobject]$challenge)
     $path = Join-Path $Context.PendingRoot ($nonce + ".json")
     Write-JsonAtomic $path $challenge
     $sha256 = Get-FileSha256 $path
@@ -781,16 +646,10 @@ function Invoke-Approve {
     }
     $challengeRecord = Read-Challenge $Context $ChallengePath "Pending"
     $challenge = $challengeRecord.Payload
-    if ([string]$challenge.channel -ne "NONINTERACTIVE") {
-        throw "GIT_WRITE_AUTHORIZATION_CHANNEL_MISMATCH"
-    }
     Assert-ChallengeFresh $challenge
-    $expected = "APPROVE_AI4BINANCE_GIT_{0} {1}" -f @(
-        [string]$challenge.operation,
-        $challengeRecord.Sha256
-    )
-    if ($ApprovalText -cne $expected) {
-        throw "GIT_WRITE_AUTHORIZATION_EXACT_APPROVAL_REQUIRED"
+    Invoke-GitContractValidation @{
+        operation = "approve_text"; challenge = $challenge
+        challenge_hash = $challengeRecord.Sha256; approval_text = $ApprovalText
     }
     $approvedPath = Join-Path $Context.ApprovedRoot (
         [string]$challenge.nonce + ".json"
@@ -823,76 +682,16 @@ function Invoke-Approve {
 
 function Read-ApprovalSidecar {
     param(
-        [Parameter(Mandatory = $true)]
-        [string]$Path,
-
-        [Parameter(Mandatory = $true)]
-        [object]$ChallengeRecord
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][object]$ChallengeRecord
     )
-
     $sidecarPath = $Path + ".approval.json"
     $sidecar = Read-StrictJsonObject $sidecarPath
-    Assert-ExactProperties $sidecar @(
-        "schema_version",
-        "status",
-        "operation",
-        "challenge_sha256",
-        "approval_text_sha256",
-        "approved_at_utc",
-        "expires_at_utc",
-        "execution_allowed",
-        "promotion_status",
-        "live_eligibility_status"
-    ) "GIT_WRITE_AUTHORIZATION_APPROVAL_KEYS_INVALID"
-    if (
-        $sidecar.schema_version -isnot [int] -or
-        [int]$sidecar.schema_version -ne 1 -or
-        $sidecar.status -isnot [string] -or
-        [string]$sidecar.status -ne "APPROVED" -or
-        $sidecar.operation -isnot [string] -or
-        [string]$sidecar.operation -cne [string]$ChallengeRecord.Payload.operation -or
-        $sidecar.challenge_sha256 -isnot [string] -or
-        [string]$sidecar.challenge_sha256 -cne [string]$ChallengeRecord.Sha256 -or
-        $sidecar.approval_text_sha256 -isnot [string] -or
-        [string]$sidecar.approval_text_sha256 -notmatch '^[0-9a-f]{64}$' -or
-        $sidecar.approved_at_utc -isnot [string] -or
-        $sidecar.expires_at_utc -isnot [string] -or
-        [string]$sidecar.expires_at_utc -cne [string]$ChallengeRecord.Payload.expires_at_utc -or
-        $sidecar.execution_allowed -isnot [bool] -or
-        [bool]$sidecar.execution_allowed -or
-        $sidecar.promotion_status -isnot [string] -or
-        [string]$sidecar.promotion_status -ne "RESEARCH_ONLY" -or
-        $sidecar.live_eligibility_status -isnot [string] -or
-        [string]$sidecar.live_eligibility_status -ne "LIVE_ORDER_BLOCKED"
-    ) {
-        throw "GIT_WRITE_AUTHORIZATION_APPROVAL_INVALID"
+    Invoke-GitContractValidation @{
+        operation = "approval"; challenge = $ChallengeRecord.Payload
+        approval = $sidecar; challenge_hash = $ChallengeRecord.Sha256
     }
-    $approvedAt = [DateTimeOffset]::Parse(
-        [string]$sidecar.approved_at_utc,
-        [Globalization.CultureInfo]::InvariantCulture,
-        [Globalization.DateTimeStyles]::RoundtripKind
-    )
-    $createdAt = [DateTimeOffset]::Parse(
-        [string]$ChallengeRecord.Payload.created_at_utc,
-        [Globalization.CultureInfo]::InvariantCulture,
-        [Globalization.DateTimeStyles]::RoundtripKind
-    )
-    $expiresAt = [DateTimeOffset]::Parse(
-        [string]$sidecar.expires_at_utc,
-        [Globalization.CultureInfo]::InvariantCulture,
-        [Globalization.DateTimeStyles]::RoundtripKind
-    )
-    if (
-        $approvedAt -lt $createdAt -or
-        $approvedAt -gt $expiresAt -or
-        $approvedAt -gt [DateTimeOffset]::UtcNow.AddMinutes(1)
-    ) {
-        throw "GIT_WRITE_AUTHORIZATION_APPROVAL_TIME_INVALID"
-    }
-    return [pscustomobject]@{
-        Path = $sidecarPath
-        Payload = $sidecar
-    }
+    return [pscustomobject]@{ Path = $sidecarPath; Payload = $sidecar }
 }
 
 function Invoke-Consume {
@@ -907,26 +706,13 @@ function Invoke-Consume {
     $location = if ($Channel -eq "Interactive") { "Pending" } else { "Approved" }
     $challengeRecord = Read-Challenge $Context $ChallengePath $location
     $challenge = $challengeRecord.Payload
-    if (
-        -not [string]::IsNullOrWhiteSpace($Operation) -and
-        $Operation.ToUpperInvariant() -cne [string]$challenge.operation
-    ) {
-        throw "GIT_WRITE_AUTHORIZATION_OPERATION_MISMATCH"
-    }
-    if ([string]$challenge.channel -cne $Channel.ToUpperInvariant()) {
-        throw "GIT_WRITE_AUTHORIZATION_CHANNEL_MISMATCH"
+    Invoke-GitContractValidation @{
+        operation = "consume_context"; challenge = $challenge
+        requested_operation = $Operation; channel = $Channel; approval_text = $ApprovalText
     }
     Assert-ChallengeFresh $challenge
     $approvalSidecar = $null
-    if ($Channel -eq "Interactive") {
-        if ([bool]$challenge.subject.placeholder_identity) {
-            throw "GIT_WRITE_AUTHORIZATION_PLACEHOLDER_IDENTITY_BLOCKED"
-        }
-        if ($ApprovalText.ToUpperInvariant() -cne [string]$challenge.operation) {
-            throw "GIT_WRITE_AUTHORIZATION_INTERACTIVE_APPROVAL_DECLINED"
-        }
-    }
-    else {
+    if ($Channel -ne "Interactive") {
         $approvalSidecar = Read-ApprovalSidecar $challengeRecord.Path $challengeRecord
     }
     Assert-ChallengeCurrent `

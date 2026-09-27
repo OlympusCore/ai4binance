@@ -5,6 +5,7 @@
 )
 
 $ErrorActionPreference = "Continue"
+. (Join-Path $PSScriptRoot "assistant_wallet_context.ps1")
 . (Join-Path $PSScriptRoot "initialize_runtime_environment.ps1")
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 $stateDirectory = Join-Path $root "runtime\state"
@@ -44,48 +45,15 @@ function Format-IstanbulTimestamp {
 
 function Test-SystemStatusQuery {
     param([Parameter(Mandatory = $true)][string]$InputText)
-
-    $normalized = $InputText.Trim().ToLowerInvariant()
-    return $normalized -match "(?:^|[\s/])(?:status|durum|özet|summary|system|sistem|son durum)(?:$|[\s/])"
+    return Invoke-AI4BinanceAssistantRequest @{ operation = "is_status_query"; input_text = $InputText }
 }
 
 function Get-SystemStatusSnapshot {
-    $observedAt = [DateTimeOffset]::UtcNow
-    $timestamp = Format-IstanbulTimestamp -Instant $observedAt
-    $health = $null
-    if (Test-Path -LiteralPath $healthPath -PathType Leaf) {
-        try {
-            $health = Get-Content -LiteralPath $healthPath -Raw | ConvertFrom-Json
-        } catch {
-            $health = $null
-        }
+    $result = Invoke-AI4BinanceAssistantRequest @{
+        operation = "runtime_status"; state_directory = $stateDirectory
+        now = [DateTimeOffset]::UtcNow.ToString("o")
     }
-    $runtime = $null
-    $runtimePath = Join-Path $stateDirectory "runtime.json"
-    if (Test-Path -LiteralPath $runtimePath -PathType Leaf) {
-        try {
-            $runtime = Get-Content -LiteralPath $runtimePath -Raw | ConvertFrom-Json
-        } catch {
-            $runtime = $null
-        }
-    }
-    $healthStatus = if ($null -ne $health) {
-        "prompter=$($health.status); provider=$($health.provider); model=$($health.model); endpoint=$($health.endpoint)"
-    } else {
-        "prompter=unavailable"
-    }
-    $runtimeStatus = if ($null -ne $runtime) {
-        "runtime=$($runtime.state); blockers=$((@($runtime.blockers) -join ','))"
-    } else {
-        "runtime=unavailable"
-    }
-    return @"
-System status snapshot
-Observed at (Europe/Istanbul): $timestamp
-$healthStatus
-$runtimeStatus
-Guidance: answer briefly, mention blockers, and include next action only if useful.
-"@
+    return ($result | ConvertTo-Json -Compress)
 }
 
 function Write-PrompterHealth {
@@ -189,42 +157,10 @@ function Invoke-LlamaCompletion {
         [Parameter(Mandatory = $true)][string]$Prompt,
         [Parameter(Mandatory = $true)][int]$TimeoutSeconds
     )
-
-    Add-Type -AssemblyName System.Net.Http
-    $client = [System.Net.Http.HttpClient]::new()
-    $content = $null
-    try {
-        $client.Timeout = [TimeSpan]::FromSeconds($TimeoutSeconds)
-        $body = [ordered]@{
-            prompt = $Prompt
-            temperature = 0
-            n_predict = 768
-            stop = @("### User:", "### System:", "</s>")
-        } | ConvertTo-Json -Depth 20
-        $content = [System.Net.Http.StringContent]::new(
-            $body,
-            [System.Text.Encoding]::UTF8,
-            "application/json"
-        )
-        $response = $client.PostAsync("$llamaEndpoint/completion", $content).GetAwaiter().GetResult()
-        $responseText = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
-        if (-not $response.IsSuccessStatusCode) {
-            $statusCode = [int]$response.StatusCode
-            throw "llama.cpp completion HTTP $statusCode $($response.ReasonPhrase): $responseText"
-        }
-        $payload = $responseText | ConvertFrom-Json
-        $answer = [string]$payload.content
-        if ([string]::IsNullOrWhiteSpace($answer)) {
-            throw "LOCAL_LLM_EMPTY_RESPONSE"
-        }
-        return $answer.Trim()
-    } catch [System.Threading.Tasks.TaskCanceledException] {
-        throw "LLAMA_CPP_CHAT_TIMEOUT"
-    } finally {
-        if ($null -ne $content) {
-            $content.Dispose()
-        }
-        $client.Dispose()
+    return Invoke-AI4BinanceAssistantRequest @{
+        operation = "complete"; prompt = $Prompt
+        endpoint = $llamaEndpoint; timeout_seconds = $TimeoutSeconds
+        max_tokens = 768
     }
 }
 
@@ -233,62 +169,13 @@ function Convert-MessagesToPrompt {
         [Parameter(Mandatory = $true)][string]$SystemPrompt,
         [Parameter(Mandatory = $true)][object[]]$Messages
     )
-
-    $builder = [System.Text.StringBuilder]::new()
-    [void]$builder.AppendLine("### System:")
-    [void]$builder.AppendLine($SystemPrompt.Trim())
-    [void]$builder.AppendLine("")
-    foreach ($message in $Messages) {
-        $role = [string]$message.role
-        $content = [string]$message.content
-        if ([string]::IsNullOrWhiteSpace($content)) {
-            continue
-        }
-        switch ($role) {
-            "user" {
-                [void]$builder.AppendLine("### User:")
-                [void]$builder.AppendLine($content.Trim())
-                [void]$builder.AppendLine("")
-            }
-            "assistant" {
-                [void]$builder.AppendLine("### Assistant:")
-                [void]$builder.AppendLine($content.Trim())
-                [void]$builder.AppendLine("")
-            }
-        }
+    return Invoke-AI4BinanceAssistantRequest @{
+        operation = "build_prompt"; system_prompt = $SystemPrompt; messages = @($Messages)
     }
-    [void]$builder.Append("### Assistant:")
-    return $builder.ToString()
 }
 
 function New-SystemPrompt {
-    return @"
-Sen AI4BINANCE Assistant'sin; yerel, tray-erişimli ve tavsiye odakli bir asistansin.
-
-Kurallar:
-- Sadece Turkce cevap ver.
-- Ilk cumlede dogrudan cevabi ver.
-- Basit durum, evet/hayir ve ozet sorularinda en fazla 2 kisa cumle kullan.
-- Gereksiz baslik, uyarı ve menu dili kullanma.
-- Kullanici ne eksikse onu kisa soyle, sonra tek bir oneride bulun.
-- Kaynaklar eksik veya belirsizse bunu kisa belirt ve NO_TRADE / RESEARCH_ONLY ile kilitli kal.
-- Dosya degistirme, komut calistirma, canli islem, risk artisi veya gizli bilgi erisimi yok.
-- Sonunda kisa bir gerekce verebilirsin, ama cevabi uzatma.
-- Zaman yazarsan Europe/Istanbul kullan.
-
-Baglam:
-- Project root: $root
-- Safe visible health file: state\qwen-prompter-health.json
-- Read-only runtime status, when present: state\runtime.json
-- Market outlook artifact, when present: runtime\artifacts\decisions\market_outlook\runtime-state.json
-- Reference runbook: docs\runbooks\runbook_read_only_runtime.md
-- Private state and Secrets are out of scope.
-
-Yazi stili:
-- Kisa, net ve operasyonel yaz.
-- Uzun aciklama yerine tek karar ver.
-- Trading sorularinda sadece gerekli alanlari kullan: Market Outlook, Setup Quality, Trade Plan, Execution Tagging, Blockers, Audit status.
-"@
+    return Invoke-AI4BinanceAssistantRequest @{ operation = "system_prompt" }
 }
 
 try {
@@ -442,10 +329,7 @@ try {
         $promptWrittenAt = [DateTimeOffset]::UtcNow
         Write-Host "Prompt timestamp (Europe/Istanbul): $(Format-IstanbulTimestamp -Instant $promptWrittenAt)"
         Write-Host "Prompt timestamp (UTC): $($promptWrittenAt.ToString('o'))"
-        $messages.Add([ordered]@{ role = "user"; content = $inputText })
-        while ($messages.Count -gt (1 + ($MaxHistoryTurns * 2))) {
-            $messages.RemoveAt(1)
-        }
+        Add-AI4BinanceAssistantHistory $messages "user" $inputText $MaxHistoryTurns
 
         $effectiveSystemPrompt = $systemPrompt
         if (Test-SystemStatusQuery -InputText $inputText) {
@@ -458,7 +342,7 @@ try {
             $answer = Invoke-LlamaCompletion -Prompt $prompt -TimeoutSeconds $TimeoutSeconds
             $responseWrittenAt = [DateTimeOffset]::UtcNow
             $latencySeconds = [Math]::Round(($responseWrittenAt - $promptWrittenAt).TotalSeconds, 3)
-            $messages.Add([ordered]@{ role = "assistant"; content = $answer })
+            Add-AI4BinanceAssistantHistory $messages "assistant" $answer $MaxHistoryTurns
             Write-Host ""
             Write-Host "Response timestamp (Europe/Istanbul): $(Format-IstanbulTimestamp -Instant $responseWrittenAt)"
             Write-Host "Response timestamp (UTC): $($responseWrittenAt.ToString('o')) | latency=${latencySeconds}s"

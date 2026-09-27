@@ -47,21 +47,7 @@ function Get-NotifyIcon {
 }
 
 function Get-PromptText {
-    return @"
-You are the local AI4BINANCE Assistant.
-
-Rules:
-- Respond only in Turkish.
-- Answer directly, briefly, and naturally.
-- Use one short paragraph for simple yes/no or status questions.
-- Do not add headings, decorative symbols, emoji, role labels, or timestamps.
-- Base every factual claim about the system, account, wallet, current value, or opportunity on verified local context supplied by the host.
-- Chat history and previous assistant answers are not evidence. Correct an earlier unsupported claim instead of repeating it.
-- Never infer that a user-provided label such as binance_wallet or binan_wallet is a defined or active system object.
-- If verified local context is missing, say that the fact cannot be verified; do not provide a generic or invented answer.
-- Translate raw field names and blocker codes into natural Turkish when context provides them.
-- You have no authority to place live orders, increase risk, modify files, or access external services.
-"@
+    return Invoke-AI4BinanceAssistantRequest @{ operation = "system_prompt" }
 }
 
 function Test-LlamaServerReady {
@@ -184,9 +170,7 @@ function Get-JsonState {
 
 function Test-SystemStatusQuery {
     param([Parameter(Mandatory = $true)][string]$InputText)
-
-    $normalized = $InputText.Trim().ToLowerInvariant()
-    return $normalized -match "(?:^|[\s/])(?:status|durum|özet|summary|system|sistem|son durum)(?:$|[\s/])"
+    return Invoke-AI4BinanceAssistantRequest @{ operation = "is_status_query"; input_text = $InputText }
 }
 
 function Test-FastLocalStatusQuery {
@@ -201,145 +185,20 @@ function Test-FastLocalStatusQuery {
 }
 
 function Get-SystemStatusSnapshot {
-    $observedAt = [DateTimeOffset]::UtcNow
-    $timestamp = Format-IstanbulTimestamp -Instant $observedAt
-    $health = Get-JsonState -Path (Join-Path $stateDirectory "qwen-prompter-health.json")
-    $runtime = Get-JsonState -Path (Join-Path $stateDirectory "runtime.json")
-    $runtimeState = if ($null -ne $runtime) {
-        [string]$runtime.state
+    $result = Invoke-AI4BinanceAssistantRequest @{
+        operation = "runtime_status"; state_directory = $stateDirectory
+        now = [DateTimeOffset]::UtcNow.ToString("o")
     }
-    else {
-        "unavailable"
-    }
-    $runtimeStateLabel = Get-HumanReadableRuntimeState -State $runtimeState
-    $blockerCount = if ($null -ne $runtime -and $null -ne $runtime.blockers) {
-        @($runtime.blockers).Count
-    }
-    else {
-        0
-    }
-    $healthStatus = if ($null -ne $health) {
-        "Prompter durumu: $($health.status); provider: $($health.provider); model: $($health.model); endpoint: $($health.endpoint)"
-    }
-    else {
-        "Prompter durumu: unavailable"
-    }
-    $runtimeStatus = if ($null -ne $runtime) {
-        "Calisma durumu: $runtimeStateLabel; aktif engel sayisi: $blockerCount"
-    }
-    else {
-        "Calisma durumu: unavailable"
-    }
-    return @"
-Sistem durum ozeti
-Gozlem saati (Europe/Istanbul): $timestamp
-$healthStatus
-$runtimeStatus
-Yonlendirme: kisa cevap ver, blokaj varsa soyle ve gerekiyorsa bir sonraki adimi ekle.
-"@
+    return ($result | ConvertTo-Json -Compress)
 }
 
 function Get-FastLocalAnswer {
-    param(
-        [Parameter(Mandatory = $true)][string]$InputText,
-        [string]$ContextText = ""
-    )
-
-    $walletAnswer = Get-AI4BinanceWalletAnswer `
-        -InputText $InputText `
-        -ContextText $ContextText `
-        -StatePath $privateAccountStatePath
-    if ($walletAnswer.handled) {
-        $timestamp = Get-CurrentIstanbulTimestamp
-        return "$($walletAnswer.message)`n[Europe/Istanbul time: $timestamp]"
+    param([Parameter(Mandatory = $true)][string]$InputText, [string]$ContextText = "")
+    return Invoke-AI4BinanceAssistantRequest @{
+        operation = "fast_answer"; input_text = $InputText; context_text = $ContextText
+        state_path = $privateAccountStatePath; state_directory = $stateDirectory
+        now = [DateTimeOffset]::UtcNow.ToString("o")
     }
-
-    if (-not (Test-FastLocalStatusQuery -InputText $InputText)) {
-        return $null
-    }
-
-    $normalized = $InputText.Trim().ToLowerInvariant()
-    $timestamp = Get-CurrentIstanbulTimestamp
-
-    if ($normalized -match "(auto[- ]?learn|controlled learning|öğrenme|learning)") {
-        $learningSummary = Get-JsonState -Path (Join-Path $stateDirectory "learning_summary.json")
-        $runtime = Get-JsonState -Path (Join-Path $stateDirectory "runtime.json")
-        $learningStatus = if ($null -ne $runtime -and $null -ne $runtime.controlled_learning) {
-            [string]$runtime.controlled_learning.status
-        }
-        elseif ($null -ne $learningSummary) {
-            if ($true -eq $learningSummary.execution_allowed) { "ACTIVE" } else { "RESEARCH_ONLY" }
-        }
-        else {
-            "UNKNOWN"
-        }
-        $promotionStatus = if ($null -ne $runtime -and $null -ne $runtime.controlled_learning) {
-            [string]$runtime.controlled_learning.promotion_status
-        }
-        elseif ($null -ne $learningSummary) {
-            [string]$learningSummary.promotion_status
-        }
-        else {
-            "UNKNOWN"
-        }
-        $executionAllowed = if ($null -ne $runtime -and $null -ne $runtime.controlled_learning) {
-            [bool]$runtime.controlled_learning.execution_allowed
-        }
-        elseif ($null -ne $learningSummary) {
-            [bool]$learningSummary.execution_allowed
-        }
-        else {
-            $false
-        }
-        $riskChangeAllowed = if ($null -ne $runtime -and $null -ne $runtime.controlled_learning) {
-            [bool]$runtime.controlled_learning.risk_change_allowed
-        }
-        elseif ($null -ne $learningSummary) {
-            [bool]$learningSummary.risk_change_allowed
-        }
-        else {
-            $false
-        }
-
-        $shortAnswer = if ($executionAllowed) { "Evet" } elseif ($learningStatus -eq "UNKNOWN") { "Bilinmiyor" } else { "Hayir" }
-        return @"
-Kisa cevap: $shortAnswer. Auto-learn durumu: $learningStatus. Promotion: $promotionStatus. Execution: $executionAllowed. Risk: $riskChangeAllowed.
-Not: kontrollu ogrenme sadece research-only calisir; kendi kendine canli yetki veya risk degisikligi vermez.
-[Europe/Istanbul time: $timestamp]
-"@
-    }
-
-    $runtime = Get-JsonState -Path (Join-Path $stateDirectory "runtime.json")
-    $runtimeState = if ($null -ne $runtime) {
-        [string]$runtime.state
-    }
-    else {
-        "unavailable"
-    }
-    $runtimeStateLabel = Get-HumanReadableRuntimeState -State $runtimeState
-    $blockerCount = if ($null -ne $runtime -and $null -ne $runtime.blockers) {
-        @($runtime.blockers).Count
-    }
-    else {
-        0
-    }
-    $statusSummary = if ($runtimeState -eq "DEGRADED" -or $blockerCount -gt 0) {
-        "Kisa cevap: Hayir, tam otonom degil. Calisma durumu $runtimeStateLabel ve $blockerCount aktif engel var."
-    }
-    elseif ($runtimeState -eq "READY" -or $runtimeState -eq "COLLECTED") {
-        "Kisa cevap: Evet, sistem calisiyor."
-    }
-    elseif ($runtimeState -eq "unavailable") {
-        "Kisa cevap: Durum verisi alinmadi."
-    }
-    else {
-        "Kisa cevap: Calisma durumu $runtimeStateLabel."
-    }
-    return @"
-$statusSummary
-Not: canli emir yetkisi kapali; bu akis research-only / simulation odakli calisir.
-[Europe/Istanbul time: $timestamp]
-"@
 }
 
 function Convert-MessagesToPrompt {
@@ -347,32 +206,9 @@ function Convert-MessagesToPrompt {
         [Parameter(Mandatory = $true)][string]$SystemPrompt,
         [Parameter(Mandatory = $true)][object[]]$Messages
     )
-
-    $builder = [System.Text.StringBuilder]::new()
-    [void]$builder.AppendLine("### System:")
-    [void]$builder.AppendLine($SystemPrompt.Trim())
-    [void]$builder.AppendLine("")
-    foreach ($message in $Messages) {
-        $role = [string]$message.role
-        $content = [string]$message.content
-        if ([string]::IsNullOrWhiteSpace($content)) {
-            continue
-        }
-        switch ($role) {
-            "user" {
-                [void]$builder.AppendLine("### User:")
-                [void]$builder.AppendLine($content.Trim())
-                [void]$builder.AppendLine("")
-            }
-            "assistant" {
-                [void]$builder.AppendLine("### Assistant:")
-                [void]$builder.AppendLine($content.Trim())
-                [void]$builder.AppendLine("")
-            }
-        }
+    return Invoke-AI4BinanceAssistantRequest @{
+        operation = "build_prompt"; system_prompt = $SystemPrompt; messages = @($Messages)
     }
-    [void]$builder.Append("### Assistant:")
-    return $builder.ToString()
 }
 
 function Invoke-LlamaCompletion {
@@ -380,44 +216,10 @@ function Invoke-LlamaCompletion {
         [Parameter(Mandatory = $true)][string]$Prompt,
         [Parameter(Mandatory = $true)][int]$TimeoutSeconds
     )
-
-    Add-Type -AssemblyName System.Net.Http
-    $client = [System.Net.Http.HttpClient]::new()
-    $content = $null
-    try {
-        $client.Timeout = [TimeSpan]::FromSeconds($TimeoutSeconds)
-        $body = [ordered]@{
-            prompt = $Prompt
-            temperature = 0
-            n_predict = $maxPredictTokens
-            stop = @("### User:", "### System:", "</s>")
-        } | ConvertTo-Json -Depth 20
-        $content = [System.Net.Http.StringContent]::new(
-            $body,
-            [System.Text.Encoding]::UTF8,
-            "application/json"
-        )
-        $response = $client.PostAsync("$llamaEndpoint/completion", $content).GetAwaiter().GetResult()
-        $responseText = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
-        if (-not $response.IsSuccessStatusCode) {
-            $statusCode = [int]$response.StatusCode
-            throw "llama.cpp completion HTTP $statusCode $($response.ReasonPhrase): $responseText"
-        }
-        $payload = $responseText | ConvertFrom-Json
-        $answer = [string]$payload.content
-        if ([string]::IsNullOrWhiteSpace($answer)) {
-            throw "LOCAL_LLM_EMPTY_RESPONSE"
-        }
-        return $answer.Trim()
-    }
-    catch [System.Threading.Tasks.TaskCanceledException] {
-        throw "LLAMA_CPP_CHAT_TIMEOUT"
-    }
-    finally {
-        if ($null -ne $content) {
-            $content.Dispose()
-        }
-        $client.Dispose()
+    return Invoke-AI4BinanceAssistantRequest @{
+        operation = "complete"; prompt = $Prompt
+        endpoint = $llamaEndpoint; timeout_seconds = $TimeoutSeconds
+        max_tokens = $maxPredictTokens
     }
 }
 
@@ -461,22 +263,16 @@ function Invoke-ChatSend {
 
         $chatState.InputBox.Clear()
         Add-ChatTranscriptLine -Box $chatState.TranscriptBox -Text ("You [" + $questionTimestamp + "]: " + $trimmed)
-        $chatState.Messages.Add([ordered]@{ role = "user"; content = "$trimmed`n`n[Europe/Istanbul time: $questionTimestamp]" })
-        while ($chatState.Messages.Count -gt (1 + ($maxHistoryTurns * 2))) {
-            $chatState.Messages.RemoveAt(1)
-        }
+        Add-AI4BinanceAssistantHistory $chatState.Messages "user" $trimmed $maxHistoryTurns
 
-        $recentUserContext = @(
-            $chatState.Messages |
-                Where-Object { [string]$_.role -eq "user" } |
-                Select-Object -Last 3 |
-                ForEach-Object { [string]$_.content }
-        ) -join "`n"
+        $recentUserContext = Invoke-AI4BinanceAssistantRequest @{
+            operation = "recent_context"; messages = @($chatState.Messages)
+        }
         $quickAnswer = Get-FastLocalAnswer `
             -InputText $trimmed `
             -ContextText $recentUserContext
         if ($null -ne $quickAnswer) {
-            $chatState.Messages.Add([ordered]@{ role = "assistant"; content = $quickAnswer })
+            Add-AI4BinanceAssistantHistory $chatState.Messages "assistant" $quickAnswer $maxHistoryTurns
             Add-ChatTranscriptLine -Box $chatState.TranscriptBox -Text ("Assistant: " + $quickAnswer)
             return
         }
@@ -501,7 +297,7 @@ function Invoke-ChatSend {
             Invoke-LlamaCompletion -Prompt $prompt -TimeoutSeconds $timeoutSeconds
         )
         $answerTimestamp = Get-CurrentIstanbulTimestamp
-        $chatState.Messages.Add([ordered]@{ role = "assistant"; content = $answer })
+        Add-AI4BinanceAssistantHistory $chatState.Messages "assistant" $answer $maxHistoryTurns
         Add-ChatTranscriptLine -Box $chatState.TranscriptBox -Text ("Assistant: " + $answer + "`n[Europe/Istanbul time: $answerTimestamp]")
     }
     catch {

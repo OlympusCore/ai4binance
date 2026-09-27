@@ -1,6 +1,19 @@
 {
   "approval_records": [
     {
+      "approval_id": "AI4B-GOV-DOCLOCK-LANGUAGE-IMPLEMENTATION-BINDINGS-20260927-001",
+      "approval_scope": "EXPLICIT_USER_APPROVAL_OF_DISCLOSED_LANGUAGE_IMPLEMENTATION_BINDINGS_PREVIEW_STANDARD_FABRIC_AND_LOCK_MANIFEST_ALIGNMENT_ONLY_NO_INDEPENDENT_C3_APPROVAL",
+      "approval_status": "APPROVED",
+      "approved_at_utc": "2026-09-27T20:03:25Z",
+      "approved_by": "Huseyin",
+      "written_owner_approval": true,
+      "approved_sha256": {
+        "docs/standards/standard_technology_language_ownership.md": "d634d411c972380231c49943451878fdb96800751488fa306fd45977187f7230"
+      },
+      "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_language_implementation_bindings_20260927_001.json",
+      "approval_evidence_sha256": "7f7c0f67f4f06d12c09cd7f1cf324e15d41310eafdf986cbadc0b9849e61adc6"
+    },
+    {
       "approval_id": "AI4B-GOV-DOCLOCK-TEST-NAMING-REFERENCE-ALIGNMENT-20260927-001",
       "approval_scope": "PREVIOUSLY_DISCLOSED_TEST_FILENAME_AND_PROTECTED_REFERENCE_ALIGNMENT_ONLY",
       "approval_status": "APPROVED",
@@ -2997,13 +3010,13 @@
       "authority_scope": "technology_language_ownership",
       "canonical_path": "docs/standards/standard_technology_language_ownership.md",
       "document_status": "ACTIVE",
-      "expected_hash": "6f32b0af7880f453a08a31ce5db4ac91e540912999f740a7376e7cfc890a3beb",
+      "expected_hash": "d634d411c972380231c49943451878fdb96800751488fa306fd45977187f7230",
       "lock_state": "LOCKED",
       "path": "docs/standards/standard_technology_language_ownership.md",
-      "sha256": "6f32b0af7880f453a08a31ce5db4ac91e540912999f740a7376e7cfc890a3beb",
+      "sha256": "d634d411c972380231c49943451878fdb96800751488fa306fd45977187f7230",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "1.0.1"
+      "version": "1.0.2"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -3531,6 +3544,19 @@
   "status": "ACTIVE",
   "written_owner_approval_required": true,
   "written_owner_approvals": [
+    {
+      "approval_id": "AI4B-GOV-DOCLOCK-LANGUAGE-IMPLEMENTATION-BINDINGS-20260927-001",
+      "approval_scope": "EXPLICIT_USER_APPROVAL_OF_DISCLOSED_LANGUAGE_IMPLEMENTATION_BINDINGS_PREVIEW_STANDARD_FABRIC_AND_LOCK_MANIFEST_ALIGNMENT_ONLY_NO_INDEPENDENT_C3_APPROVAL",
+      "approval_status": "APPROVED",
+      "approved_at_utc": "2026-09-27T20:03:25Z",
+      "approved_by": "Huseyin",
+      "written_owner_approval": true,
+      "approved_sha256": {
+        "docs/standards/standard_technology_language_ownership.md": "d634d411c972380231c49943451878fdb96800751488fa306fd45977187f7230"
+      },
+      "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_language_implementation_bindings_20260927_001.json",
+      "approval_evidence_sha256": "7f7c0f67f4f06d12c09cd7f1cf324e15d41310eafdf986cbadc0b9849e61adc6"
+    },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-TEST-NAMING-REFERENCE-ALIGNMENT-20260927-001",
       "approval_scope": "PREVIOUSLY_DISCLOSED_TEST_FILENAME_AND_PROTECTED_REFERENCE_ALIGNMENT_ONLY",

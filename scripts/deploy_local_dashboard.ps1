@@ -84,6 +84,7 @@ $initialSources = @(
     $operationsFiles | ForEach-Object { Get-FileRecord -Path (Join-Path $operationsRoot $_) }
     $interfaceFiles | ForEach-Object { Get-FileRecord -Path (Join-Path $interfaceRoot $_) }
     Get-FileRecord -Path (Join-Path $repositoryRoot "frontend/tsconfig.json")
+    Get-FileRecord -Path (Join-Path $repositoryRoot "config/interface/dashboard_toolchain.toml")
     Get-FileRecord -Path (Join-Path $PSScriptRoot "check_dashboard_types.py")
     Get-FileRecord -Path $PSCommandPath
 )
@@ -123,7 +124,7 @@ try {
             -Destination (Join-Path $stageRoot $template) `
             -Force
     }
-    & $python -B (Join-Path $stageRoot "build.py") (Join-Path $stageRoot "design_source.html") | Out-Null
+    & $python -B (Join-Path $stageRoot "build.py") (Join-Path $stageRoot "design_source.html") $stageRoot $repositoryRoot | Out-Null
     if ($LASTEXITCODE -ne 0) {
         throw "DASHBOARD_BUILD_FAILED:$LASTEXITCODE"
     }

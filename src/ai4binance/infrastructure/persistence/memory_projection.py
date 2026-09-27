@@ -15,6 +15,7 @@ from ai4binance.infrastructure.persistence.memory import (
     memory_record_from_payload,
 )
 from ai4binance.infrastructure.persistence.safe_json import to_primitive
+from ai4binance.infrastructure.persistence.sql_resources import sql_statement
 
 
 class MemoryProjectionDriftError(RuntimeError):
@@ -99,14 +100,7 @@ class SqliteMemoryProjection:
                 for record in ordered_records:
                     payload = _payload(record)
                     connection.execute(
-                        """
-                        INSERT INTO memory_records (
-                            memory_id, content_hash, status, subject_key, memory_type,
-                            classification, market_type, symbol, strategy_id,
-                            setup_type,
-                            recorded_at, valid_from, valid_until, payload
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
+                        sql_statement("memory_projection", "statement_01"),
                         (
                             record.memory_id,
                             record.content_hash,
@@ -129,11 +123,11 @@ class SqliteMemoryProjection:
                         ),
                     )
                     connection.execute(
-                        "INSERT INTO memory_fts (memory_id, body) VALUES (?, ?)",
+                        sql_statement("memory_projection", "statement_02"),
                         (record.memory_id, record.body),
                     )
                 connection.executemany(
-                    "INSERT INTO projection_metadata (key, value) VALUES (?, ?)",
+                    sql_statement("memory_projection", "statement_03"),
                     (
                         ("projection_hash", projection_hash),
                         ("record_count", str(len(ordered_records))),
@@ -155,7 +149,7 @@ class SqliteMemoryProjection:
         connection = self._connect()
         try:
             rows = connection.execute(
-                "SELECT payload FROM memory_records ORDER BY memory_id"
+                sql_statement("memory_projection", "statement_04")
             ).fetchall()
         finally:
             connection.close()
@@ -169,15 +163,7 @@ class SqliteMemoryProjection:
         connection = self._connect()
         try:
             rows = connection.execute(
-                """
-                SELECT records.payload
-                FROM memory_fts
-                INNER JOIN memory_records AS records
-                    ON records.memory_id = memory_fts.memory_id
-                WHERE memory_fts MATCH ?
-                ORDER BY bm25(memory_fts), records.memory_id
-                LIMIT ?
-                """,
+                sql_statement("memory_projection", "statement_05"),
                 (query, limit),
             ).fetchall()
         finally:
@@ -192,12 +178,12 @@ class SqliteMemoryProjection:
             try:
                 metadata = dict(
                     connection.execute(
-                        "SELECT key, value FROM projection_metadata"
+                        sql_statement("memory_projection", "statement_06")
                     ).fetchall()
                 )
                 record_count = int(
                     connection.execute(
-                        "SELECT COUNT(*) FROM memory_records"
+                        sql_statement("memory_projection", "statement_07")
                     ).fetchone()[0]
                 )
             finally:
@@ -245,35 +231,7 @@ class SqliteMemoryProjection:
 
 
 def _create_schema(connection: sqlite3.Connection) -> None:
-    connection.executescript(
-        """
-        CREATE TABLE projection_metadata (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL
-        );
-        CREATE TABLE memory_records (
-            memory_id TEXT PRIMARY KEY,
-            content_hash TEXT NOT NULL,
-            status TEXT NOT NULL,
-            subject_key TEXT NOT NULL,
-            memory_type TEXT NOT NULL,
-            classification TEXT NOT NULL,
-            market_type TEXT,
-            symbol TEXT,
-            strategy_id TEXT,
-            setup_type TEXT,
-            recorded_at TEXT NOT NULL,
-            valid_from TEXT NOT NULL,
-            valid_until TEXT,
-            payload TEXT NOT NULL
-        );
-        CREATE INDEX memory_records_temporal_idx
-            ON memory_records (recorded_at, valid_from, valid_until);
-        CREATE INDEX memory_records_entity_idx
-            ON memory_records (subject_key, market_type, symbol, strategy_id);
-        CREATE VIRTUAL TABLE memory_fts USING fts5(memory_id UNINDEXED, body);
-        """
-    )
+    connection.executescript(sql_statement("memory_projection", "statement_08"))
 
 
 def _payload(record: MemoryRecord) -> str:

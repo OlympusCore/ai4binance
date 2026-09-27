@@ -235,7 +235,7 @@ def test_startup_install_script_preserves_cli_module_runtime_commands() -> None:
     assert "AI4BINANCE Chat" in tray_host_text
     assert "Closing hides the window." in tray_host_text
     assert "Get-FastLocalAnswer" in tray_host_text
-    assert "Get-AI4BinanceWalletAnswer" in tray_host_text
+    assert 'operation = "fast_answer"' in tray_host_text
     assert "Format-AI4BinanceAssistantAnswer" in tray_host_text
     assert "assistant_wallet_context.ps1" in tray_host_text
     assert "private\\account-management.json" in tray_host_text
@@ -243,13 +243,19 @@ def test_startup_install_script_preserves_cli_module_runtime_commands() -> None:
     assert "Europe/Istanbul time:" in tray_host_text
     assert "AI4BINANCE asistani hazir." in tray_host_text
     assert "Soru yaz ve Send tusuna bas." in tray_host_text
-    assert "Chat history and previous assistant answers are not evidence." in (
-        tray_host_text
+    prompt_config = Path("config/agents/local_assistant.yaml").read_text(
+        encoding="utf-8"
     )
-    assert "do not provide a generic or invented answer" in tray_host_text
-    assert "Calisma durumu:" in tray_host_text
-    assert "aktif engel sayisi:" in tray_host_text
-    assert "Kisa cevap: Hayir, tam otonom degil." in tray_host_text
+    assistant = Path("src/ai4binance/local_agent/assistant_context.py").read_text(
+        encoding="utf-8"
+    )
+    assert (
+        "Chat history and previous assistant answers are not evidence." in prompt_config
+    )
+    assert "When verified context is missing" in prompt_config
+    assert 'operation = "runtime_status"' in tray_host_text
+    assert '"blocker_count": len(payload["blockers"])' in assistant
+    assert "RUNTIME_STATE_STALE" in assistant
     assert "Get-HumanReadableRuntimeState" in tray_host_text
     assert '"READY" { return "hazir" }' in tray_host_text
     assert '"DEGRADED" { return "kisitli" }' in tray_host_text
@@ -258,7 +264,8 @@ def test_startup_install_script_preserves_cli_module_runtime_commands() -> None:
     assert "Show-AssistantChatWindow" in tray_host_text
     assert "ShowInTaskbar = $false" in tray_host_text
     assert "Asistan dusunuyor..." in tray_host_text
-    assert "n_predict = $maxPredictTokens" in tray_host_text
+    assert "max_tokens = $maxPredictTokens" in tray_host_text
+    assert "n_predict =" not in tray_host_text
     assert "sync.ico" in tray_host_text
 
 

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Protocol
 
 from ai4binance.execution.order_command import SpotOrderCommand
+from ai4binance.infrastructure.persistence.sql_resources import sql_statement
 
 ZERO = Decimal("0")
 
@@ -346,30 +347,10 @@ class LocalExecutionAuthorizationLedger:
                 timeout=self.timeout_seconds,
                 isolation_level=None,
             )
+            connection.execute(sql_statement("authorization", "statement_01"))
+            connection.execute(sql_statement("authorization", "statement_02"))
             connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS execution_authorization_consumption (
-                    authorization_id TEXT PRIMARY KEY,
-                    single_use_nonce TEXT NOT NULL UNIQUE,
-                    envelope_sha256 TEXT NOT NULL,
-                    preview_hash TEXT NOT NULL,
-                    execution_id TEXT NOT NULL,
-                    claimed_at TEXT NOT NULL
-                )
-                """
-            )
-            connection.execute("BEGIN IMMEDIATE")
-            connection.execute(
-                """
-                INSERT INTO execution_authorization_consumption (
-                    authorization_id,
-                    single_use_nonce,
-                    envelope_sha256,
-                    preview_hash,
-                    execution_id,
-                    claimed_at
-                ) VALUES (?, ?, ?, ?, ?, ?)
-                """,
+                sql_statement("authorization", "statement_03"),
                 (
                     envelope.authorization_id,
                     envelope.single_use_nonce,
@@ -380,12 +361,7 @@ class LocalExecutionAuthorizationLedger:
                 ),
             )
             row = connection.execute(
-                """
-                SELECT authorization_id, single_use_nonce, envelope_sha256,
-                       preview_hash, execution_id, claimed_at
-                FROM execution_authorization_consumption
-                WHERE authorization_id = ?
-                """,
+                sql_statement("authorization", "statement_04"),
                 (envelope.authorization_id,),
             ).fetchone()
             expected = (
@@ -400,16 +376,16 @@ class LocalExecutionAuthorizationLedger:
                 raise ExecutionAuthorizationLedgerUnavailableError(
                     "authorization ledger destination verification failed"
                 )
-            connection.execute("COMMIT")
+            connection.execute(sql_statement("authorization", "statement_05"))
         except sqlite3.IntegrityError as error:
             if connection is not None and connection.in_transaction:
-                connection.execute("ROLLBACK")
+                connection.execute(sql_statement("authorization", "statement_06"))
             raise ExecutionAuthorizationAlreadyConsumedError(
                 "execution authorization was already consumed"
             ) from error
         except (OSError, sqlite3.Error) as error:
             if connection is not None and connection.in_transaction:
-                connection.execute("ROLLBACK")
+                connection.execute(sql_statement("authorization", "statement_07"))
             raise ExecutionAuthorizationLedgerUnavailableError(
                 "execution authorization ledger is unavailable"
             ) from error
@@ -434,11 +410,7 @@ class LocalExecutionAuthorizationLedger:
             ) as connection:
                 with connection:
                     row = connection.execute(
-                        """
-                        SELECT 1
-                        FROM execution_authorization_consumption
-                        WHERE authorization_id = ?
-                        """,
+                        sql_statement("authorization", "statement_08"),
                         (_required_text(authorization_id, "authorization_id"),),
                     ).fetchone()
         except sqlite3.Error as error:

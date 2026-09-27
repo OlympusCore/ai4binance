@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import gzip
 import re
 from collections.abc import Iterable, Mapping
@@ -382,6 +383,69 @@ def _content_capability_violations(
     rule: LanguageRule,
 ) -> tuple[TechnologyLanguageViolation, ...]:
     violations: list[TechnologyLanguageViolation] = []
+    if rule.language == "python" and relative.startswith("src/"):
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            violations.append(
+                TechnologyLanguageViolation(
+                    "TECHNOLOGY_SOURCE_UNPARSABLE",
+                    relative,
+                    "Python ownership inspection requires syntactically valid source.",
+                )
+            )
+        else:
+            docstrings = {
+                id(item.body[0].value)
+                for item in ast.walk(tree)
+                if isinstance(
+                    item,
+                    (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef),
+                )
+                and item.body
+                and isinstance(item.body[0], ast.Expr)
+                and isinstance(item.body[0].value, ast.Constant)
+            }
+            for node in ast.walk(tree):
+                if id(node) in docstrings:
+                    continue
+                if not isinstance(node, ast.Constant) or not isinstance(
+                    node.value, str
+                ):
+                    continue
+                if re.match(
+                    r"(?is)^\s*(?:SELECT\b.+?\bFROM\b|INSERT\s+(?:OR\s+\w+\s+)?INTO\b|"
+                    r"CREATE\s+(?:UNIQUE\s+)?(?:TABLE|INDEX)\b|UPDATE\s+\w+\s+SET\b|"
+                    r"DELETE\s+FROM\b|ALTER\s+TABLE\b)",
+                    node.value,
+                ):
+                    violations.append(
+                        TechnologyLanguageViolation(
+                            "EMBEDDED_SQL_OWNERSHIP",
+                            relative,
+                            "Persistent query text belongs in the SQL owner boundary.",
+                        )
+                    )
+                    break
+                if re.search(r"(?is)<style[^>]*>\s*[^<]*[{}]", node.value):
+                    violations.append(
+                        TechnologyLanguageViolation(
+                            "EMBEDDED_CSS_OWNERSHIP",
+                            relative,
+                            "Presentation declarations require the CSS owner boundary.",
+                        )
+                    )
+                    break
+    if rule.language == "powershell" and re.search(
+        r"(?i)\bn_predict\s*=|\btotal_value_usdt\b\s*[+*/-]", source
+    ):
+        violations.append(
+            TechnologyLanguageViolation(
+                "FORBIDDEN_CAPABILITY_OWNERSHIP",
+                relative,
+                "Shell content owns model orchestration or portfolio arithmetic.",
+            )
+        )
     declarations = re.findall(
         r"(?im)^\s*(?:#|//|/\*|--|<!--)\s*capability\s*:\s*([a-z][a-z0-9_]*)",
         source,

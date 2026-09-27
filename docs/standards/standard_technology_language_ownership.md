@@ -2,7 +2,7 @@
 document_id: AI4B-ARCH-STD-LANG-001
 title: AI4BINANCE Technology Language Ownership and Usage Standard
 document_type: STANDARD
-version: 1.0.1
+version: 1.0.2
 status: ACTIVE
 owner: Enterprise Architecture
 technical_owner: Engineering Governance
@@ -938,6 +938,27 @@ Every cross-language boundary MUST define:
 - retry behavior where applicable;
 - deterministic expectations;
 - observability requirements.
+
+### 23.1 Implementation Bindings for Existing Language Boundaries
+
+The following bindings connect existing ownership requirements to their
+canonical implementations and behavior tests. They do not admit another
+runtime or grant governance, deployment, risk, or live-execution authority.
+
+| Responsibility | Canonical implementation and contract | Required boundary and verification |
+| --- | --- | --- |
+| Local assistant orchestration | `src/ai4binance/local_agent/assistant_context.py`; `schemas/interface/assistant_request.schema.json`; `config/agents/local_assistant.yaml` | Python owns bounded conversational context, prompt construction, evidence projection, and calls through the existing `src/ai4binance/rag.py` advisory runner. Windows scripts transport versioned JSON and retain Windows UI and service mechanics. Explicit localization remains presentation-only. Verify valid, malformed, stale, and forbidden-authority inputs with `tests/test_language_ownership_boundaries.py`, `tests/test_assistant_wallet_context.py`, and `tests/test_rag_second_brain.py`. |
+| Git authorization validation | `src/ai4binance/governance/git_write_contract.py`; `schemas/governance/git_write_authorization.schema.json`; `scripts/git_write_authorization.ps1` | Python validates artifact shape, expiry, exact human text, operation, and subject bindings. PowerShell gathers Git/OS facts and preserves atomic one-use consumption. Validation must never create approval or perform a Git write. Verify rejection of missing approval, expiry, replay, and subject drift with `tests/test_security_tooling_contract.py`. |
+| Execution authorization persistence | `src/ai4binance/execution/authorization.py`; `migrations/queries/authorization.sql` | Python retains authorization semantics and transaction orchestration. Fixed SQL owns persistence and database constraints; no SQL statement may confer trading authority. Verify consumption and failure behavior with `tests/test_execution_authorization.py` and static ownership with `tests/test_sqlite_query_contracts.py`. |
+| Rebuildable memory persistence | `src/ai4binance/infrastructure/persistence/memory_projection.py`; `migrations/queries/memory_projection.sql` | Python coordinates the rebuildable projection and integrity checks; the authoritative memory journal remains unchanged. SQL owns database retrieval and schema operations. Verify rebuild and drift handling with `tests/test_memory_projection.py`. |
+| Shared SQL resource loading | `src/ai4binance/infrastructure/persistence/sql_resources.py`; `migrations/queries/` | Python loads fixed, named SQL resources for connection callers. Values remain bound database parameters; dynamic statement construction and cross-owner resource substitution are rejected. Verify resource resolution, invalid owners, missing statements, static call sites, and SQLite integrity with `tests/test_sqlite_query_contracts.py`. |
+| Dashboard projection contract | `src/ai4binance/local_dashboard/contracts.py`; `schemas/interface/dashboard_snapshot.schema.json`; `frontend/src/command_center.ts` | The server validates the versioned read-only projection before emission. TypeScript validates contracted consumer fields before presentation; malformed authority flags are rejected. The contract does not imply full typing of legacy projection extensions. Verify rejected payloads, missing-source behavior, and composed build types with `tests/test_language_ownership_boundaries.py` and `tests/test_dashboard_presentation.py`. |
+
+Use the existing deterministic fabric and canonical quality entry point for
+verification. Technical test evidence does not replace written-rule alignment,
+C3 approval, protected-document approval, or measured technology-adoption
+evidence. Preserve `RESEARCH_ONLY`, `execution_allowed=false`, and
+`LIVE_ORDER_BLOCKED`.
 
 ---
 

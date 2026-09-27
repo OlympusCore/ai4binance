@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/interface/localization.schema.json",
+  "title": "Explicit product translation data without governance authority",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "component", "locale", "purpose", "messages"],
+  "properties": {
+    "schema_version": {"const": "Localization/v1"},
+    "component": {"type": "string", "pattern": "^[a-z][a-z_]*$"},
+    "locale": {"type": "string", "pattern": "^[a-z]{2}-[A-Z]{2}$"},
+    "purpose": {"const": "presentation_only"},
+    "messages": {
+      "type": "object", "minProperties": 1,
+      "propertyNames": {"pattern": "^[A-Za-z][A-Za-z0-9_]*$"},
+      "additionalProperties": {"type": "string", "maxLength": 8192}
+    }
+  }
+}

@@ -845,6 +845,46 @@ class ResponseStub:
         return self.payload
 
 
+@pytest.mark.parametrize("tokens", [0, -1, 2049, True])
+def test_llama_output_budget_rejects_invalid_limits(tokens: int) -> None:
+    with pytest.raises(ValueError, match="token limit"):
+        LlamaCppAdvisoryRunner(num_predict=tokens)
+
+
+def test_assistant_bridge_preserves_completion_limits_and_denies_empty_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai4binance.local_agent.assistant_context import dispatch
+
+    def test_only_response(request: Request, timeout: float) -> ResponseStub:
+        assert request.full_url == "http://127.0.0.1:8080/completion"
+        assert timeout == 3.0
+        assert isinstance(request.data, bytes)
+        body = json.loads(request.data)
+        assert body["n_predict"] == 768
+        assert body["stop"] == ["### User:", "### System:", "</s>"]
+        return ResponseStub(b'{"content":"test-only response"}')
+
+    monkeypatch.setattr("ai4binance.rag.urllib.request.urlopen", test_only_response)
+    request = {
+        "schema_version": "AssistantRequest/v1",
+        "operation": "complete",
+        "endpoint": "http://127.0.0.1:8080",
+        "prompt": "test-only input",
+        "timeout_seconds": 3.0,
+        "max_tokens": 768,
+    }
+    assert dispatch(request) == "test-only response"
+    monkeypatch.setattr(
+        "ai4binance.rag.urllib.request.urlopen",
+        lambda *args, **kwargs: ResponseStub(b'{"content":""}'),
+    )
+    with pytest.raises(ValueError, match="LOCAL_LLM_COMPLETION_BLOCKED"):
+        dispatch(request)
+    with pytest.raises(ValueError, match="stop sequences"):
+        LlamaCppAdvisoryRunner(stop_sequences=())
+
+
 def test_ollama_runner_is_loopback_only_and_blocks_unverified_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

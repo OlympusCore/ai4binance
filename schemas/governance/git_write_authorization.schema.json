@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/governance/git_write_authorization.schema.json",
+  "title": "Exact-subject Git write authorization artifacts",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/challenge"
+    },
+    {
+      "$ref": "#/$defs/approval"
+    }
+  ],
+  "$defs": {
+    "challenge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "status",
+        "operation",
+        "channel",
+        "nonce",
+        "created_at_utc",
+        "expires_at_utc",
+        "subject",
+        "execution_allowed",
+        "promotion_status",
+        "live_eligibility_status"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "status": {
+          "const": "PENDING"
+        },
+        "operation": {
+          "enum": [
+            "COMMIT",
+            "PUSH"
+          ]
+        },
+        "channel": {
+          "enum": [
+            "INTERACTIVE",
+            "NONINTERACTIVE"
+          ]
+        },
+        "nonce": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "created_at_utc": {
+          "type": "string"
+        },
+        "expires_at_utc": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repository_root_sha256",
+            "git_common_directory_sha256",
+            "head",
+            "branch",
+            "hooks_path",
+            "author_identity_sha256",
+            "committer_identity_sha256",
+            "placeholder_identity",
+            "staged_tree",
+            "remote_name",
+            "remote_url_sha256",
+            "push_updates"
+          ],
+          "properties": {
+            "repository_root_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "git_common_directory_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "head": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40,64}$"
+            },
+            "branch": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "hooks_path": {
+              "const": "scripts/git-hooks"
+            },
+            "author_identity_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "committer_identity_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "placeholder_identity": {
+              "type": "boolean"
+            },
+            "staged_tree": {
+              "type": "string"
+            },
+            "remote_name": {
+              "type": "string"
+            },
+            "remote_url_sha256": {
+              "type": "string"
+            },
+            "push_updates": {
+              "type": "array",
+              "maxItems": 256,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "local_ref",
+                  "local_oid",
+                  "remote_ref",
+                  "remote_oid"
+                ],
+                "properties": {
+                  "local_ref": {
+                    "type": "string",
+                    "pattern": "^(refs/|\\(delete\\))"
+                  },
+                  "local_oid": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40,64}$"
+                  },
+                  "remote_ref": {
+                    "type": "string",
+                    "pattern": "^refs/"
+                  },
+                  "remote_oid": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40,64}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "execution_allowed": {
+          "const": false
+        },
+        "promotion_status": {
+          "const": "RESEARCH_ONLY"
+        },
+        "live_eligibility_status": {
+          "const": "LIVE_ORDER_BLOCKED"
+        }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "status",
+        "operation",
+        "challenge_sha256",
+        "approval_text_sha256",
+        "approved_at_utc",
+        "expires_at_utc",
+        "execution_allowed",
+        "promotion_status",
+        "live_eligibility_status"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "status": {
+          "const": "APPROVED"
+        },
+        "operation": {
+          "enum": [
+            "COMMIT",
+            "PUSH"
+          ]
+        },
+        "challenge_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "approval_text_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "approved_at_utc": {
+          "type": "string"
+        },
+        "expires_at_utc": {
+          "type": "string"
+        },
+        "execution_allowed": {
+          "const": false
+        },
+        "promotion_status": {
+          "const": "RESEARCH_ONLY"
+        },
+        "live_eligibility_status": {
+          "const": "LIVE_ORDER_BLOCKED"
+        }
+      }
+    }
+  }
+}

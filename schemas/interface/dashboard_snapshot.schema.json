@@ -1,0 +1,355 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/interface/dashboard_snapshot.schema.json",
+  "title": "Read-only dashboard snapshot v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "generated_at",
+    "execution_allowed",
+    "live_eligibility_status",
+    "sources",
+    "services",
+    "health_findings",
+    "operational_readiness",
+    "decision_history"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "DashboardSnapshot/v1"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "execution_allowed": {
+      "const": false
+    },
+    "live_eligibility_status": {
+      "const": "LIVE_ORDER_BLOCKED"
+    },
+    "sources": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/source"
+      }
+    },
+    "services": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "service",
+          "required",
+          "blockers"
+        ],
+        "properties": {
+          "service": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "blockers": {
+            "$ref": "#/$defs/reasons"
+          }
+        }
+      }
+    },
+    "health_findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "finding_id",
+          "severity",
+          "status",
+          "evidence"
+        ],
+        "properties": {
+          "finding_id": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "operational_readiness": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "type": "string"
+        },
+        "finding_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "high_priority_finding_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "decision_history": {
+      "type": "object",
+      "required": [
+        "status",
+        "records",
+        "findings"
+      ],
+      "properties": {
+        "status": {
+          "type": "string"
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/decision"
+          }
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "source",
+              "status"
+            ],
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "virtual": {
+      "type": "object",
+      "properties": {
+        "market": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "symbol": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "virtual_decision_status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "last_success_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "risk_approved": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "blockers": {
+          "$ref": "#/$defs/reasons"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "type": "string"
+        },
+        "observed_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "file": {
+          "type": "string"
+        },
+        "producer_status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "producer_blockers": {
+          "$ref": "#/$defs/reasons"
+        },
+        "freshness_status": {
+          "type": "string"
+        }
+      }
+    },
+    "reference": {
+      "type": "object",
+      "required": [
+        "artifact_id",
+        "artifact_kind",
+        "cycle_id",
+        "snapshot_id",
+        "payload_sha256",
+        "status"
+      ],
+      "properties": {
+        "artifact_id": {
+          "type": "string"
+        },
+        "artifact_kind": {
+          "type": "string"
+        },
+        "cycle_id": {
+          "type": "string"
+        },
+        "snapshot_id": {
+          "type": "string"
+        },
+        "payload_sha256": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "payload": {
+          "type": "object"
+        }
+      }
+    },
+    "stage": {
+      "type": "object",
+      "required": [
+        "name",
+        "status",
+        "blockers"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "blockers": {
+          "$ref": "#/$defs/reasons"
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "required": [
+        "decision_id",
+        "cycle_id",
+        "snapshot_id",
+        "observed_at",
+        "status",
+        "source",
+        "receipt_status",
+        "payload_status",
+        "historical_authenticity",
+        "execution_surface",
+        "governance_status",
+        "blockers",
+        "analysis_blockers",
+        "stages",
+        "references"
+      ],
+      "properties": {
+        "decision_id": {
+          "type": "string"
+        },
+        "cycle_id": {
+          "type": "string"
+        },
+        "snapshot_id": {
+          "type": "string"
+        },
+        "observed_at": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "receipt_status": {
+          "type": "string"
+        },
+        "payload_status": {
+          "type": "string"
+        },
+        "historical_authenticity": {
+          "type": "string"
+        },
+        "execution_surface": {
+          "type": "string"
+        },
+        "governance_status": {
+          "type": "string"
+        },
+        "blockers": {
+          "$ref": "#/$defs/reasons"
+        },
+        "analysis_blockers": {
+          "$ref": "#/$defs/reasons"
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stage"
+          }
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/reference"
+          }
+        },
+        "timeframes": {
+          "$ref": "#/$defs/reasons"
+        }
+      }
+    }
+  }
+}

@@ -5160,6 +5160,52 @@ def test_repository_validator_skips_missing_non_code_content_artifact(
     assert findings == ()
 
 
+def test_explicit_product_localization_cannot_hide_governance_fields(
+    tmp_path: Path,
+) -> None:
+    relative = "config/localization/assistant_wallet.tr-TR.yaml"
+    target = tmp_path / relative
+    target.parent.mkdir(parents=True)
+    target.write_bytes((ROOT / relative).read_bytes())
+    schemas = tmp_path / "schemas/interface"
+    schemas.mkdir(parents=True)
+    shutil.copyfile(
+        ROOT / "schemas/interface/localization.schema.json",
+        schemas / "localization.schema.json",
+    )
+    artifact = _repository_artifact(
+        artifact_type=RepositoryArtifactType.CONFIG,
+        artifact_class=RepositoryArtifactClass.SOURCE,
+        canonical_path=relative,
+        filename=target.name,
+    )
+    policy = RepositoryPolicy.ai4binance_vnext()
+    check = repository_validator_module._non_code_content_language_findings
+    assert tuple(check(tmp_path, policy, (artifact,))) == ()
+    original = target.read_text(encoding="utf-8")
+    for invalid in (
+        original + "execution_allowed: true\n",
+        original.replace("locale: tr-TR", "locale: de-DE"),
+        original.replace("purpose: presentation_only", "purpose: governance"),
+        original.replace("messages:", "policy:"),
+    ):
+        target.write_text(invalid, encoding="utf-8")
+        assert tuple(check(tmp_path, policy, (artifact,)))
+    target.write_text(original, encoding="utf-8")
+    outside = tmp_path / "config/governance/policy.yaml"
+    outside.parent.mkdir(parents=True)
+    outside.write_text(original, encoding="utf-8")
+    from dataclasses import replace
+
+    assert tuple(
+        check(
+            tmp_path,
+            policy,
+            (replace(artifact, canonical_path="config/governance/policy.yaml"),),
+        )
+    )
+
+
 def test_repository_validator_blocks_non_utf8_non_code_repository_content(
     tmp_path: Path,
 ) -> None:
