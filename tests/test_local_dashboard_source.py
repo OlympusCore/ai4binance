@@ -94,6 +94,55 @@ def test_dashboard_packaging_reads_operations_from_canonical_owner(
         assert not (SOURCE / name).exists()
 
 
+def test_dashboard_installer_does_not_bypass_task_registration_failure(
+    tmp_path: Path,
+) -> None:
+    shell = shutil.which("pwsh") or shutil.which("powershell")
+    if shell is None:
+        pytest.skip("PowerShell is required for the Windows installer test")
+    installer = tmp_path / "test-only-install.ps1"
+    shutil.copyfile(ROOT / "scripts/local_dashboard/install.ps1.in", installer)
+    (tmp_path / "config.json").write_text(
+        json.dumps({"repository_root": str(tmp_path), "port": 8765}), encoding="utf-8"
+    )
+    harness = tmp_path / "test-only-installer-harness.ps1"
+    harness.write_text(
+        """
+$ErrorActionPreference = 'Stop'
+function New-ScheduledTaskAction {
+    param($Execute, $Argument, $WorkingDirectory)
+    if ($Argument -match 'ExecutionPolicy') { throw 'TEST_ONLY_POLICY_OVERRIDE' }
+    [pscustomobject]@{}
+}
+function New-ScheduledTaskTrigger { [pscustomobject]@{} }
+function New-ScheduledTaskPrincipal { [pscustomobject]@{} }
+function New-ScheduledTaskSettingsSet { [pscustomobject]@{} }
+function Get-ScheduledTask { $null }
+function Register-ScheduledTask { throw 'TEST_ONLY_REGISTRATION_DENIED' }
+function Start-ScheduledTask { throw 'TEST_ONLY_UNEXPECTED_TASK_START' }
+function Start-Process { throw 'TEST_ONLY_UNEXPECTED_PROCESS_START' }
+function New-Object { throw 'TEST_ONLY_UNEXPECTED_SHORTCUT_CREATION' }
+try {
+    & (Join-Path $PSScriptRoot 'test-only-install.ps1')
+    throw 'TEST_ONLY_EXPECTED_FAILURE_MISSING'
+} catch {
+    [Console]::WriteLine($_.Exception.Message)
+}
+""",
+        encoding="utf-8",
+    )
+    completed = subprocess.run(  # noqa: S603
+        [shell, "-NoProfile", "-File", str(harness)],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "TEST_ONLY_REGISTRATION_DENIED"
+    assert not (tmp_path / "installation.json").exists()
+
+
 def test_dashboard_exposes_useful_cycle_and_producer_health() -> None:
     server = (SOURCE / "server.py.in").read_text(encoding="utf-8")
     views = (SOURCE / "local_views.js").read_text(encoding="utf-8")

@@ -135,3 +135,22 @@ def test_inventory_includes_extensionless_git_hooks(tmp_path: Path) -> None:
     report = build_scripts_inventory_report(tmp_path)
     assert [item.path for item in report.entries] == ["scripts/git-hooks/pre-commit"]
     assert report.status == "INVENTORIED"
+
+
+def test_inventory_templates_bind_exact_bytes_and_reject_invalid_text(
+    tmp_path: Path,
+) -> None:
+    import hashlib
+
+    script = tmp_path / "scripts/local_dashboard/launch.ps1.in"
+    script.parent.mkdir(parents=True)
+    raw = b'\xef\xbb\xbfWrite-Output "test-only"\r\n'
+    script.write_bytes(raw)
+    entry = build_scripts_inventory_report(tmp_path).entries[0]
+    assert entry.path == "scripts/local_dashboard/launch.ps1.in"
+    assert entry.extension == ".ps1"
+    assert entry.bytes == len(raw)
+    assert entry.sha256 == hashlib.sha256(raw).hexdigest()
+    script.write_bytes(b"\xffinvalid")
+    with pytest.raises(UnicodeDecodeError):
+        build_scripts_inventory_report(tmp_path)

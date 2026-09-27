@@ -113,7 +113,7 @@ def build_scripts_inventory_report(
         for path in sorted(scripts_root.rglob("*"))
         if path.is_file()
         and (
-            path.suffix.lower()
+            _script_extension(path)
             in {
                 ".ps1",
                 ".psm1",
@@ -242,12 +242,19 @@ def main(arguments: Sequence[str] | None = None) -> int:
     return 0
 
 
+def _script_extension(path: Path) -> str:
+    while path.suffix.lower() in {".in", ".template", ".j2"}:
+        path = path.with_suffix("")
+    return path.suffix.lower()
+
+
 def _inventory_entry(
     path: Path,
     root: Path,
     scripts_root: Path,
 ) -> ScriptInventoryEntry:
-    text = path.read_text(encoding="utf-8-sig", errors="replace")
+    raw = path.read_bytes()
+    text = raw.decode("utf-8-sig")
     relative = _relative_path(path, root)
     function_names = tuple(dict.fromkeys(_FUNCTION_PATTERN.findall(text)))
     parameter_names = tuple(dict.fromkeys(_PARAMETER_PATTERN.findall(text)))
@@ -260,12 +267,11 @@ def _inventory_entry(
             }
         )
     )
-    encoded = text.encode("utf-8")
     return ScriptInventoryEntry(
         path=relative,
-        extension=path.suffix.lower(),
+        extension=_script_extension(path),
         category=_classify_script(path, scripts_root, text),
-        bytes=len(encoded),
+        bytes=len(raw),
         line_count=len(text.splitlines()),
         parameter_names=parameter_names,
         function_names=function_names,
@@ -276,7 +282,7 @@ def _inventory_entry(
         process_capability=bool(_PROCESS_PATTERN.search(text)),
         writes_runtime_artifacts=bool(_ARTIFACT_PATTERN.search(text)),
         hard_coded_local_path_count=len(_LOCAL_ABSOLUTE_PATH_PATTERN.findall(text)),
-        sha256=hashlib.sha256(encoded).hexdigest(),
+        sha256=hashlib.sha256(raw).hexdigest(),
     )
 
 

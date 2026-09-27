@@ -4,7 +4,7 @@ $taskName = 'AI4BINANCE-Dashboard'
 $shellPath = (Get-Command powershell.exe).Source
 $launcher = Join-Path $appDirectory 'launch.ps1'
 $config = Get-Content -LiteralPath (Join-Path $appDirectory 'config.json') -Raw | ConvertFrom-Json
-$arguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $launcher + '"'
+$arguments = '-NoProfile -NonInteractive -WindowStyle Hidden -File "' + $launcher + '"'
 $startupMode = 'ScheduledTask'
 $action = New-ScheduledTaskAction -Execute $shellPath -Argument $arguments -WorkingDirectory $config.repository_root
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User ([Security.Principal.WindowsIdentity]::GetCurrent().Name)
@@ -16,18 +16,7 @@ try {
     Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Local read-only AI4Binance dashboard. Opens at sign-in and recovers the dashboard service and app window.' -Force | Out-Null
     Start-ScheduledTask -TaskName $taskName
 } catch {
-    if ($_.Exception.Message -match 'DASHBOARD_TASK_NAME_COLLISION') { throw }
-    $startupMode = 'UserStartupShortcut'
-    $startupPath = Join-Path ([Environment]::GetFolderPath('Startup')) 'AI4Binance Dashboard.lnk'
-    $wsh = New-Object -ComObject WScript.Shell
-    $link = $wsh.CreateShortcut($startupPath)
-    $link.TargetPath = $shellPath
-    $link.Arguments = $arguments
-    $link.WorkingDirectory = $appDirectory
-    $link.WindowStyle = 7
-    $link.Description = 'Start the local AI4Binance dashboard guardian.'
-    $link.Save()
-    Start-Process -FilePath $shellPath -ArgumentList $arguments -WindowStyle Hidden | Out-Null
+    throw
 }
 $desktopPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'AI4Binance Dashboard.lnk'
 $wsh = New-Object -ComObject WScript.Shell
