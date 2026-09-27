@@ -5,6 +5,8 @@ from typing import cast
 
 import pytest
 
+import ai4binance.domain.research.equity_metrics as domain_metrics
+import ai4binance.research.equity_metrics as legacy_metrics
 from ai4binance.application import (
     VirtualMarketRuntime,
     VirtualPortfolioPerformanceMetrics,
@@ -22,6 +24,22 @@ from ai4binance.research.equity_metrics import (
 from ai4binance.research.virtual_market import DailyEquityPoint
 
 NOW = datetime(2026, 3, 1, tzinfo=UTC)
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "EquityObservation",
+        "calculate_annualized_return",
+        "calculate_equity_max_drawdown",
+        "calculate_equity_returns",
+        "calculate_periodic_sharpe",
+        "calculate_periodic_sortino",
+        "calculate_regular_sample_seconds",
+    ],
+)
+def test_equity_metric_compatibility_preserves_canonical_identity(name: str) -> None:
+    assert getattr(legacy_metrics, name) is getattr(domain_metrics, name)
 
 
 def equity_point(offset_days: int, equity: str) -> DailyEquityPoint:

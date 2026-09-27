@@ -142,7 +142,7 @@
       },
       {
         "relation_id": "closure-review-produces-lesson",
-        "test_assertion_refs": ["tests/test_governance_framework_v2.py::test_controlled_learning_contract_is_research_only_and_lifecycle_bound"],
+        "test_assertion_refs": ["tests/test_governance_framework.py::test_controlled_learning_contract_is_research_only_and_lifecycle_bound"],
         "expected_outcome": "LIVE_ORDER_BLOCKED",
         "requires_runtime_evidence": false
       },
@@ -160,37 +160,37 @@
       },
       {
         "relation_id": "execution-record-creates-position-lifecycle",
-        "test_assertion_refs": ["tests/test_governance_framework_v2.py::test_canonical_hard_blockers_fail_closed_and_live_candidates_block"],
+        "test_assertion_refs": ["tests/test_governance_framework.py::test_canonical_hard_blockers_fail_closed_and_live_candidates_block"],
         "expected_outcome": "LIVE_ORDER_BLOCKED",
         "requires_runtime_evidence": false
       },
       {
         "relation_id": "lesson-proposes-learning-candidate",
-        "test_assertion_refs": ["tests/test_governance_framework_v2.py::test_canonical_capability_contracts_require_formula_oracle_and_validation"],
+        "test_assertion_refs": ["tests/test_governance_framework.py::test_canonical_capability_contracts_require_formula_oracle_and_validation"],
         "expected_outcome": "RESEARCH_ONLY",
         "requires_runtime_evidence": false
       },
       {
         "relation_id": "position-lifecycle-evaluated-by-closure-review",
-        "test_assertion_refs": ["tests/test_governance_framework_v2.py::test_controlled_learning_contract_is_research_only_and_lifecycle_bound"],
+        "test_assertion_refs": ["tests/test_governance_framework.py::test_controlled_learning_contract_is_research_only_and_lifecycle_bound"],
         "expected_outcome": "LIVE_ORDER_BLOCKED",
         "requires_runtime_evidence": false
       },
       {
         "relation_id": "setup-evaluated-by-deterministic-core",
-        "test_assertion_refs": ["tests/test_governance_framework_v2.py::test_core_vnext_identity_maps_unsafe_states_to_no_trade"],
+        "test_assertion_refs": ["tests/test_governance_framework.py::test_core_vnext_identity_maps_unsafe_states_to_no_trade"],
         "expected_outcome": "NO_TRADE",
         "requires_runtime_evidence": false
       },
       {
         "relation_id": "trade-decision-governed-by-policy",
-        "test_assertion_refs": ["tests/test_governance_framework_v2.py::test_core_vnext_identity_maps_unsafe_states_to_no_trade"],
+        "test_assertion_refs": ["tests/test_governance_framework.py::test_core_vnext_identity_maps_unsafe_states_to_no_trade"],
         "expected_outcome": "NO_TRADE",
         "requires_runtime_evidence": false
       },
       {
         "relation_id": "trade-plan-subject-to-execution-gate-result",
-        "test_assertion_refs": ["tests/test_governance_framework_v2.py::test_canonical_hard_blockers_fail_closed_and_live_candidates_block"],
+        "test_assertion_refs": ["tests/test_governance_framework.py::test_canonical_hard_blockers_fail_closed_and_live_candidates_block"],
         "expected_outcome": "LIVE_ORDER_BLOCKED",
         "requires_runtime_evidence": false
       }
@@ -232,7 +232,7 @@
         "component_id": "policy",
         "requirement_ref": "docs/governance/framework_core_vnext_governance.md",
         "expected_outcome": "NO_TRADE",
-        "test_assertion_refs": ["tests/test_governance_framework_v2.py::test_core_vnext_identity_maps_unsafe_states_to_no_trade"],
+        "test_assertion_refs": ["tests/test_governance_framework.py::test_core_vnext_identity_maps_unsafe_states_to_no_trade"],
         "required_relation_ids": ["trade-decision-governed-by-policy"],
         "requires_runtime_evidence": true
       },
@@ -559,6 +559,12 @@
       "description": "Policy evaluation, authority, blockers, and enforcement logic.",
       "include": [
         "src/ai4binance/governance/**",
+        "src/ai4binance/domain/blockers.py",
+        "src/ai4binance/domain/blocker_reduction.py",
+        "src/ai4binance/domain/execution_authority.py",
+        "src/ai4binance/domain/execution_envelope.py",
+        "src/ai4binance/application/blocker_registry.py",
+        "src/ai4binance/application/blocker_reduction.py",
         "src/ai4binance/content/policy.py",
         "src/ai4binance/opportunity_policy.py",
         "src/ai4binance/multiops/**/policy.py"

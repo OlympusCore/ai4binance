@@ -425,7 +425,7 @@ def test_governance_gate_passes_when_all_control_planes_pass(tmp_path: Path) -> 
         encoding="utf-8",
     )
     (tmp_path / "tests").mkdir()
-    (tmp_path / "tests" / "test_governance_framework_v2.py").write_text(
+    (tmp_path / "tests" / "test_governance_framework.py").write_text(
         "from ai4binance.governance.framework import Core\n",
         encoding="utf-8",
     )
@@ -517,7 +517,7 @@ def test_governance_gate_blocks_repository_validator_failure(tmp_path: Path) -> 
         encoding="utf-8",
     )
     (tmp_path / "tests").mkdir()
-    (tmp_path / "tests" / "test_governance_framework_v2.py").write_text(
+    (tmp_path / "tests" / "test_governance_framework.py").write_text(
         "from ai4binance.governance.framework import Core\n",
         encoding="utf-8",
     )
@@ -555,7 +555,7 @@ def test_governance_gate_blocks_subset_test_failures(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     (tmp_path / "tests").mkdir()
-    (tmp_path / "tests" / "test_governance_framework_v2.py").write_text(
+    (tmp_path / "tests" / "test_governance_framework.py").write_text(
         "from ai4binance.governance.framework import Core\n",
         encoding="utf-8",
     )
@@ -599,7 +599,7 @@ def test_governance_gate_surfaces_alignment_findings(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     (tmp_path / "tests").mkdir()
-    (tmp_path / "tests" / "test_governance_framework_v2.py").write_text(
+    (tmp_path / "tests" / "test_governance_framework.py").write_text(
         "from ai4binance.governance.framework import Core\n",
         encoding="utf-8",
     )
@@ -653,7 +653,7 @@ def test_governance_gate_blocks_invalid_authority_snapshot_metadata(
         encoding="utf-8",
     )
     (tmp_path / "tests").mkdir()
-    (tmp_path / "tests" / "test_governance_framework_v2.py").write_text(
+    (tmp_path / "tests" / "test_governance_framework.py").write_text(
         "from ai4binance.governance.framework import Core\n",
         encoding="utf-8",
     )
@@ -705,7 +705,7 @@ def test_governance_gate_blocks_stale_quality_subject_digest(tmp_path: Path) -> 
     framework_path = governance_root / "framework.py"
     framework_path.write_text("class Core: ...\n", encoding="utf-8")
     (tmp_path / "tests").mkdir()
-    (tmp_path / "tests" / "test_governance_framework_v2.py").write_text(
+    (tmp_path / "tests" / "test_governance_framework.py").write_text(
         "from ai4binance.governance.framework import Core\n",
         encoding="utf-8",
     )
@@ -747,7 +747,7 @@ def test_governance_gate_requires_known_change_set_for_governed_execution(
         encoding="utf-8",
     )
     (tmp_path / "tests").mkdir()
-    (tmp_path / "tests" / "test_governance_framework_v2.py").write_text(
+    (tmp_path / "tests" / "test_governance_framework.py").write_text(
         "from ai4binance.governance.framework import Core\n",
         encoding="utf-8",
     )
@@ -786,7 +786,7 @@ def test_governance_gate_blocks_consequential_changes_without_bound_approval(
         encoding="utf-8",
     )
     (tmp_path / "tests").mkdir()
-    (tmp_path / "tests" / "test_governance_framework_v2.py").write_text(
+    (tmp_path / "tests" / "test_governance_framework.py").write_text(
         "from ai4binance.governance.framework import Core\n",
         encoding="utf-8",
     )
@@ -794,7 +794,7 @@ def test_governance_gate_blocks_consequential_changes_without_bound_approval(
     change_set = _change_set(
         tmp_path,
         "src/ai4binance/governance/framework.py",
-        "tests/test_governance_framework_v2.py",
+        "tests/test_governance_framework.py",
     )
     quality_report = _quality_report(tmp_path, change_set=change_set)
 
@@ -1011,7 +1011,7 @@ def test_governance_gate_verifies_bound_approval_records(tmp_path: Path) -> None
         encoding="utf-8",
     )
     (tmp_path / "tests").mkdir()
-    (tmp_path / "tests" / "test_governance_framework_v2.py").write_text(
+    (tmp_path / "tests" / "test_governance_framework.py").write_text(
         "from ai4binance.governance.framework import Core\n",
         encoding="utf-8",
     )
@@ -1019,7 +1019,7 @@ def test_governance_gate_verifies_bound_approval_records(tmp_path: Path) -> None
     change_set = _change_set(
         tmp_path,
         "src/ai4binance/governance/framework.py",
-        "tests/test_governance_framework_v2.py",
+        "tests/test_governance_framework.py",
     )
     quality_report = _quality_report(tmp_path, change_set=change_set)
     provisional_report = build_governance_gate_report(
@@ -1120,7 +1120,7 @@ def test_governance_gate_blocks_duplicate_principal_ids_across_roles(
         encoding="utf-8",
     )
     (tmp_path / "tests").mkdir()
-    (tmp_path / "tests" / "test_governance_framework_v2.py").write_text(
+    (tmp_path / "tests" / "test_governance_framework.py").write_text(
         "from ai4binance.governance.framework import Core\n",
         encoding="utf-8",
     )
@@ -1128,7 +1128,7 @@ def test_governance_gate_blocks_duplicate_principal_ids_across_roles(
     change_set = _change_set(
         tmp_path,
         "src/ai4binance/governance/framework.py",
-        "tests/test_governance_framework_v2.py",
+        "tests/test_governance_framework.py",
     )
     quality_report = _quality_report(tmp_path, change_set=change_set)
     provisional_report = build_governance_gate_report(
@@ -1398,7 +1398,7 @@ def test_governance_gate_blocks_revoked_bound_approval_records(tmp_path: Path) -
         encoding="utf-8",
     )
     (tmp_path / "tests").mkdir()
-    (tmp_path / "tests" / "test_governance_framework_v2.py").write_text(
+    (tmp_path / "tests" / "test_governance_framework.py").write_text(
         "from ai4binance.governance.framework import Core\n",
         encoding="utf-8",
     )
@@ -1406,7 +1406,7 @@ def test_governance_gate_blocks_revoked_bound_approval_records(tmp_path: Path) -
     change_set = _change_set(
         tmp_path,
         "src/ai4binance/governance/framework.py",
-        "tests/test_governance_framework_v2.py",
+        "tests/test_governance_framework.py",
     )
     quality_report = _quality_report(tmp_path, change_set=change_set)
     provisional_report = build_governance_gate_report(
@@ -2352,7 +2352,7 @@ def test_main_writes_blocked_gate_payload_and_lowercases_sha(tmp_path: Path) -> 
         encoding="utf-8",
     )
     (tmp_path / "tests").mkdir()
-    (tmp_path / "tests" / "test_governance_framework_v2.py").write_text(
+    (tmp_path / "tests" / "test_governance_framework.py").write_text(
         "from ai4binance.governance.framework import Core\n",
         encoding="utf-8",
     )
@@ -2377,7 +2377,7 @@ def test_main_writes_blocked_gate_payload_and_lowercases_sha(tmp_path: Path) -> 
     uppercase_sha = "ABCDEF1234ABCDEF1234ABCDEF1234ABCDEF1234ABCDEF1234ABCDEF1234ABCD"
     changed_paths = (
         "src/ai4binance/governance/framework.py",
-        "tests/test_governance_framework_v2.py",
+        "tests/test_governance_framework.py",
     )
 
     quality_exit_code = main(

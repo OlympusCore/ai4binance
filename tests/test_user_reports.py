@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from ai4binance.ops import user_reports
+from ai4binance.application import user_reports
 from ai4binance.ops.user_reports import (
     canonical_system_root,
     render_professional_summary,

@@ -1,25 +1,54 @@
-"""Compatibility bridge for live-readiness contracts."""
+"""Compatibility exports for the canonical readiness application service."""
 
-from __future__ import annotations
-
-from importlib import import_module
-
-_live_readiness = import_module("ai4binance.execution.live_readiness")
-LiveReadinessBuilder = _live_readiness.LiveReadinessBuilder
-LiveReadinessEvidence = _live_readiness.LiveReadinessEvidence
-
-__all__ = (
-    "LiveReadinessBuilder",
-    "LiveReadinessEvidence",
+from ai4binance.application.services.live_readiness import (
+    LiveReadinessBuilder as LiveReadinessBuilder,
 )
+from ai4binance.application.services.live_readiness import (
+    LiveReadinessEvidence as LiveReadinessEvidence,
+)
+from ai4binance.application.services.live_readiness import (
+    ReadinessApprovalQueue as ReadinessApprovalQueue,
+)
+from ai4binance.application.services.live_readiness import (
+    ReadinessAuthorization as ReadinessAuthorization,
+)
+from ai4binance.application.services.live_readiness import (
+    ReadinessPreview as ReadinessPreview,
+)
+from ai4binance.application.services.live_readiness import (
+    ReadinessPromotionRegistry as ReadinessPromotionRegistry,
+)
+from ai4binance.application.services.live_readiness import (
+    ReadinessSettings as ReadinessSettings,
+)
+from ai4binance.application.services.live_readiness import (
+    ReadinessValidationRegistry as ReadinessValidationRegistry,
+)
+from ai4binance.application.services.live_readiness import (
+    ReadinessValidationSummary as ReadinessValidationSummary,
+)
+from ai4binance.application.services.live_readiness import (
+    _endpoint_ok as _endpoint_ok,
+)
+from ai4binance.application.services.live_readiness import (
+    _open_order_count as _open_order_count,
+)
+from ai4binance.application.services.live_readiness import (
+    _preflight_ready as _preflight_ready,
+)
+
+__all__ = ("LiveReadinessBuilder", "LiveReadinessEvidence")
+_READINESS_EXPORTS = {
+    "LiveReadinessBuilder": LiveReadinessBuilder,
+    "LiveReadinessEvidence": LiveReadinessEvidence,
+}
 
 
 def __getattr__(name: str) -> object:
-    if name in __all__:
-        value = getattr(_live_readiness, name)
-        globals()[name] = value
-        return value
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    try:
+        return _READINESS_EXPORTS[name]
+    except KeyError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
 
 
 def __dir__() -> list[str]:

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -10,7 +12,9 @@ from typing import cast
 
 import pytest
 
+from ai4binance.domain.evidence import decision_telemetry as domain_telemetry
 from ai4binance.enterprise import GpuTelemetryAssessment
+from ai4binance.ops import decision_telemetry as legacy_telemetry
 from ai4binance.ops.continuous_assurance import (
     AuditTriggerType,
     build_continuous_assurance_plan,
@@ -47,6 +51,67 @@ from ai4binance.ops.decision_telemetry import (
 )
 
 NOW = datetime(2026, 8, 23, 9, 0, tzinfo=UTC)
+
+
+def test_telemetry_compatibility_exports_preserve_model_and_builder_identity() -> None:
+    for name in (
+        "LineageStatus",
+        "DecisionTelemetryStatus",
+        "MarketType",
+        "OutcomeLifecycle",
+        "EvidenceQuality",
+        "CounterfactualType",
+        "AttributionMethod",
+        "OpportunityCostType",
+        "BlockerOutcome",
+        "DecisionEffectivenessClass",
+        "DgeEffectivenessStatus",
+        "TelemetryDomain",
+        "AcceptanceGateStatus",
+        "DecisionInputRecord",
+        "DecisionProcessRecord",
+        "DecisionOutcomeRecord",
+        "CounterfactualOutcome",
+        "OutcomeAttribution",
+        "BlockerEffectivenessRecord",
+        "DecisionEffectivenessRecord",
+        "MetricEvidence",
+        "CanonicalTelemetrySnapshot",
+        "PerformanceAcceptanceResult",
+        "ImprovementCandidate",
+        "DgeRuleEffectivenessMetrics",
+        "DgeEffectivenessMetrics",
+        "LineageCompletenessResult",
+        "PerformanceEvidenceSnapshot",
+        "DecisionTelemetryFabricRecord",
+        "evaluate_lineage_completeness",
+        "build_performance_evidence_snapshot",
+    ):
+        assert getattr(legacy_telemetry, name) is getattr(domain_telemetry, name)
+
+
+def test_domain_telemetry_import_does_not_load_operational_owners() -> None:
+    completed = subprocess.run(  # noqa: S603
+        [
+            sys.executable,
+            "-B",
+            "-c",
+            "import sys; "
+            "import ai4binance.domain.evidence.decision_telemetry; "
+            "forbidden = ('ai4binance.ops', 'ai4binance.storage', "
+            "'ai4binance.enterprise', 'ai4binance.reporting'); "
+            "loaded = [name for name in sys.modules if any("
+            "name == owner or name.startswith(owner + '.') "
+            "for owner in forbidden)]; "
+            "assert not loaded, loaded",
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stderr
 
 
 def test_performance_evidence_snapshot_measures_no_trade_and_dge_effectiveness() -> (

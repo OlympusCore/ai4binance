@@ -4,17 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from importlib import import_module
 from typing import Protocol, cast
 
-_blocker_reduction_module = import_module("ai4binance.governance.blocker_reduction")
-VirtualBlockerReduction = _blocker_reduction_module.VirtualBlockerReduction
-reduce_virtual_blockers = _blocker_reduction_module.reduce_virtual_blockers
-
-_execution_envelope_module = import_module("ai4binance.governance.execution_envelope")
-execution_envelope_for_surface = (
-    _execution_envelope_module.execution_envelope_for_surface
+from ai4binance.application.blocker_reduction import reduce_virtual_blockers
+from ai4binance.core.contracts.execution_surface import ExecutionSurface
+from ai4binance.domain.blocker_reduction import (
+    VirtualBlockerReduction as VirtualBlockerReduction,
 )
+from ai4binance.domain.execution_envelope import execution_envelope_for_surface
 
 
 class _VirtualBlockerReductionLike(Protocol):
@@ -118,7 +115,9 @@ def evaluate_virtual_simulation_eligibility(
 ) -> VirtualSimulationEligibility:
     """Evaluate whether bounded virtual simulation may proceed."""
 
-    authority_envelope = execution_envelope_for_surface(execution_surface)
+    authority_envelope = execution_envelope_for_surface(
+        cast(ExecutionSurface, execution_surface)
+    )
     authority_blockers: list[str] = []
     if not _is_virtual_market_surface(execution_surface):
         authority_blockers.append("EXECUTION_SURFACE_NOT_VIRTUAL_MARKET")

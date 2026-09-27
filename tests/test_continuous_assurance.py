@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -1095,3 +1097,40 @@ def _signal(
         risk_score=risk_score,
         execution_allowed=execution_allowed,
     )
+
+
+def test_assurance_contracts_import_without_operational_adapters() -> None:
+    result = subprocess.run(  # noqa: S603 - fixed local Python and literal probe.
+        [
+            sys.executable,
+            "-B",
+            "-c",
+            "import sys; import ai4binance.domain.evidence.continuous_assurance; "
+            "assert not any(name.startswith(('ai4binance.ops.', "
+            "'ai4binance.events.', 'ai4binance.trust.')) for name in sys.modules)",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_assurance_contracts_preserve_legacy_identity() -> None:
+    from ai4binance.domain.evidence import continuous_assurance as canonical
+    from ai4binance.ops import continuous_assurance as legacy
+
+    for name in (
+        "DecisionProvenanceRecord",
+        "EvidenceGraphEdge",
+        "EvidenceGraphLiteRecord",
+        "EvidenceGraphNode",
+        "PolicyEvaluationRecord",
+        "SemanticContractRecord",
+        "TrustAssuranceBundle",
+        "TrustAssuranceResult",
+        "UncertaintyAssessmentRecord",
+        "UncertaintyLevel",
+    ):
+        assert getattr(legacy, name) is getattr(canonical, name)

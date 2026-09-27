@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 from ai4binance.governance.enforcement.contracts import (
     ActionTransitionRule,
@@ -332,8 +333,20 @@ def test_enforcement_profile_registry_loader_rejects_invalid_root(
     invalid_path.write_text("[]\n", encoding="utf-8")
     with pytest.raises(ValueError, match="must be a mapping"):
         load_enforcement_profile_registry(invalid_path)
-    invalid_path.write_text("version: 1.0.0\nprofiles: invalid\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="profiles must be a list"):
+    canonical_path = (
+        Path(__file__).resolve().parents[1]
+        / "config/governance/enforcement_profiles.yaml"
+    )
+    payload = yaml.safe_load(canonical_path.read_text(encoding="utf-8"))
+    current_version = payload["version"]
+    payload["version"] = "1.0.0"
+    invalid_path.write_text(yaml.safe_dump(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match=f"'{current_version}' was expected"):
+        load_enforcement_profile_registry(invalid_path)
+    payload["version"] = current_version
+    payload["profiles"] = "invalid"
+    invalid_path.write_text(yaml.safe_dump(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="'invalid' is not of type 'array'"):
         load_enforcement_profile_registry(invalid_path)
 
 
@@ -509,15 +522,22 @@ def test_enforcement_inventory_loader_rejects_malformed_payloads(
     path.write_text("[]\n", encoding="utf-8")
     with pytest.raises(ValueError, match="must be a mapping"):
         load_enforcement_inventory(path)
-    path.write_text("version: 1.0.0\nentries: invalid\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="entries must be a list"):
-        load_enforcement_inventory(path)
-    path.write_text(
-        "version: 1.0.0\nentries: []\nnon_consequential_examples: invalid\n",
-        encoding="utf-8",
+    canonical_path = (
+        Path(__file__).resolve().parents[1]
+        / "config/governance/enforcement_inventory.yaml"
     )
-    with pytest.raises(ValueError, match="examples must be a list"):
+    payload = yaml.safe_load(canonical_path.read_text(encoding="utf-8"))
+    current_version = payload["version"]
+    payload["version"] = "1.0.0"
+    path.write_text(yaml.safe_dump(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match=f"'{current_version}' was expected"):
         load_enforcement_inventory(path)
+    payload["version"] = current_version
+    for field in ("entries", "non_consequential_examples"):
+        malformed = {**payload, field: "invalid"}
+        path.write_text(yaml.safe_dump(malformed), encoding="utf-8")
+        with pytest.raises(ValueError, match="'invalid' is not of type 'array'"):
+            load_enforcement_inventory(path)
 
 
 def test_enforcement_inventory_parsers_reject_invalid_machine_data() -> None:

@@ -3317,6 +3317,7 @@ def test_repository_validator_top_level_and_blocker_registry_helper_branches(
     unknown_dir = tmp_path / "scratchpad"
     unknown_dir.mkdir()
     (tmp_path / "data").mkdir()
+    (tmp_path / "frontend").mkdir()
     (tmp_path / ".git").mkdir()
     missing_canonical = tmp_path / "schemas"
 
@@ -3333,6 +3334,12 @@ def test_repository_validator_top_level_and_blocker_registry_helper_branches(
         RepositoryFindingKind.UNKNOWN_TOP_LEVEL_PATH,
         "data",
     ) not in finding_pairs
+    assert (
+        RepositoryFindingKind.UNKNOWN_TOP_LEVEL_PATH,
+        "frontend",
+    ) not in finding_pairs
+    assert policy.owner_by_top_level["frontend"] == "Engineering"
+    assert "frontend" not in policy.ignored_parts
     assert (
         RepositoryFindingKind.UNKNOWN_TOP_LEVEL_PATH,
         ".git",
@@ -4289,7 +4296,7 @@ def test_repository_policy_registers_publication_and_security_surfaces(
     report = validate_repository(tmp_path, policy=policy)
     registered = {".gitleaksignore", "LICENSE", "examples", "publication"}
 
-    assert policy.version == "1.3.1"
+    assert policy.version == "1.3.2"
     assert registered <= set(policy.allowed_top_level_paths)
     assert not any(
         finding.kind is RepositoryFindingKind.UNKNOWN_TOP_LEVEL_PATH

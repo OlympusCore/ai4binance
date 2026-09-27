@@ -3,19 +3,34 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from decimal import Decimal
-from importlib import import_module
-from typing import Protocol, cast
+from typing import Protocol
 
 from ai4binance.application.virtual_runtime_eligibility import (
     VirtualSimulationEligibility,
 )
 
-_decision_telemetry = import_module("ai4binance.ops.decision_telemetry")
-EvidenceQuality = _decision_telemetry.EvidenceQuality
-ImprovementCandidate = _decision_telemetry.ImprovementCandidate
-MetricEvidence = _decision_telemetry.MetricEvidence
-TelemetryDomain = _decision_telemetry.TelemetryDomain
+
+class ImprovementCandidateEvidence(Protocol):
+    """Research proposal supplied by the canonical telemetry owner."""
+
+    @property
+    def proposed_experiment(self) -> str: ...
+
+
+@dataclass(frozen=True, slots=True)
+class VirtualHaltReviewPorts:
+    """Explicit construction ports wired by the virtual runtime composition."""
+
+    market_type: Callable[[str], object]
+    candidate_factory: Callable[..., ImprovementCandidateEvidence]
+    metric_factory: Callable[..., object]
+    review_factory: Callable[..., object]
+    partial_evidence_quality: object
+    risk_effectiveness_domain: object
+    trading_performance_domain: object
+    active_halt_status: object
 
 
 class _VirtualPortfolioGovernorLike(Protocol):
@@ -63,33 +78,18 @@ class _VirtualLossStreakRequestLike(Protocol):
     def portfolio_governor(self) -> _VirtualPortfolioGovernorLike: ...
 
 
-class _VirtualMarketRuntimeLike(Protocol):
-    @staticmethod
-    def _market_type(market: str) -> object: ...
-
-
 def build_virtual_loss_streak_halt_review(
     request: _VirtualLossStreakRequestLike,
     eligibility: VirtualSimulationEligibility,
+    *,
+    ports: VirtualHaltReviewPorts,
 ) -> object | None:
     """Create a research-only halt review when virtual loss streaks trip."""
 
     if "VIRTUAL_LOSS_STREAK_LIMIT_EXCEEDED" not in eligibility.blockers:
         return None
 
-    research_virtual_runtime = import_module("ai4binance.research.virtual_runtime")
-    zero = research_virtual_runtime.ZERO
-    virtual_autonomy_halt_status = research_virtual_runtime.VirtualAutonomyHaltStatus
-    virtual_market_runtime = cast(
-        type[_VirtualMarketRuntimeLike],
-        research_virtual_runtime.VirtualMarketRuntime,
-    )
-    virtual_loss_streak_halt_review = cast(
-        Callable[..., object],
-        research_virtual_runtime.VirtualLossStreakHaltReview,
-    )
-
-    market_type = virtual_market_runtime._market_type(request.market)
+    market_type = ports.market_type(request.market)
     threshold = request.portfolio_governor.maximum_consecutive_losses
     observed_losses = request.portfolio.consecutive_losses
     evidence_refs = (
@@ -97,7 +97,7 @@ def build_virtual_loss_streak_halt_review(
         request.decision_id,
         request.portfolio.portfolio_id,
     )
-    candidate = ImprovementCandidate(
+    candidate = ports.candidate_factory(
         candidate_id=(
             "improvement:loss-streak:"
             f"{request.strategy_id.lower()}:{request.strategy_version.lower()}:"
@@ -112,32 +112,32 @@ def build_virtual_loss_streak_halt_review(
         affected_markets=(market_type,),
         affected_regimes=(request.regime,),
         baseline_metrics=(
-            MetricEvidence(
+            ports.metric_factory(
                 metric_id="baseline.maximum_consecutive_losses",
-                domain=TelemetryDomain.RISK_EFFECTIVENESS,
+                domain=ports.risk_effectiveness_domain,
                 value=Decimal(threshold),
                 unit="trades",
                 evidence_refs=evidence_refs,
             ),
         ),
         observed_metrics=(
-            MetricEvidence(
+            ports.metric_factory(
                 metric_id="observed.consecutive_losses",
-                domain=TelemetryDomain.RISK_EFFECTIVENESS,
+                domain=ports.risk_effectiveness_domain,
                 value=Decimal(observed_losses),
                 unit="trades",
                 evidence_refs=evidence_refs,
             ),
-            MetricEvidence(
+            ports.metric_factory(
                 metric_id="observed.max_drawdown_ratio",
-                domain=TelemetryDomain.TRADING_PERFORMANCE,
+                domain=ports.trading_performance_domain,
                 value=request.portfolio.max_drawdown_ratio,
                 unit="ratio",
                 evidence_refs=evidence_refs,
             ),
         ),
         sample_size=max(observed_losses, 1),
-        evidence_quality=EvidenceQuality.PARTIAL,
+        evidence_quality=ports.partial_evidence_quality,
         confidence=Decimal("0.60"),
         hypothesis=(
             f"{request.strategy_id} in {request.regime} exceeded the governed "
@@ -149,7 +149,7 @@ def build_virtual_loss_streak_halt_review(
             "virtual evidence, compare planned versus realized risk, and stage "
             "parameter or gating changes as research-only candidates."
         ),
-        risk_delta_usdt=zero,
+        risk_delta_usdt=Decimal("0"),
     )
     findings = (
         (
@@ -189,7 +189,7 @@ def build_virtual_loss_streak_halt_review(
             "the next bounded simulation request before allowing entry."
         ),
     )
-    return virtual_loss_streak_halt_review(
+    return ports.review_factory(
         review_id=(
             f"virtual-loss-streak-halt:{request.strategy_id.lower()}:{request.market.lower()}:{request.snapshot_id}"
         ),
@@ -197,7 +197,7 @@ def build_virtual_loss_streak_halt_review(
         decision_id=request.decision_id,
         portfolio_id=request.portfolio.portfolio_id,
         halt_scope=f"{request.market}:{request.strategy_id}:{request.regime}",
-        status=virtual_autonomy_halt_status.ACTIVE,
+        status=ports.active_halt_status,
         trigger_blocker="VIRTUAL_LOSS_STREAK_LIMIT_EXCEEDED",
         market=request.market,
         symbol=request.symbol,

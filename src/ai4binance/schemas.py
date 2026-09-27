@@ -11,6 +11,15 @@ from typing import ClassVar, cast
 
 from ai4binance.core.contracts.memory import CompiledCycleContext
 from ai4binance.domain import Signal, TradeCandidate
+from ai4binance.domain.market_data import (
+    OHLCVCandle as OHLCVCandle,
+)
+from ai4binance.domain.market_data import (
+    OOSValidationStatus as OOSValidationStatus,
+)
+from ai4binance.domain.market_data import (
+    _require_aware_timestamp as _require_aware_timestamp,
+)
 from ai4binance.intelligence.contracts import TradingIntelligenceState
 
 
@@ -52,15 +61,6 @@ class PromotionStatus(StrEnum):
     REJECTED = "REJECTED"
 
 
-class OOSValidationStatus(StrEnum):
-    """Out-of-sample evidence state used for hard-gate governance."""
-
-    UNVALIDATED = "UNVALIDATED"
-    INSUFFICIENT = "INSUFFICIENT"
-    APPROVED = "APPROVED"
-    REJECTED = "REJECTED"
-
-
 def _freeze_value(value: object) -> object:
     """Recursively freeze common container values for a decision cycle."""
     if isinstance(value, Mapping):
@@ -97,35 +97,6 @@ def is_futures_market_type(market_type: str) -> bool:
 def is_spot_market_type(market_type: str) -> bool:
     """Return whether a market type represents Spot."""
     return _normalize_market_type(market_type) == "SPOT"
-
-
-def _require_aware_timestamp(field_name: str, value: datetime) -> None:
-    if value.tzinfo is None or value.utcoffset() is None:
-        raise ValueError(f"{field_name} must be timezone-aware")
-
-
-@dataclass(frozen=True, slots=True)
-class OHLCVCandle:
-    """Immutable market candle with basic integrity checks."""
-
-    timestamp: datetime
-    open: Decimal
-    high: Decimal
-    low: Decimal
-    close: Decimal
-    volume: Decimal
-
-    def __post_init__(self) -> None:
-        """Reject impossible OHLC relationships and negative values."""
-        _require_aware_timestamp("timestamp", self.timestamp)
-        if min(self.open, self.high, self.low, self.close, self.volume) < Decimal("0"):
-            raise ValueError("OHLCV values cannot be negative")
-        if self.low > self.high:
-            raise ValueError("candle low cannot exceed high")
-        if self.high < max(self.open, self.close) or self.low > min(
-            self.open, self.close
-        ):
-            raise ValueError("invalid OHLC relationship")
 
 
 @dataclass(frozen=True, slots=True)

@@ -439,7 +439,7 @@ def test_governance_alignment_passes_when_code_docs_tests_and_quality_are_synced
     (source / "framework.py").write_text("class Core: ...\n", encoding="utf-8")
     tests = tmp_path / "tests"
     tests.mkdir()
-    (tests / "test_governance_framework_v2.py").write_text(
+    (tests / "test_governance_framework.py").write_text(
         "from ai4binance.governance.framework import Core\n",
         encoding="utf-8",
     )
@@ -453,7 +453,7 @@ def test_governance_alignment_passes_when_code_docs_tests_and_quality_are_synced
         tmp_path,
         changed_paths=(
             "src/ai4binance/governance/framework.py",
-            "tests/test_governance_framework_v2.py",
+            "tests/test_governance_framework.py",
         ),
     )
 

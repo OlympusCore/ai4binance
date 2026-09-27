@@ -41,14 +41,21 @@ def test_canonical_dashboard_source_builds_deterministic_offline_assets(
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "DASHBOARD_PACKAGE_BUILT"
     assert _sha256(stage / "app.js") == (
-        "e3f683d653b8bc36975c4145baffdc1ec7e26291983286b7cc90b198a43af6b8"
+        "73c5b006e5435fa24e132e6c801126aa62a38540173534e0f90f90a3d3c61afb"
     )
     assert _sha256(stage / "app.css") == (
         "ccd0dfd34c78fbf9809a3353ed1fc02d007d01723850ed71557b68e812bd7bdc"
     )
     assert _sha256(stage / "index.html") == (
-        "b80777bf1ce24f8298453f565193691ac64945cc9e16e7ddc00c20e28fb7f701"
+        "1bd289c4a7727dec46cc51414941a08d25b4bdc1f5d93c9606711b6613a22d4d"
     )
+    document = (stage / "index.html").read_text(encoding="utf-8")
+    script = (stage / "app.js").read_text(encoding="utf-8")
+    assert "/lucide.js" not in document
+    assert "renderDashboardIcons(root)" in script
+    assert "Copyright (c) 2026 Lucide Icons and Contributors" in script
+    public_files = runpy.run_path(str(stage / "server.py.in"))["PUBLIC_FILES"]
+    assert "/lucide.js" not in public_files
 
 
 def test_dashboard_deployer_preserves_machine_state_and_private_profile() -> None:
@@ -93,9 +100,16 @@ def test_dashboard_packaging_reads_operations_from_canonical_owner(
         path = ROOT / "scripts/local_dashboard" / name
         assert records[path.relative_to(ROOT).as_posix()] == _sha256(path)
         assert not (SOURCE / name).exists()
-    for name in ("command_center.ts", "command_center.css", "dashboard_shell.ts"):
+    for name in (
+        "command_center.ts",
+        "command_center.css",
+        "dashboard_shell.ts",
+        "dashboard_icons.ts",
+    ):
         path = ROOT / "frontend" / "src" / name
         assert records[path.relative_to(ROOT).as_posix()] == _sha256(path)
+    assert not any("lucide.js" in path for path in records)
+    assert not any("lucide.js" in item["path"] for item in payload["deployment_files"])
 
 
 def test_dashboard_installer_does_not_bypass_task_registration_failure(

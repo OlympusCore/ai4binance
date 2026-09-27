@@ -17,6 +17,9 @@ from ai4binance.domain import (
     TradeCandidate,
     ValidationStatus,
 )
+from ai4binance.domain.risk_geometry import (
+    structural_margin_loss_per_unit as structural_margin_loss_per_unit,
+)
 from ai4binance.exchange.filters import SymbolFilters
 from ai4binance.governance.execution_authority import ExecutionSurface
 from ai4binance.schemas import AgentResult, MarketSnapshot
@@ -301,20 +304,6 @@ class RiskEngine:
             risk_amount_usdt=risk_amount,
             blockers=unique_blockers,
         )
-
-
-def structural_margin_loss_per_unit(
-    entry: Decimal,
-    stop: Decimal,
-    mark_price: Decimal,
-    cost_and_funding_ratio: Decimal,
-    mark_stress_ratio: Decimal,
-) -> tuple[Decimal, Decimal]:
-    """Share the same conservative loss geometry between sizing and margin veto."""
-    sign = Decimal("1") if stop < entry else Decimal("-1")
-    stressed_stop = stop - sign * (abs(mark_price - entry) + entry * mark_stress_ratio)
-    loss = abs(entry - stressed_stop) + entry * cost_and_funding_ratio
-    return stressed_stop, loss
 
 
 def _structural_sizing_distance(

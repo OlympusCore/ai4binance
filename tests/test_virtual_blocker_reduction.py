@@ -4,10 +4,34 @@ from dataclasses import replace
 
 import pytest
 
+import ai4binance.application.blocker_reduction as application_reduction
+from ai4binance.domain.blocker_reduction import VirtualBlockerReduction
 from ai4binance.governance.blocker_reduction import (
     _require_unique_nonblank,
     reduce_virtual_blockers,
 )
+
+
+def test_legacy_reducer_preserves_canonical_result_identity() -> None:
+    assert reduce_virtual_blockers is application_reduction.reduce_virtual_blockers
+    assert type(reduce_virtual_blockers()) is VirtualBlockerReduction
+
+
+def test_missing_registry_keeps_all_requested_blockers_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unavailable_registry() -> None:
+        raise FileNotFoundError("Test-only unavailable blocker configuration")
+
+    monkeypatch.setattr(
+        application_reduction, "_blocker_registry", unavailable_registry
+    )
+    result = reduce_virtual_blockers(authority_blockers=("GOV.AUTHORITY_CONFLICT",))
+
+    assert result.root_cause_codes == ("GOV.AUTHORITY_CONFLICT",)
+    assert result.known_blockers == ()
+    assert result.unknown_blockers == result.root_cause_codes
+    assert result.has_unknown_classifications is True
 
 
 def test_virtual_blocker_reduction_orders_and_classifies_unknowns() -> None:

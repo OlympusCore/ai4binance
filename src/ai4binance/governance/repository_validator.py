@@ -536,6 +536,7 @@ SUPPORT_TOP_LEVEL_PATHS: tuple[str, ...] = (
     ".vscode",
     "examples",
     "factory",
+    "frontend",
     "LICENSE",
     "publication",
     "requirements.txt",
@@ -646,6 +647,7 @@ class RepositoryPolicy:
             "examples": "Documentation",
             "publication": "Governance",
             "src": "Engineering",
+            "frontend": "Engineering",
             "tests": "Quality",
             "docs": "Governance",
             "scripts": "Operations",
@@ -671,7 +673,7 @@ class RepositoryPolicy:
         }
         return cls(
             policy_id="AI4B-GOV-REPO-POLICY",
-            version="1.3.1",
+            version="1.3.2",
             allowed_top_level_paths=allowed,
             source_roots=("src/ai4binance",),
             test_roots=("tests",),

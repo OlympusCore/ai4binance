@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-FRM-001
 title: AI4BINANCE Core vNext Governance Framework
 document_type: FRAMEWORK
-version: 2.0.5
+version: 2.0.6
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -1212,7 +1212,7 @@ regime, paper/operational evidence, owner review, and promotion evidence exist.
 
 This document's typed Python contracts are represented in
 `src/ai4binance/governance/framework.py`, and the related behavior is verified
-by `tests/test_governance_framework_v2.py`.
+by `tests/test_governance_framework.py`.
 
 Core contract constants:
 

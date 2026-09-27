@@ -28,7 +28,7 @@ def test_registry_is_schema_valid_sorted_and_live_blocked() -> None:
     registry = load_logical_architecture_registry(REGISTRY_PATH)
 
     assert registry.registry_id == "AI4B-LOGICAL-ARCHITECTURE-REGISTRY-001"
-    assert registry.version == "1.12.0"
+    assert registry.version == "1.12.1"
     assert registry.source_of_truth is False
     assert registry.execution_allowed is False
     assert registry.live_eligibility_status == "LIVE_ORDER_BLOCKED"

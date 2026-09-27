@@ -4,16 +4,25 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from decimal import Decimal
-from importlib import import_module
-from typing import Protocol, cast
+from typing import Protocol
 
 from ai4binance.domain import Action
 
 ZERO = Decimal("0")
 ONE = Decimal("1")
 
-_backtest_liquidity = import_module("ai4binance.research.backtesting.liquidity")
-assess_liquidity_fill = _backtest_liquidity.assess_liquidity_fill
+
+class LiquidityFillAssessment(Protocol):
+    """Read-only result supplied by the canonical liquidity evaluator."""
+
+    @property
+    def blockers(self) -> tuple[str, ...]: ...
+
+    @property
+    def filled_quantity(self) -> Decimal: ...
+
+    @property
+    def price_impact_ratio(self) -> Decimal: ...
 
 
 class _VirtualPortfolioLike(Protocol):
@@ -82,7 +91,7 @@ class _VirtualFillPreviewLike(Protocol):
     def fee_usdt(self) -> Decimal: ...
 
 
-class _VirtualMarketRuntimeLike(Protocol):
+class VirtualRuntimePortfolioPort(Protocol):
     @staticmethod
     def _round_quantity(quantity: Decimal, *, step_size: Decimal) -> Decimal: ...
 
@@ -101,17 +110,17 @@ class _VirtualMarketRuntimeLike(Protocol):
     ) -> tuple[str, ...]: ...
 
 
-def build_virtual_fill_preview(request: _VirtualRuntimeRequestLike) -> object:
+def build_virtual_fill_preview(
+    request: _VirtualRuntimeRequestLike,
+    *,
+    runtime: type[VirtualRuntimePortfolioPort],
+    preview_factory: Callable[..., object],
+    liquidity_assessor: Callable[..., LiquidityFillAssessment],
+) -> object:
     """Build a virtual fill preview without coupling callers to implementation."""
 
-    research_virtual_runtime = import_module("ai4binance.research.virtual_runtime")
-    virtual_market_runtime = cast(
-        type[_VirtualMarketRuntimeLike],
-        research_virtual_runtime.VirtualMarketRuntime,
-    )
-    virtual_fill_preview = cast(
-        Callable[..., object], research_virtual_runtime.VirtualFillPreview
-    )
+    virtual_market_runtime = runtime
+    virtual_fill_preview = preview_factory
 
     rounded_requested_quantity = virtual_market_runtime._round_quantity(
         request.quantity,
@@ -135,7 +144,7 @@ def build_virtual_fill_preview(request: _VirtualRuntimeRequestLike) -> object:
     blockers: list[str] = []
     reason_codes: list[str] = []
     if request.candle_volume is not None:
-        liquidity = assess_liquidity_fill(
+        liquidity = liquidity_assessor(
             requested_quantity=rounded_requested_quantity,
             candle_volume=request.candle_volume,
             config=request.liquidity_stress,
@@ -201,11 +210,12 @@ def build_virtual_fill_preview(request: _VirtualRuntimeRequestLike) -> object:
 def build_virtual_portfolio_blockers(
     request: _VirtualRuntimeRequestLike,
     fill_preview: _VirtualFillPreviewLike,
+    *,
+    runtime: type[VirtualRuntimePortfolioPort],
 ) -> tuple[str, ...]:
     """Build deterministic portfolio blockers for one virtual runtime request."""
 
-    research_virtual_runtime = import_module("ai4binance.research.virtual_runtime")
-    virtual_market_runtime = research_virtual_runtime.VirtualMarketRuntime
+    virtual_market_runtime = runtime
 
     blockers: list[str] = []
     if request.market.strip().upper() != request.portfolio.market:

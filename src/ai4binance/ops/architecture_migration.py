@@ -201,6 +201,59 @@ def build_architecture_migration_classification(
 
 def _architecture_migration_rule(relative_path: str) -> _ArchitectureMigrationRule:
     facade_targets = {
+        "research/virtual_market.py": "src/ai4binance/application/virtual_market.py",
+        "portfolio/risk_budget.py": "src/ai4binance/domain/portfolio_risk.py",
+        "research/backtesting/liquidity.py": (
+            "src/ai4binance/domain/research/liquidity.py"
+        ),
+        "research/backtesting/models.py": (
+            "src/ai4binance/domain/research/backtest_models.py"
+        ),
+        "validation/models.py": "src/ai4binance/domain/research/validation_models.py",
+        "validation/statistics.py": "src/ai4binance/domain/research/statistics.py",
+        "execution/trailing.py": "src/ai4binance/domain/research/trailing.py",
+        "execution/lifecycle.py": "src/ai4binance/domain/research/paper_lifecycle.py",
+        "research/virtual_runtime.py": (
+            "src/ai4binance/application/virtual_runtime_engine.py"
+        ),
+        "trust/plane.py": "src/ai4binance/domain/evidence/trust_plane.py",
+        "ops/user_reports.py": "src/ai4binance/application/user_reports.py",
+        "research/virtual_runtime_portfolio_state.py": (
+            "src/ai4binance/domain/research/virtual_runtime_portfolio_state.py"
+        ),
+        "research/virtual_runtime_portfolios.py": (
+            "src/ai4binance/domain/research/virtual_runtime_portfolios.py"
+        ),
+        "research/virtual_runtime_request.py": (
+            "src/ai4binance/domain/research/virtual_runtime_request.py"
+        ),
+        "research/virtual_runtime_risk.py": (
+            "src/ai4binance/domain/research/virtual_runtime_risk.py"
+        ),
+        "research/virtual_runtime_trade_intent.py": (
+            "src/ai4binance/domain/research/virtual_runtime_trade_intent.py"
+        ),
+        "execution/live_readiness.py": (
+            "src/ai4binance/application/services/live_readiness.py"
+        ),
+        "application/live_readiness.py": (
+            "src/ai4binance/application/services/live_readiness.py"
+        ),
+        "execution/order_command.py": "src/ai4binance/domain/order_command.py",
+        "governance/blockers.py": "src/ai4binance/domain/blockers.py",
+        "governance/blocker_reduction.py": (
+            "src/ai4binance/application/blocker_reduction.py"
+        ),
+        "governance/execution_authority.py": (
+            "src/ai4binance/domain/execution_authority.py"
+        ),
+        "governance/execution_envelope.py": (
+            "src/ai4binance/domain/execution_envelope.py"
+        ),
+        "research/equity_metrics.py": (
+            "src/ai4binance/domain/research/equity_metrics.py"
+        ),
+        "safety.py": "src/ai4binance/domain/live_gate.py",
         "cli.py": "src/ai4binance/cli/__main__.py",
         "application/virtual_runtime.py": (
             "src/ai4binance/application/services/virtual_runtime.py"
@@ -326,7 +379,7 @@ def _root_file_migration_rule(
         "opportunity_scanner.py": ("domain/intelligence/opportunity_scanner.py"),
         "privacy_boundary.py": "infrastructure/security/privacy_boundary.py",
         "research_catalog.py": "domain/research/catalog.py",
-        "research_governance.py": "domain/research/governance.py",
+        "research_governance.py": "infrastructure/persistence/research_governance.py",
         "risk.py": "domain/risk/model.py",
         "runtime_research_context.py": "domain/snapshot/research_context.py",
         "safety.py": "domain/risk/safety.py",
@@ -349,10 +402,27 @@ def _root_file_migration_rule(
 
 def _target_tree_migration_rule(relative_path: str) -> _ArchitectureMigrationRule:
     root = relative_path.split("/", maxsplit=1)[0]
-    if relative_path == "domain/market/markets.py":
+    migrated_owners = {
+        "domain/market/markets.py": "domain/market",
+        "domain/blockers.py": "domain/governance",
+        "domain/blocker_reduction.py": "domain/governance",
+        "domain/execution_authority.py": "domain/governance",
+        "domain/execution_envelope.py": "domain/governance",
+        "domain/live_gate.py": "domain/risk",
+        "domain/live_gate_evidence.py": "domain/validation",
+        "domain/order_command.py": "domain/execution",
+        "domain/promotion_evidence.py": "domain/validation",
+        "domain/portfolio_risk.py": "domain/portfolio",
+        "domain/risk_geometry.py": "domain/risk",
+        "domain/market_data.py": "domain/market",
+        "domain/evidence/decision_telemetry.py": "domain/evidence",
+        "domain/evidence/continuous_assurance.py": "domain/evidence",
+        "domain/evidence/trust_plane.py": "domain/governance",
+    }
+    if relative_path in migrated_owners:
         return _keep_rule_for_target(
             relative_path,
-            "src/ai4binance/domain/market",
+            f"src/ai4binance/{migrated_owners[relative_path]}",
         )
     if relative_path.startswith("domain/research/"):
         return _keep_rule_for_target(

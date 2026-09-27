@@ -92,7 +92,7 @@ requirement_traceability:
       machine_readable_ref: config/governance/enforcement_profiles.yaml
       implementation_refs: [src/ai4binance/risk.py]
       enforcement_entrypoints: [execution_profile_evaluate]
-      test_refs: [tests/test_governance_framework_v2.py]
+      test_refs: [tests/test_governance_framework.py]
       evidence_ref: runtime/quality/20260908T215129Z/summary.json
       evidence_sha256: 4cc7db8b96443dfdf0436482e8ee7db0d908a37bd929f01f18c5aaeffb9ac42e
       trace_status: AUDIT_VERIFIED

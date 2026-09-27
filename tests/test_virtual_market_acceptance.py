@@ -11,6 +11,8 @@ from typing import Any, TypedDict, Unpack, cast
 
 import pytest
 
+from ai4binance.application import virtual_market as acceptance_workflow
+from ai4binance.domain.research import virtual_market as acceptance_contracts
 from ai4binance.governance.blockers import (
     BlockerClass,
     BlockerDomain,
@@ -21,6 +23,7 @@ from ai4binance.governance.execution_authority import (
     ExecutionAutomationMode,
     ExecutionSurface,
 )
+from ai4binance.research import virtual_market as acceptance_compatibility
 from ai4binance.research.virtual_market import (
     ACCEPTANCE_BLOCKER_CANONICAL_CODES,
     STATUS_BLOCKER_CLASSES,
@@ -47,6 +50,23 @@ from ai4binance.research.virtual_market import (
     required_acceptance_blocker_mappings,
     required_system_status_blockers,
 )
+
+
+def test_acceptance_compatibility_preserves_canonical_identities() -> None:
+    internal_domain_entrypoints = {
+        "acceptance_policy_from_payload",
+        "evaluate_market_acceptance",
+        "evaluate_research_candidate",
+        "evaluate_two_stage_profitability_evidence",
+    }
+    for owner in (acceptance_contracts, acceptance_workflow):
+        for name, value in vars(owner).items():
+            if getattr(value, "__module__", None) != owner.__name__:
+                continue
+            if owner is acceptance_contracts and name in internal_domain_entrypoints:
+                continue
+            assert getattr(acceptance_compatibility, name) is value, name
+
 
 START = datetime(2025, 1, 1, tzinfo=UTC)
 WARMUP = START - timedelta(days=120)

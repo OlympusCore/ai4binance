@@ -6,6 +6,19 @@ from typing import Any
 import pytest
 
 from ai4binance import research_governance as g
+from ai4binance.domain.research import governance as contracts
+
+
+def test_pure_research_contracts_preserve_all_legacy_identities() -> None:
+    definitions = {
+        name: value
+        for name, value in vars(contracts).items()
+        if getattr(value, "__module__", None) == contracts.__name__
+    }
+    assert "ResearchHypothesis" in definitions
+    assert "build_virtual_improvement_review_result" in definitions
+    for name, value in definitions.items():
+        assert getattr(g, name) is value, name
 
 
 @pytest.fixture

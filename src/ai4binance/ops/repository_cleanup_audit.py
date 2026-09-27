@@ -797,7 +797,7 @@ def _classify_static_unimported(
             "src/ai4binance/agents/advisory.py",
             "KEEP",
             (
-                "tests/test_advisory_v2.py",
+                "tests/test_advisory.py",
                 "docs/compliance/registry_compliance_matrix.md",
             ),
             "Advisory v2 contract is test-backed and intentionally non-executing.",

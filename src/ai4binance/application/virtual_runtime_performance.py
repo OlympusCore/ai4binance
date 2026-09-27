@@ -6,17 +6,16 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from importlib import import_module
 from typing import Protocol
 
-_equity_metrics = import_module("ai4binance.research.equity_metrics")
-
-calculate_annualized_return = _equity_metrics.calculate_annualized_return
-calculate_equity_max_drawdown = _equity_metrics.calculate_equity_max_drawdown
-calculate_equity_returns = _equity_metrics.calculate_equity_returns
-calculate_periodic_sharpe = _equity_metrics.calculate_periodic_sharpe
-calculate_periodic_sortino = _equity_metrics.calculate_periodic_sortino
-calculate_regular_sample_seconds = _equity_metrics.calculate_regular_sample_seconds
+from ai4binance.domain.research.equity_metrics import (
+    calculate_annualized_return,
+    calculate_equity_max_drawdown,
+    calculate_equity_returns,
+    calculate_periodic_sharpe,
+    calculate_periodic_sortino,
+    calculate_regular_sample_seconds,
+)
 
 
 class EquityObservation(Protocol):

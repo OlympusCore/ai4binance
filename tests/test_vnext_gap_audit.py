@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
@@ -8,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from ai4binance.cli import main
+from ai4binance.enterprise import vnext_gap_audit as audit_module
 from ai4binance.enterprise.vnext_gap_audit import (
     VnextCapabilityGap,
     VnextClaimStatus,
@@ -19,6 +21,10 @@ from ai4binance.enterprise.vnext_gap_audit import (
 )
 from ai4binance.governance.constitution_sync import (
     build_quality_gate_workspace_attestation,
+)
+from ai4binance.governance.enforcement.inventory import (
+    RequirementAssuranceDecision,
+    load_enforcement_inventory,
 )
 
 NOW = datetime(2026, 9, 12, 2, 0, tzinfo=UTC)
@@ -76,6 +82,18 @@ def test_vnext_gap_audit_maps_local_evidence_without_execution() -> None:
 
     report = build_vnext_gap_audit(root)
     payload = report.to_payload()
+    registry = load_enforcement_inventory().requirement_traceability
+    assert registry is not None
+    assurance_chains = registry.assurance_chains(root)
+    expected_converged = sum(
+        chain.assurance_decision is not RequirementAssuranceDecision.BLOCKED
+        for chain in assurance_chains
+    )
+    expected_traceability_blockers = tuple(
+        dict.fromkeys(
+            blocker for chain in assurance_chains for blocker in chain.blocker_codes
+        )
+    )
 
     assert payload["command"] == "vnext-gap-audit"
     assert payload["source_profile"] == "AI4BINANCE_ENTERPRISEAI_VNEXT_V1_2"
@@ -147,14 +165,11 @@ def test_vnext_gap_audit_maps_local_evidence_without_execution() -> None:
     assert report.next_phase.endswith("_EVIDENCE_CLOSURE")
     assert report.requirement_traceability_status == "RUNNING_WITH_BLOCKERS"
     assert report.requirement_traceability_entry_count == 20
-    assert report.requirement_traceability_converged_count == 17
+    assert report.requirement_traceability_converged_count == expected_converged
+    assert report.requirement_traceability_blockers == expected_traceability_blockers
     assert (
         "RQ-013:CONVERGENCE_BLOCKED_BY_OOS_PROMOTION_EVIDENCE"
         in report.requirement_traceability_blockers
-    )
-    assert not any(
-        blocker.startswith("RQ-014:")
-        for blocker in report.requirement_traceability_blockers
     )
     assert (
         "RQ-015:CONVERGENCE_BLOCKED_BY_EXTERNAL_SECURITY_EVIDENCE"
@@ -167,7 +182,7 @@ def test_vnext_gap_audit_maps_local_evidence_without_execution() -> None:
     assert payload["requirement_traceability"] == {
         "status": "RUNNING_WITH_BLOCKERS",
         "entry_count": 20,
-        "converged_count": 17,
+        "converged_count": expected_converged,
         "blockers": list(report.requirement_traceability_blockers),
     }
     quality_baseline_blocker = (
@@ -190,6 +205,61 @@ def test_vnext_gap_audit_maps_local_evidence_without_execution() -> None:
         blocker.startswith("VNEXT-00B-UNIVERSAL-ENFORCEMENT:")
         for blocker in report.blockers
     )
+
+
+def test_vnext_traceability_rejects_legacy_quality_snapshots(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test-only legacy evidence cannot convert declarations into assurance."""
+    inventory = load_enforcement_inventory()
+    registry = inventory.requirement_traceability
+    assert registry is not None
+    evidence_ref = "runtime/quality/test-only-legacy-run/summary.json"
+    evidence = tmp_path / evidence_ref
+    evidence.parent.mkdir(parents=True)
+    evidence.write_text(
+        json.dumps({"schema_version": 1, "status": "TECHNICAL_QUALITY_PASS"}),
+        encoding="utf-8",
+    )
+    entries = tuple(
+        replace(
+            entry,
+            evidence_ref=evidence_ref,
+            evidence_sha256=sha256(evidence.read_bytes()).hexdigest(),
+        )
+        for entry in registry.entries
+    )
+    for entry in entries:
+        for reference in (
+            entry.authority_ref,
+            entry.machine_readable_ref,
+            *entry.implementation_refs,
+            *entry.test_refs,
+        ):
+            target = tmp_path / reference
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("# Test-only requirement reference.\n", encoding="utf-8")
+    inventory_path = tmp_path / "config/governance/enforcement_inventory.yaml"
+    inventory_path.parent.mkdir(parents=True, exist_ok=True)
+    inventory_path.write_text("# Test-only injected inventory.\n", encoding="utf-8")
+    fixture_inventory = replace(
+        inventory, requirement_traceability=replace(registry, entries=entries)
+    )
+    monkeypatch.setattr(
+        audit_module, "load_enforcement_inventory", lambda _: fixture_inventory
+    )
+
+    audit = audit_module._audit_requirement_traceability(tmp_path)
+
+    assert audit.status == "RUNNING_WITH_BLOCKERS"
+    assert audit.entry_count == 20
+    assert audit.converged_count == 0
+    assert {
+        f"{entry.requirement_id}:QUALITY_EVIDENCE_CONTRACT_INVALID" for entry in entries
+    } <= set(audit.blockers)
+    assert "RQ-013:CONVERGENCE_BLOCKED_BY_OOS_PROMOTION_EVIDENCE" in audit.blockers
+    assert "RQ-015:CONVERGENCE_BLOCKED_BY_EXTERNAL_SECURITY_EVIDENCE" in audit.blockers
+    assert "RQ-016:CONVERGENCE_BLOCKED_BY_COMPATIBILITY_EVIDENCE" in audit.blockers
 
 
 def test_vnext_gap_audit_accepts_current_canonical_quality_evidence(

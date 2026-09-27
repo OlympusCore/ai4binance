@@ -9,7 +9,6 @@ interface DashboardState {
   density: string;
   radius: number;
 }
-declare var lucide: { createIcons(options: { attrs: { width: number; height: number } }): void };
 
 (() => {
   function requiredElement(parent: ParentNode, selector: string): HTMLElement {
@@ -168,7 +167,7 @@ declare var lucide: { createIcons(options: { attrs: { width: number; height: num
     const current=pages.find(p=>p[0]===state.page);requiredElement(root, '#aw-title').textContent=current?text(current[2]):t('Evidence','Kanıtlar');requiredElement(root, '#aw-subtitle').textContent=current?text(current[3]):t('Source, time, and verification','Kaynak, zaman ve doğrulama');
     const nav=requiredElement(root, '#aw-nav');nav.replaceChildren();pages.forEach(([id,icon,label])=>{const b=button('',()=>go(id),'aw-nav');b.dataset.page=id;b.setAttribute('aria-pressed',String(state.page===id));const i=el('i');i.dataset.lucide=icon;i.setAttribute('aria-hidden','true');append(b,i,el('span','',label));nav.appendChild(b);});nav.appendChild(el('div','aw-sidefoot',['Local workspace · Research only','Yerel çalışma alanı · Yalnızca araştırma']));
     const content=requiredElement(root, '#aw-content');content.replaceChildren();const pageRenderers: Record<string, (content: HTMLElement) => void> = {overview,opportunities:opportunityPage,research:researchPage,news:newsPage,recommendations:recommendationsPage,'virtual-market':virtualPage,'binance-wallet':binancePage,kaizen:kaizenPage,evidence:evidencePage};(pageRenderers[state.page] ?? overview)(content);
-    requiredElement(root, '#aw-status').textContent=text(current?current[2]:['Evidence','Kanıtlar']);if(globalThis.lucide)lucide.createIcons({attrs:{width:16,height:16}});
+    requiredElement(root, '#aw-status').textContent=text(current?current[2]:['Evidence','Kanıtlar']);renderDashboardIcons(root);
     const focusTarget=focusKey.page?root.querySelector<HTMLElement>('[data-page="'+focusKey.page+'"]'):focusKey.choice?root.querySelector<HTMLElement>('[data-choice="'+focusKey.choice+'"]'):null;
     if(focusTarget)focusTarget.focus({preventScroll:true});
   }

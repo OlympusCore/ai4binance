@@ -54,14 +54,13 @@ $sourceFiles = @(
     "build.py.in",
     "design_source.html",
     "local_views.js",
-    "lucide.js.gz",
     "market_views.py.in",
     "README.md",
     "refresh_learning.py.in",
     "server.py.in"
 )
 $operationsFiles = @("install.ps1.in", "launch.ps1.in")
-$interfaceFiles = @("command_center.ts", "command_center.css", "dashboard_shell.ts")
+$interfaceFiles = @("command_center.ts", "command_center.css", "dashboard_shell.ts", "dashboard_icons.ts")
 $deploymentFiles = @(
     "app.css",
     "app.js",
@@ -69,11 +68,11 @@ $deploymentFiles = @(
     "command_center.ts",
     "command_center.css",
     "dashboard_shell.ts",
+    "dashboard_icons.ts",
     "index.html",
     "install.ps1",
     "launch.ps1",
     "local_views.js",
-    "lucide.js",
     "market_views.py",
     "README.md",
     "refresh_learning.py",
@@ -115,30 +114,6 @@ try {
             -Destination (Join-Path $stageRoot $template) `
             -Force
     }
-    $compressedAsset = Join-Path $stageRoot "lucide.js.gz"
-    $expandedAsset = Join-Path $stageRoot "lucide.js"
-    $compressedStream = [System.IO.File]::OpenRead($compressedAsset)
-    try {
-        $gzipStream = [System.IO.Compression.GZipStream]::new(
-            $compressedStream,
-            [System.IO.Compression.CompressionMode]::Decompress
-        )
-        try {
-            $expandedStream = [System.IO.File]::Create($expandedAsset)
-            try {
-                $gzipStream.CopyTo($expandedStream)
-            }
-            finally {
-                $expandedStream.Dispose()
-            }
-        }
-        finally {
-            $gzipStream.Dispose()
-        }
-    }
-    finally {
-        $compressedStream.Dispose()
-    }
     & $python -B (Join-Path $stageRoot "build.py") (Join-Path $stageRoot "design_source.html") | Out-Null
     if ($LASTEXITCODE -ne 0) {
         throw "DASHBOARD_BUILD_FAILED:$LASTEXITCODE"
@@ -173,7 +148,6 @@ try {
         "index.html",
         "launch.ps1",
         "local_views.js",
-        "lucide.js",
         "market_views.py",
         "refresh_learning.py",
         "server.py"

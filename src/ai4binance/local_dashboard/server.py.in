@@ -23,7 +23,6 @@ PUBLIC_FILES = {
     "/index.html": "index.html",
     "/app.js": "app.js",
     "/app.css": "app.css",
-    "/lucide.js": "lucide.js",
 }
 RADAR_LOCK = threading.RLock()
 RADAR_PROCESSES: dict[str, dict[str, object]] = {}

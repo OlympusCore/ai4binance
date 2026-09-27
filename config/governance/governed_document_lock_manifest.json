@@ -1,6 +1,20 @@
 {
   "approval_records": [
     {
+      "approval_id": "AI4B-GOV-DOCLOCK-TEST-NAMING-REFERENCE-ALIGNMENT-20260927-001",
+      "approval_scope": "PREVIOUSLY_DISCLOSED_TEST_FILENAME_AND_PROTECTED_REFERENCE_ALIGNMENT_ONLY",
+      "approval_status": "APPROVED",
+      "approved_at_utc": "2026-09-27T09:38:49.348487+00:00",
+      "approved_by": "Huseyin",
+      "written_owner_approval": true,
+      "approved_sha256": {
+        "docs/governance/framework_core_vnext_governance.md": "4a45841e53a368a90b02157df1c1ea8ae160f406f5352162adbde17c70cea10d",
+        "docs/compliance/registry_compliance_matrix.md": "10a0822ff9ea284416485a41d50e28bd6f0fc7589f6ddc179fe08b8d0ba1af2c"
+      },
+      "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_test_naming_reference_alignment_20260927_001.json",
+      "approval_evidence_sha256": "1b4ffe13093e256a79152de97055b2d6db81b119a48f899fb74ded61e5a61b38"
+    },
+    {
       "approval_id": "AI4B-GOV-DOCLOCK-INTELLIGENCE-BOUNDARY-QUALITY-CLOSURE-20260926-001",
       "approval_scope": "INTELLIGENCE_BOUNDARY_AND_FULL_QUALITY_CLOSURE_DOCUMENTATION_ALIGNMENT",
       "approval_status": "APPROVED",
@@ -15,7 +29,9 @@
       "written_owner_approval": true,
       "approved_sha256": {
         "docs/compliance/registry_compliance_matrix.md": "7286ee41aa0e4ab53c5c8b409e7e928089a68fd3c5ca6384cf91fac6c6e23f71"
-      }
+      },
+      "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_intelligence_boundary_quality_closure_20260926_001.json",
+      "approval_evidence_sha256": "ab0ac449ed7fdd6ff9c923a96544fe32751d82b563f4cd7614219e94a1d97fd8"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-CODEX-FABRIC-ROUTING-20260918-001",
@@ -2029,13 +2045,13 @@
       "authority_scope": "compliance_matrix",
       "canonical_path": "docs/compliance/registry_compliance_matrix.md",
       "document_status": "ACTIVE",
-      "expected_hash": "7286ee41aa0e4ab53c5c8b409e7e928089a68fd3c5ca6384cf91fac6c6e23f71",
+      "expected_hash": "10a0822ff9ea284416485a41d50e28bd6f0fc7589f6ddc179fe08b8d0ba1af2c",
       "lock_state": "LOCKED",
       "path": "docs/compliance/registry_compliance_matrix.md",
-      "sha256": "7286ee41aa0e4ab53c5c8b409e7e928089a68fd3c5ca6384cf91fac6c6e23f71",
+      "sha256": "10a0822ff9ea284416485a41d50e28bd6f0fc7589f6ddc179fe08b8d0ba1af2c",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "2.10.16"
+      "version": "2.10.17"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -2199,13 +2215,13 @@
       "authority_scope": "core_constitution",
       "canonical_path": "docs/governance/framework_core_vnext_governance.md",
       "document_status": "ACTIVE",
-      "expected_hash": "0678683a0be5096cd02c6ca5420f67be8ff57761bfed524cec0ea9581e955127",
+      "expected_hash": "4a45841e53a368a90b02157df1c1ea8ae160f406f5352162adbde17c70cea10d",
       "lock_state": "LOCKED",
       "path": "docs/governance/framework_core_vnext_governance.md",
-      "sha256": "0678683a0be5096cd02c6ca5420f67be8ff57761bfed524cec0ea9581e955127",
+      "sha256": "4a45841e53a368a90b02157df1c1ea8ae160f406f5352162adbde17c70cea10d",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "2.0.5"
+      "version": "2.0.6"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -3516,6 +3532,20 @@
   "written_owner_approval_required": true,
   "written_owner_approvals": [
     {
+      "approval_id": "AI4B-GOV-DOCLOCK-TEST-NAMING-REFERENCE-ALIGNMENT-20260927-001",
+      "approval_scope": "PREVIOUSLY_DISCLOSED_TEST_FILENAME_AND_PROTECTED_REFERENCE_ALIGNMENT_ONLY",
+      "approval_status": "APPROVED",
+      "approved_at_utc": "2026-09-27T09:38:49.348487+00:00",
+      "approved_by": "Huseyin",
+      "written_owner_approval": true,
+      "approved_sha256": {
+        "docs/governance/framework_core_vnext_governance.md": "4a45841e53a368a90b02157df1c1ea8ae160f406f5352162adbde17c70cea10d",
+        "docs/compliance/registry_compliance_matrix.md": "10a0822ff9ea284416485a41d50e28bd6f0fc7589f6ddc179fe08b8d0ba1af2c"
+      },
+      "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_test_naming_reference_alignment_20260927_001.json",
+      "approval_evidence_sha256": "1b4ffe13093e256a79152de97055b2d6db81b119a48f899fb74ded61e5a61b38"
+    },
+    {
       "approval_id": "AI4B-GOV-DOCLOCK-INTELLIGENCE-BOUNDARY-QUALITY-CLOSURE-20260926-001",
       "approval_scope": "INTELLIGENCE_BOUNDARY_AND_FULL_QUALITY_CLOSURE_DOCUMENTATION_ALIGNMENT",
       "approval_status": "APPROVED",
@@ -3530,7 +3560,9 @@
       "written_owner_approval": true,
       "approved_sha256": {
         "docs/compliance/registry_compliance_matrix.md": "7286ee41aa0e4ab53c5c8b409e7e928089a68fd3c5ca6384cf91fac6c6e23f71"
-      }
+      },
+      "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_intelligence_boundary_quality_closure_20260926_001.json",
+      "approval_evidence_sha256": "ab0ac449ed7fdd6ff9c923a96544fe32751d82b563f4cd7614219e94a1d97fd8"
     },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-CODEX-FABRIC-ROUTING-20260918-001",

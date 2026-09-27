@@ -3,6 +3,7 @@ from typing import Any, cast
 
 import pytest
 
+import ai4binance.domain.execution_envelope as canonical_envelope
 from ai4binance.governance.execution_authority import (
     ExecutionAutomationMode,
     ExecutionSurface,
@@ -14,6 +15,11 @@ from ai4binance.governance.execution_envelope import (
 
 
 def test_execution_envelope_for_governed_surfaces_is_fail_closed() -> None:
+    assert ExecutionEnvelope is canonical_envelope.ExecutionEnvelope
+    assert (
+        execution_envelope_for_surface
+        is canonical_envelope.execution_envelope_for_surface
+    )
     binance_envelope = execution_envelope_for_surface(ExecutionSurface.BINANCE_MARKET)
     virtual_envelope = execution_envelope_for_surface(ExecutionSurface.VIRTUAL_MARKET)
 

@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from importlib import import_module
-from typing import Protocol
+from typing import Protocol, cast
 
+import ai4binance.application.virtual_runtime_engine as _research_virtual_runtime
 from ai4binance.application.virtual_runtime_eligibility import (
     VirtualSimulationEligibility,
     VirtualSimulationStatus,
     evaluate_virtual_simulation_eligibility,
 )
-
-_research_virtual_runtime = import_module("ai4binance.research.virtual_runtime")
 
 _ELIGIBILITY_EXPORTS = {
     "VirtualSimulationEligibility",
@@ -35,6 +33,41 @@ __all__ = (
 
 class _StatusValue(Protocol):
     value: str
+
+
+class _EligibilityResult(Protocol):
+    @property
+    def blockers(self) -> tuple[str, ...]: ...
+
+
+class _RuntimeDecision(Protocol):
+    @property
+    def status(self) -> _StatusValue: ...
+
+    @property
+    def halted(self) -> bool: ...
+
+    @property
+    def eligibility(self) -> _EligibilityResult: ...
+
+    @property
+    def trade_intent(self) -> object | None: ...
+
+    @property
+    def portfolio_before(self) -> object: ...
+
+    @property
+    def portfolio_after(self) -> object: ...
+
+    @property
+    def audit_refs(self) -> tuple[str, ...]: ...
+
+    @property
+    def halt_review(self) -> object | None: ...
+
+
+class _RuntimeEvaluator(Protocol):
+    def evaluate(self, request: object) -> _RuntimeDecision: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,11 +118,11 @@ class VirtualMarketCycleResult:
 
     @property
     def decision_status(self) -> _StatusValue:
-        return self.decision.status
+        return cast(_RuntimeDecision, self.decision).status
 
     @property
     def halted(self) -> bool:
-        return bool(self.decision.halted)
+        return bool(cast(_RuntimeDecision, self.decision).halted)
 
     def to_payload(self) -> dict[str, object]:
         """Return a secret-safe payload for logs, CLI output, or audit sinks."""
@@ -134,10 +167,11 @@ def evaluate_virtual_market_runtime(
 ) -> object:
     """Evaluate one virtual-market request through the canonical runtime bridge."""
 
-    virtual_market_runtime = (
+    virtual_market_runtime = cast(
+        _RuntimeEvaluator,
         runtime
         if runtime is not None
-        else _research_virtual_runtime.VirtualMarketRuntime()
+        else _research_virtual_runtime.VirtualMarketRuntime(),
     )
     return virtual_market_runtime.evaluate(request)
 
@@ -149,10 +183,11 @@ def run_virtual_market_cycle(
 ) -> VirtualMarketCycleResult:
     """Evaluate one bounded virtual-market cycle and return a result bundle."""
 
-    virtual_market_runtime = (
+    virtual_market_runtime = cast(
+        _RuntimeEvaluator,
         runtime
         if runtime is not None
-        else _research_virtual_runtime.VirtualMarketRuntime()
+        else _research_virtual_runtime.VirtualMarketRuntime(),
     )
     decision = virtual_market_runtime.evaluate(request)
     return VirtualMarketCycleResult(

@@ -18,12 +18,24 @@ def test_policy_parsing_helpers_reject_wrong_shape_without_guessing() -> None:
         quality_policy._sequence({}, "mappings")
     with pytest.raises(ValueError, match="list: mappings"):
         quality_policy._optional_sequence({"mappings": "invalid"}, "mappings")
-    assert quality_policy._string_sequence("invalid") == ()
+    invalid_sequences: tuple[object, ...] = ("invalid", None, {}, 1)
+    for malformed in invalid_sequences:
+        with pytest.raises(ValueError, match="expected a sequence of strings"):
+            quality_policy._string_sequence(malformed)
+    invalid_members: tuple[object, ...] = ([""], [" "], [1], ["valid", None])
+    for malformed in invalid_members:
+        with pytest.raises(ValueError, match="expected non-empty strings"):
+            quality_policy._string_sequence(malformed)
+    assert quality_policy._string_sequence(["first", "second"]) == (
+        "first",
+        "second",
+    )
+    assert quality_policy._string_sequence(("first",)) == ("first",)
     assert quality_policy._matches_any_prefix("src/x.py", ("docs/",)) is False
     assert quality_policy._matching_prefix_length("src/x.py", ("docs/",)) == -1
 
 
-def test_policy_helpers_keep_only_existing_tests_and_most_specific_mapping(
+def test_policy_helpers_reject_missing_tests_and_keep_most_specific_mapping(
     tmp_path: Path,
 ) -> None:
     test_path = tmp_path / "tests" / "test_example.py"
@@ -32,7 +44,7 @@ def test_policy_helpers_keep_only_existing_tests_and_most_specific_mapping(
     mapping = quality_policy.AffectedTestMapping(
         name="specific",
         path_prefixes=("src/ai4binance/",),
-        tests=("tests/test_example.py", "tests/test_example.py", "missing.py"),
+        tests=("tests/test_example.py", "tests/test_example.py"),
     )
     broad = quality_policy.AffectedTestMapping(
         name="broad", path_prefixes=("src/",), tests=("missing.py",)
@@ -44,10 +56,20 @@ def test_policy_helpers_keep_only_existing_tests_and_most_specific_mapping(
     assert quality_policy._most_specific_matching_mappings(
         "src/ai4binance/example.py", (broad, mapping)
     ) == (mapping,)
+    for selections in (("missing.py",), (*mapping.tests, "missing.py")):
+        with pytest.raises(
+            quality_policy.AffectedScopeResolutionError,
+            match=r"Configured pytest selection is missing: missing\.py",
+        ) as failure:
+            quality_policy._existing_tests_with_no_cov(tmp_path, selections)
+        assert failure.value.unknown_paths == ("missing.py",)
+        assert failure.value.escalate_to == "full"
     with pytest.raises(
         quality_policy.AffectedScopeResolutionError, match="no existing"
-    ):
-        quality_policy._existing_tests_with_no_cov(tmp_path, ("missing.py",))
+    ) as failure:
+        quality_policy._existing_tests_with_no_cov(tmp_path, ())
+    assert failure.value.unknown_paths == ("NO_EXISTING_TESTS",)
+    assert failure.value.escalate_to == "standard"
 
 
 def test_changed_paths_and_profile_resolution_fail_closed(

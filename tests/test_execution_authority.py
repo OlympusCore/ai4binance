@@ -2,6 +2,7 @@ from typing import Any, cast
 
 import pytest
 
+import ai4binance.domain.execution_authority as canonical_authority
 from ai4binance.core.contracts.execution_surface import (
     ExecutionSurface as ContractExecutionSurface,
 )
@@ -18,6 +19,12 @@ from ai4binance.governance.execution_authority import (
 def test_execution_surface_retains_identity_at_the_legacy_boundary() -> None:
     assert ExecutionSurface is ContractExecutionSurface
     assert ExecutionSurface.VIRTUAL_MARKET is ContractExecutionSurface.VIRTUAL_MARKET
+    assert ExecutionAuthorityProfile is canonical_authority.ExecutionAuthorityProfile
+    assert ExecutionAutomationMode is canonical_authority.ExecutionAutomationMode
+    assert (
+        authority_profile_for_surface
+        is canonical_authority.authority_profile_for_surface
+    )
 
 
 def test_binance_market_surface_requires_human_and_blocks_autonomy() -> None:

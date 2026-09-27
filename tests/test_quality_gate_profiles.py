@@ -212,6 +212,7 @@ def test_quality_gate_policy_locks_profile_authority_and_tooling() -> None:
     assert policy.profiles["full"].canonical_quality_authority is True
     assert policy.required_tests == REQUIRED_TESTS
     assert {mapping.name for mapping in policy.standard_impact_mappings} == {
+        "canonical_virtual_runtime_owners",
         "trading_method_registry_and_lineage",
         "instruction_contracts",
         "changed_tests",
@@ -246,6 +247,33 @@ def test_quality_gate_policy_locks_profile_authority_and_tooling() -> None:
         if mapping.name == "changed_tests"
     )
     assert changed_tests_mapping.tests_from_changed_paths is True
+
+
+@pytest.mark.parametrize(
+    "source_path",
+    [
+        "src/ai4binance/application/virtual_runtime_engine.py",
+        "src/ai4binance/domain/research/virtual_runtime_risk.py",
+        "src/ai4binance/domain/evidence/continuous_assurance.py",
+        "src/ai4binance/domain/execution_authority.py",
+    ],
+)
+def test_canonical_runtime_owners_keep_safety_tests_in_both_profiles(
+    source_path: str,
+) -> None:
+    policy = load_quality_gate_policy(POLICY_PATH)
+    for resolver in (
+        resolve_affected_pytest_arguments,
+        resolve_standard_pytest_arguments,
+    ):
+        selected = resolver(policy, ROOT, (source_path,))
+        assert {
+            "tests/test_virtual_runtime.py",
+            "tests/test_virtual_blocker_reduction.py",
+            "tests/test_live_readiness_preview.py",
+            "tests/test_execution_authority.py",
+            "tests/test_continuous_assurance.py",
+        } <= set(selected)
 
 
 def test_quality_gate_selector_resolves_affected_and_standard_scopes() -> None:

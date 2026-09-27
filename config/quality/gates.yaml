@@ -43,6 +43,48 @@ affected_tests:
   default_when_clean:
     - tests/test_artifact_hygiene_scripts.py
   mappings:
+    - &canonical_runtime_owners
+      name: canonical_virtual_runtime_owners
+      path_prefixes:
+        - src/ai4binance/application/virtual_runtime
+        - src/ai4binance/application/services/virtual_runtime
+        - src/ai4binance/application/virtual_market.py
+        - src/ai4binance/application/live_readiness.py
+        - src/ai4binance/application/blocker_
+        - src/ai4binance/application/user_reports.py
+        - src/ai4binance/domain/research/
+        - src/ai4binance/domain/evidence/
+        - src/ai4binance/domain/blocker
+        - src/ai4binance/domain/execution_
+        - src/ai4binance/domain/live_gate
+        - src/ai4binance/domain/order_command.py
+        - src/ai4binance/domain/promotion_evidence.py
+        - src/ai4binance/domain/portfolio_risk.py
+        - src/ai4binance/domain/risk_geometry.py
+        - src/ai4binance/domain/market_data.py
+        - src/ai4binance/core/report_rendering.py
+      tests:
+        - tests/test_virtual_runtime.py
+        - tests/test_virtual_runtime_bridge.py
+        - tests/test_virtual_runtime_performance.py
+        - tests/test_virtual_market_acceptance.py
+        - tests/test_virtual_blocker_reduction.py
+        - tests/test_execution_authority.py
+        - tests/test_execution_envelope.py
+        - tests/test_live_readiness_bridge.py
+        - tests/test_live_readiness_preview.py
+        - tests/test_live_gate_evidence.py
+        - tests/test_promotion_evidence.py
+        - tests/test_safety.py
+        - tests/test_paper_lifecycle.py
+        - tests/test_backtest_engine.py
+        - tests/test_backtest_realism.py
+        - tests/test_decision_telemetry.py
+        - tests/test_continuous_assurance.py
+        - tests/test_trust_plane.py
+        - tests/test_user_reports.py
+        - tests/test_research_governance.py
+        - tests/test_research_governance_boundary_contracts.py
     - name: trading_method_registry_and_lineage
       path_prefixes:
         - docs/registries/registry_trading_intelligence.yaml
@@ -263,6 +305,7 @@ affected_tests:
   unknown_impact_escalates_to: standard
 standard_impact_tests:
   mappings:
+    - *canonical_runtime_owners
     - name: trading_method_registry_and_lineage
       path_prefixes:
         - docs/registries/registry_trading_intelligence.yaml

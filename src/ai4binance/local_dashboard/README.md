@@ -18,7 +18,7 @@ The HTML source contains presentation markup and CSS only.
 `frontend/src/command_center.css` extends the existing semantic tokens. Packaging
 requires an existing Node.js runtime with `node:module.stripTypeScriptTypes`
 (validated with Node 24). No frontend framework or runtime dependency is added.
-The packaging receipt includes both interface source hashes. Type stripping is
+The packaging receipt includes all interface source hashes. Type stripping is
 not type checking; validate TypeScript separately before accepting a change.
 
 Overview shows source-reported health, OHLCV freshness and readiness separately,
@@ -46,8 +46,12 @@ responsive status cards support accessibility; they do not establish WCAG certif
 The safety strip remains visible in the document at every supported width.
 Resident deployment and restart are separate from source validation.
 
-`lucide.js.gz` vendors Lucide 1.17.0 under the ISC license; deployment expands
-it to `lucide.js`, whose preserved header contains the license notice.
+`frontend/src/dashboard_icons.ts` owns the typed icon renderer and the ten
+Lucide 1.17.0 icon geometries used by the dashboard. Its ISC notice is retained
+in the emitted `app.js`. Packaging needs no compressed JavaScript vendor bundle
+or separate icon-library request. Source migration evidence is retained under
+`runtime/artifacts/repository_validation/dashboard_icons/`; archived input is
+never read by the build or the dashboard server.
 
 Open http://127.0.0.1:8765/ or use the AI4Binance Dashboard desktop shortcut.
 

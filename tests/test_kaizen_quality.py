@@ -920,7 +920,16 @@ def test_architecture_migration_ledger_classifies_every_repository_module() -> N
     target_collisions = cast(list[dict[str, object]], payload["target_path_collisions"])
     assert target_collisions == [
         {
-            "target_path": ("src/ai4binance/application/orchestration/whale_fusion.py"),
+            "target_path": "src/ai4binance/application/blocker_reduction.py",
+            "source_paths": [
+                "src/ai4binance/application/blocker_reduction.py",
+                "src/ai4binance/governance/blocker_reduction.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": "src/ai4binance/application/orchestration/whale_fusion.py",
             "source_paths": [
                 "src/ai4binance/application/orchestration/whale_fusion.py",
                 "src/ai4binance/application/whale_fusion.py",
@@ -929,10 +938,47 @@ def test_architecture_migration_ledger_classifies_every_repository_module() -> N
             "status": "EXPECTED_FACADE",
         },
         {
+            "target_path": "src/ai4binance/application/services/live_readiness.py",
+            "source_paths": [
+                "src/ai4binance/application/live_readiness.py",
+                "src/ai4binance/application/services/live_readiness.py",
+                "src/ai4binance/execution/live_readiness.py",
+            ],
+            "classifications": ["FACADE", "KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
             "target_path": "src/ai4binance/application/services/virtual_runtime.py",
             "source_paths": [
                 "src/ai4binance/application/services/virtual_runtime.py",
                 "src/ai4binance/application/virtual_runtime.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": "src/ai4binance/application/user_reports.py",
+            "source_paths": [
+                "src/ai4binance/application/user_reports.py",
+                "src/ai4binance/ops/user_reports.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": "src/ai4binance/application/virtual_market.py",
+            "source_paths": [
+                "src/ai4binance/application/virtual_market.py",
+                "src/ai4binance/research/virtual_market.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": "src/ai4binance/application/virtual_runtime_engine.py",
+            "source_paths": [
+                "src/ai4binance/application/virtual_runtime_engine.py",
+                "src/ai4binance/research/virtual_runtime.py",
             ],
             "classifications": ["KEEP", "FACADE"],
             "status": "EXPECTED_FACADE",
@@ -993,10 +1039,136 @@ def test_architecture_migration_ledger_classifies_every_repository_module() -> N
             "status": "EXPECTED_FACADE",
         },
         {
+            "target_path": "src/ai4binance/domain/blockers.py",
+            "source_paths": [
+                "src/ai4binance/domain/blockers.py",
+                "src/ai4binance/governance/blockers.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": "src/ai4binance/domain/evidence/trust_plane.py",
+            "source_paths": [
+                "src/ai4binance/domain/evidence/trust_plane.py",
+                "src/ai4binance/trust/plane.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": "src/ai4binance/domain/execution_authority.py",
+            "source_paths": [
+                "src/ai4binance/domain/execution_authority.py",
+                "src/ai4binance/governance/execution_authority.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": "src/ai4binance/domain/execution_envelope.py",
+            "source_paths": [
+                "src/ai4binance/domain/execution_envelope.py",
+                "src/ai4binance/governance/execution_envelope.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": "src/ai4binance/domain/live_gate.py",
+            "source_paths": [
+                "src/ai4binance/domain/live_gate.py",
+                "src/ai4binance/safety.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
             "target_path": "src/ai4binance/domain/market/markets.py",
             "source_paths": [
                 "src/ai4binance/domain/market/markets.py",
                 "src/ai4binance/markets.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": "src/ai4binance/domain/order_command.py",
+            "source_paths": [
+                "src/ai4binance/domain/order_command.py",
+                "src/ai4binance/execution/order_command.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": "src/ai4binance/domain/portfolio_risk.py",
+            "source_paths": [
+                "src/ai4binance/domain/portfolio_risk.py",
+                "src/ai4binance/portfolio/risk_budget.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": "src/ai4binance/domain/research/backtest_models.py",
+            "source_paths": [
+                "src/ai4binance/domain/research/backtest_models.py",
+                "src/ai4binance/research/backtesting/models.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": "src/ai4binance/domain/research/equity_metrics.py",
+            "source_paths": [
+                "src/ai4binance/domain/research/equity_metrics.py",
+                "src/ai4binance/research/equity_metrics.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": "src/ai4binance/domain/research/liquidity.py",
+            "source_paths": [
+                "src/ai4binance/domain/research/liquidity.py",
+                "src/ai4binance/research/backtesting/liquidity.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": "src/ai4binance/domain/research/paper_lifecycle.py",
+            "source_paths": [
+                "src/ai4binance/domain/research/paper_lifecycle.py",
+                "src/ai4binance/execution/lifecycle.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": "src/ai4binance/domain/research/statistics.py",
+            "source_paths": [
+                "src/ai4binance/domain/research/statistics.py",
+                "src/ai4binance/validation/statistics.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": "src/ai4binance/domain/research/trailing.py",
+            "source_paths": [
+                "src/ai4binance/domain/research/trailing.py",
+                "src/ai4binance/execution/trailing.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": "src/ai4binance/domain/research/validation_models.py",
+            "source_paths": [
+                "src/ai4binance/domain/research/validation_models.py",
+                "src/ai4binance/validation/models.py",
             ],
             "classifications": ["KEEP", "FACADE"],
             "status": "EXPECTED_FACADE",
@@ -1014,14 +1186,61 @@ def test_architecture_migration_ledger_classifies_every_repository_module() -> N
         },
         {
             "target_path": (
-                "src/ai4binance/infrastructure/filesystem/"
-                "opportunity_artifact_loader.py"
+                "src/ai4binance/domain/research/virtual_runtime_portfolio_state.py"
             ),
             "source_paths": [
-                (
-                    "src/ai4binance/infrastructure/filesystem/"
-                    "opportunity_artifact_loader.py"
-                ),
+                "src/ai4binance/domain/research/virtual_runtime_portfolio_state.py",
+                "src/ai4binance/research/virtual_runtime_portfolio_state.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": (
+                "src/ai4binance/domain/research/virtual_runtime_portfolios.py"
+            ),
+            "source_paths": [
+                "src/ai4binance/domain/research/virtual_runtime_portfolios.py",
+                "src/ai4binance/research/virtual_runtime_portfolios.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": "src/ai4binance/domain/research/virtual_runtime_request.py",
+            "source_paths": [
+                "src/ai4binance/domain/research/virtual_runtime_request.py",
+                "src/ai4binance/research/virtual_runtime_request.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": "src/ai4binance/domain/research/virtual_runtime_risk.py",
+            "source_paths": [
+                "src/ai4binance/domain/research/virtual_runtime_risk.py",
+                "src/ai4binance/research/virtual_runtime_risk.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": (
+                "src/ai4binance/domain/research/virtual_runtime_trade_intent.py"
+            ),
+            "source_paths": [
+                "src/ai4binance/domain/research/virtual_runtime_trade_intent.py",
+                "src/ai4binance/research/virtual_runtime_trade_intent.py",
+            ],
+            "classifications": ["KEEP", "FACADE"],
+            "status": "EXPECTED_FACADE",
+        },
+        {
+            "target_path": (
+                "src/ai4binance/infrastructure/filesystem/opportunity_artifact_loader.py"
+            ),
+            "source_paths": [
+                "src/ai4binance/infrastructure/filesystem/opportunity_artifact_loader.py",
                 "src/ai4binance/infrastructure/opportunity_artifact_loader.py",
             ],
             "classifications": ["KEEP", "FACADE"],
@@ -1032,10 +1251,7 @@ def test_architecture_migration_ledger_classifies_every_repository_module() -> N
                 "src/ai4binance/infrastructure/filesystem/runtime_artifacts/__init__.py"
             ),
             "source_paths": [
-                (
-                    "src/ai4binance/infrastructure/filesystem/"
-                    "runtime_artifacts/__init__.py"
-                ),
+                "src/ai4binance/infrastructure/filesystem/runtime_artifacts/__init__.py",
                 "src/ai4binance/runtime_artifacts/__init__.py",
             ],
             "classifications": ["KEEP", "FACADE"],
@@ -1046,10 +1262,7 @@ def test_architecture_migration_ledger_classifies_every_repository_module() -> N
                 "src/ai4binance/infrastructure/filesystem/runtime_artifacts/layout.py"
             ),
             "source_paths": [
-                (
-                    "src/ai4binance/infrastructure/filesystem/"
-                    "runtime_artifacts/layout.py"
-                ),
+                "src/ai4binance/infrastructure/filesystem/runtime_artifacts/layout.py",
                 "src/ai4binance/runtime_artifacts/layout.py",
             ],
             "classifications": ["KEEP", "FACADE"],

@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import ast
+import subprocess
+import sys
 from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
 from types import ModuleType
 from typing import Any, cast
 
@@ -13,6 +17,7 @@ import pytest
 import ai4binance.application as public_application
 import ai4binance.application.services.virtual_runtime as virtual_runtime_bridge
 import ai4binance.application.virtual_runtime as legacy_virtual_runtime
+import ai4binance.application.virtual_runtime_engine as canonical_runtime
 import ai4binance.research.virtual_runtime_attribution as legacy_attribution
 from ai4binance.application.services.virtual_runtime import (
     VirtualMarketCycleResult,
@@ -23,6 +28,7 @@ from ai4binance.application.virtual_runtime_eligibility import (
     VirtualSimulationStatus,
     evaluate_virtual_simulation_eligibility,
 )
+from ai4binance.domain import Action
 from ai4binance.domain.research import (
     virtual_runtime_attribution as canonical_attribution,
 )
@@ -30,6 +36,80 @@ from ai4binance.research import virtual_runtime as research_virtual_runtime
 from ai4binance.research.virtual_runtime_attribution import (
     build_virtual_trade_attribution_ledger,
 )
+
+
+@pytest.mark.parametrize(
+    "entrypoint",
+    ["ai4binance.application", "ai4binance.application.services"],
+)
+def test_virtual_runtime_package_exports_resolve_in_cold_process(
+    entrypoint: str,
+) -> None:
+    result = subprocess.run(  # noqa: S603 -- Fixed interpreter and local import probe.
+        [
+            sys.executable,
+            "-B",
+            "-c",
+            f"import {entrypoint} as package\n"
+            "import sys\n"
+            "assert 'ai4binance.application.virtual_runtime_engine' "
+            "not in sys.modules\n"
+            "cycle = package.run_virtual_market_cycle\n"
+            "import ai4binance.application.services.virtual_runtime as service\n"
+            "import ai4binance.application.virtual_runtime_engine as owner\n"
+            "assert cycle is service.run_virtual_market_cycle\n"
+            "assert 'ai4binance.research.virtual_runtime' not in sys.modules\n"
+            "import ai4binance.research.virtual_runtime as legacy\n"
+            "for name in owner.__all__:\n"
+            "    assert getattr(legacy, name) is getattr(owner, name)\n"
+            "    assert getattr(service, name) is getattr(owner, name)\n",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_virtual_runtime_exports_use_actual_canonical_owner() -> None:
+    for name in canonical_runtime.__all__:
+        assert getattr(research_virtual_runtime, name) is getattr(
+            canonical_runtime, name
+        )
+        assert getattr(virtual_runtime_bridge, name) is getattr(canonical_runtime, name)
+    assert canonical_runtime.VirtualMarketRuntime.__module__ == (
+        "ai4binance.application.virtual_runtime_engine"
+    )
+
+
+def test_default_virtual_runtime_service_preserves_fail_closed_governance() -> None:
+    portfolio = canonical_runtime.VirtualPortfolioState(
+        portfolio_id="test-only:portfolio",
+        market="SPOT",
+        cash_usdt=Decimal("1000"),
+        equity_usdt=Decimal("1000"),
+    )
+    request = canonical_runtime.VirtualRuntimeRequest(
+        snapshot_id="test-only:snapshot",
+        decision_id="test-only:decision",
+        candidate_id="test-only:candidate",
+        symbol="BTCUSDT",
+        market="SPOT",
+        action=Action.BUY,
+        quantity=Decimal("1"),
+        entry_price=Decimal("100"),
+        stop_loss=Decimal("95"),
+        take_profit_levels=(Decimal("110"),),
+        portfolio=portfolio,
+    )
+    result = run_virtual_market_cycle(request)
+
+    assert result.blockers
+    assert result.trade_intent is None
+    assert result.portfolio_after is portfolio
+    assert result.execution_allowed is False
+    assert result.live_eligibility_status == "LIVE_ORDER_BLOCKED"
 
 
 def test_virtual_runtime_research_all_is_explicit_contract() -> None:
@@ -224,6 +304,26 @@ def test_virtual_runtime_legacy_and_public_exports_preserve_canonical_identity()
 def test_virtual_runtime_legacy_facade_preserves_public_contract() -> None:
     assert legacy_virtual_runtime.__all__ == virtual_runtime_bridge.__all__
     assert legacy_virtual_runtime.__dir__() == list(virtual_runtime_bridge.__all__)
+
+
+@pytest.mark.parametrize("module", [virtual_runtime_bridge, legacy_virtual_runtime])
+def test_virtual_runtime_typing_stub_preserves_all_public_exports(
+    module: ModuleType,
+) -> None:
+    assert module.__file__ is not None
+    stub = Path(module.__file__).with_suffix(".pyi")
+    tree = ast.parse(stub.read_text(encoding="utf-8"))
+    exports = next(
+        ast.literal_eval(node.value)
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "__all__"
+            for target in node.targets
+        )
+    )
+    assert len(exports) == len(set(exports))
+    assert set(exports) == set(module.__all__)
 
 
 def test_virtual_runtime_all_matches_bridge_contract() -> None:
