@@ -43,6 +43,25 @@ affected_tests:
   default_when_clean:
     - tests/test_artifact_hygiene_scripts.py
   mappings:
+    - name: trading_method_registry_and_lineage
+      path_prefixes:
+        - docs/registries/registry_trading_intelligence.yaml
+        - schemas/registries/trading_intelligence_registry.schema.json
+        - src/ai4binance/intelligence/
+        - src/ai4binance/agents/advanced.py
+        - src/ai4binance/agents/technical.py
+        - src/ai4binance/opportunity_intelligence.py
+      tests:
+        - tests/test_trading_method_registry.py
+        - tests/test_trading_method_lineage.py
+        - tests/test_trading_intelligence.py
+        - tests/test_trading_intelligence_phase_ownership.py
+        - tests/test_trading_intelligence_diffplan.py
+        - tests/test_structural_entries.py
+        - tests/test_advanced_agents.py
+        - tests/test_technical_agents.py
+        - tests/test_opportunity_intelligence.py
+        - tests/test_trade_method_learning.py
     - name: instruction_contracts
       path_prefixes:
         - AGENTS.md
@@ -218,6 +237,25 @@ affected_tests:
   unknown_impact_escalates_to: standard
 standard_impact_tests:
   mappings:
+    - name: trading_method_registry_and_lineage
+      path_prefixes:
+        - docs/registries/registry_trading_intelligence.yaml
+        - schemas/registries/trading_intelligence_registry.schema.json
+        - src/ai4binance/intelligence/
+        - src/ai4binance/agents/advanced.py
+        - src/ai4binance/agents/technical.py
+        - src/ai4binance/opportunity_intelligence.py
+      tests:
+        - tests/test_trading_method_registry.py
+        - tests/test_trading_method_lineage.py
+        - tests/test_trading_intelligence.py
+        - tests/test_trading_intelligence_phase_ownership.py
+        - tests/test_trading_intelligence_diffplan.py
+        - tests/test_structural_entries.py
+        - tests/test_advanced_agents.py
+        - tests/test_technical_agents.py
+        - tests/test_opportunity_intelligence.py
+        - tests/test_trade_method_learning.py
     - name: instruction_contracts
       path_prefixes:
         - AGENTS.md

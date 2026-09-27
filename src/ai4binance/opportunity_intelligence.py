@@ -21,6 +21,7 @@ from ai4binance.intelligence.contracts import (
     SwingKind,
     TimeframeStructureEvidence,
 )
+from ai4binance.intelligence.method_lineage import MethodLineage
 from ai4binance.intelligence.structure import MarketStructureEngine
 from ai4binance.schemas import MarketSnapshot, OHLCVCandle
 
@@ -318,6 +319,7 @@ class OpportunityLifecycleEvent:
     schema_version: str = "opportunity-ledger:v1"
     execution_allowed: bool = False
     live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
+    method_lineages: tuple[MethodLineage, ...] = ()
 
     def __post_init__(self) -> None:
         identity = (
@@ -332,6 +334,12 @@ class OpportunityLifecycleEvent:
         _require_aware(self.event_time, "opportunity event time")
         _require_unique_nonblank(self.reason_codes, "opportunity reason codes")
         _require_unique_nonblank(self.evidence_refs, "opportunity evidence refs")
+        if not isinstance(self.method_lineages, tuple) or any(
+            not isinstance(item, MethodLineage) for item in self.method_lineages
+        ):
+            raise ValueError("opportunity method lineage must be typed and immutable")
+        if len(set(self.method_lineages)) != len(self.method_lineages):
+            raise ValueError("opportunity method lineage must be unique")
         lineage = (
             self.decision_id,
             self.virtual_execution_id,
@@ -383,6 +391,10 @@ class OpportunityLifecycleEvent:
         payload.update({key: value for key, value in optional.items() if value})
         if self.missing_fields:
             payload["missing_fields"] = self.missing_fields
+        if self.method_lineages:
+            payload["method_lineages"] = tuple(
+                item.to_payload() for item in self.method_lineages
+            )
         return payload
 
 

@@ -11,6 +11,7 @@ from ai4binance.intelligence.contracts import (
     ScenarioDirection,
     TimeframeStructureEvidence,
 )
+from ai4binance.intelligence.method_registry import recorded_lineage
 from ai4binance.intelligence.structure import MarketStructureEngine
 from ai4binance.schemas import AgentResult, MarketSnapshot, is_usable_agent_result
 
@@ -108,6 +109,27 @@ class PatternHypothesisFabric:
         lifecycle = self._lifecycle(name, result.calculation_metadata)
         source_timeframe = self._source_timeframe(snapshot, result)
         attributes = self._attributes(result.calculation_metadata)
+        lineage = recorded_lineage(result.calculation_metadata)
+        if lineage is not None:
+            expected = {
+                "chart_pattern": "chart_patterns",
+                "harmonic_pattern": "harmonic_patterns",
+                "elliott_wave": "elliott_waves",
+                "fibonacci": "fibonacci",
+                "candlestick": "formations",
+                "price_action": "price_action",
+            }[name]
+            if name == "harmonic_pattern":
+                expected += (
+                    "."
+                    + str(result.calculation_metadata.get("pattern_family", "")).lower()
+                )
+            if name == "chart_pattern":
+                expected += "." + (
+                    result.detected_setups[0].lower() if result.detected_setups else ""
+                )
+            if lineage.method_id != expected:
+                raise ValueError("pattern method lineage belongs to another family")
         identity = result.calculation_metadata.get("pattern_id")
         digest_source = (
             f"{snapshot.market_type}|{snapshot.symbol}|{source_timeframe}|{name}|"
@@ -120,6 +142,8 @@ class PatternHypothesisFabric:
                 )
             )
         )
+        if lineage is not None:
+            digest_source += f"|{lineage.definition_sha256}"
         digest = sha256(digest_source.encode()).hexdigest()[:16]
         observation = sha256(f"{snapshot.snapshot_id}|{digest}".encode()).hexdigest()[
             :20
@@ -150,6 +174,7 @@ class PatternHypothesisFabric:
             completion_quality=completion,
             attributes=attributes,
             observation_id=f"pattern-observation:{observation}",
+            method_lineage=lineage,
         )
 
     @staticmethod
@@ -289,6 +314,7 @@ class FibonacciConfluenceEngine:
             completion_quality=evidence.completion_quality,
             attributes=attributes,
             observation_id=evidence.observation_id,
+            method_lineage=evidence.method_lineage,
         )
 
 
@@ -428,6 +454,7 @@ class HarmonicPatternEngine:
             completion_quality=evidence.completion_quality,
             attributes=attributes,
             observation_id=evidence.observation_id,
+            method_lineage=evidence.method_lineage,
         )
 
 
@@ -476,6 +503,7 @@ class ElliottWaveHypothesisEngine:
                     else ""
                 ),
                 family=evidence.family,
+                method_lineage=evidence.method_lineage,
                 direction=direction,
                 lifecycle_state=PatternLifecycleState.ALTERNATIVE_UNRESOLVED.value,
                 confidence=max(0.0, evidence.confidence - index * 0.1),

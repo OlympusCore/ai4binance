@@ -9,6 +9,7 @@ from ai4binance.agents.base import BaseAgent
 from ai4binance.agents.registry import AgentDefinition
 from ai4binance.indicators import atr, clamp, closes, ema, relative_volume, rsi
 from ai4binance.intelligence.contracts import StructureState
+from ai4binance.intelligence.method_registry import current_method_registry
 from ai4binance.intelligence.structure import MarketStructureEngine
 from ai4binance.opportunity_intelligence import (
     CandlestickPattern,
@@ -489,6 +490,9 @@ class PriceActionAgent(BaseAgent):
             reason_codes=("PRICE_ACTION_TRIGGER_DETECTED",),
             calculation_metadata={
                 "method": "CANONICAL_CANDLE_GEOMETRY",
+                "method_lineage": current_method_registry()
+                .lineage("price_action", "1.0.0", "1.0.0")
+                .to_payload(),
                 "timeframes": geometry,
             },
         )

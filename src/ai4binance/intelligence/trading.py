@@ -26,6 +26,7 @@ from ai4binance.intelligence.contracts import (
     TrendGeometryEvidence,
 )
 from ai4binance.intelligence.derivatives import FuturesContextEngine
+from ai4binance.intelligence.event_context import CHANNELS, bind_event_context
 from ai4binance.intelligence.levels import StructuralLevelMapEngine
 from ai4binance.intelligence.patterns import PatternHypothesisFabric
 from ai4binance.intelligence.plan import TradePlanEngine
@@ -59,8 +60,11 @@ class ScenarioEngine:
     )
     trade_plan_engine: TradePlanEngine = field(default_factory=TradePlanEngine)
     minimum_scenario_separation: float = 0.10
+    required_event_channels: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        if set(self.required_event_channels) - set(CHANNELS):
+            raise ValueError("unknown required event channel")
         if not 0.0 <= self.minimum_scenario_separation <= 1.0:
             raise ValueError("scenario separation must be between zero and one")
 
@@ -78,7 +82,18 @@ class ScenarioEngine:
         trend_geometry = self._trend_geometry(snapshot, agent_results, structures)
         pattern_hypotheses = self._patterns(snapshot, agent_results)
         derivatives = self._derivatives(snapshot, agent_results)
+        event_context = tuple(bind_event_context(
+            snapshot, channel, required=channel in self.required_event_channels
+        ) for channel in CHANNELS)
+        event_blockers = tuple(code for row in event_context for code in row.blockers)
+        fusion = agent_results.get("confluence")
+        fusion_metadata = fusion.calculation_metadata if fusion is not None else {}
+        fusion_blockers = fusion.blockers if fusion is not None else ()
         cost_ratio, cost_blockers = self._cost_model(snapshot, derivatives)
+        periods = self._integer(snapshot.market_metadata.get("estimated_funding_periods")) if snapshot.market_type == "USD_M_FUTURES" else 0
+        transaction_cost = cost_ratio
+        if cost_ratio is not None and derivatives.funding_rate is not None and periods is not None:
+            transaction_cost = cost_ratio - abs(derivatives.funding_rate) * periods
         scenarios, selected_id, scenario_blockers, warnings = self._scenarios(
             snapshot,
             agent_results,
@@ -94,10 +109,12 @@ class ScenarioEngine:
                     *identity_blockers,
                     *scenario_blockers,
                     *derivatives.blockers,
+                    *event_blockers,
+                    *fusion_blockers,
                 )
             )
         )
-        if identity_blockers or derivatives.blockers:
+        if blockers:
             selected_id = None
         return TradingIntelligenceState(
             snapshot_id=snapshot.snapshot_id,
@@ -113,8 +130,14 @@ class ScenarioEngine:
             estimated_round_trip_cost_ratio=cost_ratio,
             cost_blockers=cost_blockers,
             blockers=blockers,
-            warnings=warnings,
+            warnings=tuple(dict.fromkeys((*warnings, *(code for row in event_context for code in row.warnings)))),
             market_type=snapshot.market_type.upper(),
+            transaction_cost_ratio=transaction_cost,
+            funding_periods=periods if periods is not None and periods >= 0 else None,
+            event_context=event_context,
+            method_diversity_count=self._integer(fusion_metadata.get("method_diversity_count")) or 0,
+            dependency_group_count=self._integer(fusion_metadata.get("effective_dependency_group_count")) or 0,
+            evidence_conflicts=tuple(fusion.warnings) if fusion is not None and "DIRECTIONAL_CONFLICT" in fusion.warnings else (),
         )
 
     def blocked(

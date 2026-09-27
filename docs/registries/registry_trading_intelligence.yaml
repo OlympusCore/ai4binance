@@ -1,0 +1,3155 @@
+registry_id: AI4B-TRADING-METHODS-001
+version: 1.1.0
+source_of_truth: true
+source_of_truth_scope: trading_method_definitions
+authority_effect: EVIDENCE_ONLY
+baseline_commit: 4df1534ac9f553d997a5a4560b7f23870737a45b
+execution_allowed: false
+promotion_status: RESEARCH_ONLY
+live_eligibility_status: LIVE_ORDER_BLOCKED
+sources:
+- source_id: reference-01
+  locator: https://www.cmegroup.com/education/courses/technical-analysis/technical-patterns-reversals
+  source_type: EXTERNAL_REFERENCE
+  verification: REFERENCE_ONLY
+  revision: null
+  content_sha256: null
+  notes: Inherited reference URL. Page contents, licensing and exact rule coverage are not verified by
+    D0-D2.
+- source_id: reference-02
+  locator: https://www.cmegroup.com/education/courses/technical-analysis/trend-and-continuation-patterns
+  source_type: EXTERNAL_REFERENCE
+  verification: REFERENCE_ONLY
+  revision: null
+  content_sha256: null
+  notes: Inherited reference URL. Page contents, licensing and exact rule coverage are not verified by
+    D0-D2.
+- source_id: reference-03
+  locator: https://www.cmegroup.com/education/courses/technical-analysis/support-and-resistance
+  source_type: EXTERNAL_REFERENCE
+  verification: REFERENCE_ONLY
+  revision: null
+  content_sha256: null
+  notes: Inherited reference URL. Page contents, licensing and exact rule coverage are not verified by
+    D0-D2.
+- source_id: reference-04
+  locator: https://www.elliottwave.com/waveopedia/impulse/
+  source_type: EXTERNAL_REFERENCE
+  verification: REFERENCE_ONLY
+  revision: null
+  content_sha256: null
+  notes: Inherited reference URL. Page contents, licensing and exact rule coverage are not verified by
+    D0-D2.
+- source_id: reference-05
+  locator: https://www.elliottwave.com/waveopedia/corrective-waves/
+  source_type: EXTERNAL_REFERENCE
+  verification: REFERENCE_ONLY
+  revision: null
+  content_sha256: null
+  notes: Inherited reference URL. Page contents, licensing and exact rule coverage are not verified by
+    D0-D2.
+- source_id: reference-06
+  locator: https://www.cmegroup.com/education/courses/technical-analysis/fibonacci-retracements-and-extensions
+  source_type: EXTERNAL_REFERENCE
+  verification: REFERENCE_ONLY
+  revision: null
+  content_sha256: null
+  notes: Inherited reference URL. Page contents, licensing and exact rule coverage are not verified by
+    D0-D2.
+- source_id: reference-07
+  locator: https://harmonictrader.com/harmonic-patterns/
+  source_type: EXTERNAL_REFERENCE
+  verification: REFERENCE_ONLY
+  revision: null
+  content_sha256: null
+  notes: Inherited reference URL. Page contents, licensing and exact rule coverage are not verified by
+    D0-D2.
+- source_id: implementation-01
+  locator: src/ai4binance/opportunity_intelligence.py
+  source_type: REPOSITORY
+  verification: CODE_INSPECTED
+  revision: 4df1534ac9f553d997a5a4560b7f23870737a45b
+  content_sha256: 86d6013cce4d1b4d6539e6575f64c6e43f851293b6a1537a7a4ad8598b3a5d6d
+  notes: Inspected implementation baseline at the recorded Git revision. This hash identifies baseline
+    bytes, not a web page or an OOS result.
+- source_id: implementation-02
+  locator: src/ai4binance/intelligence/trend.py
+  source_type: REPOSITORY
+  verification: CODE_INSPECTED
+  revision: 4df1534ac9f553d997a5a4560b7f23870737a45b
+  content_sha256: d070532f04ab38d1fb6e6261a83f6dfc4ceeeebf73f7ceb7bdf9d4f6017db3b2
+  notes: Inspected implementation baseline at the recorded Git revision. This hash identifies baseline
+    bytes, not a web page or an OOS result.
+- source_id: implementation-03
+  locator: src/ai4binance/intelligence/structure.py
+  source_type: REPOSITORY
+  verification: CODE_INSPECTED
+  revision: 4df1534ac9f553d997a5a4560b7f23870737a45b
+  content_sha256: 202fdf835be0bb6b3c24f1492db2ee6d57eaab3e7765a53f657060e458ab592c
+  notes: Inspected implementation baseline at the recorded Git revision. This hash identifies baseline
+    bytes, not a web page or an OOS result.
+- source_id: implementation-04
+  locator: src/ai4binance/intelligence/patterns.py
+  source_type: REPOSITORY
+  verification: CODE_INSPECTED
+  revision: 4df1534ac9f553d997a5a4560b7f23870737a45b
+  content_sha256: f7d138a4f79afa4b39cdf7e2212655215c25661969fd2be60c72f93cdd20fca6
+  notes: Inspected implementation baseline at the recorded Git revision. This hash identifies baseline
+    bytes, not a web page or an OOS result.
+- source_id: implementation-05
+  locator: src/ai4binance/intelligence/levels.py
+  source_type: REPOSITORY
+  verification: CODE_INSPECTED
+  revision: 4df1534ac9f553d997a5a4560b7f23870737a45b
+  content_sha256: f640fabe4110b218edd8a15971b7536f2b11be136a04e70bc1a8603142e1c3db
+  notes: Inspected implementation baseline at the recorded Git revision. This hash identifies baseline
+    bytes, not a web page or an OOS result.
+- source_id: implementation-06
+  locator: src/ai4binance/intelligence/trading.py
+  source_type: REPOSITORY
+  verification: CODE_INSPECTED
+  revision: 4df1534ac9f553d997a5a4560b7f23870737a45b
+  content_sha256: ffa5964f7fdc914c17317fabd0692b777c7c8e652be98a5167a14880d2752bb6
+  notes: Inspected implementation baseline at the recorded Git revision. This hash identifies baseline
+    bytes, not a web page or an OOS result.
+- source_id: implementation-07
+  locator: src/ai4binance/agents/technical.py
+  source_type: REPOSITORY
+  verification: CODE_INSPECTED
+  revision: 4df1534ac9f553d997a5a4560b7f23870737a45b
+  content_sha256: 08aada3758291af3ca75e0a32e3357635f4f13df66c5b2fb132ea4a90f9a29de
+  notes: Inspected implementation baseline at the recorded Git revision. This hash identifies baseline
+    bytes, not a web page or an OOS result.
+- source_id: implementation-08
+  locator: src/ai4binance/agents/advanced.py
+  source_type: REPOSITORY
+  verification: CODE_INSPECTED
+  revision: 4df1534ac9f553d997a5a4560b7f23870737a45b
+  content_sha256: 91f188fc8fa66221f889027c70ffb01f1172b108e336e41901a02af630e110a8
+  notes: Inspected implementation baseline at the recorded Git revision. This hash identifies baseline
+    bytes, not a web page or an OOS result.
+- source_id: implementation-09
+  locator: src/ai4binance/intelligence/derivatives.py
+  source_type: REPOSITORY
+  verification: CODE_INSPECTED
+  revision: 4df1534ac9f553d997a5a4560b7f23870737a45b
+  content_sha256: cb6e990dc9e98b9b474d1d4492c0fea51822718797f18bddaacee91efc4d5ea0
+  notes: Inspected implementation baseline at the recorded Git revision. This hash identifies baseline
+    bytes, not a web page or an OOS result.
+- source_id: implementation-10
+  locator: src/ai4binance/agents/evidence_fusion.py
+  source_type: REPOSITORY
+  verification: CODE_INSPECTED
+  revision: 4df1534ac9f553d997a5a4560b7f23870737a45b
+  content_sha256: a7e3f7013925ce7532851f6d636cac54b6a2b02226904b8da33f54a68acd313a
+  notes: Inspected implementation baseline at the recorded Git revision. This hash identifies baseline
+    bytes, not a web page or an OOS result.
+- source_id: reference-08
+  locator: https://harmonictrader.com/harmonic-patterns/bat-pattern/
+  source_type: EXTERNAL_REFERENCE
+  verification: REFERENCE_ONLY
+  revision: null
+  content_sha256: null
+  notes: Dated source review exists separately. No archived content hash or empirical performance attestation.
+- source_id: reference-09
+  locator: https://chartschool.stockcharts.com/table-of-contents/chart-analysis/chart-annotation-tools/fibonacci-retracements
+  source_type: EXTERNAL_REFERENCE
+  verification: REFERENCE_ONLY
+  revision: null
+  content_sha256: null
+  notes: Dated source review exists separately. No archived content hash or empirical performance attestation.
+rules:
+- rule_id: pattern_lifecycle.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Keep pattern observation state separate from opportunity eligibility and trade outcome. OpportunityLifecycleLedger
+    is append-only and rejects changed content for an existing event ID and backward event time.
+  implementation_ref: ai4binance.opportunity_intelligence:OpportunityLifecycleLedger
+  source_ids:
+  - reference-01
+  - reference-02
+  - implementation-01
+  test_refs:
+  - tests/test_opportunity_intelligence.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: trend_geometry.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Use confirmed-pivot lines for entry qualification; preserve anchor identity while projecting
+    breaks and retests. Endpoint fallback is contextual only.
+  implementation_ref: ai4binance.intelligence.trend:TrendGeometryEngine
+  source_ids:
+  - reference-03
+  - implementation-02
+  test_refs:
+  - tests/test_trading_intelligence.py
+  - tests/test_structural_entries.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: market_structure.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: A pivot is available only after right-hand confirmation candles close. Determine HH/HL/LH/LL
+    from confirmed swings; BOS/CHoCH follow the local deterministic event semantics.
+  implementation_ref: ai4binance.intelligence.structure:MarketStructureEngine
+  source_ids:
+  - reference-03
+  - implementation-03
+  test_refs:
+  - tests/test_trading_intelligence.py
+  - tests/test_structural_entries.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: chart_patterns.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Evaluate the existing confirmed alternating swing graph and closed-bar breakout path. Failed
+    breakout observations retain stable pattern identity and never claim a successful trade outcome.
+  implementation_ref: ai4binance.opportunity_intelligence:detect_chart_pattern
+  source_ids:
+  - reference-01
+  - reference-02
+  - implementation-01
+  test_refs:
+  - tests/test_opportunity_intelligence.py
+  - tests/test_structural_entries.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: chart_patterns.double_top.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Evaluate the existing confirmed alternating swing graph and closed-bar breakout path. Failed
+    breakout observations retain stable pattern identity and never claim a successful trade outcome.
+  implementation_ref: ai4binance.opportunity_intelligence:detect_chart_pattern
+  source_ids:
+  - reference-01
+  - reference-02
+  - implementation-01
+  test_refs:
+  - tests/test_opportunity_intelligence.py
+  - tests/test_structural_entries.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: chart_patterns.double_bottom.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Evaluate the existing confirmed alternating swing graph and closed-bar breakout path. Failed
+    breakout observations retain stable pattern identity and never claim a successful trade outcome.
+  implementation_ref: ai4binance.opportunity_intelligence:detect_chart_pattern
+  source_ids:
+  - reference-01
+  - reference-02
+  - implementation-01
+  test_refs:
+  - tests/test_opportunity_intelligence.py
+  - tests/test_structural_entries.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: chart_patterns.head_and_shoulders.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Evaluate the existing confirmed alternating swing graph and closed-bar breakout path. Failed
+    breakout observations retain stable pattern identity and never claim a successful trade outcome.
+  implementation_ref: ai4binance.opportunity_intelligence:detect_chart_pattern
+  source_ids:
+  - reference-01
+  - reference-02
+  - implementation-01
+  test_refs:
+  - tests/test_opportunity_intelligence.py
+  - tests/test_structural_entries.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: chart_patterns.inverse_head_and_shoulders.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Evaluate the existing confirmed alternating swing graph and closed-bar breakout path. Failed
+    breakout observations retain stable pattern identity and never claim a successful trade outcome.
+  implementation_ref: ai4binance.opportunity_intelligence:detect_chart_pattern
+  source_ids:
+  - reference-01
+  - reference-02
+  - implementation-01
+  test_refs:
+  - tests/test_opportunity_intelligence.py
+  - tests/test_structural_entries.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: chart_patterns.rising_wedge.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Evaluate the existing confirmed alternating swing graph and closed-bar breakout path. Failed
+    breakout observations retain stable pattern identity and never claim a successful trade outcome.
+  implementation_ref: ai4binance.opportunity_intelligence:detect_chart_pattern
+  source_ids:
+  - reference-01
+  - reference-02
+  - implementation-01
+  test_refs:
+  - tests/test_opportunity_intelligence.py
+  - tests/test_structural_entries.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: chart_patterns.falling_wedge.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Evaluate the existing confirmed alternating swing graph and closed-bar breakout path. Failed
+    breakout observations retain stable pattern identity and never claim a successful trade outcome.
+  implementation_ref: ai4binance.opportunity_intelligence:detect_chart_pattern
+  source_ids:
+  - reference-01
+  - reference-02
+  - implementation-01
+  test_refs:
+  - tests/test_opportunity_intelligence.py
+  - tests/test_structural_entries.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: chart_patterns.converging_triangle.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Evaluate the existing confirmed alternating swing graph and closed-bar breakout path. Failed
+    breakout observations retain stable pattern identity and never claim a successful trade outcome.
+  implementation_ref: ai4binance.opportunity_intelligence:detect_chart_pattern
+  source_ids:
+  - reference-01
+  - reference-02
+  - implementation-01
+  test_refs:
+  - tests/test_opportunity_intelligence.py
+  - tests/test_structural_entries.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: trendline_flowing.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Reuse TrendGeometryEngine for closed-bar trendline projection and break/retest context. This
+    terminology is not a separate detector.
+  implementation_ref: ai4binance.intelligence.trend:TrendGeometryEngine
+  source_ids:
+  - reference-03
+  - implementation-02
+  test_refs:
+  - tests/test_structural_entries.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: elliott_waves.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Use the last six alternating confirmed pivots; require strict local impulse ordering, wave-two
+    origin preservation, wave-three not shortest and wave-four non-overlap. Return one unresolved observed
+    count, without degree or corrective-count claims. Futures source exceptions are not enabled.
+  implementation_ref: ai4binance.intelligence.patterns:ElliottWaveHypothesisEngine
+  source_ids:
+  - reference-04
+  - reference-05
+  - implementation-04
+  test_refs:
+  - tests/test_trading_intelligence.py
+  - tests/test_advanced_agents.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: Wave degree and corrective alternatives are unresolved; the stricter local no-overlap rule
+    also applies to Futures.
+- rule_id: fibonacci.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Use the last two confirmed alternating pivots; retracements are 0.382, 0.5 and 0.618; extensions
+    are 1.272 and 1.618. The 0.5 midpoint is conventional. Results remain neutral confluence context.
+  implementation_ref: ai4binance.intelligence.patterns:FibonacciConfluenceEngine
+  source_ids:
+  - reference-06
+  - implementation-04
+  test_refs:
+  - tests/test_trading_intelligence.py
+  - tests/test_advanced_agents.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: The 0.5 retracement is a conventional midpoint, not a Fibonacci ratio; anchors must already
+    be available.
+- rule_id: harmonic_patterns.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Use the last five confirmed alternating XABCD pivots. Apply the registered local Gartley
+    or Bat ratio subset; a potential reversal zone is not a confirmed entry.
+  implementation_ref: ai4binance.intelligence.patterns:HarmonicPatternEngine
+  source_ids:
+  - reference-07
+  - implementation-04
+  test_refs:
+  - tests/test_trading_intelligence.py
+  - tests/test_advanced_agents.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: Local Gartley and Bat subsets only; Bat B is restricted to 0.382 through 0.5. Potential geometry
+    requires subsequent confirmation.
+- rule_id: harmonic_patterns.gartley.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: 'Local Gartley: AB/XA within 0.03 of 0.618, AD/XA within 0.03 of 0.786, CD/BC from 1.13 to
+    1.618, AB/CD from 0.8 to 1.2 and BC/AB from 0.382 to 0.886. Preserve strict alternating XABCD geometry.
+    Ratios are local acceptance bounds, not universal source rules.'
+  implementation_ref: ai4binance.intelligence.patterns:HarmonicPatternEngine
+  source_ids:
+  - reference-07
+  - implementation-04
+  test_refs:
+  - tests/test_trading_intelligence.py
+  - tests/test_advanced_agents.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: Local Gartley and Bat subsets only; Bat B is restricted to 0.382 through 0.5. Potential geometry
+    requires subsequent confirmation.
+- rule_id: harmonic_patterns.bat.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: 'Local Bat: AB/XA from 0.382 to 0.5, AD/XA within 0.03 of 0.886, CD/BC from 1.618 to 2.618
+    and BC/AB from 0.382 to 0.886. This is a narrower B-point subset than the referenced source family;
+    no source exception is automatically enabled.'
+  implementation_ref: ai4binance.intelligence.patterns:HarmonicPatternEngine
+  source_ids:
+  - reference-07
+  - implementation-04
+  test_refs:
+  - tests/test_trading_intelligence.py
+  - tests/test_advanced_agents.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: Local Gartley and Bat subsets only; Bat B is restricted to 0.382 through 0.5. Potential geometry
+    requires subsequent confirmation.
+- rule_id: support_resistance.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Cluster available confirmed swing prices into zones with age, touch, break and role-flip
+    evidence. Opposing structural zones are target sources; do not fabricate targets for a desired reward
+    ratio.
+  implementation_ref: ai4binance.intelligence.levels:StructuralLevelMapEngine
+  source_ids:
+  - reference-03
+  - implementation-05
+  test_refs:
+  - tests/test_trading_intelligence.py
+  - tests/test_structural_entries.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: formations.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Classify candle geometry and contextual patterns through analyze_candlestick; candle shape
+    alone does not create trade authority. This legacy coverage label is not a universal alias for every
+    classical chart pattern.
+  implementation_ref: ai4binance.opportunity_intelligence:analyze_candlestick
+  source_ids:
+  - reference-01
+  - implementation-01
+  test_refs:
+  - tests/test_opportunity_intelligence.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: chart_analysis.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Reuse one snapshot-bound ScenarioEngine; hierarchy, trigger conflicts and data/derivatives
+    blockers precede selection. Confidence is the weakest required component and is not a calibrated probability.
+  implementation_ref: ai4binance.intelligence.trading:ScenarioEngine
+  source_ids:
+  - reference-03
+  - reference-02
+  - implementation-06
+  test_refs:
+  - tests/test_trading_intelligence.py
+  - tests/test_structural_entries.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: price_action.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Use contextual two-candle bullish/bearish engulfing detections produced by the canonical
+    candle geometry; aggregate only available timeframe observations. No standalone execution authority.
+  implementation_ref: ai4binance.agents.technical:PriceActionAgent
+  source_ids:
+  - implementation-07
+  test_refs:
+  - tests/test_technical_agents.py
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: wyckoff.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Only volume-confirmed spring/upthrust proxies are implemented; phase models are not implemented.
+  implementation_ref: ai4binance.agents.advanced:AdvancedTechnicalAgent._wyckoff
+  source_ids:
+  - implementation-08
+  test_refs: []
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: volume_order_flow.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: The existing bounded volume-profile feature is not complete order-flow methodology coverage.
+  implementation_ref: ai4binance.agents.advanced:AdvancedTechnicalAgent._volume_profile
+  source_ids:
+  - implementation-08
+  test_refs: []
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: multi_timeframe_analysis.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Reuse 4h context, 1h setup and entry-timeframe diagnostics.
+  implementation_ref: ai4binance.agents.technical:MultiTimeframeAgent
+  source_ids:
+  - implementation-07
+  test_refs: []
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: pattern_failure.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Existing closed-bar failure handling is not empirical per-method failure-rate evidence.
+  implementation_ref: ai4binance.opportunity_intelligence:detect_chart_pattern
+  source_ids:
+  - implementation-01
+  test_refs: []
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: futures_derivatives.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Existing freshness-bound Futures context; no independent leverage or execution authority.
+  implementation_ref: ai4binance.intelligence.derivatives:FuturesContextEngine
+  source_ids:
+  - implementation-09
+  test_refs: []
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: sentiment_events.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: Existing external snapshot adapter only. Rich sentiment features and provider availability
+    are not established.
+  implementation_ref: ai4binance.agents.advanced:AdvancedTechnicalAgent._external
+  source_ids:
+  - implementation-08
+  test_refs: []
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+- rule_id: method_interactions.implementation
+  version: 1.0.0
+  rule_type: AI4BINANCE_IMPLEMENTATION_RULE
+  statement: One representative per configured cluster exists. Empirical independence and shared-input
+    graph qualification are not established.
+  implementation_ref: ai4binance.agents.evidence_fusion:EvidenceFusionEngine
+  source_ids:
+  - implementation-10
+  test_refs: []
+  applicability: SPOT and USD_M_FUTURES research context under the named implementation owner.
+  tolerance_policy: The referenced implementation and its boundary tests define numerical tolerances;
+    source prose does not calibrate them.
+  ambiguity: No method-level OOS probability or promotion follows from source agreement. Unimplemented
+    variants are excluded.
+methods:
+- method_id: pattern_lifecycle
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: pattern_lifecycle
+  canonical_name: pattern lifecycle
+  implementation_status: PARTIAL
+  module: ai4binance.opportunity_intelligence
+  owner: OpportunityLifecycleLedger
+  rule_ids:
+  - pattern_lifecycle.implementation
+  source_ids:
+  - reference-01
+  - reference-02
+  - implementation-01
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: OPPORTUNITY
+  limitations: Lifecycle implementation does not establish per-pattern profitability.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: trend_geometry
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: trend_geometry
+  canonical_name: trend geometry
+  implementation_status: PARTIAL
+  module: ai4binance.intelligence.trend
+  owner: TrendGeometryEngine
+  rule_ids:
+  - trend_geometry.implementation
+  source_ids:
+  - reference-03
+  - implementation-02
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Fallback endpoint geometry is not a confirmed-pivot entry qualification.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: trend_geometry.robust_regression_channel
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: trend_geometry
+  canonical_name: 'trend geometry: robust regression channel'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-03
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: market_structure
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: market_structure
+  canonical_name: market structure
+  implementation_status: PARTIAL
+  module: ai4binance.intelligence.structure
+  owner: MarketStructureEngine
+  rule_ids:
+  - market_structure.implementation
+  source_ids:
+  - reference-03
+  - implementation-03
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Pivot confirmation requires right-hand closed bars; observation time differs from pivot
+    time.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: chart_patterns
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: chart_patterns
+  canonical_name: chart patterns
+  implementation_status: PARTIAL
+  module: ai4binance.opportunity_intelligence
+  owner: detect_chart_pattern
+  rule_ids:
+  - chart_patterns.implementation
+  source_ids:
+  - reference-01
+  - reference-02
+  - implementation-01
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: PATTERN
+  limitations: Generic convergence does not implement every named continuation variant.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: chart_patterns.double_top
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: chart_patterns
+  canonical_name: 'chart patterns: double top'
+  implementation_status: PARTIAL
+  module: ai4binance.opportunity_intelligence
+  owner: detect_chart_pattern
+  rule_ids:
+  - chart_patterns.double_top.implementation
+  source_ids:
+  - reference-01
+  - reference-02
+  - implementation-01
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: PATTERN
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: chart_patterns.double_bottom
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: chart_patterns
+  canonical_name: 'chart patterns: double bottom'
+  implementation_status: PARTIAL
+  module: ai4binance.opportunity_intelligence
+  owner: detect_chart_pattern
+  rule_ids:
+  - chart_patterns.double_bottom.implementation
+  source_ids:
+  - reference-01
+  - reference-02
+  - implementation-01
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: PATTERN
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: chart_patterns.head_and_shoulders
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: chart_patterns
+  canonical_name: 'chart patterns: head and shoulders'
+  implementation_status: PARTIAL
+  module: ai4binance.opportunity_intelligence
+  owner: detect_chart_pattern
+  rule_ids:
+  - chart_patterns.head_and_shoulders.implementation
+  source_ids:
+  - reference-01
+  - reference-02
+  - implementation-01
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: PATTERN
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: chart_patterns.inverse_head_and_shoulders
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: chart_patterns
+  canonical_name: 'chart patterns: inverse head and shoulders'
+  implementation_status: PARTIAL
+  module: ai4binance.opportunity_intelligence
+  owner: detect_chart_pattern
+  rule_ids:
+  - chart_patterns.inverse_head_and_shoulders.implementation
+  source_ids:
+  - reference-01
+  - reference-02
+  - implementation-01
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: PATTERN
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: chart_patterns.rising_wedge
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: chart_patterns
+  canonical_name: 'chart patterns: rising wedge'
+  implementation_status: PARTIAL
+  module: ai4binance.opportunity_intelligence
+  owner: detect_chart_pattern
+  rule_ids:
+  - chart_patterns.rising_wedge.implementation
+  source_ids:
+  - reference-01
+  - reference-02
+  - implementation-01
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: PATTERN
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: chart_patterns.falling_wedge
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: chart_patterns
+  canonical_name: 'chart patterns: falling wedge'
+  implementation_status: PARTIAL
+  module: ai4binance.opportunity_intelligence
+  owner: detect_chart_pattern
+  rule_ids:
+  - chart_patterns.falling_wedge.implementation
+  source_ids:
+  - reference-01
+  - reference-02
+  - implementation-01
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: PATTERN
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: chart_patterns.converging_triangle
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: chart_patterns
+  canonical_name: 'chart patterns: converging triangle'
+  implementation_status: PARTIAL
+  module: ai4binance.opportunity_intelligence
+  owner: detect_chart_pattern
+  rule_ids:
+  - chart_patterns.converging_triangle.implementation
+  source_ids:
+  - reference-01
+  - reference-02
+  - implementation-01
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: PATTERN
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: chart_patterns.ascending_triangle
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: chart_patterns
+  canonical_name: 'chart patterns: ascending triangle'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-01
+  - reference-02
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: chart_patterns.descending_triangle
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: chart_patterns
+  canonical_name: 'chart patterns: descending triangle'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-01
+  - reference-02
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: chart_patterns.rectangle
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: chart_patterns
+  canonical_name: 'chart patterns: rectangle'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-01
+  - reference-02
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: chart_patterns.flag
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: chart_patterns
+  canonical_name: 'chart patterns: flag'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-01
+  - reference-02
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: chart_patterns.pennant
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: chart_patterns
+  canonical_name: 'chart patterns: pennant'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-01
+  - reference-02
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: chart_patterns.triple_top
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: chart_patterns
+  canonical_name: 'chart patterns: triple top'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-01
+  - reference-02
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: chart_patterns.triple_bottom
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: chart_patterns
+  canonical_name: 'chart patterns: triple bottom'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-01
+  - reference-02
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: trendline_flowing
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: trendline_flowing
+  canonical_name: trendline flowing
+  implementation_status: PARTIAL
+  module: ai4binance.intelligence.trend
+  owner: TrendGeometryEngine
+  rule_ids:
+  - trendline_flowing.implementation
+  source_ids:
+  - reference-03
+  - implementation-02
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: User terminology maps to existing dynamic trendline projection, not a separate standardized
+    detector.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: elliott_waves
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: elliott_waves
+  canonical_name: elliott waves
+  implementation_status: PARTIAL
+  module: ai4binance.intelligence.patterns
+  owner: ElliottWaveHypothesisEngine
+  rule_ids:
+  - elliott_waves.implementation
+  source_ids:
+  - reference-04
+  - reference-05
+  - implementation-04
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: PATTERN
+  limitations: One observed count; wave degree and correction remain unresolved. No standalone entry authority.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: elliott_waves.multi_degree_alternative_counts
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: elliott_waves
+  canonical_name: 'elliott waves: multi degree alternative counts'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-04
+  - reference-05
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: elliott_waves.zigzag
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: elliott_waves
+  canonical_name: 'elliott waves: zigzag'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-04
+  - reference-05
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: elliott_waves.flat
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: elliott_waves
+  canonical_name: 'elliott waves: flat'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-04
+  - reference-05
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: elliott_waves.corrective_triangle
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: elliott_waves
+  canonical_name: 'elliott waves: corrective triangle'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-04
+  - reference-05
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: elliott_waves.diagonal
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: elliott_waves
+  canonical_name: 'elliott waves: diagonal'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-04
+  - reference-05
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: elliott_waves.double_three
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: elliott_waves
+  canonical_name: 'elliott waves: double three'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-04
+  - reference-05
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: elliott_waves.triple_three
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: elliott_waves
+  canonical_name: 'elliott waves: triple three'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-04
+  - reference-05
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: fibonacci
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: fibonacci
+  canonical_name: fibonacci
+  implementation_status: PARTIAL
+  module: ai4binance.intelligence.patterns
+  owner: FibonacciConfluenceEngine
+  rule_ids:
+  - fibonacci.implementation
+  source_ids:
+  - reference-06
+  - implementation-04
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Confirmed swing anchors; 0.5 is a conventional midpoint. Confluence does not authorize
+    an entry.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: fibonacci.retracement_0.236
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: fibonacci
+  canonical_name: 'fibonacci: retracement 0: 236'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-06
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: fibonacci.retracement_0.786
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: fibonacci
+  canonical_name: 'fibonacci: retracement 0: 786'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-06
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: fibonacci.multi_anchor_cluster_validation
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: fibonacci
+  canonical_name: 'fibonacci: multi anchor cluster validation'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-06
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: harmonic_patterns
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: harmonic_patterns
+  canonical_name: harmonic patterns
+  implementation_status: PARTIAL
+  module: ai4binance.intelligence.patterns
+  owner: HarmonicPatternEngine
+  rule_ids:
+  - harmonic_patterns.implementation
+  source_ids:
+  - reference-07
+  - implementation-04
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: PATTERN
+  limitations: Last five confirmed alternating pivots only; ratio match is not a confirmed reversal trigger.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: harmonic_patterns.gartley
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: harmonic_patterns
+  canonical_name: 'harmonic patterns: gartley'
+  implementation_status: PARTIAL
+  module: ai4binance.intelligence.patterns
+  owner: HarmonicPatternEngine
+  rule_ids:
+  - harmonic_patterns.gartley.implementation
+  source_ids:
+  - reference-07
+  - implementation-04
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: PATTERN
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: harmonic_patterns.bat
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: harmonic_patterns
+  canonical_name: 'harmonic patterns: bat'
+  implementation_status: PARTIAL
+  module: ai4binance.intelligence.patterns
+  owner: HarmonicPatternEngine
+  rule_ids:
+  - harmonic_patterns.bat.implementation
+  source_ids:
+  - reference-07
+  - implementation-04
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: PATTERN
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: harmonic_patterns.ab_cd
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: harmonic_patterns
+  canonical_name: 'harmonic patterns: ab cd'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-07
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: harmonic_patterns.alternate_ab_cd
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: harmonic_patterns
+  canonical_name: 'harmonic patterns: alternate ab cd'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-07
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: harmonic_patterns.alternate_bat
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: harmonic_patterns
+  canonical_name: 'harmonic patterns: alternate bat'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-07
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: harmonic_patterns.butterfly
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: harmonic_patterns
+  canonical_name: 'harmonic patterns: butterfly'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-07
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: harmonic_patterns.crab
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: harmonic_patterns
+  canonical_name: 'harmonic patterns: crab'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-07
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: harmonic_patterns.deep_crab
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: harmonic_patterns
+  canonical_name: 'harmonic patterns: deep crab'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-07
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: harmonic_patterns.shark
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: harmonic_patterns
+  canonical_name: 'harmonic patterns: shark'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-07
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: harmonic_patterns.five_zero
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: harmonic_patterns
+  canonical_name: 'harmonic patterns: five zero'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids:
+  - reference-07
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: support_resistance
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: support_resistance
+  canonical_name: support resistance
+  implementation_status: PARTIAL
+  module: ai4binance.intelligence.levels
+  owner: StructuralLevelMapEngine
+  rule_ids:
+  - support_resistance.implementation
+  source_ids:
+  - reference-03
+  - implementation-05
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Price zones are estimated from the available closed-bar structure.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: formations
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: formations
+  canonical_name: formations
+  implementation_status: PARTIAL
+  module: ai4binance.opportunity_intelligence
+  owner: analyze_candlestick
+  rule_ids:
+  - formations.implementation
+  source_ids:
+  - reference-01
+  - implementation-01
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: PATTERN
+  limitations: Umbrella alias also references chart_patterns; no duplicate detector or exhaustive candlestick
+    catalog claim.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: chart_analysis
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: chart_analysis
+  canonical_name: chart analysis
+  implementation_status: PARTIAL
+  module: ai4binance.intelligence.trading
+  owner: ScenarioEngine
+  rule_ids:
+  - chart_analysis.implementation
+  source_ids:
+  - reference-03
+  - reference-02
+  - implementation-06
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Risk, validation and governance retain veto authority. Price/OI backtests are a separate
+    component.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: price_action
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: formations
+  canonical_name: price action
+  implementation_status: PARTIAL
+  module: ai4binance.agents.technical
+  owner: PriceActionAgent
+  rule_ids:
+  - price_action.implementation
+  source_ids:
+  - implementation-07
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: PATTERN
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: dow_theory.primary_secondary_minor_trend
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: dow_theory
+  canonical_name: 'dow theory: primary secondary minor trend'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: dow_theory.confirmation
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: dow_theory
+  canonical_name: 'dow theory: confirmation'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: wyckoff
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: wyckoff
+  canonical_name: wyckoff
+  implementation_status: PARTIAL
+  module: ai4binance.agents.advanced
+  owner: AdvancedTechnicalAgent._wyckoff
+  rule_ids:
+  - wyckoff.implementation
+  source_ids:
+  - implementation-08
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Only volume-confirmed spring/upthrust proxies are implemented; phase models are not implemented.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: wyckoff.phases_a_to_e
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: wyckoff
+  canonical_name: 'wyckoff: phases a to e'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: wyckoff.cause_and_effect
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: wyckoff
+  canonical_name: 'wyckoff: cause and effect'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: wyckoff.effort_and_result
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: wyckoff
+  canonical_name: 'wyckoff: effort and result'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: alternative_charting.point_and_figure
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: alternative_charting
+  canonical_name: 'alternative charting: point and figure'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: alternative_charting.renko
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: alternative_charting
+  canonical_name: 'alternative charting: renko'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: alternative_charting.kagi
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: alternative_charting
+  canonical_name: 'alternative charting: kagi'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: alternative_charting.three_line_break
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: alternative_charting
+  canonical_name: 'alternative charting: three line break'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: alternative_charting.heikin_ashi
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: alternative_charting
+  canonical_name: 'alternative charting: heikin ashi'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: alternative_charting.equivolume
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: alternative_charting
+  canonical_name: 'alternative charting: equivolume'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: alternative_charting.candlevolume
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: alternative_charting
+  canonical_name: 'alternative charting: candlevolume'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: gap_analysis.breakaway
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: gap_analysis
+  canonical_name: 'gap analysis: breakaway'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: gap_analysis.continuation
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: gap_analysis
+  canonical_name: 'gap analysis: continuation'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: gap_analysis.exhaustion
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: gap_analysis
+  canonical_name: 'gap analysis: exhaustion'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: geometric_tools.andrews_pitchfork
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: geometric_tools
+  canonical_name: 'geometric tools: andrews pitchfork'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: geometric_tools.raff_regression
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: geometric_tools
+  canonical_name: 'geometric tools: raff regression'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: geometric_tools.speed_resistance
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: geometric_tools
+  canonical_name: 'geometric tools: speed resistance'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: geometric_tools.quadrant_lines
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: geometric_tools
+  canonical_name: 'geometric tools: quadrant lines'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: geometric_tools.fibonacci_arcs
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: geometric_tools
+  canonical_name: 'geometric tools: fibonacci arcs'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: geometric_tools.fibonacci_fans
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: geometric_tools
+  canonical_name: 'geometric tools: fibonacci fans'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: geometric_tools.fibonacci_time_zones
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: geometric_tools
+  canonical_name: 'geometric tools: fibonacci time zones'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: volume_order_flow
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: volume_order_flow
+  canonical_name: volume order flow
+  implementation_status: PARTIAL
+  module: ai4binance.agents.advanced
+  owner: AdvancedTechnicalAgent._volume_profile
+  rule_ids:
+  - volume_order_flow.implementation
+  source_ids:
+  - implementation-08
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: The existing bounded volume-profile feature is not complete order-flow methodology coverage.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: volume_order_flow.price_volume_confirmation
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: volume_order_flow
+  canonical_name: 'volume order flow: price volume confirmation'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: volume_order_flow.volume_profile
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: volume_order_flow
+  canonical_name: 'volume order flow: volume profile'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: volume_order_flow.vwap
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: volume_order_flow
+  canonical_name: 'volume order flow: vwap'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: volume_order_flow.order_flow
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: volume_order_flow
+  canonical_name: 'volume order flow: order flow'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: multi_timeframe_analysis
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: multi_timeframe_analysis
+  canonical_name: multi timeframe analysis
+  implementation_status: PARTIAL
+  module: ai4binance.agents.technical
+  owner: MultiTimeframeAgent
+  rule_ids:
+  - multi_timeframe_analysis.implementation
+  source_ids:
+  - implementation-07
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reuse 4h context, 1h setup and entry-timeframe diagnostics.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: multi_timeframe_analysis.context_setup_trigger
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: multi_timeframe_analysis
+  canonical_name: 'multi timeframe analysis: context setup trigger'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: pattern_failure
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: pattern_failure
+  canonical_name: pattern failure
+  implementation_status: PARTIAL
+  module: ai4binance.opportunity_intelligence
+  owner: detect_chart_pattern
+  rule_ids:
+  - pattern_failure.implementation
+  source_ids:
+  - implementation-01
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Existing closed-bar failure handling is not empirical per-method failure-rate evidence.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: pattern_failure.false_breakout
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: pattern_failure
+  canonical_name: 'pattern failure: false breakout'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: pattern_failure.busted_pattern
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: pattern_failure
+  canonical_name: 'pattern failure: busted pattern'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: pattern_failure.regime_failure_evidence
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: pattern_failure
+  canonical_name: 'pattern failure: regime failure evidence'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: futures_derivatives
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: futures_derivatives
+  canonical_name: futures derivatives
+  implementation_status: PARTIAL
+  module: ai4binance.intelligence.derivatives
+  owner: FuturesContextEngine
+  rule_ids:
+  - futures_derivatives.implementation
+  source_ids:
+  - implementation-09
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Existing freshness-bound Futures context; no independent leverage or execution authority.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: futures_derivatives.funding
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: futures_derivatives
+  canonical_name: 'futures derivatives: funding'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: futures_derivatives.open_interest
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: futures_derivatives
+  canonical_name: 'futures derivatives: open interest'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: futures_derivatives.basis
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: futures_derivatives
+  canonical_name: 'futures derivatives: basis'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: futures_derivatives.crowding
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: futures_derivatives
+  canonical_name: 'futures derivatives: crowding'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: sentiment_events
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: sentiment_events
+  canonical_name: sentiment events
+  implementation_status: PARTIAL
+  module: ai4binance.agents.advanced
+  owner: AdvancedTechnicalAgent._external
+  rule_ids:
+  - sentiment_events.implementation
+  source_ids:
+  - implementation-08
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Existing external snapshot adapter only. Rich sentiment features and provider availability
+    are not established.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: sentiment_events.news
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: sentiment_events
+  canonical_name: 'sentiment events: news'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: sentiment_events.social
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: sentiment_events
+  canonical_name: 'sentiment events: social'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: sentiment_events.narrative_velocity
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: sentiment_events
+  canonical_name: 'sentiment events: narrative velocity'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: sentiment_events.event_risk
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: sentiment_events
+  canonical_name: 'sentiment events: event risk'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: sentiment_events.manipulation
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: sentiment_events
+  canonical_name: 'sentiment events: manipulation'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: sentiment_events.divergence
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: sentiment_events
+  canonical_name: 'sentiment events: divergence'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: method_interactions
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: method_interactions
+  canonical_name: method interactions
+  implementation_status: PARTIAL
+  module: ai4binance.agents.evidence_fusion
+  owner: EvidenceFusionEngine
+  rule_ids:
+  - method_interactions.implementation
+  source_ids:
+  - implementation-10
+  input_requirements:
+  - CLOSED_BAR_ASOF_EVIDENCE
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: One representative per configured cluster exists. Empirical independence and shared-input
+    graph qualification are not established.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: method_interactions.dependency_aware_confluence
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: method_interactions
+  canonical_name: 'method interactions: dependency aware confluence'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+- method_id: method_interactions.empirical_independence
+  version: 1.0.0
+  rule_set_version: 1.0.0
+  family: method_interactions
+  canonical_name: 'method interactions: empirical independence'
+  implementation_status: CATALOG_ONLY
+  module: null
+  owner: null
+  rule_ids: []
+  source_ids: []
+  input_requirements:
+  - SOURCE_AND_RULE_RESEARCH_REQUIRED
+  markets:
+  - SPOT
+  - USD_M_FUTURES
+  lifecycle_scope: CONTEXT
+  limitations: Reviewed local subset only; method-level OOS and promotion are not verified.
+  validation_status: NOT_VERIFIED
+  oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
+  governance_status: RESEARCH_ONLY
+coverage:
+- family: pattern_lifecycle
+  module: ai4binance.opportunity_intelligence
+  owner: OpportunityLifecycleLedger
+  implemented:
+  - forming
+  - potential
+  - confirmed
+  - failed
+  - invalidated
+  - expired
+  missing: []
+  decision_role: STATE_AND_CONFIRMATION_GATE
+  limitations: Lifecycle implementation does not establish per-pattern profitability.
+  tests:
+  - tests/test_opportunity_intelligence.py
+  source_ids:
+  - reference-01
+  - reference-02
+- family: trend_geometry
+  module: ai4binance.intelligence.trend
+  owner: TrendGeometryEngine
+  implemented:
+  - confirmed_pivot_lines
+  - projected_channels
+  - break_retest
+  - compression
+  - acceleration
+  missing:
+  - robust_regression_channel
+  decision_role: STRUCTURAL_CONTEXT_AND_ENTRY_QUALIFICATION
+  limitations: Fallback endpoint geometry is not a confirmed-pivot entry qualification.
+  tests:
+  - tests/test_trading_intelligence.py
+  - tests/test_structural_entries.py
+  source_ids:
+  - reference-03
+- family: market_structure
+  module: ai4binance.intelligence.structure
+  owner: MarketStructureEngine
+  implemented:
+  - confirmed_swings
+  - higher_high_lower_low_sequence
+  - break_of_structure
+  - change_of_character
+  missing: []
+  decision_role: DIRECTION_AND_INVALIDATION
+  limitations: Pivot confirmation requires right-hand closed bars; observation time differs from pivot
+    time.
+  tests:
+  - tests/test_trading_intelligence.py
+  - tests/test_structural_entries.py
+  source_ids:
+  - reference-03
+- family: chart_patterns
+  module: ai4binance.opportunity_intelligence
+  owner: detect_chart_pattern
+  implemented:
+  - double_top
+  - double_bottom
+  - head_and_shoulders
+  - inverse_head_and_shoulders
+  - rising_wedge
+  - falling_wedge
+  - converging_triangle
+  missing:
+  - ascending_triangle
+  - descending_triangle
+  - rectangle
+  - flag
+  - pennant
+  - triple_top
+  - triple_bottom
+  decision_role: LIFECYCLE_BOUND_PATTERN_HYPOTHESIS
+  limitations: Generic convergence does not implement every named continuation variant.
+  tests:
+  - tests/test_opportunity_intelligence.py
+  - tests/test_structural_entries.py
+  source_ids:
+  - reference-01
+  - reference-02
+- family: trendline_flowing
+  module: ai4binance.intelligence.trend
+  owner: TrendGeometryEngine
+  implemented:
+  - closed_bar_trendline_projection
+  - trendline_break_retest
+  missing: []
+  decision_role: DYNAMIC_TRENDLINE_CONTEXT
+  limitations: User terminology maps to existing dynamic trendline projection, not a separate standardized
+    detector.
+  tests:
+  - tests/test_structural_entries.py
+  source_ids:
+  - reference-03
+- family: elliott_waves
+  module: ai4binance.intelligence.patterns
+  owner: ElliottWaveHypothesisEngine
+  implemented:
+  - six_pivot_impulse_candidate
+  - wave_two_origin_rule
+  - wave_three_length_rule
+  - wave_four_overlap_rule
+  missing:
+  - multi_degree_alternative_counts
+  - zigzag
+  - flat
+  - corrective_triangle
+  - diagonal
+  - double_three
+  - triple_three
+  decision_role: UNRESOLVED_ALTERNATIVE_CONTEXT_ONLY
+  limitations: One observed count; wave degree and correction remain unresolved. No standalone entry authority.
+  tests:
+  - tests/test_trading_intelligence.py
+  - tests/test_advanced_agents.py
+  source_ids:
+  - reference-04
+  - reference-05
+- family: fibonacci
+  module: ai4binance.intelligence.patterns
+  owner: FibonacciConfluenceEngine
+  implemented:
+  - retracement_0.382
+  - retracement_0.5
+  - retracement_0.618
+  - extension_1.272
+  - extension_1.618
+  missing:
+  - retracement_0.236
+  - retracement_0.786
+  - multi_anchor_cluster_validation
+  decision_role: CONTEXT_ONLY
+  limitations: Confirmed swing anchors; 0.5 is a conventional midpoint. Confluence does not authorize
+    an entry.
+  tests:
+  - tests/test_trading_intelligence.py
+  - tests/test_advanced_agents.py
+  source_ids:
+  - reference-06
+- family: harmonic_patterns
+  module: ai4binance.intelligence.patterns
+  owner: HarmonicPatternEngine
+  implemented:
+  - gartley
+  - bat
+  missing:
+  - ab_cd
+  - alternate_ab_cd
+  - alternate_bat
+  - butterfly
+  - crab
+  - deep_crab
+  - shark
+  - five_zero
+  decision_role: POTENTIAL_REVERSAL_ZONE_CONTEXT
+  limitations: Last five confirmed alternating pivots only; ratio match is not a confirmed reversal trigger.
+  tests:
+  - tests/test_trading_intelligence.py
+  - tests/test_advanced_agents.py
+  source_ids:
+  - reference-07
+- family: support_resistance
+  module: ai4binance.intelligence.levels
+  owner: StructuralLevelMapEngine
+  implemented:
+  - swing_zones
+  - zone_age
+  - role_flip
+  - opposing_level_targets
+  missing: []
+  decision_role: STRUCTURAL_STOP_AND_TARGET_SOURCES
+  limitations: Price zones are estimated from the available closed-bar structure.
+  tests:
+  - tests/test_trading_intelligence.py
+  - tests/test_structural_entries.py
+  source_ids:
+  - reference-03
+- family: formations
+  module: ai4binance.opportunity_intelligence
+  owner: analyze_candlestick
+  implemented:
+  - rejection
+  - strong_continuation
+  - inside_bar
+  - outside_bar
+  - bullish_engulfing
+  - bearish_engulfing
+  - indecision
+  - range_expansion
+  - range_contraction
+  - extended
+  missing: []
+  decision_role: CANDLE_GEOMETRY_CONFIRMATION
+  limitations: Umbrella alias also references chart_patterns; no duplicate detector or exhaustive candlestick
+    catalog claim.
+  tests:
+  - tests/test_opportunity_intelligence.py
+  source_ids:
+  - reference-01
+- family: chart_analysis
+  module: ai4binance.intelligence.trading
+  owner: ScenarioEngine
+  implemented:
+  - multi_timeframe_scenario_synthesis
+  - evidence_lineage
+  - structural_trade_plan
+  missing: []
+  decision_role: DETERMINISTIC_SCENARIO_SYNTHESIS
+  limitations: Risk, validation and governance retain veto authority. Price/OI backtests are a separate
+    component.
+  tests:
+  - tests/test_trading_intelligence.py
+  - tests/test_structural_entries.py
+  source_ids:
+  - reference-03
+  - reference-02
+scope:
+- family: pattern_lifecycle
+  status: PARTIAL
+  method_ids:
+  - pattern_lifecycle
+  notes: Existing reviewed coverage is preserved; not an exhaustive family implementation claim.
+- family: trend_geometry
+  status: PARTIAL
+  method_ids:
+  - trend_geometry
+  - trend_geometry.robust_regression_channel
+  notes: Existing reviewed coverage is preserved; not an exhaustive family implementation claim.
+- family: market_structure
+  status: PARTIAL
+  method_ids:
+  - market_structure
+  notes: Existing reviewed coverage is preserved; not an exhaustive family implementation claim.
+- family: chart_patterns
+  status: PARTIAL
+  method_ids:
+  - chart_patterns
+  - chart_patterns.double_top
+  - chart_patterns.double_bottom
+  - chart_patterns.head_and_shoulders
+  - chart_patterns.inverse_head_and_shoulders
+  - chart_patterns.rising_wedge
+  - chart_patterns.falling_wedge
+  - chart_patterns.converging_triangle
+  - chart_patterns.ascending_triangle
+  - chart_patterns.descending_triangle
+  - chart_patterns.rectangle
+  - chart_patterns.flag
+  - chart_patterns.pennant
+  - chart_patterns.triple_top
+  - chart_patterns.triple_bottom
+  notes: Existing reviewed coverage is preserved; not an exhaustive family implementation claim.
+- family: trendline_flowing
+  status: PARTIAL
+  method_ids:
+  - trendline_flowing
+  notes: Existing reviewed coverage is preserved; not an exhaustive family implementation claim.
+- family: elliott_waves
+  status: PARTIAL
+  method_ids:
+  - elliott_waves
+  - elliott_waves.multi_degree_alternative_counts
+  - elliott_waves.zigzag
+  - elliott_waves.flat
+  - elliott_waves.corrective_triangle
+  - elliott_waves.diagonal
+  - elliott_waves.double_three
+  - elliott_waves.triple_three
+  notes: Existing reviewed coverage is preserved; not an exhaustive family implementation claim.
+- family: fibonacci
+  status: PARTIAL
+  method_ids:
+  - fibonacci
+  - fibonacci.retracement_0.236
+  - fibonacci.retracement_0.786
+  - fibonacci.multi_anchor_cluster_validation
+  notes: Existing reviewed coverage is preserved; not an exhaustive family implementation claim.
+- family: harmonic_patterns
+  status: PARTIAL
+  method_ids:
+  - harmonic_patterns
+  - harmonic_patterns.gartley
+  - harmonic_patterns.bat
+  - harmonic_patterns.ab_cd
+  - harmonic_patterns.alternate_ab_cd
+  - harmonic_patterns.alternate_bat
+  - harmonic_patterns.butterfly
+  - harmonic_patterns.crab
+  - harmonic_patterns.deep_crab
+  - harmonic_patterns.shark
+  - harmonic_patterns.five_zero
+  notes: Existing reviewed coverage is preserved; not an exhaustive family implementation claim.
+- family: support_resistance
+  status: PARTIAL
+  method_ids:
+  - support_resistance
+  notes: Existing reviewed coverage is preserved; not an exhaustive family implementation claim.
+- family: formations
+  status: PARTIAL
+  method_ids:
+  - formations
+  - price_action
+  notes: Existing reviewed coverage is preserved; not an exhaustive family implementation claim.
+- family: chart_analysis
+  status: PARTIAL
+  method_ids:
+  - chart_analysis
+  notes: Existing reviewed coverage is preserved; not an exhaustive family implementation claim.
+- family: dow_theory
+  status: SOURCE_UNVERIFIED
+  method_ids:
+  - dow_theory.primary_secondary_minor_trend
+  - dow_theory.confirmation
+  notes: D0 scope inventory only. Catalog variants do not assert detector implementation or verified external
+    sources.
+- family: wyckoff
+  status: PARTIAL
+  method_ids:
+  - wyckoff
+  - wyckoff.phases_a_to_e
+  - wyckoff.cause_and_effect
+  - wyckoff.effort_and_result
+  notes: D0 scope inventory only. Catalog variants do not assert detector implementation or verified external
+    sources.
+- family: alternative_charting
+  status: SOURCE_UNVERIFIED
+  method_ids:
+  - alternative_charting.point_and_figure
+  - alternative_charting.renko
+  - alternative_charting.kagi
+  - alternative_charting.three_line_break
+  - alternative_charting.heikin_ashi
+  - alternative_charting.equivolume
+  - alternative_charting.candlevolume
+  notes: D0 scope inventory only. Catalog variants do not assert detector implementation or verified external
+    sources.
+- family: gap_analysis
+  status: SOURCE_UNVERIFIED
+  method_ids:
+  - gap_analysis.breakaway
+  - gap_analysis.continuation
+  - gap_analysis.exhaustion
+  notes: D0 scope inventory only. Catalog variants do not assert detector implementation or verified external
+    sources.
+- family: geometric_tools
+  status: SOURCE_UNVERIFIED
+  method_ids:
+  - geometric_tools.andrews_pitchfork
+  - geometric_tools.raff_regression
+  - geometric_tools.speed_resistance
+  - geometric_tools.quadrant_lines
+  - geometric_tools.fibonacci_arcs
+  - geometric_tools.fibonacci_fans
+  - geometric_tools.fibonacci_time_zones
+  notes: D0 scope inventory only. Catalog variants do not assert detector implementation or verified external
+    sources.
+- family: volume_order_flow
+  status: PARTIAL
+  method_ids:
+  - volume_order_flow
+  - volume_order_flow.price_volume_confirmation
+  - volume_order_flow.volume_profile
+  - volume_order_flow.vwap
+  - volume_order_flow.order_flow
+  notes: D0 scope inventory only. Catalog variants do not assert detector implementation or verified external
+    sources.
+- family: multi_timeframe_analysis
+  status: PARTIAL
+  method_ids:
+  - multi_timeframe_analysis
+  - multi_timeframe_analysis.context_setup_trigger
+  notes: D0 scope inventory only. Catalog variants do not assert detector implementation or verified external
+    sources.
+- family: pattern_failure
+  status: PARTIAL
+  method_ids:
+  - pattern_failure
+  - pattern_failure.false_breakout
+  - pattern_failure.busted_pattern
+  - pattern_failure.regime_failure_evidence
+  notes: D0 scope inventory only. Catalog variants do not assert detector implementation or verified external
+    sources.
+- family: futures_derivatives
+  status: PARTIAL
+  method_ids:
+  - futures_derivatives
+  - futures_derivatives.funding
+  - futures_derivatives.open_interest
+  - futures_derivatives.basis
+  - futures_derivatives.crowding
+  notes: D0 scope inventory only. Catalog variants do not assert detector implementation or verified external
+    sources.
+- family: sentiment_events
+  status: PARTIAL
+  method_ids:
+  - sentiment_events
+  - sentiment_events.news
+  - sentiment_events.social
+  - sentiment_events.narrative_velocity
+  - sentiment_events.event_risk
+  - sentiment_events.manipulation
+  - sentiment_events.divergence
+  notes: D0 scope inventory only. Catalog variants do not assert detector implementation or verified external
+    sources.
+- family: method_interactions
+  status: PARTIAL
+  method_ids:
+  - method_interactions
+  - method_interactions.dependency_aware_confluence
+  - method_interactions.empirical_independence
+  notes: D0 scope inventory only. Catalog variants do not assert detector implementation or verified external
+    sources.
+aliases:
+- alias: formations
+  context: legacy_inventory
+  method_id: formations
+- alias: chart formations
+  context: classical_chart_patterns
+  method_id: chart_patterns
+- alias: trendline flowing
+  context: trend_geometry
+  method_id: trendline_flowing
+- alias: elliot wave
+  context: technical_analysis
+  method_id: elliott_waves
+interactions:
+- left: market_structure
+  right: fibonacci
+  relationship: SHARED_PIVOTS
+  independence_status: NOT_MEASURED
+- left: fibonacci
+  right: harmonic_patterns
+  relationship: SHARED_PIVOTS
+  independence_status: NOT_MEASURED
+- left: trend_geometry
+  right: trendline_flowing
+  relationship: SHARED_INPUT
+  independence_status: NOT_MEASURED
+source_reviews:
+- source_id: reference-01
+  reviewed_at: '2026-09-27T00:00:00Z'
+  finding: Reversal geometry requires neckline or intervening-level confirmation. Similar highs alone
+    are not a confirmed reversal.
+  implementation_consequence: Keep local pivot tolerances explicit; no source-derived success probability.
+- source_id: reference-02
+  reviewed_at: '2026-09-27T00:00:00Z'
+  finding: Triangles, rectangles, flags and pennants describe different consolidation geometries. Symmetric
+    triangles have no predetermined breakout side.
+  implementation_consequence: Unimplemented variants remain catalog-only; use closed-bar confirmation.
+- source_id: reference-03
+  reviewed_at: '2026-09-27T00:00:00Z'
+  finding: Prior extrema and trend lines are possible support and resistance references, not guaranteed
+    reversal levels.
+  implementation_consequence: Retain invalidation and opposing structural targets.
+- source_id: reference-04
+  reviewed_at: '2026-09-27T00:00:00Z'
+  finding: Impulse overlap rules distinguish cash markets from rare intraday Futures exceptions; complete
+    wave degree requires additional structure.
+  implementation_consequence: Keep the stricter local non-overlap rule and unresolved alternatives. Do
+    not silently relax Futures validation.
+- source_id: reference-05
+  reviewed_at: '2026-09-27T00:00:00Z'
+  finding: Corrections contain distinct families and combinations; a generic three-wave proxy cannot establish
+    the full taxonomy.
+  implementation_consequence: Corrective variants remain catalog-only until individually implemented and
+    tested.
+- source_id: reference-08
+  reviewed_at: '2026-09-27T00:00:00Z'
+  finding: Bat B retracement is below 0.618 with preferred 0.382/0.5 values; terminal XA retracement and
+    BC extension define the potential reversal zone.
+  implementation_consequence: The local B interval is deliberately narrower. Record local tolerances separately;
+    a potential reversal is not a trade confirmation.
+- source_id: reference-09
+  reviewed_at: '2026-09-27T00:00:00Z'
+  finding: The 50 percent midpoint is conventionally displayed alongside Fibonacci levels but is not a
+    Fibonacci ratio.
+  implementation_consequence: Label the midpoint as conventional and preserve confirmed-anchor causality.

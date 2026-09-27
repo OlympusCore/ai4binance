@@ -96,6 +96,13 @@ class TradeDecisionEvidence:
         factors = json.loads(self.factors_json)
         if not isinstance(factors, dict):
             raise ValueError("decision factors must be a JSON object")
+        registry = factors.get("method_registry")
+        if registry is not None:
+            if not isinstance(registry, dict) or not isinstance(registry.get("definition"), dict):
+                raise ValueError("recorded method registry requires definitions and digest")
+            registry_json = json.dumps(registry["definition"], sort_keys=True, separators=(",", ":"), allow_nan=False)
+            if sha256(registry_json.encode()).hexdigest() != registry.get("sha256"):
+                raise ValueError("recorded method registry digest mismatch")
         canonical = json.dumps(
             factors, sort_keys=True, separators=(",", ":"), allow_nan=False
         )

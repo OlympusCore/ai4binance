@@ -225,6 +225,10 @@ class TradeCandidate:
     decision_evidence: TradeDecisionEvidence = field(
         default_factory=TradeDecisionEvidence
     )
+    target_net_risk_rewards: tuple[Decimal, ...] = ()
+    target_conditional_pnl_per_unit: tuple[Decimal, ...] = ()
+    signed_funding_cost_ratio: Decimal | None = None
+    stop_alternatives: tuple[tuple[str, Decimal], ...] = ()
 
     def __post_init__(self) -> None:
         """Validate identity, geometry and market semantics."""
@@ -262,10 +266,21 @@ class TradeCandidate:
             _validate_score("ranking_score", self.ranking_score)
         self._validate_plan_metrics()
         self._validate_entry_contract()
+        self._validate_economics()
         self._validate_scenario_contract()
         self._validate_geometry()
         if self.status is CandidateStatus.READY_FOR_RISK and self.blockers:
             raise ValueError("READY_FOR_RISK candidate cannot contain blockers")
+
+    def _validate_economics(self) -> None:
+        for values in (self.target_net_risk_rewards, self.target_conditional_pnl_per_unit):
+            if values and (len(values) != len(self.take_profit_levels) or any(not value.is_finite() for value in values)):
+                raise ValueError("target economics must be finite and match the target ladder")
+        if self.signed_funding_cost_ratio is not None and not self.signed_funding_cost_ratio.is_finite():
+            raise ValueError("signed funding cost must be finite")
+        for source, price in self.stop_alternatives:
+            if not source.strip() or not price.is_finite() or price <= ZERO:
+                raise ValueError("stop alternatives require observed prices and provenance")
 
     def _validate_identity(self) -> None:
         """Validate stable candidate identity and action semantics."""

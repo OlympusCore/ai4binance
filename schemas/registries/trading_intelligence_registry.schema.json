@@ -1,0 +1,700 @@
+{
+  "$defs": {
+    "FamilyCoverage": {
+      "additionalProperties": false,
+      "properties": {
+        "family": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Family",
+          "type": "string"
+        },
+        "module": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Module",
+          "type": "string"
+        },
+        "owner": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Owner",
+          "type": "string"
+        },
+        "implemented": {
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "title": "Implemented",
+          "type": "array"
+        },
+        "missing": {
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "title": "Missing",
+          "type": "array"
+        },
+        "decision_role": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Decision Role",
+          "type": "string"
+        },
+        "limitations": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Limitations",
+          "type": "string"
+        },
+        "tests": {
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "title": "Tests",
+          "type": "array"
+        },
+        "source_ids": {
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "family",
+        "module",
+        "owner",
+        "implemented",
+        "missing",
+        "decision_role",
+        "limitations",
+        "tests",
+        "source_ids"
+      ],
+      "title": "FamilyCoverage",
+      "type": "object"
+    },
+    "MethodAlias": {
+      "additionalProperties": false,
+      "properties": {
+        "alias": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Alias",
+          "type": "string"
+        },
+        "context": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Context",
+          "type": "string"
+        },
+        "method_id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Method Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "alias",
+        "context",
+        "method_id"
+      ],
+      "title": "MethodAlias",
+      "type": "object"
+    },
+    "MethodDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "method_id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Method Id",
+          "type": "string"
+        },
+        "version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "title": "Version",
+          "type": "string"
+        },
+        "rule_set_version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "title": "Rule Set Version",
+          "type": "string"
+        },
+        "family": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Family",
+          "type": "string"
+        },
+        "canonical_name": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Canonical Name",
+          "type": "string"
+        },
+        "implementation_status": {
+          "enum": [
+            "IMPLEMENTED",
+            "PARTIAL",
+            "CATALOG_ONLY"
+          ],
+          "title": "Implementation Status",
+          "type": "string"
+        },
+        "module": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Module"
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Owner"
+        },
+        "rule_ids": {
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "title": "Rule Ids",
+          "type": "array"
+        },
+        "source_ids": {
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "title": "Source Ids",
+          "type": "array"
+        },
+        "input_requirements": {
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Input Requirements",
+          "type": "array"
+        },
+        "markets": {
+          "items": {
+            "enum": [
+              "SPOT",
+              "USD_M_FUTURES"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Markets",
+          "type": "array"
+        },
+        "lifecycle_scope": {
+          "enum": [
+            "PATTERN",
+            "CONTEXT",
+            "OPPORTUNITY"
+          ],
+          "title": "Lifecycle Scope",
+          "type": "string"
+        },
+        "limitations": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Limitations",
+          "type": "string"
+        },
+        "validation_status": {
+          "const": "NOT_VERIFIED",
+          "default": "NOT_VERIFIED",
+          "title": "Validation Status",
+          "type": "string"
+        },
+        "oos_status": {
+          "const": "METHOD_LEVEL_OOS_NOT_VERIFIED",
+          "default": "METHOD_LEVEL_OOS_NOT_VERIFIED",
+          "title": "Oos Status",
+          "type": "string"
+        },
+        "governance_status": {
+          "const": "RESEARCH_ONLY",
+          "default": "RESEARCH_ONLY",
+          "title": "Governance Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method_id",
+        "version",
+        "rule_set_version",
+        "family",
+        "canonical_name",
+        "implementation_status",
+        "module",
+        "owner",
+        "rule_ids",
+        "source_ids",
+        "input_requirements",
+        "markets",
+        "lifecycle_scope",
+        "limitations"
+      ],
+      "title": "MethodDefinition",
+      "type": "object"
+    },
+    "MethodInteraction": {
+      "additionalProperties": false,
+      "properties": {
+        "left": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Left",
+          "type": "string"
+        },
+        "right": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Right",
+          "type": "string"
+        },
+        "relationship": {
+          "enum": [
+            "SHARED_INPUT",
+            "SHARED_PIVOTS",
+            "CONTEXT_ONLY"
+          ],
+          "title": "Relationship",
+          "type": "string"
+        },
+        "independence_status": {
+          "const": "NOT_MEASURED",
+          "default": "NOT_MEASURED",
+          "title": "Independence Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "left",
+        "right",
+        "relationship"
+      ],
+      "title": "MethodInteraction",
+      "type": "object"
+    },
+    "RuleDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "rule_id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "title": "Version",
+          "type": "string"
+        },
+        "rule_type": {
+          "enum": [
+            "AI4BINANCE_IMPLEMENTATION_RULE",
+            "SOURCE_DEFINITION"
+          ],
+          "title": "Rule Type",
+          "type": "string"
+        },
+        "statement": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Statement",
+          "type": "string"
+        },
+        "implementation_ref": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Implementation Ref"
+        },
+        "source_ids": {
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Ids",
+          "type": "array"
+        },
+        "test_refs": {
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "title": "Test Refs",
+          "type": "array"
+        },
+        "applicability": {
+          "default": "Research-only implementation; not a universal market rule.",
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Applicability",
+          "type": "string"
+        },
+        "tolerance_policy": {
+          "default": "Exact implementation constants; not empirically calibrated.",
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Tolerance Policy",
+          "type": "string"
+        },
+        "ambiguity": {
+          "default": "Method-level OOS evidence is unavailable.",
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Ambiguity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rule_id",
+        "version",
+        "rule_type",
+        "statement",
+        "implementation_ref",
+        "source_ids",
+        "test_refs"
+      ],
+      "title": "RuleDefinition",
+      "type": "object"
+    },
+    "ScopeDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "family": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Family",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "IMPLEMENTED",
+            "PARTIAL",
+            "CATALOG_ONLY",
+            "SOURCE_UNVERIFIED"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "method_ids": {
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Method Ids",
+          "type": "array"
+        },
+        "notes": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Notes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "family",
+        "status",
+        "method_ids",
+        "notes"
+      ],
+      "title": "ScopeDefinition",
+      "type": "object"
+    },
+    "SourceDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "locator": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Locator",
+          "type": "string"
+        },
+        "source_type": {
+          "enum": [
+            "REPOSITORY",
+            "EXTERNAL_REFERENCE"
+          ],
+          "title": "Source Type",
+          "type": "string"
+        },
+        "verification": {
+          "enum": [
+            "CODE_INSPECTED",
+            "REFERENCE_ONLY"
+          ],
+          "title": "Verification",
+          "type": "string"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Revision"
+        },
+        "content_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Content Sha256"
+        },
+        "notes": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Notes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "locator",
+        "source_type",
+        "verification",
+        "revision",
+        "content_sha256",
+        "notes"
+      ],
+      "title": "SourceDefinition",
+      "type": "object"
+    },
+    "SourceReview": {
+      "additionalProperties": false,
+      "description": "Dated comparison, separate from a source-content or empirical attestation.",
+      "properties": {
+        "source_id": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "reviewed_at": {
+          "format": "date-time",
+          "title": "Reviewed At",
+          "type": "string"
+        },
+        "finding": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Finding",
+          "type": "string"
+        },
+        "implementation_consequence": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Implementation Consequence",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "reviewed_at",
+        "finding",
+        "implementation_consequence"
+      ],
+      "title": "SourceReview",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "registry_id": {
+      "const": "AI4B-TRADING-METHODS-001",
+      "title": "Registry Id",
+      "type": "string"
+    },
+    "version": {
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "title": "Version",
+      "type": "string"
+    },
+    "source_of_truth": {
+      "const": true,
+      "title": "Source Of Truth",
+      "type": "boolean"
+    },
+    "source_of_truth_scope": {
+      "const": "trading_method_definitions",
+      "title": "Source Of Truth Scope",
+      "type": "string"
+    },
+    "authority_effect": {
+      "const": "EVIDENCE_ONLY",
+      "title": "Authority Effect",
+      "type": "string"
+    },
+    "baseline_commit": {
+      "pattern": "^[0-9a-f]{40}$",
+      "title": "Baseline Commit",
+      "type": "string"
+    },
+    "execution_allowed": {
+      "const": false,
+      "title": "Execution Allowed",
+      "type": "boolean"
+    },
+    "promotion_status": {
+      "const": "RESEARCH_ONLY",
+      "title": "Promotion Status",
+      "type": "string"
+    },
+    "live_eligibility_status": {
+      "const": "LIVE_ORDER_BLOCKED",
+      "title": "Live Eligibility Status",
+      "type": "string"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/SourceDefinition"
+      },
+      "minItems": 1,
+      "title": "Sources",
+      "type": "array"
+    },
+    "rules": {
+      "items": {
+        "$ref": "#/$defs/RuleDefinition"
+      },
+      "minItems": 1,
+      "title": "Rules",
+      "type": "array"
+    },
+    "methods": {
+      "items": {
+        "$ref": "#/$defs/MethodDefinition"
+      },
+      "minItems": 1,
+      "title": "Methods",
+      "type": "array"
+    },
+    "coverage": {
+      "items": {
+        "$ref": "#/$defs/FamilyCoverage"
+      },
+      "minItems": 1,
+      "title": "Coverage",
+      "type": "array"
+    },
+    "scope": {
+      "items": {
+        "$ref": "#/$defs/ScopeDefinition"
+      },
+      "minItems": 1,
+      "title": "Scope",
+      "type": "array"
+    },
+    "aliases": {
+      "items": {
+        "$ref": "#/$defs/MethodAlias"
+      },
+      "title": "Aliases",
+      "type": "array"
+    },
+    "interactions": {
+      "items": {
+        "$ref": "#/$defs/MethodInteraction"
+      },
+      "title": "Interactions",
+      "type": "array"
+    },
+    "source_reviews": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/SourceReview"
+      },
+      "title": "Source Reviews",
+      "type": "array"
+    }
+  },
+  "required": [
+    "registry_id",
+    "version",
+    "source_of_truth",
+    "source_of_truth_scope",
+    "authority_effect",
+    "baseline_commit",
+    "execution_allowed",
+    "promotion_status",
+    "live_eligibility_status",
+    "sources",
+    "rules",
+    "methods",
+    "coverage",
+    "scope",
+    "aliases",
+    "interactions"
+  ],
+  "title": "TradingMethodRegistry",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ai4binance:schema:registries:trading-intelligence:1.0.0",
+  "description": "Offline trading-method registry; evidence only and no trading authority."
+}

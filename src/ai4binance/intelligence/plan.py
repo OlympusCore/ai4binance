@@ -23,6 +23,7 @@ from ai4binance.intelligence.contracts import (
     TradingIntelligenceState,
 )
 from ai4binance.reporting import to_primitive
+from ai4binance.intelligence.method_registry import current_method_registry
 from ai4binance.schemas import MarketSnapshot
 
 ZERO = Decimal("0")
@@ -50,6 +51,42 @@ class RiskRewardEngine:
         if risk <= ZERO or net_reward <= ZERO:
             return None
         return cast(Decimal, net_reward / risk)
+
+    def target_ladder(
+        self, candidate: TradeCandidate, cost_ratio: Decimal,
+        signed_funding_ratio: Decimal = ZERO,
+    ) -> tuple[tuple[Decimal, Decimal], ...]:
+        """Conditional per-unit payoff and net R/R, never expected PnL.
+
+        Transaction costs use the existing entry-notional estimate. Funding
+        receipts may affect payoff but cannot reduce the stressed risk denominator.
+        """
+        if not cost_ratio.is_finite() or cost_ratio < ZERO or not signed_funding_ratio.is_finite():
+            raise ValueError("plan costs must be finite with nonnegative transaction costs")
+        entry = candidate.entry_price
+        sign = Decimal(1) if candidate.action is Action.BUY else Decimal(-1)
+        risk = max(abs(entry - candidate.stop_loss), abs(entry - candidate.invalidation_level))
+        risk += entry * (cost_ratio + abs(signed_funding_ratio))
+        costs = entry * (cost_ratio + signed_funding_ratio)
+        return tuple(((target - entry) * sign - costs, ((target - entry) * sign - costs) / risk)
+                     for target in candidate.take_profit_levels)
+
+    def conditional_partial_exit(
+        self, candidate: TradeCandidate, *, fractions: tuple[Decimal, ...],
+        reached_targets: int, cost_ratio: Decimal, signed_funding_ratio: Decimal = ZERO,
+    ) -> Decimal:
+        """Payoff if an ordered target prefix fills and the remainder hits the initial stop."""
+        if (len(fractions) != len(candidate.take_profit_levels)
+            or any(not weight.is_finite() or weight <= ZERO for weight in fractions)
+            or sum(fractions) != Decimal(1)
+            or isinstance(reached_targets, bool)
+            or not 0 <= reached_targets <= len(fractions)):
+            raise ValueError("partial exits require explicit positive weights summing to one and a valid prefix")
+        ladder = self.target_ladder(candidate, cost_ratio, signed_funding_ratio)
+        sign = Decimal(1) if candidate.action is Action.BUY else Decimal(-1)
+        stopped = (candidate.stop_loss - candidate.entry_price) * sign - candidate.entry_price * (cost_ratio + signed_funding_ratio)
+        return sum((weight * (ladder[index][0] if index < reached_targets else stopped)
+                    for index, weight in enumerate(fractions)), ZERO)
 
     def structural(
         self,
@@ -200,6 +237,11 @@ class TradePlanEngine:
                     to_primitive(
                         {
                             "state": state,
+                            "method_registry": current_method_registry().snapshot_payload(),
+                            "target_net_risk_rewards": candidate.target_net_risk_rewards,
+                            "target_conditional_pnl_per_unit": candidate.target_conditional_pnl_per_unit,
+                            "signed_funding_cost_ratio": candidate.signed_funding_cost_ratio,
+                            "stop_alternatives": candidate.stop_alternatives,
                             "entry_candles": rows[-50:],
                             "entry": candidate.entry_price,
                             "initial_stop": candidate.stop_loss,
@@ -363,10 +405,24 @@ class TradePlanEngine:
             status = CandidateStatus.RESEARCH_ONLY
             blockers.append("ENTRY_EXPIRY_UNAVAILABLE")
         unique_blockers = tuple(dict.fromkeys(blockers))
+        candidate = self._economics(candidate, scenario, state)
+        decision_evidence = TradeDecisionEvidence(
+            status="RECORDED_AT_DECISION", as_of=state.timestamp,
+            direction_method="CANONICAL_SCENARIO", entry_method="SCENARIO_BINDING",
+            factors_json=json.dumps(to_primitive({
+                "state": state,
+                "method_registry": current_method_registry().snapshot_payload(),
+                "target_net_risk_rewards": candidate.target_net_risk_rewards,
+                "target_conditional_pnl_per_unit": candidate.target_conditional_pnl_per_unit,
+                "signed_funding_cost_ratio": candidate.signed_funding_cost_ratio,
+                "stop_alternatives": candidate.stop_alternatives,
+            }), sort_keys=True),
+        )
         return replace(
             candidate,
             status=status,
             scenario_id=scenario.scenario_id,
+            decision_evidence=decision_evidence,
             scenario_type=scenario.scenario_type.value,
             scenario_state=scenario.state.value,
             scenario_invalidation=(
@@ -398,6 +454,29 @@ class TradePlanEngine:
             ),
             blockers=unique_blockers,
         )
+
+    def _economics(
+        self, candidate: TradeCandidate, scenario: ScenarioHypothesis,
+        state: TradingIntelligenceState,
+    ) -> TradeCandidate:
+        funding = ZERO
+        if state.market_type == "USD_M_FUTURES":
+            if state.funding_periods is None or state.derivatives_context.funding_rate is None:
+                return candidate
+            sign = Decimal(1) if candidate.action is Action.BUY else Decimal(-1)
+            funding = state.derivatives_context.funding_rate * state.funding_periods * sign
+        if state.transaction_cost_ratio is None:
+            return candidate
+        ladder = self.risk_reward_engine.target_ladder(candidate, state.transaction_cost_ratio, funding)
+        alternatives = tuple((f"STRUCTURE:{row.timeframe}", row.invalidation_level)
+                             for row in state.structures if row.invalidation_level is not None
+                             and (ZERO < row.invalidation_level < candidate.entry_price
+                                  if candidate.action is Action.BUY
+                                  else row.invalidation_level > candidate.entry_price))
+        return replace(candidate, target_net_risk_rewards=tuple(row[1] for row in ladder),
+                       target_conditional_pnl_per_unit=tuple(row[0] for row in ladder),
+                       signed_funding_cost_ratio=funding,
+                       stop_alternatives=((f"SELECTED_SCENARIO:{scenario.scenario_id}", candidate.stop_loss), *alternatives))
 
     @staticmethod
     def entry_trigger(scenario: ScenarioHypothesis) -> str:

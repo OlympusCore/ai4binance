@@ -179,6 +179,9 @@ class OosProbabilityObservation:
     probability: float
     target_first: bool
     net_r: float
+    cost_model_id: str = "NOT_RECORDED"
+    dataset_sha256: str = "NOT_RECORDED"
+    method_registry_sha256: str = "NOT_RECORDED"
 
     def __post_init__(self) -> None:
         if any(
@@ -208,6 +211,11 @@ class OosProbabilityObservation:
             or not isinstance(self.target_first, bool)
         ):
             raise ValueError("OOS probability, outcome, or return is invalid")
+        if not self.cost_model_id.strip():
+            raise ValueError("OOS cost model identity cannot be blank")
+        for digest in (self.dataset_sha256, self.method_registry_sha256):
+            if digest != "NOT_RECORDED" and (len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest)):
+                raise ValueError("OOS provenance must contain a SHA256 digest")
 
 
 @dataclass(frozen=True, slots=True)
@@ -301,6 +309,8 @@ def paired_ablation_delta(
     deltas = []
     for key, a in left.items():
         b = right[key]
+        if (a.cost_model_id, a.dataset_sha256) != (b.cost_model_id, b.dataset_sha256):
+            raise ValueError("ablation costs and archived datasets must match")
         if (
             a.predicted_at,
             a.resolved_at,

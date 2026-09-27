@@ -54,6 +54,7 @@ def test_quality_gate_policy_locks_profile_authority_and_tooling() -> None:
     assert policy.profiles["full"].canonical_quality_authority is True
     assert policy.required_tests == REQUIRED_TESTS
     assert {mapping.name for mapping in policy.standard_impact_mappings} == {
+        "trading_method_registry_and_lineage",
         "instruction_contracts",
         "changed_tests",
         "critical_architecture_conformance",

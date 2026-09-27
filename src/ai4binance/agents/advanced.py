@@ -10,6 +10,7 @@ from math import sqrt
 from ai4binance.agents.base import BaseAgent
 from ai4binance.agents.registry import AgentDefinition
 from ai4binance.indicators import atr, closes, relative_volume, rsi
+from ai4binance.intelligence.method_registry import current_method_registry
 from ai4binance.intelligence.patterns import (
     ElliottWaveHypothesisEngine,
     FibonacciConfluenceEngine,
@@ -126,6 +127,7 @@ class AdvancedTechnicalAgent(BaseAgent):
             reason_codes=("ADVANCED_RULE_EVALUATED",),
             calculation_metadata={
                 **(feature.metadata or {}),
+                **self._method_provenance(name, feature),
                 "source_timeframe": next(
                     timeframe
                     for timeframe in ("1d", "4h", "1h", "15m")
@@ -134,6 +136,28 @@ class AdvancedTechnicalAgent(BaseAgent):
                 ),
             },
         )
+
+    @staticmethod
+    def _method_provenance(name: str, feature: _Feature) -> dict[str, object]:
+        """Bind only observations produced by this version of the local owner."""
+        methods = {
+            "chart_pattern": "chart_patterns",
+            "fibonacci": "fibonacci",
+            "harmonic_pattern": "harmonic_patterns",
+            "elliott_wave": "elliott_waves",
+            "candlestick": "formations",
+        }
+        method_id = methods.get(name)
+        if method_id is None:
+            return {}
+        if name == "chart_pattern":
+            method_id += "." + feature.setups[0].lower()
+        if name == "harmonic_pattern":
+            method_id += (
+                "." + str((feature.metadata or {}).get("pattern_family", "")).lower()
+            )
+        lineage = current_method_registry().lineage(method_id, "1.0.0", "1.0.0")
+        return {"method_lineage": lineage.to_payload()}
 
     def _structural_pattern(
         self,
@@ -506,6 +530,8 @@ class AdvancedTechnicalAgent(BaseAgent):
         )
 
     def _external(self, snapshot: MarketSnapshot, field_name: str) -> AgentResult:
+        if self.definition.name in {"news", "sentiment"}:
+            return self._event_context(snapshot)
         raw = getattr(snapshot, field_name)
         source_count = self._number(raw.get("source_count"))
         vote = self._number(raw.get("directional_vote"))
@@ -547,6 +573,28 @@ class AdvancedTechnicalAgent(BaseAgent):
                 "field": field_name,
                 "as_of": as_of.isoformat(),
                 "age_seconds": age.total_seconds(),
+            },
+        )
+
+    def _event_context(self, snapshot: MarketSnapshot) -> AgentResult:
+        from ai4binance.intelligence.event_context import bind_event_context
+
+        context = bind_event_context(snapshot, self.definition.name)
+        if context.status != "AVAILABLE":
+            return self._insufficient(snapshot, context.warnings[0])
+        return self.result(
+            snapshot, status=AgentStatus.PARTIAL,
+            data_quality=snapshot.data_quality, applicable=True,
+            directional_vote=0.0, score=0.0, confidence=0.0,
+            evidence=tuple(row.observation_id for row in context.observations),
+            blockers=context.blockers,
+            warnings=("ADVISORY_EVENT_CONTEXT_ONLY", *context.warnings),
+            reason_codes=("POINT_IN_TIME_EVENT_CONTEXT_RECORDED",),
+            calculation_metadata={
+                "evidence_root_ids": context.root_ids,
+                "measurement_status": context.measurement_status,
+                "independence_status": "NOT_MEASURED",
+                "source_count": len({ref for row in context.observations for ref in row.source_refs}),
             },
         )
 

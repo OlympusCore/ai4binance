@@ -6,6 +6,9 @@ from decimal import Decimal
 from enum import StrEnum
 from math import isfinite
 
+from ai4binance.intelligence.method_lineage import MethodLineage
+from ai4binance.intelligence.event_context import EventContextEvidence
+
 ZERO = Decimal("0")
 
 
@@ -307,6 +310,7 @@ class PatternHypothesisEvidence:
     primary_direction_signal: bool = False
     execution_allowed: bool = False
     observation_id: str = ""
+    method_lineage: MethodLineage | None = None
 
     def __post_init__(self) -> None:
         required = (self.hypothesis_id, self.family, self.lifecycle_state)
@@ -323,6 +327,10 @@ class PatternHypothesisEvidence:
         _require_nonblank("pattern evidence_against", self.evidence_against)
         if self.primary_direction_signal or self.execution_allowed:
             raise ValueError("pattern hypotheses cannot own direction or execution")
+        if self.method_lineage is not None and not isinstance(
+            self.method_lineage, MethodLineage
+        ):
+            raise ValueError("pattern method lineage must be typed")
 
 
 @dataclass(frozen=True, slots=True)
@@ -471,6 +479,12 @@ class TradingIntelligenceState:
     execution_allowed: bool = False
     live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
     market_type: str = "SPOT"
+    event_context: tuple[EventContextEvidence, ...] = ()
+    method_diversity_count: int = 0
+    dependency_group_count: int = 0
+    evidence_conflicts: tuple[str, ...] = ()
+    transaction_cost_ratio: Decimal | None = None
+    funding_periods: int | None = None
 
     def __post_init__(self) -> None:
         if not self.snapshot_id.strip() or not self.symbol.strip():
@@ -487,6 +501,14 @@ class TradingIntelligenceState:
         ):
             raise ValueError("trading intelligence cost ratio is invalid")
         self._validate_evidence_binding()
+        if any(row.snapshot_id != self.snapshot_id for row in self.event_context):
+            raise ValueError("event context must belong to the canonical snapshot")
+        if self.method_diversity_count < 0 or self.dependency_group_count < 0:
+            raise ValueError("evidence counts cannot be negative")
+        if self.transaction_cost_ratio is not None and (not self.transaction_cost_ratio.is_finite() or self.transaction_cost_ratio < ZERO):
+            raise ValueError("transaction cost ratio must be finite and nonnegative")
+        if self.funding_periods is not None and (isinstance(self.funding_periods, bool) or self.funding_periods < 0):
+            raise ValueError("funding horizon must be a nonnegative period count")
         if (
             self.promotion_status != "RESEARCH_ONLY"
             or self.execution_allowed
