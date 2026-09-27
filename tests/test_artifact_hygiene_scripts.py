@@ -2545,6 +2545,8 @@ Invoke-DeterministicGovernanceGate
 def test_quality_script_replays_only_hash_bound_same_subject_full_evidence(
     tmp_path: Path,
 ) -> None:
+    from ai4binance.ops.quality_gate.telemetry import bind_quality_failure_evidence
+
     run_dir = (
         tmp_path / "runtime" / "artifacts" / "quality" / "gate" / "runs" / "source-run"
     )
@@ -2665,6 +2667,53 @@ def test_quality_script_replays_only_hash_bound_same_subject_full_evidence(
         encoding="utf-8",
     )
 
+    policy = tmp_path / "config/quality/gates.yaml"
+    policy.parent.mkdir(parents=True, exist_ok=True)
+    policy.write_bytes((ROOT / "config/quality/gates.yaml").read_bytes())
+    (run_dir / "pytest-results.xml").write_text(
+        '<testsuites><testsuite><testcase file="tests/test_fixture.py" '
+        'name="test_only" /></testsuite></testsuites>',
+        encoding="utf-8",
+    )
+    source_attestation: dict[str, object] = {
+        "repository_root": str(tmp_path),
+        "repository_tree_sha256": "1" * 64,
+        "git_commit": "2" * 40,
+        "change_set_sha256": "7" * 64,
+    }
+    source_payload = {
+        "schema_version": 2,
+        "status": "QUALITY_GATE_FAILED",
+        "profile": "full",
+        "verification_status": "NOT_VERIFIED",
+        "generated_at_utc": datetime.now(UTC).isoformat(),
+        "step_exit_codes": dict.fromkeys(
+            (
+                "Ruff format",
+                "Ruff lint",
+                "Ruff maintainability ratchet",
+                "MyPy",
+                "Repository governance validator",
+                "Pytest",
+            ),
+            0,
+        ),
+        "execution_allowed": False,
+        "promotion_status": "RESEARCH_ONLY",
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+    }
+    source_failure = run_dir / "quality_failure_evidence.json"
+    source_failure.write_text(
+        json.dumps(
+            bind_quality_failure_evidence(
+                tmp_path,
+                source_payload,
+                run_id=run_dir.name,
+                workspace_attestation=source_attestation,
+            )
+        ),
+        encoding="utf-8",
+    )
     payload = _run_quality_function_harness(
         tmp_path,
         rf"""
@@ -2672,6 +2721,7 @@ $ApprovalRecordReportPath = @'
 {approval_path}
 '@
 $script:qualityInitialWorkspaceAttestation = [ordered]@{{
+    repository_root = $repoRoot
     repository_tree_sha256 = "{"1" * 64}"
     git_commit = "{"2" * 40}"
     change_set_sha256 = "{"7" * 64}"
@@ -2710,6 +2760,26 @@ catch {{
         payload["subject_drift_error"] == "APPROVAL_REPLAY_WORKSPACE_ATTESTATION_DRIFT"
     )
     assert payload["drift_error"] == "APPROVAL_REPLAY_ARTIFACT_DRIFT:DOCS_HYGIENE"
+    from ai4binance.governance.gate import load_approval_replay_context
+
+    pytest_path.write_text("7 passed in 0.10s\n", encoding="utf-8")
+    source_failure.write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match="SOURCE_EXECUTION_EVIDENCE_INVALID"):
+        load_approval_replay_context(tmp_path, approval_path, source_attestation)
+    source_payload["step_exit_codes"] = {"Pytest": 0}
+    source_failure.write_text(
+        json.dumps(
+            bind_quality_failure_evidence(
+                tmp_path,
+                source_payload,
+                run_id=run_dir.name,
+                workspace_attestation=source_attestation,
+            )
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="SOURCE_EXECUTION_STEPS_INVALID"):
+        load_approval_replay_context(tmp_path, approval_path, source_attestation)
 
 
 @pytest.mark.parametrize("source_present", [True, False])
@@ -2732,6 +2802,12 @@ $source = Join-Path $qualityGateArtifactDirectory "runs/test-only-source"
 $evidence = Join-Path $source "evidence.json"
 $script:testReplayContext = [pscustomobject]@{
     governance_path = Join-Path $source "governance-gate-approval-required.json"
+    junit_path = Join-Path $source "pytest-results.xml"
+    source_step_exit_codes = [pscustomobject]@{
+        "Ruff format" = 0; "Ruff lint" = 0; "Ruff maintainability ratchet" = 0
+        "MyPy" = 0; "Repository governance validator" = 0; "Pytest" = 0
+        "Deterministic governance gate" = 2
+    }
     quality_path = $evidence
     validator_path = $evidence
     pytest_path = $evidence
@@ -2750,6 +2826,7 @@ function Get-FullApprovalReplayContext { return $script:testReplayContext }
 function Write-QualityRunMetadata {}
 function Invoke-DeterministicGovernanceGateStep {
     $script:testGovernanceReached = $true
+    $script:qualityStepExitCodes["Deterministic governance gate"] = 0
 }
 function Invoke-GeneratedArtifactCleanup {}
 function Invoke-ProcessTempRetentionCleanup {}
@@ -2771,6 +2848,8 @@ $errorText = try {
     governance_reached = $script:testGovernanceReached
     published_junit_sha256 = $script:testPublishedJUnitHash
     source_junit_exists = Test-Path (Join-Path $source "pytest-results.xml")
+    copied_junit_path = Join-Path $qualityRunDirectory "pytest-results.xml"
+    step_exit_codes = $script:qualityStepExitCodes
 } | ConvertTo-Json
 """,
     )
@@ -2779,6 +2858,40 @@ $errorText = try {
         assert payload["governance_reached"] is True
         assert payload["published_junit_sha256"] == hashlib.sha256(junit).hexdigest()
         assert (source / "pytest-results.xml").read_bytes() == junit
+        from ai4binance.ops.quality_gate.telemetry import (
+            bind_quality_evidence,
+            verify_quality_evidence,
+        )
+
+        policy = tmp_path / "config/quality/gates.yaml"
+        policy.parent.mkdir(parents=True, exist_ok=True)
+        policy.write_bytes((ROOT / "config/quality/gates.yaml").read_bytes())
+        subject = {
+            "repository_root": str(tmp_path),
+            "repository_tree_sha256": "1" * 64,
+            "git_commit": "2" * 40,
+            "change_set_sha256": "3" * 64,
+        }
+        bound = bind_quality_evidence(
+            tmp_path,
+            {
+                "schema_version": 2,
+                "status": "TECHNICAL_QUALITY_PASS",
+                "profile": "full",
+                "verification_status": "FULL_VERIFIED",
+                "generated_at_utc": datetime.now(UTC).isoformat(),
+                "step_exit_codes": payload["step_exit_codes"],
+                "execution_allowed": False,
+                "promotion_status": "RESEARCH_ONLY",
+                "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+            },
+            run_id="test-only-replay",
+            junit_path=Path(payload["copied_junit_path"]),
+            workspace_attestation=subject,
+        )
+        assert not verify_quality_evidence(
+            tmp_path, bound, workspace_attestation=subject, required_profile="full"
+        )
     else:
         assert payload["error"].startswith("APPROVAL_REPLAY_SOURCE_MISSING:")
         assert payload["governance_reached"] is False

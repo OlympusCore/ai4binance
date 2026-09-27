@@ -2691,6 +2691,35 @@ def _approval_replay_read(path: Path) -> dict[str, Any]:
     return value
 
 
+def _approval_replay_execution_evidence(
+    root: Path, directory: Path, attestation: dict[str, object]
+) -> tuple[Path, dict[str, Any]]:
+    """Recover actual FULL step outcomes without synthesizing passing checks."""
+    junit_path = _approval_replay_source(root, str(directory / "pytest-results.xml"))
+    source_evidence = _approval_replay_read(
+        _approval_replay_source(root, str(directory / "quality_failure_evidence.json"))
+    )
+    if (
+        source_evidence.get("profile") != "full"
+        or source_evidence.get("run_id") != directory.name
+        or verify_quality_evidence(
+            root, source_evidence, workspace_attestation=attestation
+        )
+        != ("QUALITY_RESULT_FAILED",)
+    ):
+        raise ValueError("APPROVAL_REPLAY_SOURCE_EXECUTION_EVIDENCE_INVALID")
+    source_test_evidence = bind_quality_evidence(
+        root,
+        source_evidence,
+        run_id=directory.name,
+        junit_path=junit_path,
+        workspace_attestation=attestation,
+    )
+    if _quality_execution_blockers(source_test_evidence, ()):
+        raise ValueError("APPROVAL_REPLAY_SOURCE_EXECUTION_STEPS_INVALID")
+    return junit_path, source_evidence
+
+
 def load_approval_replay_context(
     root: Path,
     approval_path: Path,
@@ -2824,28 +2853,8 @@ def load_approval_replay_context(
         "COVERAGE_SUMMARY_DRIFT",
     )
     coverage_path = _approval_replay_source(root, str(directory / "coverage.json"))
-    junit_path = _approval_replay_source(root, str(directory / "pytest-results.xml"))
-    source_evidence = _approval_replay_read(
-        _approval_replay_source(root, str(directory / "quality_failure_evidence.json"))
-    )
-    require(
-        source_evidence.get("profile") == "full"
-        and source_evidence.get("run_id") == directory.name
-        and verify_quality_evidence(
-            root, source_evidence, workspace_attestation=attestation
-        ) == ("QUALITY_RESULT_FAILED",),
-        "SOURCE_EXECUTION_EVIDENCE_INVALID",
-    )
-    source_test_evidence = bind_quality_evidence(
-        root,
-        source_evidence,
-        run_id=directory.name,
-        junit_path=junit_path,
-        workspace_attestation=attestation,
-    )
-    require(
-        not _quality_execution_blockers(source_test_evidence, ()),
-        "SOURCE_EXECUTION_STEPS_INVALID",
+    junit_path, source_evidence = _approval_replay_execution_evidence(
+        root, directory, attestation
     )
     return {
         "approval_record_path": str(approval_path),

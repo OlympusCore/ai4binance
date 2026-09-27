@@ -2324,8 +2324,9 @@ function Invoke-FullApprovalReplayQualityGate {
     $script:qualityRunCurrentStep = "FULL approval replay validation"
     Write-QualityRunMetadata -Status "RUNNING" -CurrentStep $script:qualityRunCurrentStep
     $context = Get-FullApprovalReplayContext
+    $sourceJUnitPath = Resolve-ApprovalReplaySourcePath -Path $context.junit_path
     Copy-ApprovalReplayArtifact `
-        -Source $context.junit_path `
+        -Source $sourceJUnitPath `
         -Destination (Join-Path $qualityRunDirectory "pytest-results.xml")
     foreach ($sourceStep in $context.source_step_exit_codes.PSObject.Properties) {
         $script:qualityStepExitCodes[$sourceStep.Name] = [int]$sourceStep.Value
