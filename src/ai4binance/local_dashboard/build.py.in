@@ -1,23 +1,34 @@
 """Package the approved dashboard design for offline local operation."""
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 app = Path(__file__).resolve().parent
 fragment = Path(sys.argv[1]).read_text(encoding="utf-8")
 css = re.search(r"<style>([\s\S]*?)</style>", fragment).group(1)
 js = re.search(r"<script>([\s\S]*?)</script>", fragment).group(1)
+interface_root = Path(sys.argv[2]) if len(sys.argv) > 2 else app
+interface_source = (interface_root / "command_center.ts").read_text(encoding="utf-8")
+compiled = subprocess.run(
+    ["node", "--input-type=module", "-e",
+     "import {stripTypeScriptTypes} from 'node:module';"
+     "let source='';for await(const part of process.stdin)source+=part;"
+     "process.stdout.write(stripTypeScriptTypes(source));"],
+    input=interface_source, text=True, encoding="utf-8", capture_output=True,
+    check=True, timeout=30,
+)
+css += "\n" + (interface_root / "command_center.css").read_text(encoding="utf-8")
 markup = re.sub(r"<style>[\s\S]*?</style>|<script>[\s\S]*?</script>", "", fragment).strip()
 markup = markup.replace('<span class="aw-zone">Europe/Istanbul</span>', '<span class="aw-zone">Europe/Istanbul</span><button type="button" id="aw-mode" class="aw-button">Design example</button>')
 js = js.replace("hideBalances:false", "hideBalances:true,mode:'local'")
 assert js.count("language:'tr'") == 1
 js = js.replace("language:'tr'", "language:'en'", 1)
-js = js.replace("  function render(){", (app / "local_views.js").read_text(encoding="utf-8") + "\n  function render(){")
+js = js.replace("  function render(){", (app / "local_views.js").read_text(encoding="utf-8") + "\n" + compiled.stdout + "\n  function render(){\n    prepareCommandRender();\n    const commandFocus=captureCommandView();")
 selection = "({overview,opportunities:opportunityPage,research:researchPage,news:newsPage,recommendations:recommendationsPage,'virtual-market':virtualPage,'binance-wallet':binancePage,kaizen:kaizenPage,evidence:evidencePage})[state.page](content);"
 assert selection in js
-js = js.replace(selection, "if(state.mode==='local'){renderLocal(content);}else{" + selection + "}")
-js = js.replace("    const active=document.activeElement;", "    const expanded=Array.from(root.querySelectorAll('details')).map(d=>d.open);\n    const active=document.activeElement;")
-js = js.replace("    if(focusTarget)focusTarget.focus({preventScroll:true});", "    if(focusTarget)focusTarget.focus({preventScroll:true});\n    root.querySelectorAll('details').forEach((d,i)=>{if(expanded[i])d.open=true;});\n    root.querySelector('#aw-mode').textContent=state.mode==='local'?t('Design example','Tasarım örneği'):t('Local data','Yerel veriler');\n    if(state.mode==='local'){root.querySelector('#aw-demo').textContent=t('Local data · Read only','Yerel veriler · Salt okunur');root.querySelector('#aw-footnote').textContent=t('Refresh: 30 seconds · ','Yenileme: 30 saniye · ')+observedTime(localData?.generated_at);}")
+js = js.replace(selection, "if(state.mode==='local'){if(!renderCommandCenter(content))renderLocal(content);}else{" + selection + "}")
+js = js.replace("    if(focusTarget)focusTarget.focus({preventScroll:true});", "    if(focusTarget)focusTarget.focus({preventScroll:true});\n    enhanceCommandShell(commandFocus);\n    root.querySelector('#aw-mode').textContent=state.mode==='local'?t('Design example','Tasarım örneği'):t('Local data','Yerel veriler');\n    if(state.mode==='local'){root.querySelector('#aw-demo').textContent=t('Local data · Read only','Yerel veriler · Salt okunur');root.querySelector('#aw-footnote').textContent=t('Refresh: 30 seconds · ','Yenileme: 30 saniye · ')+observedTime(localData?.generated_at);}")
 js = re.sub(r"  if\(globalThis.Tweak\)\{[^\n]+\}\n", "", js)
 final_render = "  render();\n})();"
 assert final_render in js

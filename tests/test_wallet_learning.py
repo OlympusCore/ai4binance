@@ -160,6 +160,76 @@ def test_learning_store_writes_atomic_summary_and_append_only_audit(
     )
 
 
+def test_learning_store_uses_explicit_successor_without_changing_legacy(
+    tmp_path: Path,
+) -> None:
+    store = LearningStore(tmp_path / "summary.json", tmp_path / "events.jsonl")
+    legacy = b'{"event_type":"LEARNING_SUMMARY_CREATED","payload":{}}\n'
+    store.audit_path.write_bytes(legacy)
+    successor = JsonlAuditStore.chained_successor(store.audit_path)
+    summary = ControlledLearningEngine().analyze(created_at=NOW)
+
+    store.save(summary)
+
+    assert store.audit_path.read_bytes() == legacy
+    assert successor.verify_chain()
+    events = [json.loads(line) for line in successor.path.read_text().splitlines()]
+    assert len(events) == 2
+    assert events[0]["payload"]["historical_authenticity_verified"] is False
+    assert events[1]["snapshot_id"] == summary.summary_id
+    assert json.loads(store.summary_path.read_text())["execution_allowed"] is False
+
+
+@pytest.mark.parametrize("successor_initialized", [False, True])
+def test_learning_store_blocks_invalid_audit_before_summary_publication(
+    tmp_path: Path, successor_initialized: bool
+) -> None:
+    store = LearningStore(tmp_path / "summary.json", tmp_path / "events.jsonl")
+    store.audit_path.write_text('{"event_type":"LEGACY"}\n')
+    if successor_initialized:
+        successor = JsonlAuditStore.chained_successor(store.audit_path)
+        successor.path.write_text(successor.path.read_text().replace("GENESIS", "bad"))
+    store.summary_path.write_text('{"summary_id":"previous"}')
+    previous = store.summary_path.read_bytes(), store.audit_path.read_bytes()
+
+    with pytest.raises(DestinationVerificationError, match="CHAIN_INVALID"):
+        store.save(ControlledLearningEngine().analyze(created_at=NOW))
+
+    assert (store.summary_path.read_bytes(), store.audit_path.read_bytes()) == previous
+    assert (
+        store.audit_path.with_suffix(".chained.jsonl").exists() is successor_initialized
+    )
+
+
+def test_learning_store_rejects_changed_legacy_anchor(tmp_path: Path) -> None:
+    store = LearningStore(tmp_path / "summary.json", tmp_path / "events.jsonl")
+    store.audit_path.write_text('{"event_type":"LEGACY"}\n')
+    JsonlAuditStore.chained_successor(store.audit_path)
+    store.audit_path.write_text('{"event_type":"CHANGED"}\n')
+
+    with pytest.raises(ValueError, match="LEGACY_ANCHOR_MISMATCH"):
+        store.save(ControlledLearningEngine().analyze(created_at=NOW))
+
+    assert not store.summary_path.exists()
+
+
+def test_learning_store_does_not_publish_when_audit_append_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = LearningStore(tmp_path / "summary.json", tmp_path / "events.jsonl")
+    store.summary_path.write_text('{"summary_id":"previous"}')
+    previous = store.summary_path.read_bytes()
+
+    def fail_append(*args: object, **kwargs: object) -> None:
+        raise OSError("test-only audit failure")
+
+    monkeypatch.setattr(JsonlAuditStore, "append_verified", fail_append)
+    with pytest.raises(OSError, match="test-only audit failure"):
+        store.save(ControlledLearningEngine().analyze(created_at=NOW))
+
+    assert store.summary_path.read_bytes() == previous
+
+
 def test_paper_ledger_learning_provider_loads_closed_positions(
     tmp_path: Path,
 ) -> None:

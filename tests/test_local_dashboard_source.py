@@ -30,6 +30,7 @@ def test_canonical_dashboard_source_builds_deterministic_offline_assets(
             sys.executable,
             str(stage / "build.py.in"),
             str(stage / "design_source.html"),
+            str(ROOT / "frontend" / "src"),
         ],
         check=False,
         capture_output=True,

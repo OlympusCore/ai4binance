@@ -91,24 +91,31 @@ class LearningStore:
         return case_refs
 
     def save(self, summary: LearningSummary) -> None:
+        # A successor must have been initialized explicitly; an invalid journal
+        # never triggers automatic migration or recovery.
+        if self.audit_path.with_suffix(".chained.jsonl").exists():
+            audit_store = JsonlAuditStore.chained_successor(self.audit_path)
+            audit_store.durable = True
+        else:
+            audit_store = JsonlAuditStore(
+                self.audit_path, durable=True, tamper_evident=True
+            )
+        audit_store.verify_chain()
         primitive = cast(dict[str, object], to_primitive(summary))
         primitive["evidence_cases"] = self.save_cases(summary)
-        write_json_object_verified(
-            self.summary_path,
-            primitive,
-            blocker="LEARNING_SUMMARY_DESTINATION_VERIFY_FAILED",
-            subject_id=summary.summary_id,
-            indent=2,
-        )
-        JsonlAuditStore(
-            self.audit_path,
-            durable=True,
-            tamper_evident=True,
-        ).append_verified(
+        # Publish the replaceable summary only after its audit evidence exists.
+        audit_store.append_verified(
             AuditEvent(
                 event_type="LEARNING_SUMMARY_CREATED",
                 timestamp=summary.created_at,
                 payload={"summary": primitive},
                 snapshot_id=summary.summary_id,
             )
+        )
+        write_json_object_verified(
+            self.summary_path,
+            primitive,
+            blocker="LEARNING_SUMMARY_DESTINATION_VERIFY_FAILED",
+            subject_id=summary.summary_id,
+            indent=2,
         )

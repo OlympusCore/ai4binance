@@ -8,6 +8,7 @@ $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Pat
 $python = Join-Path $repositoryRoot ".venv\Scripts\python.exe"
 $sourceRoot = Join-Path $repositoryRoot "src\ai4binance\local_dashboard"
 $operationsRoot = Join-Path $PSScriptRoot "local_dashboard"
+$interfaceRoot = Join-Path $repositoryRoot "frontend\src"
 $deploymentRoot = Join-Path $repositoryRoot "runtime\dashboard"
 $processRoot = Join-Path $repositoryRoot "runtime\tmp\process\dashboard-deploy"
 $runId = [DateTimeOffset]::UtcNow.ToString("yyyyMMddTHHmmssfffZ")
@@ -60,10 +61,13 @@ $sourceFiles = @(
     "server.py.in"
 )
 $operationsFiles = @("install.ps1.in", "launch.ps1.in")
+$interfaceFiles = @("command_center.ts", "command_center.css")
 $deploymentFiles = @(
     "app.css",
     "app.js",
     "build.py",
+    "command_center.ts",
+    "command_center.css",
     "index.html",
     "install.ps1",
     "launch.ps1",
@@ -93,6 +97,9 @@ try {
     }
     foreach ($name in $operationsFiles) {
         Copy-Item -LiteralPath (Join-Path $operationsRoot $name) -Destination $stageRoot -Force
+    }
+    foreach ($name in $interfaceFiles) {
+        Copy-Item -LiteralPath (Join-Path $interfaceRoot $name) -Destination $stageRoot -Force
     }
     foreach ($template in @(
         "build.py",
@@ -192,6 +199,7 @@ try {
         source_files = @(
             $sourceFiles | ForEach-Object { Get-FileRecord -Path (Join-Path $sourceRoot $_) }
             $operationsFiles | ForEach-Object { Get-FileRecord -Path (Join-Path $operationsRoot $_) }
+            $interfaceFiles | ForEach-Object { Get-FileRecord -Path (Join-Path $interfaceRoot $_) }
         )
         deployment_files = @($deploymentFiles | ForEach-Object { Get-FileRecord -Path (Join-Path $stageRoot $_) })
         execution_allowed = $false

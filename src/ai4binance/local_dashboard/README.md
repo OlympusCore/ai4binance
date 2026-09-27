@@ -10,6 +10,40 @@ Deployment preserves machine-specific configuration, health, logs, and the
 private browser profile, and writes `runtime/dashboard/source-manifest.json`
 with source and deployment SHA-256 records.
 
+## Command center presentation
+
+`frontend/src/command_center.ts` owns the incremental human-interface adapter;
+`frontend/src/command_center.css` extends the existing semantic tokens. Packaging
+requires an existing Node.js runtime with `node:module.stripTypeScriptTypes`
+(validated with Node 24). No frontend framework or runtime dependency is added.
+The packaging receipt includes both interface source hashes. Type stripping is
+not type checking; validate TypeScript separately before accepting a change.
+
+Overview shows source-reported health, OHLCV freshness and readiness separately,
+high-priority findings, and the background paper observation. Decision workbench
+shows that observation's own market/symbol, reported risk approval and blockers.
+Validation, governance assessment and full decision lineage remain explicitly
+`DATA_UNAVAILABLE` until supplied by a canonical API contract. Audit health is
+never substituted for decision governance. Evidence & audit reuses source
+metadata and AutoAuditLoop; System & data retains the original operational view.
+All existing domain pages remain available in their original relative order.
+
+Market selection is shared between Opportunities and VirtualMarket. Symbol
+choices are retained independently per market; available timeframes come from
+the existing market payload. These filters do not change the background decision
+or join independent snapshots. No additional polling or source retrieval is added.
+English/Turkish labels use an explicit message dictionary and a language selector.
+UI context remains in memory, with no private payload persisted to browser storage.
+
+The hierarchy is summary, reported blocker, source evidence, then technical
+provenance. Status is always textual; unknown values are never formatted as zero.
+Keyboard users can skip navigation, focus table scroll regions, and use native
+selects/details. Expanded details are associated with the page and their labels.
+Shared tokens, visible focus, reduced-motion support, bounded table scrolling and
+responsive status cards support accessibility; they do not establish WCAG certification.
+The safety strip remains visible in the document at every supported width.
+Resident deployment and restart are separate from source validation.
+
 `lucide.js.gz` vendors Lucide 1.17.0 under the ISC license; deployment expands
 it to `lucide.js`, whose preserved header contains the license notice.
 
