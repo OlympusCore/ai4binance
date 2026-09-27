@@ -18,13 +18,16 @@ import {readFileSync} from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
 import vm from 'node:vm';
 const context = vm.createContext({state: {market: 'Spot', virtualMarket: 'Spot'}});
-vm.runInContext(stripTypeScriptTypes(readFileSync('frontend/src/command_center.ts', 'utf8')), context);
+const source = readFileSync('frontend/src/command_center.ts', 'utf8');
+vm.runInContext(stripTypeScriptTypes(source), context);
 const evaluate = expression => vm.runInContext(expression, context);
 assert.equal(evaluate('commandSummary(null).decision'), 'DATA_UNAVAILABLE');
 assert.equal(evaluate('commandSummary(null).findingCount'), undefined);
-assert.equal(evaluate('commandSummary({virtual:{risk_approved:true}}).risk'), 'DATA_UNAVAILABLE');
+assert.equal(evaluate('commandSummary({virtual:{risk_approved:true}}).risk'),
+  'DATA_UNAVAILABLE');
 context.fixture = {
-  sources: {virtual:{status:'CURRENT'},market_history:{status:'COLLECTING',freshness_status:'CURRENT'}},
+  sources: {virtual:{status:'CURRENT'},
+    market_history:{status:'COLLECTING',freshness_status:'CURRENT'}},
   virtual:{market:'SPOT',symbol:'TEST_ONLY',virtual_decision_status:'NO_TRADE',risk_approved:false,
     blockers:['TEST_ONLY_RISK_VETO','TEST_ONLY_OOS_NOT_VALIDATED'],score:99},
   operational_readiness:{status:'READY',high_priority_finding_count:0},

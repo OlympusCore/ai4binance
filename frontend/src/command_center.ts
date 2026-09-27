@@ -268,13 +268,18 @@ function captureCommandView(): string | undefined {
     Array.from(root.querySelectorAll('details[open]')).map(node => ccDetailsKey(node as HTMLDetailsElement)),
   ));
   const active = document.activeElement as HTMLElement | null;
-  return active?.dataset.commandKey;
+  if (!active || !root.contains(active)) return undefined;
+  if (active.dataset.commandKey) return active.dataset.commandKey;
+  if (active.tagName === 'SUMMARY') return `detail:${ccDetailsKey(active.parentElement as HTMLDetailsElement)}`;
+  const label = active.getAttribute('aria-label');
+  return label ? `label:${label}` : undefined;
 }
 function prepareCommandRender(): void {
   if (state.mode !== 'local' && ['decision', 'system', 'evidence'].includes(state.page)) state.page = 'overview';
 }
 function enhanceCommandShell(focusKey?: string): void {
   const local = state.mode === 'local';
+  const pageChanged = commandLastPage !== '' && commandLastPage !== state.page;
   const main = root.querySelector('main')!;
   main.id = 'cc-main'; main.tabIndex = -1;
   if (!root.querySelector('.cc-skip')) {
@@ -284,7 +289,9 @@ function enhanceCommandShell(focusKey?: string): void {
   root.querySelector('#aw-eyebrow')!.textContent = 'TRADING & GOVERNANCE COMMAND CENTER';
   const safety = root.querySelector('.aw-safety')!;
   safety.classList.add('cc-safety');
-  safety.replaceChildren(ccNode('strong', 'PAPER_TRADING · LIVE_EXECUTION_DISABLED'),
+  const safetyLabel = ccNode('strong', 'PAPER_TRADING · LIVE_EXECUTION_DISABLED');
+  safetyLabel.id = 'aw-safety';
+  safety.replaceChildren(safetyLabel,
     ccNode('span', 'MANUAL_CONFIRMATION · LLM_ADVISORY_ONLY'),
     ccNode('span', 'DETERMINISTIC CORE · LIVE_ORDER_BLOCKED'));
   const nav = root.querySelector('#aw-nav')!;
@@ -294,6 +301,7 @@ function enhanceCommandShell(focusKey?: string): void {
     root.querySelector('.aw-top')!.append(mode);
   }
   mode.textContent = 'PAPER_TRADING · LIVE_EXECUTION_DISABLED';
+  root.style.setProperty('--aw-top-height', `${root.querySelector('.aw-top')!.getBoundingClientRect().height}px`);
   if (local) {
     nav.prepend(ccNode('div', ccText('workspace'), 'cc-navlabel'));
     const group = ccNode('div', '', 'cc-navgroup');
@@ -311,6 +319,7 @@ function enhanceCommandShell(focusKey?: string): void {
     root.querySelector('#aw-title')!.textContent = ccText(titles[state.page]);
     root.querySelector('#aw-subtitle')!.textContent = ccText(subtitles[state.page]);
   }
+  root.querySelector('#aw-status')!.textContent = root.querySelector('#aw-title')!.textContent;
   root.querySelector('.cc-context')?.remove();
   if (local) {
     const context = ccNode('div', '', 'cc-context');
@@ -346,9 +355,17 @@ function enhanceCommandShell(focusKey?: string): void {
     detail.open = commandExpanded.get(state.page)?.has(ccDetailsKey(detail)) || false;
   });
   commandLastPage = state.page;
-  if (focusKey) root.querySelectorAll<HTMLElement>('[data-command-key]').forEach(node => {
-    if (node.dataset.commandKey === focusKey) node.focus({ preventScroll: true });
-  });
+  if (pageChanged) {
+    const heading = root.querySelector<HTMLElement>('#aw-title')!;
+    heading.tabIndex = -1; heading.focus({ preventScroll: true });
+  } else if (focusKey) {
+    root.querySelectorAll<HTMLElement>('[data-command-key],[aria-label],summary').forEach(node => {
+      const detailKey = node.tagName === 'SUMMARY' ? `detail:${ccDetailsKey(node.parentElement as HTMLDetailsElement)}` : '';
+      if (node.dataset.commandKey === focusKey || `label:${node.getAttribute('aria-label')}` === focusKey || detailKey === focusKey) {
+        node.focus({ preventScroll: true });
+      }
+    });
+  }
 }
 
 // Both legacy market workspaces now share the same non-authoritative selection.
