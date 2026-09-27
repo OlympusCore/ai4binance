@@ -2593,6 +2593,7 @@ function Write-QualityGateGreenEvidence {
         generated_at_utc = (Get-Date).ToUniversalTime().ToString("o")
         run_started_at_utc = $script:qualityRunStartedAtUtc.ToString("o")
         run_duration_ms = Get-QualityRunDurationMs
+        step_exit_codes = $script:qualityStepExitCodes
         step_telemetry = @($script:qualityStepTelemetry)
         selected_pytest_arguments = @($script:qualitySelectedPytestArguments)
         selected_test_count = @(

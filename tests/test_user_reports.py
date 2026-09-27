@@ -9,14 +9,35 @@ from pathlib import Path
 import pytest
 
 from ai4binance.application import user_reports
+from ai4binance.core.report_rendering import render_professional_summary
 from ai4binance.ops.user_reports import (
     canonical_system_root,
-    render_professional_summary,
     user_report_paths,
     write_user_report_files,
 )
 
 NOW = datetime(2026, 8, 23, 12, 0, tzinfo=UTC)
+
+
+def test_canonical_report_renderer_bounds_blockers_and_preserves_authority() -> None:
+    from ai4binance.ops.user_reports import render_professional_summary as legacy
+
+    assert legacy is render_professional_summary
+    assert user_reports.render_professional_summary is render_professional_summary
+    markdown = render_professional_summary(
+        title="Test-only bounded report",
+        observed_at=NOW,
+        status="READY",
+        summary="Test-only rendering evidence.",
+        sections=(),
+        blockers=tuple(f"BLOCKER_{index:02d}" for index in range(25)),
+    )
+    assert "- `BLOCKER_19`" in markdown
+    assert "BLOCKER_20" not in markdown
+    assert "- Execution: `NO_TRADE`" in markdown
+    assert "- Promotion: `RESEARCH_ONLY`" in markdown
+    assert "- Live eligibility: `LIVE_ORDER_BLOCKED`" in markdown
+    assert "does not authorize live orders" in markdown
 
 
 def test_user_report_paths_write_historical_and_latest_files(tmp_path: Path) -> None:

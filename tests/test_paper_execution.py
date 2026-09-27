@@ -17,19 +17,26 @@ from ai4binance.domain import (
     TradeCandidate,
     ValidationStatus,
 )
-from ai4binance.execution.paper import (
+from ai4binance.domain.research.paper_models import (
     ExitReason,
-    PaperBroker,
     PaperOrder,
     PaperOrderStatus,
-    PaperPosition,
 )
+from ai4binance.execution.paper import PaperBroker, PaperPosition
 from ai4binance.execution.trailing import update_long_trailing_stop
 from ai4binance.governance.execution_authority import ExecutionSurface
 from ai4binance.risk import RiskAssessment
 from ai4binance.schemas import OHLCVCandle
 
 NOW = datetime(2026, 7, 11, tzinfo=UTC)
+
+
+def test_paper_execution_reexports_canonical_contract_identities() -> None:
+    from ai4binance.execution import paper
+
+    assert paper.PaperOrder is PaperOrder
+    assert paper.PaperOrderStatus is PaperOrderStatus
+    assert paper.ExitReason is ExitReason
 
 
 def approved_assessment() -> RiskAssessment:

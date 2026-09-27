@@ -1,16 +1,22 @@
 """Research-only strategy parameter tournament tests."""
 
 import json
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
+from ai4binance.domain import ValidationStatus
+from ai4binance.domain.research.robustness_models import (
+    BacktestRobustnessReport,
+    BootstrapAssessment,
+    StressScenario,
+)
 from ai4binance.research.backtesting import BacktestIntent, SignalProvider
 from ai4binance.research.backtesting.robustness import (
     BacktestRobustnessAnalyzer,
-    StressScenario,
 )
 from ai4binance.schemas import OHLCVCandle
 from ai4binance.storage.jsonl import JsonlAuditStore
@@ -24,6 +30,48 @@ from ai4binance.tuning.storage import StrategyParameterTournamentAuditWriter
 from ai4binance.validation import MarketRegime, ParameterSet, WalkForwardConfig
 
 NOW = datetime(2026, 3, 1, tzinfo=UTC)
+
+
+def test_canonical_robustness_evidence_cannot_grant_promotion_or_execution() -> None:
+    from ai4binance.research.backtesting import robustness
+
+    assert robustness.BacktestRobustnessReport is BacktestRobustnessReport
+    assert robustness.BootstrapAssessment is BootstrapAssessment
+    assert robustness.StressScenario is StressScenario
+    bootstrap = BootstrapAssessment(
+        simulations=32,
+        seed=7,
+        probability_of_loss=0.25,
+        median_net_return=0.05,
+        p05_net_return=-0.02,
+        p95_max_drawdown=0.1,
+    )
+    report = BacktestRobustnessReport(
+        stress_results=(),
+        bootstrap=bootstrap,
+        blockers=("TEST_ONLY_EVIDENCE",),
+        promotion_status=ValidationStatus.RESEARCH_ONLY,
+    )
+    assert report.execution_allowed is False
+    with pytest.raises(ValueError, match="cannot grant execution authority"):
+        replace(report, execution_allowed=True)
+    for promotion in (ValidationStatus.PAPER_APPROVED, ValidationStatus.LIVE_ELIGIBLE):
+        with pytest.raises(ValueError, match="only research or stage candidates"):
+            replace(report, promotion_status=promotion)
+
+
+def test_canonical_stress_assumptions_reject_understated_cost_inputs() -> None:
+    scenario = StressScenario("BASE", Decimal("0.001"), Decimal("0.0005"))
+    with pytest.raises(ValueError, match="name cannot be empty"):
+        replace(scenario, name=" ")
+    with pytest.raises(ValueError, match="fee_ratio"):
+        replace(scenario, fee_ratio=Decimal("-0.001"))
+    with pytest.raises(ValueError, match="spread_ratio must be non-negative"):
+        replace(scenario, spread_ratio=Decimal("-0.001"))
+    with pytest.raises(ValueError, match="funding_multiplier must be at least one"):
+        replace(scenario, funding_multiplier=Decimal("0.5"))
+
+
 STRONG = StrategyProfileCandidate(
     "trend_tp_3",
     ParameterSet("tp3", (("take_profit_multiplier", 3.0),)),

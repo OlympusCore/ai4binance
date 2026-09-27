@@ -15,6 +15,7 @@ from ai4binance.domain import (
     TradeCandidate,
     ValidationStatus,
 )
+from ai4binance.domain.risk_geometry import structural_margin_loss_per_unit
 from ai4binance.exchange.filters import SymbolFilters
 from ai4binance.exchange.models import SymbolInfo
 from ai4binance.governance.execution_authority import ExecutionSurface
@@ -51,6 +52,33 @@ from ai4binance.strategies.registry import (
 )
 
 NOW = datetime(2026, 7, 11, 12, tzinfo=UTC)
+
+
+@pytest.mark.parametrize(
+    ("stop", "mark", "expected_stop"),
+    [
+        ("95", "101", "93"),
+        ("95", "99", "93"),
+        ("105", "101", "107"),
+        ("105", "99", "107"),
+    ],
+)
+def test_canonical_margin_geometry_is_conservative_for_both_directions(
+    stop: str, mark: str, expected_stop: str
+) -> None:
+    from ai4binance.risk import structural_margin_loss_per_unit as legacy
+
+    assert legacy is structural_margin_loss_per_unit
+    stressed_stop, loss = structural_margin_loss_per_unit(
+        Decimal("100"), Decimal(stop), Decimal(mark), Decimal("0.002"), Decimal("0.01")
+    )
+    assert stressed_stop == Decimal(expected_stop)
+    assert loss == Decimal("7.200")
+    _, unstressed_loss = structural_margin_loss_per_unit(
+        Decimal("100"), Decimal(stop), Decimal("100"), Decimal("0"), Decimal("0")
+    )
+    assert unstressed_loss == Decimal("5")
+    assert loss > unstressed_loss
 
 
 def write_validation_run_card(

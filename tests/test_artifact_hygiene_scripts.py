@@ -3000,6 +3000,8 @@ def test_prepare_c3_human_governance_closure_request_supports_c2_single_approval
 def test_quality_script_green_evidence_refreshes_latest_artifact(
     tmp_path: Path,
 ) -> None:
+    from ai4binance.ops.quality_gate.telemetry import verify_quality_evidence
+
     policy_path = tmp_path / "config/quality/gates.yaml"
     policy_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(ROOT / "config/quality/gates.yaml", policy_path)
@@ -3017,6 +3019,15 @@ $script:qualityInitialWorkspaceAttestation = @{
     repository_tree_sha256 = ('1' * 64)
     git_commit = ('2' * 40)
     change_set_sha256 = ('3' * 64)
+}
+$script:qualityStepExitCodes = [ordered]@{
+    "Ruff format" = 0
+    "Ruff lint" = 0
+    "Ruff maintainability ratchet" = 0
+    "MyPy" = 0
+    "Repository governance validator" = 0
+    "Pytest" = 0
+    "Bandit" = 0
 }
 function Get-FileHash {
     [pscustomobject]@{
@@ -3106,6 +3117,7 @@ $second = Get-Content -LiteralPath $qualityEvidencePath -Raw | ConvertFrom-Json
     first_generated_at_utc = $first.generated_at_utc
     second_generated_at_utc = $second.generated_at_utc
     refreshed = $first.generated_at_utc -ne $second.generated_at_utc
+    bound_evidence = $second
 } | ConvertTo-Json -Depth 6
 """,
     )
@@ -3114,6 +3126,38 @@ $second = Get-Content -LiteralPath $qualityEvidencePath -Raw | ConvertFrom-Json
     assert payload["second_pytest_pass_count"] == 13
     assert payload["first_generated_at_utc"] != "2000-01-01T00:00:00Z"
     assert payload["refreshed"] is True
+    evidence = payload["bound_evidence"]
+    assert evidence["step_exit_codes"] == dict.fromkeys(
+        (
+            "Ruff format",
+            "Ruff lint",
+            "Ruff maintainability ratchet",
+            "MyPy",
+            "Repository governance validator",
+            "Pytest",
+            "Bandit",
+        ),
+        0,
+    )
+    assert (
+        verify_quality_evidence(
+            tmp_path,
+            evidence,
+            workspace_attestation=evidence["workspace_attestation"],
+            required_profile="full",
+            required_tests=("tests/test_fixture.py::test_fixture",),
+        )
+        == ()
+    )
+    missing_steps = {
+        key: value for key, value in evidence.items() if key != "step_exit_codes"
+    }
+    assert "QUALITY_STEP_FAILED_OR_MISSING" in verify_quality_evidence(
+        tmp_path,
+        missing_steps,
+        workspace_attestation=evidence["workspace_attestation"],
+        required_profile="full",
+    )
 
 
 def test_quality_script_refreshes_json_caches_and_reads_pytest_tail(
