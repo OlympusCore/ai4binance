@@ -124,6 +124,47 @@ assert.equal(evaluate('ccRatioPercent(NaN)'), 'DATA_UNAVAILABLE');
 assert.equal(evaluate('ccRatioPercent(0.1)'), '10.00%');
 assert.equal(evaluate('ccReportedCount(undefined)'), 'DATA_UNAVAILABLE');
 assert.equal(evaluate('ccReportedCount([])'), '0');
+assert.equal(evaluate('commandOpportunityVisible(undefined)'), false);
+assert.equal(evaluate('commandOpportunityVisible({measurable_plan:true})'), true);
+assert.equal(evaluate('commandOpportunityVisible({measurable_plan:false,score:99})'),
+  false);
+assert.equal(JSON.stringify(evaluate(`commandTablePage([['-10.00'],['-2.00'],['1.00']],
+  {query:'',column:0,descending:false,page:0})`)), '[0,1,2]');
+assert.equal(JSON.stringify(evaluate(`commandTablePage([['1.09'],['1.1'],['1.2']],
+  {query:'',column:0,descending:false,page:0})`)), '[0,1,2]');
+assert.equal(evaluate("commandCompare('9007199254740993.01','9007199254740993.02')"),
+  -1);
+evaluate("state.language='tr'");
+assert.equal(evaluate("commandCompare('1.234,09','1.234,1')"), -1);
+assert.equal(evaluate("commandCompare('-10,00','-2,00')"), -1);
+evaluate("state.language='en'");
+assert.equal(evaluate('commandLevel(null)'), 'DATA_UNAVAILABLE');
+assert.equal(evaluate('commandLevel(0).sortValue'), '0');
+context.AbortSignal={timeout:()=>undefined};
+context.localData=null;context.lastPollFailed=false;
+for(const [status,expected] of [[403,'UNAUTHORIZED'],[503,'HTTP_ERROR']]){
+  context.fetch=async()=>({ok:false,status});
+  await evaluate('commandRefreshLocal()');
+  assert.equal(evaluate('commandFailure'),expected);
+  assert.equal(context.localData,null);
+}
+context.fetch=async()=>({ok:true,status:200,json:async()=>({execution_allowed:true})});
+await evaluate('commandRefreshLocal()');
+assert.equal(evaluate('commandFailure'),'INVALID_DATA');
+context.fetch=async()=>({ok:true,status:200,json:async()=>({execution_allowed:false,
+  live_eligibility_status:'LIVE_ORDER_BLOCKED'})});
+await evaluate('commandRefreshLocal()');
+assert.equal(evaluate('commandFailure'),undefined);
+assert.equal(evaluate(`commandError(Object.assign(new Error('slow'),
+  {name:'TimeoutError'}))`), 'TIMEOUT');
+let requests=0, finishRequest;
+context.fetch=()=>{requests++;return new Promise(resolve=>{finishRequest=resolve;});};
+const firstRequest=evaluate('commandRefreshLocal()');
+const secondRequest=evaluate('commandRefreshLocal()');
+assert.equal(requests,1);
+finishRequest({ok:true,status:200,json:async()=>({execution_allowed:false,
+  live_eligibility_status:'LIVE_ORDER_BLOCKED'})});
+await Promise.all([firstRequest,secondRequest]);
 assert.equal(JSON.stringify(evaluate(`commandTablePage([['a','10'],['b','2'],['c','2']],
   {query:'',column:1,descending:false,page:0})`)), '[1,2,0]');
 assert.equal(JSON.stringify(evaluate(`commandTablePage([['Alpha'],['Beta']],

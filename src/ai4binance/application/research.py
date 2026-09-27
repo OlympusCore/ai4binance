@@ -8,7 +8,7 @@ import hashlib
 import json
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -283,6 +283,7 @@ class ResearchWorkflowResult:
     wallet: Any | None = None
     market_context: Any | None = None
     canonical_cycle: CanonicalCycleEnvelope | None = None
+    canonical_payloads: Mapping[str, object] = field(default_factory=dict)
     execution_allowed: bool = False
     live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
     compiled_cycle_context: CompiledCycleContext | None = None
@@ -457,9 +458,14 @@ class ResearchApplicationService:
                 else ()
             ),
         )
+        canonical_payloads: dict[str, object] = {}
+        canonical_cycle = self._build_canonical_cycle(
+            analysis_snapshot, workflow, payloads=canonical_payloads
+        )
         workflow = replace(
             workflow,
-            canonical_cycle=self._build_canonical_cycle(analysis_snapshot, workflow),
+            canonical_cycle=canonical_cycle,
+            canonical_payloads=canonical_payloads,
         )
         self._persist(analysis_snapshot, workflow)
         if self.observer is not None and context is not None:
@@ -573,7 +579,7 @@ class ResearchApplicationService:
             result.status.value for result in workflow.analysis.agent_results.values()
         )
         final_decision = workflow.analysis.final_decision
-        return {
+        payload: dict[str, object] = {
             "snapshot_ref": {
                 "snapshot_id": snapshot.snapshot_id,
                 "symbol": snapshot.symbol,
@@ -637,11 +643,28 @@ class ResearchApplicationService:
                 else None
             ),
         }
+        # Keep the existing compact audit budget. Missing bodies stay missing;
+        # never truncate a body whose complete bytes define its reference hash.
+        bodies: dict[str, object] = {}
+        payload["canonical_payloads"] = bodies
+        for artifact_id, body in sorted(workflow.canonical_payloads.items()):
+            bodies[artifact_id] = body
+            encoded = json.dumps(
+                self.primitive_converter(payload),
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+            if len(encoded) > 15_500:
+                bodies.pop(artifact_id)
+        return payload
 
     def _build_canonical_cycle(
         self,
         snapshot: Any,
         workflow: ResearchWorkflowResult,
+        *,
+        payloads: dict[str, object] | None = None,
     ) -> CanonicalCycleEnvelope:
         cycle_id = f"research:{snapshot.snapshot_id}"
         snapshot_id = str(snapshot.snapshot_id)
@@ -650,6 +673,7 @@ class ResearchApplicationService:
         risk_result = analysis.agent_results.get("risk")
         observations = tuple(
             self._cycle_artifact_ref(
+                payloads=payloads,
                 artifact_id=f"observation:{agent_id}:{snapshot_id}",
                 artifact_kind=CycleArtifactKind.OBSERVATION,
                 cycle_id=cycle_id,
@@ -674,6 +698,7 @@ class ResearchApplicationService:
         if not observations:
             observations = (
                 self._cycle_artifact_ref(
+                    payloads=payloads,
                     artifact_id=f"observation:analysis:{snapshot_id}",
                     artifact_kind=CycleArtifactKind.OBSERVATION,
                     cycle_id=cycle_id,
@@ -715,6 +740,7 @@ class ResearchApplicationService:
         )
         execution_plan = (
             self._cycle_artifact_ref(
+                payloads=payloads,
                 artifact_id=f"plan:virtual:{snapshot_id}",
                 artifact_kind=CycleArtifactKind.VIRTUAL_SIMULATION_PLAN,
                 cycle_id=cycle_id,
@@ -759,6 +785,7 @@ class ResearchApplicationService:
             execution_surface=CycleExecutionSurface.VIRTUAL_MARKET,
             governance_status=governance_status,
             canonical_snapshot=self._cycle_artifact_ref(
+                payloads=payloads,
                 artifact_id=f"snapshot:{snapshot_id}",
                 artifact_kind=CycleArtifactKind.CANONICAL_SNAPSHOT,
                 cycle_id=cycle_id,
@@ -766,6 +793,7 @@ class ResearchApplicationService:
                 payload=snapshot,
             ),
             shared_state=self._cycle_artifact_ref(
+                payloads=payloads,
                 artifact_id=f"state:{snapshot_id}",
                 artifact_kind=CycleArtifactKind.SHARED_STATE,
                 cycle_id=cycle_id,
@@ -783,6 +811,7 @@ class ResearchApplicationService:
             ),
             observations=observations,
             decision=self._cycle_artifact_ref(
+                payloads=payloads,
                 artifact_id=f"decision:{snapshot_id}",
                 artifact_kind=CycleArtifactKind.DECISION,
                 cycle_id=cycle_id,
@@ -802,6 +831,7 @@ class ResearchApplicationService:
                 },
             ),
             risk_assessment=self._cycle_artifact_ref(
+                payloads=payloads,
                 artifact_id=f"risk:{snapshot_id}",
                 artifact_kind=CycleArtifactKind.RISK_ASSESSMENT,
                 cycle_id=cycle_id,
@@ -827,6 +857,7 @@ class ResearchApplicationService:
                 },
             ),
             governance_result=self._cycle_artifact_ref(
+                payloads=payloads,
                 artifact_id=f"governance:{snapshot_id}",
                 artifact_kind=CycleArtifactKind.GOVERNANCE_RESULT,
                 cycle_id=cycle_id,
@@ -852,6 +883,7 @@ class ResearchApplicationService:
             ),
             execution_plan=execution_plan,
             audit_trail=self._cycle_artifact_ref(
+                payloads=payloads,
                 artifact_id=f"audit:{snapshot_id}",
                 artifact_kind=CycleArtifactKind.AUDIT_TRAIL,
                 cycle_id=cycle_id,
@@ -869,14 +901,29 @@ class ResearchApplicationService:
         cycle_id: str,
         snapshot_id: str,
         payload: object,
+        payloads: dict[str, object] | None = None,
     ) -> CycleArtifactRef:
-        return CycleArtifactRef(
+        reference = CycleArtifactRef(
             artifact_id=artifact_id,
             artifact_kind=artifact_kind,
             cycle_id=cycle_id,
             snapshot_id=snapshot_id,
             payload_sha256=_canonical_sha256(self.primitive_converter, payload),
         )
+        # Persist bounded explanation bodies in the existing audit event. Full
+        # snapshots, shared state and agent metadata are deliberately excluded.
+        if payloads is not None and artifact_kind in {
+            CycleArtifactKind.DECISION,
+            CycleArtifactKind.GOVERNANCE_RESULT,
+            CycleArtifactKind.AUDIT_TRAIL,
+            CycleArtifactKind.VIRTUAL_SIMULATION_PLAN,
+        }:
+            primitive = self.primitive_converter(payload)
+            body = {**reference.to_payload(), "payload": primitive}
+            encoded = json.dumps(body, ensure_ascii=False, sort_keys=True)
+            if len(encoded.encode("utf-8")) <= 16_000:
+                payloads[artifact_id] = body
+        return reference
 
     @staticmethod
     def _canonical_governance_status(

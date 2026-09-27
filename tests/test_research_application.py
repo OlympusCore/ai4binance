@@ -168,6 +168,14 @@ def test_research_service_runs_all_safe_stages_and_persists_audit(
     assert "snapshot" not in event["payload"]
     assert "analysis" not in event["payload"]
     assert "wallet" not in event["payload"]
+    # Full snapshots and account-bearing agent metadata are never embedded.
+    assert workflow.canonical_payloads
+    assert all(
+        item["artifact_kind"]
+        in {"DECISION", "GOVERNANCE_RESULT", "AUDIT_TRAIL", "VIRTUAL_SIMULATION_PLAN"}
+        for item in workflow.canonical_payloads.values()
+        if isinstance(item, dict)
+    )
     assert len(audit_path.read_bytes()) < 16_000
 
 

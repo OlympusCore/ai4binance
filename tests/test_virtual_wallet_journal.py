@@ -209,6 +209,7 @@ def test_virtual_wallet_dashboard_reports_period_changes_and_bounded_detail(
         cast(Mapping[str, object], result["wallets"])["Virtual_Spot_Wallet"],
     )
     assert spot["inception_at"] == (NOW - timedelta(days=40)).isoformat()
+    assert spot["net_pnl_usdt"] == "-10"
     changes = cast(Mapping[str, Mapping[str, object]], spot["period_changes"])
     assert changes["daily"]["percent_change"] == "10.0"
     assert changes["weekly"]["percent_change"] == "10.0"

@@ -87,8 +87,28 @@ def prepare() -> None:
 enhanceCommandShell(commandFocus);
 root.dataset.testRenderCount=String(Number(root.dataset.testRenderCount||0)+1);
 root.dataset.testRenderMs=String(performance.now()-testStart);
+root.dataset.testDomNodes=String(root.querySelectorAll('*').length);
+root.dataset.testRequestCount=String(performance.getEntriesByType('resource').length);
+if(localData&&!root.dataset.testUsableMs)root.dataset.testUsableMs=String(performance.now());
+if(performance.memory)root.dataset.testHeapBytes=String(performance.memory.usedJSHeapSize);
 """,
     )
+    script += """
+// TEST ONLY: browser metrics contain no account data and are never shipped.
+for (const type of ['largest-contentful-paint','layout-shift','event']) {
+  if (!PerformanceObserver.supportedEntryTypes.includes(type)) continue;
+  new PerformanceObserver(list => {
+    const root = document.querySelector('#a4-workspace');
+    for (const entry of list.getEntries()) {
+      if(type==='largest-contentful-paint')root.dataset.testLcpMs=String(entry.startTime);
+      if(type==='layout-shift'&&!entry.hadRecentInput)
+        root.dataset.testCls=String(Number(root.dataset.testCls||0)+entry.value);
+      if(type==='event')root.dataset.testInteractionMs=String(Math.max(
+        Number(root.dataset.testInteractionMs||0),entry.duration));
+    }
+  }).observe({type,buffered:true,durationThreshold:16});
+}
+"""
     script_path.write_text(script, encoding="utf-8")
     document = STAGE / "index.html"
     document.write_text(
@@ -111,10 +131,18 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         path = urlsplit(self.path)
         if path.path == "/api/state":
-            if (STAGE / "disconnected").read_text(encoding="utf-8") == "true":
+            mode = (STAGE / "disconnected").read_text(encoding="utf-8")
+            if mode == "unauthorized":
+                self.send_error(403, "TEST_ONLY_UNAUTHORIZED")
+                return
+            if mode == "true":
                 self.send_error(503, "TEST_ONLY_DISCONNECTED")
                 return
-            body = (STAGE / "fixture.json").read_bytes()
+            body = (
+                b"not-json"
+                if mode == "invalid"
+                else (STAGE / "fixture.json").read_bytes()
+            )
             kind = "application/json"
         elif path.path == "/api/markets":
             query = parse_qs(path.query)

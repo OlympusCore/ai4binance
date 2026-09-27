@@ -54,6 +54,8 @@ affected_tests:
         - tests/test_dashboard_presentation.py
         - tests/test_local_dashboard_source.py
         - tests/test_dashboard_decisions.py
+        - tests/dashboard_browser_fixture.py
+        - tests/test_virtual_wallet_journal.py
     - &canonical_runtime_owners
       name: canonical_virtual_runtime_owners
       path_prefixes:

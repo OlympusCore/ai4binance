@@ -157,6 +157,43 @@ def test_historical_receipt_remains_explicitly_stale() -> None:
         SERVER["decision_record"](receipt(), "test-only.jsonl", NOW - timedelta(days=1))
 
 
+@pytest.mark.parametrize("mutation", ["valid", "hash", "cycle", "snapshot", "oversize"])
+def test_embedded_reference_body_is_bound_and_redacted(mutation: str) -> None:
+    body = {
+        "action": "NO_TRADE",
+        "reason_summary": "TEST_ONLY_VETO",
+        "private": "TEST_ONLY_PRIVATE",
+    }
+    encoded = json.dumps(
+        body, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode()
+    reference = CycleArtifactRef(
+        artifact_id="test-only-decision",
+        artifact_kind=CycleArtifactKind.DECISION,
+        cycle_id="test-only-cycle",
+        snapshot_id="test-only-snapshot",
+        payload_sha256=hashlib.sha256(encoded).hexdigest(),
+    )
+    embedded = {**reference.to_payload(), "payload": body}
+    if mutation == "hash":
+        body["action"] = "BUY"
+    elif mutation == "cycle":
+        embedded["cycle_id"] = "different-cycle"
+    elif mutation == "snapshot":
+        embedded["snapshot_id"] = "different-snapshot"
+    elif mutation == "oversize":
+        body["reason_summary"] = "x" * 16_001
+    result = SERVER["decision_reference"](reference, {reference.artifact_id: embedded})
+    assert result["status"] == (
+        "PAYLOAD_HASH_MATCH" if mutation == "valid" else "PAYLOAD_INVALID"
+    )
+    assert "TEST_ONLY_PRIVATE" not in json.dumps(result)
+    if mutation == "valid":
+        assert result["payload"]["action"] == "NO_TRADE"
+    else:
+        assert "payload" not in result
+
+
 def test_history_rejects_conflicting_duplicates_and_records_invalid_rows(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

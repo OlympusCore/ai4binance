@@ -1192,6 +1192,33 @@ def warm_dashboard_dependencies() -> None:
     )
 
 
+def decision_reference(reference, payloads):
+    """Resolve only embedded, hash-bound bodies; never follow arbitrary paths."""
+    expected = reference.to_payload()
+    result = {**expected, "status": "PAYLOAD_UNAVAILABLE"}
+    if not isinstance(payloads, dict) or reference.artifact_id not in payloads:
+        return result
+    supplied = payloads[reference.artifact_id]
+    try:
+        if not isinstance(supplied, dict) or set(supplied) != {*expected, "payload"}:
+            raise ValueError("PAYLOAD_SHAPE_INVALID")
+        if any(supplied[key] != value for key, value in expected.items()):
+            raise ValueError("PAYLOAD_CONTEXT_MISMATCH")
+        body = supplied["payload"]
+        encoded = json.dumps(body, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        if len(encoded) > 16_000 or hashlib.sha256(encoded).hexdigest() != reference.payload_sha256:
+            raise ValueError("PAYLOAD_HASH_MISMATCH")
+        if not isinstance(body, dict):
+            raise ValueError("PAYLOAD_OBJECT_REQUIRED")
+        # Hash the original body, then project safe explanation fields only.
+        safe = fields(body, ("action", "reason_summary", "status", "runtime_status", "governance_status", "snapshot_id", "intent_id", "decision_id"))
+        safe["blockers"] = reasons(body.get("blockers"))
+        result.update(status="PAYLOAD_HASH_MATCH", payload=safe)
+    except (TypeError, ValueError):
+        result["status"] = "PAYLOAD_INVALID"
+    return result
+
+
 def decision_record(event, source, now):
     """Project a canonical receipt; a reference never proves its absent payload."""
     from ai4binance.domain.research.canonical_cycle import (
@@ -1270,6 +1297,8 @@ def decision_record(event, source, now):
                 "blockers": reasons(stage.get("blockers")),
             }
         )
+    resolved = [decision_reference(item, payload.get("canonical_payloads")) for item in references]
+    timeframes = payload["snapshot_ref"].get("timeframes", [])
     return {
         "decision_id": envelope.decision.artifact_id,
         "cycle_id": envelope.cycle_id,
@@ -1278,20 +1307,18 @@ def decision_record(event, source, now):
         "status": "STALE" if age > 180 else "CURRENT",
         "source": source,
         "receipt_status": "RECEIPT_HASH_MATCH",
-        "payload_status": "DATA_UNAVAILABLE",
+        "payload_status": "PARTIALLY_AVAILABLE" if any(item["status"] == "PAYLOAD_HASH_MATCH" for item in resolved) else "DATA_UNAVAILABLE",
         "historical_authenticity": "NOT_VERIFIED",
         "symbol": scalar(payload["snapshot_ref"].get("symbol")),
         "market": None,
+        "timeframes": [item for item in timeframes[:20] if isinstance(item, str) and len(item) <= 20] if isinstance(timeframes, (list, tuple)) else [],
         "execution_surface": envelope.execution_surface.value,
         "action": scalar(payload["analysis_ref"].get("final_action")),
         "governance_status": envelope.governance_status.value,
         "blockers": reasons(raw["blockers"]),
         "stages": stages,
         "analysis_blockers": reasons(payload["analysis_ref"].get("blockers")),
-        "references": [
-            {**item.to_payload(), "status": "PAYLOAD_UNAVAILABLE"}
-            for item in references
-        ],
+        "references": resolved,
         "execution_allowed": False,
         "live_eligibility_status": "LIVE_ORDER_BLOCKED",
     }

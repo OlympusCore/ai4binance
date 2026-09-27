@@ -39,6 +39,9 @@ Validation and classified supporting/counter/conflicting evidence remain explici
 never substituted for decision governance. Evidence & audit reuses source
 metadata and AutoAuditLoop; System & data retains the original operational view.
 All existing domain pages remain available in their original relative order.
+Overview separates the background observation from the selected historical
+receipt. Finding-specific evidence navigation retains the finding identity;
+disappearing findings are explicitly unavailable instead of silently replaced.
 
 Market selection is shared between Opportunities and VirtualMarket. Symbol
 choices and timeframe filters are retained independently per market; available timeframes come from
@@ -51,7 +54,7 @@ The hierarchy is summary, reported blocker, source evidence, then technical
 provenance. Status is always textual; unknown values are never formatted as zero.
 Keyboard users can skip navigation, focus table scroll regions, and use native
 selects/details. Expanded details are associated with the page and their labels.
-Tables share search, stable sorting, 25-row pagination and retained in-memory
+Tables share search, exact signed-decimal sorting, 25-row pagination and retained in-memory
 context. Shared tokens, visible focus, reduced-motion support, bounded table scrolling and
 responsive status cards support accessibility; they do not establish WCAG certification.
 The safety strip remains visible in the document at every supported width.
@@ -71,13 +74,35 @@ decision identities invalidate both observations. Malformed entries are visible
 findings rather than silently accepted decisions.
 
 A matching receipt hash proves internal receipt consistency only. Full journal
-chain authenticity and referenced payload integrity are **not verified** by this
-bounded view. References with no resolvable body show `PAYLOAD_UNAVAILABLE`;
+chain authenticity is **not verified** by this bounded view. Embedded explanation
+bodies are checked against their exact reference identity, cycle, snapshot and
+SHA-256 before safe fields are exposed. They report `PAYLOAD_HASH_MATCH` or
+`PAYLOAD_INVALID`. References with no resolvable body show `PAYLOAD_UNAVAILABLE`;
 reported stage completion does not grant risk approval. The compact producer
 does not provide a market identifier or a standalone validation result: neither
 is inferred from the selected workspace. Historical records older than 180 seconds
 are visibly stale and remain inspection-only. No new decision, risk or audit engine
 is introduced.
+
+The existing research producer may embed bounded decision, governance, audit and
+virtual-plan explanation bodies in its existing audit event. It excludes full
+snapshots, wallet state and agent calculation metadata, preserves the compact
+audit budget, and never truncates a hash-bound body. Bodies that do not fit remain
+unavailable. Old records are not rewritten or reconstructed. Risk payloads,
+standalone validation and classified supporting/counter evidence remain missing
+unless their canonical producer supplies them. The dashboard follows no arbitrary
+file paths. Historical authenticity and risk approval are not inferred from an
+internally matching hash.
+
+Opportunity eligibility is projected through the existing canonical predicate;
+the browser only consumes its `measurable_plan` result. Net virtual P&L is supplied
+by the canonical wallet projection. Missing numeric values remain unavailable,
+and table cells retain raw decimal sorting keys where supplied. The client has
+no independent leverage, price-plan or portfolio-accounting rules.
+
+Local-state reads distinguish unauthorized, timeout, HTTP, invalid-payload and
+connection failures. Failed reads withhold previous state and offer a bounded,
+single-flight retry while preserving the existing 30-second polling cadence.
 
 ## Acceptance and deployment
 

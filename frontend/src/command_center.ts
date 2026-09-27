@@ -21,6 +21,8 @@ interface HealthFinding {
   evidence?: string;
 }
 interface DashboardSnapshot {
+  execution_allowed?: boolean;
+  live_eligibility_status?: string;
   generated_at?: string;
   sources?: Record<string, SourceMeta>;
   virtual?: BackgroundObservation;
@@ -31,6 +33,7 @@ interface DashboardSnapshot {
 interface DecisionReference {
   artifact_id: string; artifact_kind: string; cycle_id: string; snapshot_id: string;
   payload_sha256: string; status: string;
+  payload?: Record<string, unknown>;
 }
 interface DecisionRecord {
   decision_id: string; cycle_id: string; snapshot_id: string; observed_at: string;
@@ -39,6 +42,7 @@ interface DecisionRecord {
   action?: string; governance_status: string; blockers: string[]; analysis_blockers: string[];
   stages: {name: string; status: string; blockers: string[]}[];
   references: DecisionReference[];
+  timeframes?: string[];
 }
 declare const root: HTMLElement;
 declare const state: {
@@ -156,6 +160,50 @@ function ccReportedCount(value: unknown): string {
 function commandOpportunityVisible(row: {measurable_plan?: boolean} | undefined): boolean {
   return row?.measurable_plan === true;
 }
+function commandLevel(value: unknown): {display: string; sortValue: string; toString(): string} | string {
+  if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return 'DATA_UNAVAILABLE';
+  const display = Number(value).toLocaleString(state.language === 'tr' ? 'tr-TR' : 'en-US', {maximumFractionDigits: 8});
+  return {display, sortValue: String(value), toString: () => display};
+}
+type CommandFailure = 'UNAUTHORIZED' | 'TIMEOUT' | 'HTTP_ERROR' | 'INVALID_DATA' | 'DISCONNECTED';
+let commandFailure: CommandFailure | undefined;
+let commandRequest: Promise<void> | undefined;
+function commandError(error: unknown): CommandFailure {
+  const message = error instanceof Error ? error.message : '';
+  if (['UNAUTHORIZED', 'HTTP_ERROR', 'INVALID_DATA'].includes(message)) return message as CommandFailure;
+  if (error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name)) return 'TIMEOUT';
+  return 'DISCONNECTED';
+}
+async function commandFetch(url: string, timeout: number): Promise<DashboardSnapshot> {
+  const response = await fetch(url, {cache: 'no-store', signal: AbortSignal.timeout(timeout)});
+  if ([401, 403].includes(response.status)) throw new Error('UNAUTHORIZED');
+  if (!response.ok) throw new Error('HTTP_ERROR');
+  let payload: DashboardSnapshot;
+  try { payload = await response.json(); } catch { throw new Error('INVALID_DATA'); }
+  if (!payload || payload.execution_allowed !== false || payload.live_eligibility_status !== 'LIVE_ORDER_BLOCKED') throw new Error('INVALID_DATA');
+  return payload;
+}
+async function commandRefreshLocal(): Promise<void> {
+  if (commandRequest) return commandRequest;
+  commandRequest = (async () => {
+    try { localData = await commandFetch('/api/state', 8000); lastPollFailed = false; commandFailure = undefined; }
+    catch (error) { localData = null; lastPollFailed = true; commandFailure = commandError(error); }
+  })();
+  try { await commandRequest; } finally { commandRequest = undefined; }
+}
+function commandConnectionPanel(): HTMLElement {
+  const panel = ccNode('section', '', 'cc-connection'); panel.setAttribute('role', 'status');
+  panel.append(ccNode('p', commandFailure ? `${commandFailure} · /api/state` : ccText('loading')));
+  if (commandFailure) {
+    panel.append(ccNode('p', ccLabel('The local state could not be verified. Previous values are withheld; live orders remain blocked. Automatic retry: 30 seconds.',
+      'Yerel durum doğrulanamadı. Önceki değerler gösterilmiyor; canlı emirler kapalı. Otomatik yeniden deneme: 30 saniye.')));
+    const retry = ccNode('button', ccLabel('Retry local state', 'Yerel veriyi yeniden dene'), 'aw-button');
+    retry.type = 'button'; retry.dataset.commandKey = 'retry-state';
+    retry.addEventListener('click', async () => { retry.disabled = true; await refreshLocal(); render(); });
+    panel.append(retry);
+  }
+  return panel;
+}
 function commandSummary(data: DashboardSnapshot | null) {
   const source = data?.sources?.virtual;
   // The API withholds stale domain payloads; also defend this presentation seam.
@@ -185,6 +233,7 @@ function ccLink(key: CopyKey, page: string): HTMLButtonElement {
 }
 function ccPanel(key: CopyKey): HTMLElement {
   const panel = ccNode('section', '', 'aw-panel cc-panel');
+  panel.dataset.panelKey = key;
   panel.append(ccNode('h2', ccText(key)));
   return panel;
 }
@@ -325,6 +374,9 @@ function ccRecordedDecision(content: HTMLElement, item: DecisionRecord): void {
   panel.append(status, ccNode('p', `${item.observed_at} · ${item.execution_surface}`),
     ccNode('p', ccLabel('Historical receipt; workspace filters do not relabel this record.',
       'Geçmiş döngü kaydı; çalışma alanı filtreleri bu kaydı yeniden etiketlemez.')));
+  panel.append(ccNode('p', `${ccText('timeframe')}: ${item.timeframes?.join(' / ') || 'DATA_UNAVAILABLE'}`));
+  const decisionBody = item.references.find(ref => ref.artifact_kind === 'DECISION' && ref.status === 'PAYLOAD_HASH_MATCH')?.payload;
+  if (typeof decisionBody?.reason_summary === 'string') panel.append(ccNode('p', decisionBody.reason_summary));
   const metrics = ccNode('dl', '', 'cc-metrics');
   metrics.append(ccMetric('riskStage', decisionStage(item, 'risk')),
     ccMetric('validation', decisionStage(item, 'validation')),
@@ -342,8 +394,8 @@ function ccRecordedDecision(content: HTMLElement, item: DecisionRecord): void {
   (['support', 'counter', 'missing', 'conflict'] as CopyKey[]).forEach(key => groups.append(
     ccMetric(key, 'DATA_UNAVAILABLE', ccLabel('The source does not classify evidence into this group.', 'Kaynak, kanıtları bu gruba sınıflandırmıyor.'))));
   panel.append(groups, ccNode('p', `${item.receipt_status} · ${item.historical_authenticity}`));
-  panel.append(ccNode('p', ccLabel('Receipt references are hash-bound. Referenced payloads are unavailable; historical authenticity is not verified.',
-    'Kayıt referansları hash ile bağlıdır. Referans verilen içerikler yok; geçmiş kaydın özgünlüğü doğrulanmadı.')));
+  panel.append(ccNode('p', ccLabel('Each reference reports its own payload availability and hash check. Historical authenticity is not verified.',
+    'Her referans kendi içerik durumunu ve hash kontrolünü gösterir. Geçmiş kaydın özgünlüğü doğrulanmadı.')));
   content.append(panel, ccLineage(item));
 }
 function ccLineage(item: DecisionRecord): HTMLElement {
@@ -353,7 +405,12 @@ function ccLineage(item: DecisionRecord): HTMLElement {
     const detail = ccNode('details'); detail.dataset.referenceId = ref.artifact_id;
     detail.append(ccNode('summary', `${ref.artifact_kind} · ${ref.status}`));
     const values = ccNode('dl');
-    Object.entries(ref).forEach(([key, value]) => values.append(ccNode('dt', key), ccNode('dd', value)));
+    Object.entries(ref).filter(([key]) => key !== 'payload').forEach(([key, value]) => values.append(ccNode('dt', key), ccNode('dd', String(value))));
+    if (ref.payload) {
+      const explanation = ccNode('dl');
+      Object.entries(ref.payload).forEach(([key, value]) => explanation.append(ccNode('dt', key), ccNode('dd', Array.isArray(value) ? value.join(' · ') : String(value))));
+      detail.append(explanation);
+    }
     detail.append(values);
     if (state.page === 'decision') {
       const button = ccNode('button', ccLabel('Open in evidence', 'Kanıtlarda aç'), 'aw-button');
@@ -372,6 +429,7 @@ function ccSources(): HTMLElement {
   wrap.tabIndex = 0; wrap.setAttribute('role', 'region');
   wrap.setAttribute('aria-label', ccText('sources'));
   const table = ccNode('table');
+  table.dataset.tableKey = 'source-provenance';
   table.append(ccNode('caption', ccText('sources')));
   const head = ccNode('thead'); const header = ccNode('tr');
   (['source', 'status', 'timestamp', 'producer'] as CopyKey[]).forEach(key => {
@@ -391,8 +449,7 @@ function ccSources(): HTMLElement {
 function renderCommandCenter(content: HTMLElement): boolean {
   if (!['overview', 'decision', 'evidence', 'system'].includes(state.page)) return false;
   if (!localData) {
-    const message = ccNode('p', ccText(lastPollFailed ? 'disconnected' : 'loading'), 'cc-connection');
-    message.setAttribute('role', 'status'); content.append(message);
+    content.append(commandConnectionPanel());
     content.append(ccMetrics()); return true;
   }
   if (state.page === 'overview') content.append(ccMetrics(), ccHistoricalSummary(), ccAttention());
@@ -505,6 +562,9 @@ function enhanceCommandShell(focusKey?: string): void {
     });
     field('language', ['en', 'tr'], state.language, value => { state.language = value; render(); });
     safety.after(context);
+    if (commandFailure && !['overview', 'decision', 'evidence', 'system'].includes(state.page)) {
+      root.querySelector('#aw-content')!.prepend(commandConnectionPanel());
+    }
   }
   root.querySelectorAll<HTMLTableCellElement>('th').forEach(cell => { cell.scope = 'col'; });
   root.querySelectorAll<HTMLElement>('.aw-tablewrap').forEach(wrap => {
@@ -547,7 +607,8 @@ function commandDecimal(value: string, locale = state.language): {value: bigint;
   return {value: BigInt(whole + fraction), scale: fraction.length};
 }
 function commandCompare(a: string, b: string): number {
-  const left = commandDecimal(a), right = commandDecimal(b);
+  const raw = (value: string) => value.startsWith('number:') ? commandDecimal(value.slice(7), 'en') : commandDecimal(value);
+  const left = raw(a), right = raw(b);
   if (left && right) {
     const scale = Math.max(left.scale, right.scale);
     const x = left.value * 10n ** BigInt(scale - left.scale);
@@ -569,10 +630,11 @@ function commandTablePage(rows: string[][], view: CommandTableState): number[] {
   return matching.map(row => row.index);
 }
 function enhanceCommandTables(): void {
-  root.querySelectorAll<HTMLTableElement>('#aw-content table').forEach((table, index) => {
+  root.querySelectorAll<HTMLTableElement>('#aw-content table').forEach(table => {
     const body = table.tBodies[0]; if (!body || body.rows.length < 2) return;
     const rows = Array.from(body.rows);
-    const cells = rows.map(row => Array.from(row.cells, cell => cell.textContent || ''));
+    const cells = rows.map(row => Array.from(row.cells, cell => cell.dataset.sortValue === undefined ? cell.textContent || '' : `number:${cell.dataset.sortValue}`));
+    const searchable = rows.map(row => row.textContent || '');
     const owner = table.closest<HTMLElement>('[data-panel-key]')?.dataset.panelKey || table.closest('article,section')?.querySelector('h2')?.textContent || '';
     const identity = `${owner}|${table.dataset.tableKey || Array.from(table.querySelectorAll('th'), cell => cell.textContent).join('|')}`;
     const key = `${state.mode}|${state.page}|${state.market}|${identity}`;
@@ -587,7 +649,7 @@ function enhanceCommandTables(): void {
     const next = ccNode('button', ccLabel('Next', 'Sonraki'), 'aw-button'); next.type = 'button';
     previous.dataset.commandKey = `table-previous-${identity}`; next.dataset.commandKey = `table-next-${identity}`;
     const update = () => {
-      const matching = commandTablePage(cells, view);
+      const matching = commandTablePage(cells, {...view, query: ''}).filter(i => searchable[i].toLocaleLowerCase().includes(view.query.toLocaleLowerCase()));
       const pages = Math.max(1, Math.ceil(matching.length / 25)); view.page = Math.min(view.page, pages - 1);
       body.replaceChildren(...matching.slice(view.page * 25, (view.page + 1) * 25).map(i => rows[i]));
       status.textContent = `${matching.length} / ${rows.length} · ${view.page + 1} / ${pages}`;
