@@ -79,6 +79,15 @@ $deploymentFiles = @(
     "server.py"
 )
 
+$initialSources = @(
+    $sourceFiles | ForEach-Object { Get-FileRecord -Path (Join-Path $sourceRoot $_) }
+    $operationsFiles | ForEach-Object { Get-FileRecord -Path (Join-Path $operationsRoot $_) }
+    $interfaceFiles | ForEach-Object { Get-FileRecord -Path (Join-Path $interfaceRoot $_) }
+    Get-FileRecord -Path (Join-Path $repositoryRoot "frontend/tsconfig.json")
+    Get-FileRecord -Path (Join-Path $PSScriptRoot "check_dashboard_types.py")
+    Get-FileRecord -Path $PSCommandPath
+)
+
 foreach ($name in $sourceFiles) {
     if (-not (Test-Path -LiteralPath (Join-Path $sourceRoot $name) -PathType Leaf)) {
         throw "DASHBOARD_CANONICAL_SOURCE_MISSING:$name"
@@ -117,6 +126,11 @@ try {
     & $python -B (Join-Path $stageRoot "build.py") (Join-Path $stageRoot "design_source.html") | Out-Null
     if ($LASTEXITCODE -ne 0) {
         throw "DASHBOARD_BUILD_FAILED:$LASTEXITCODE"
+    }
+    foreach ($record in $initialSources) {
+        if ((Get-Sha256 -Path (Join-Path $repositoryRoot $record.path)) -ne $record.sha256) {
+            throw "DASHBOARD_SOURCE_CHANGED_DURING_BUILD:$($record.path)"
+        }
     }
 
     $changes = @()
@@ -165,17 +179,15 @@ try {
         deployment_root = "runtime/dashboard"
         changed_files = @($changes)
         restart_required = $restartRequired
+        restart_required_if_applied = [bool](@($changes | Where-Object { $_ -in $restartSensitiveFiles }).Count -gt 0)
+        verification_status = if ($Apply) { "PACKAGE_COPIED_PROCESS_NOT_VERIFIED" } else { "BUILT_NOT_DEPLOYED" }
         preserved_paths = @(
             "runtime/dashboard/config.json",
             "runtime/dashboard/browser-profile",
             "runtime/dashboard/health.json",
             "runtime/dashboard/guardian.log"
         )
-        source_files = @(
-            $sourceFiles | ForEach-Object { Get-FileRecord -Path (Join-Path $sourceRoot $_) }
-            $operationsFiles | ForEach-Object { Get-FileRecord -Path (Join-Path $operationsRoot $_) }
-            $interfaceFiles | ForEach-Object { Get-FileRecord -Path (Join-Path $interfaceRoot $_) }
-        )
+        source_files = $initialSources
         deployment_files = @($deploymentFiles | ForEach-Object { Get-FileRecord -Path (Join-Path $stageRoot $_) })
         execution_allowed = $false
         live_eligibility_status = "LIVE_ORDER_BLOCKED"

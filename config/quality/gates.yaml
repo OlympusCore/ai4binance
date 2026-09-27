@@ -43,6 +43,17 @@ affected_tests:
   default_when_clean:
     - tests/test_artifact_hygiene_scripts.py
   mappings:
+    - name: local_dashboard_interface
+      path_prefixes:
+        - frontend/
+        - src/ai4binance/local_dashboard/
+        - scripts/check_dashboard_types.py
+        - scripts/deploy_local_dashboard.ps1
+        - scripts/local_dashboard/
+      tests:
+        - tests/test_dashboard_presentation.py
+        - tests/test_local_dashboard_source.py
+        - tests/test_dashboard_decisions.py
     - &canonical_runtime_owners
       name: canonical_virtual_runtime_owners
       path_prefixes:

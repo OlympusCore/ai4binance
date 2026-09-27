@@ -4,9 +4,22 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_dashboard_types_are_strictly_checked() -> None:
+    completed = subprocess.run(  # noqa: S603
+        [sys.executable, "-B", "scripts/check_dashboard_types.py"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=90,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
 
 
 def test_dashboard_icons_preserve_geometry_and_decorative_rendering() -> None:
@@ -104,6 +117,17 @@ vm.runInContext(stripTypeScriptTypes(source), context);
 const evaluate = expression => vm.runInContext(expression, context);
 assert.equal(evaluate('commandSummary(null).decision'), 'DATA_UNAVAILABLE');
 assert.equal(evaluate('commandSummary(null).findingCount'), undefined);
+assert.equal(evaluate('ccRatioPercent(null)'), 'DATA_UNAVAILABLE');
+assert.equal(evaluate('ccRatioPercent(undefined)'), 'DATA_UNAVAILABLE');
+assert.equal(evaluate('ccRatioPercent(0)'), '0.00%');
+assert.equal(evaluate('ccRatioPercent(NaN)'), 'DATA_UNAVAILABLE');
+assert.equal(evaluate('ccRatioPercent(0.1)'), '10.00%');
+assert.equal(evaluate('ccReportedCount(undefined)'), 'DATA_UNAVAILABLE');
+assert.equal(evaluate('ccReportedCount([])'), '0');
+assert.equal(JSON.stringify(evaluate(`commandTablePage([['a','10'],['b','2'],['c','2']],
+  {query:'',column:1,descending:false,page:0})`)), '[1,2,0]');
+assert.equal(JSON.stringify(evaluate(`commandTablePage([['Alpha'],['Beta']],
+  {query:'ALPHA',column:-1,descending:false,page:0})`)), '[0]');
 assert.equal(evaluate('commandSummary({virtual:{risk_approved:true}}).risk'),
   'DATA_UNAVAILABLE');
 context.fixture = {
@@ -138,6 +162,25 @@ assert.equal(context.state.virtualMarket, 'Spot');
 context.fixture.sources.virtual.status = 'CURRENT';
 context.fixture.virtual.market = 'USD_M_FUTURES';
 assert.equal(evaluate('commandSummary(fixture).market'), 'USD_M_FUTURES');
+context.localData={decision_history:{records:[{decision_id:'TEST_ONLY_1'},
+  {decision_id:'TEST_ONLY_2'}]}};
+assert.equal(evaluate('selectedDecision().decision_id'),'TEST_ONLY_1');
+evaluate("commandDecisionId='TEST_ONLY_2'");
+assert.equal(evaluate('selectedDecision().decision_id'),'TEST_ONLY_2');
+context.localData.decision_history.records.pop();
+assert.equal(evaluate('selectedDecision()'),undefined);
+let renders=0, schedules=0;
+context.localData=null;
+context.refreshLocal=async()=>{};
+context.loadMarket=async suppress=>assert.equal(suppress,true);
+context.render=()=>{renders++;};
+context.setTimeout=(callback,delay)=>{assert.equal(delay,30000);schedules++;};
+context.state.mode='local';
+await evaluate('pollLocal()');
+assert.equal(renders,1); assert.equal(schedules,1);
+context.render=()=>{throw new Error('TEST_ONLY_RENDER_FAILURE');};
+await assert.rejects(evaluate('pollLocal()'),/TEST_ONLY_RENDER_FAILURE/);
+assert.equal(schedules,2);
 console.log('PRESENTATION_INVARIANTS_PASS');
 """
     completed = subprocess.run(  # noqa: S603
@@ -150,3 +193,45 @@ console.log('PRESENTATION_INVARIANTS_PASS');
     )
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "PRESENTATION_INVARIANTS_PASS"
+
+
+def test_localized_and_missing_row_values_remain_dom_nodes() -> None:
+    node = shutil.which("node")
+    assert node is not None
+    script = r"""
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {stripTypeScriptTypes} from 'node:module';
+import vm from 'node:vm';
+class Node {
+  constructor(value) { this.value=value; this.children=[]; }
+  appendChild(child) { assert.ok(child instanceof Node); this.children.push(child); }
+}
+const context=vm.createContext({Node,
+  el:(tag,css,value)=>new Node(Array.isArray(value)?value[0]:value),
+  append:(parent,...children)=>{
+    children.forEach(c=>parent.appendChild(c));return parent;
+  },
+});
+const shell=readFileSync('frontend/src/dashboard_shell.ts','utf8');
+const start=shell.indexOf('  function row(');
+const source=shell.slice(start, shell.indexOf('\n',start));
+vm.runInContext(stripTypeScriptTypes(source),context);
+const value=expression=>vm.runInContext(expression+'.children[1].value',context);
+assert.equal(value("row('method',['Test-only method','Translation'])"),
+  'Test-only method');
+assert.equal(value("row('missing',undefined)"),'DATA_UNAVAILABLE');
+assert.equal(value("row('zero',0)"),0);
+assert.equal(value("row('node',new Node('test'))"),'test');
+console.log('ROW_DOM_PASS');
+"""
+    completed = subprocess.run(  # noqa: S603
+        [node, "--input-type=module", "-e", script],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "ROW_DOM_PASS"

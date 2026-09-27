@@ -41,19 +41,41 @@ def test_canonical_dashboard_source_builds_deterministic_offline_assets(
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "DASHBOARD_PACKAGE_BUILT"
     assert _sha256(stage / "app.js") == (
-        "73c5b006e5435fa24e132e6c801126aa62a38540173534e0f90f90a3d3c61afb"
+        "fd4215164fd58eeb3f8d4f153d216774f9526be1cddd7d9f89dffddee6622ec2"
     )
     assert _sha256(stage / "app.css") == (
-        "ccd0dfd34c78fbf9809a3353ed1fc02d007d01723850ed71557b68e812bd7bdc"
+        "d457b4b0bce41e50a9eece8a3dcc0356e90ade6797d7ddaa05ce7fe7d1dc07d1"
     )
     assert _sha256(stage / "index.html") == (
-        "1bd289c4a7727dec46cc51414941a08d25b4bdc1f5d93c9606711b6613a22d4d"
+        "cf00ea2f86490a6a63b8a8383edbd0ed813a4fb3b85af1775915e13ca41219ca"
     )
     document = (stage / "index.html").read_text(encoding="utf-8")
     script = (stage / "app.js").read_text(encoding="utf-8")
     assert "/lucide.js" not in document
     assert "renderDashboardIcons(root)" in script
     assert "Copyright (c) 2026 Lucide Icons and Contributors" in script
+    node = shutil.which("node")
+    assert node is not None
+    syntax = subprocess.run(  # noqa: S603
+        [node, "--check", str(stage / "app.js")],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert syntax.returncode == 0, syntax.stderr
+    expected = {
+        name: _sha256(stage / name) for name in ("app.js", "app.css", "index.html")
+    }
+    repeated = subprocess.run(  # noqa: S603
+        completed.args,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert repeated.returncode == 0, repeated.stderr
+    assert expected == {name: _sha256(stage / name) for name in expected}
     public_files = runpy.run_path(str(stage / "server.py.in"))["PUBLIC_FILES"]
     assert "/lucide.js" not in public_files
 
@@ -95,6 +117,8 @@ def test_dashboard_packaging_reads_operations_from_canonical_owner(
     payload = json.loads(receipt.read_text(encoding="utf-8-sig"))
     assert payload["applied"] is False
     assert payload["restart_required"] is False
+    assert payload["verification_status"] == "BUILT_NOT_DEPLOYED"
+    assert isinstance(payload["restart_required_if_applied"], bool)
     records = {item["path"]: item["sha256"] for item in payload["source_files"]}
     for name in ("install.ps1.in", "launch.ps1.in"):
         path = ROOT / "scripts/local_dashboard" / name

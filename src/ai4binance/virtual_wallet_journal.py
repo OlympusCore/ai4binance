@@ -332,6 +332,9 @@ class VirtualWalletJournal:
                 )
                 wallets[_WALLET_NAMES[market]] = {
                     **portfolio.to_payload(),
+                    "net_pnl_usdt": str(
+                        portfolio.equity_usdt - portfolio.initial_equity_usdt
+                    ),
                     "inception_at": market_movements[0]["timestamp"],
                     "period_changes": {
                         "daily": _period_change(

@@ -1,4 +1,10 @@
 /* Shared operational presentation; all semantic values come from the API. */
+:root{color-scheme:dark}body{margin:0;background:#11171b}#a4-workspace{border:0;border-radius:0;min-height:100vh}
+.aw-status{overflow-wrap:anywhere}
+@media (min-width:821px){
+  #a4-workspace{--aw-top-height:69px;overflow:clip}
+  #a4-workspace .aw-sidebar{position:sticky;top:var(--aw-top-height);align-self:start;box-sizing:border-box;height:calc(100vh - var(--aw-top-height));overflow-y:auto}
+}
 #a4-workspace { --cc-critical: var(--aw-red); --cc-warning: var(--aw-amber); }
 #a4-workspace .cc-skip { position: absolute; left: 12px; top: -100px; z-index: 40; padding: 12px; background: var(--aw-surface); color: var(--aw-text); }
 #a4-workspace .cc-skip:focus { top: 12px; }
@@ -29,6 +35,12 @@
 #a4-workspace .cc-findings .warning summary { color: var(--cc-warning); }
 #a4-workspace .cc-blockers { padding-left: 20px; overflow-wrap: anywhere; font-size: 12px; }
 #a4-workspace .cc-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+#a4-workspace .cc-table-controls { display:flex; align-items:end; flex-wrap:wrap; gap:8px; margin:8px 0; }
+#a4-workspace .cc-table-controls label { display:grid; gap:4px; }
+#a4-workspace .cc-table-controls input { background:var(--aw-surface); color:var(--aw-text); border:1px solid var(--aw-line); min-height:36px; max-width:100%; }
+#a4-workspace .cc-sort { border:0; background:transparent; color:inherit; font:inherit; cursor:pointer; min-height:36px; }
+#a4-workspace .cc-panel select { max-width:100%; }
+#a4-workspace .cc-panel dd { overflow-wrap:anywhere; margin-left:0; }
 #a4-workspace .cc-navlabel { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; padding: 8px 10px; color: var(--aw-muted); }
 #a4-workspace .cc-navgroup { display: grid; gap: 5px; }
 #a4-workspace .aw-sidefoot { margin-top: 4px; padding-top: 12px; }

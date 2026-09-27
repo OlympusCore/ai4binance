@@ -26,6 +26,19 @@ interface DashboardSnapshot {
   virtual?: BackgroundObservation;
   operational_readiness?: { status?: string; high_priority_finding_count?: number };
   health_findings?: HealthFinding[];
+  decision_history?: {status: string; records: DecisionRecord[]; findings: {source: string; status: string}[]};
+}
+interface DecisionReference {
+  artifact_id: string; artifact_kind: string; cycle_id: string; snapshot_id: string;
+  payload_sha256: string; status: string;
+}
+interface DecisionRecord {
+  decision_id: string; cycle_id: string; snapshot_id: string; observed_at: string;
+  status: string; source: string; receipt_status: string; payload_status: string;
+  historical_authenticity: string; symbol?: string; market?: string; execution_surface: string;
+  action?: string; governance_status: string; blockers: string[]; analysis_blockers: string[];
+  stages: {name: string; status: string; blockers: string[]}[];
+  references: DecisionReference[];
 }
 declare const root: HTMLElement;
 declare const state: {
@@ -39,7 +52,11 @@ declare let lastPollFailed: boolean;
 declare function render(): void;
 declare function renderLocal(content: HTMLElement): void;
 declare function go(page: string): void;
-declare function loadMarket(): Promise<void>;
+declare function loadMarket(suppressRender?: boolean): Promise<void>;
+declare function refreshLocal(): Promise<void>;
+declare function refreshLearning(): Promise<void>;
+declare function sourceInfo(name: string): SourceMeta;
+declare const lastLearningAttempt: number;
 declare function observedTime(value?: string): string;
 declare function auditObserverPanel(): HTMLElement;
 declare function healthFindingsPanel(title: string[], limit?: number): HTMLElement;
@@ -51,7 +68,7 @@ const commandCopy = {
     market: 'Market workspace', symbol: 'Selected symbol', timeframe: 'Timeframe',
     all: 'All timeframes', health: 'System health', freshness: 'Market data freshness',
     blockers: 'High-priority findings', current: 'Background paper decision',
-    risk: 'Risk approval', validation: 'Validation', governance: 'Governance assessment',
+    risk: 'Risk approval', riskStage: 'Reported risk stage', validation: 'Validation', governance: 'Governance assessment',
     absent: 'Not supplied by the current API', sources: 'Source provenance',
     reason: 'Reported blockers', lineage: 'Decision lineage', skip: 'Skip to main content',
     source: 'Source', timestamp: 'Source event time', status: 'Status', producer: 'Producer',
@@ -75,7 +92,7 @@ const commandCopy = {
     market: 'Piyasa çalışma alanı', symbol: 'Seçili koin', timeframe: 'Zaman dilimi',
     all: 'Tüm zaman dilimleri', health: 'Sistem sağlığı', freshness: 'Piyasa verisi güncelliği',
     blockers: 'Yüksek öncelikli bulgular', current: 'Arka plan paper kararı',
-    risk: 'Risk onayı', validation: 'Doğrulama', governance: 'Yönetişim değerlendirmesi',
+    risk: 'Risk onayı', riskStage: 'Bildirilen risk aşaması', validation: 'Doğrulama', governance: 'Yönetişim değerlendirmesi',
     absent: 'Mevcut API bu alanı sağlamıyor', sources: 'Veri kaynakları',
     reason: 'Bildirilen engeller', lineage: 'Karar izlenebilirliği', skip: 'Ana içeriğe geç',
     source: 'Kaynak', timestamp: 'Kaynak olay zamanı', status: 'Durum', producer: 'Üretici',
@@ -98,6 +115,20 @@ type CopyKey = keyof typeof commandCopy.en;
 function ccText(key: CopyKey): string {
   return commandCopy[state.language === 'tr' ? 'tr' : 'en'][key];
 }
+function ccLabel(en: string, tr: string): string { return state.language === 'tr' ? tr : en; }
+let commandDecisionId = '';
+let commandReferenceId = '';
+let commandFindingId = '';
+const commandTimeframes: Record<string, string> = {};
+let commandMarket = '';
+function selectedDecision(): DecisionRecord | undefined {
+  const records = localData?.decision_history?.records || [];
+  // A disappeared selection must not silently become another decision.
+  return commandDecisionId ? records.find(item => item.decision_id === commandDecisionId) : records[0];
+}
+function decisionStage(item: DecisionRecord | undefined, name: string): string {
+  return ccValue(item?.stages.find(stage => stage.name === name)?.status);
+}
 function ccNode<K extends keyof HTMLElementTagNameMap>(
   tag: K, value = '', className = '',
 ): HTMLElementTagNameMap[K] {
@@ -113,6 +144,17 @@ function ccTone(value: string): string {
   return /VETO|FAIL|BLOCK|CONFLICT|NO_TRADE|DENIED|STALE|DISCONNECTED/.test(value)
     ? 'critical' : /UNAVAILABLE|UNKNOWN|NOT_|LOADING|DEGRADED|COLLECTING|FALSE/.test(value)
       ? 'warning' : 'neutral';
+}
+function ccRatioPercent(value: unknown): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'DATA_UNAVAILABLE';
+  return (100 * value).toLocaleString(state.language === 'tr' ? 'tr-TR' : 'en-US',
+    {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '%';
+}
+function ccReportedCount(value: unknown): string {
+  return Array.isArray(value) ? String(value.length) : 'DATA_UNAVAILABLE';
+}
+function commandOpportunityVisible(row: {measurable_plan?: boolean} | undefined): boolean {
+  return row?.measurable_plan === true;
 }
 function commandSummary(data: DashboardSnapshot | null) {
   const source = data?.sources?.virtual;
@@ -160,12 +202,42 @@ function ccMetrics(): HTMLElement {
     ccMetric('freshness', summary.freshness, `${summary.readiness} · ${observedTime(summary.sourceTime)}`),
     ccMetric('blockers', typeof summary.findingCount === 'number'
       ? String(summary.findingCount) : 'DATA_UNAVAILABLE'),
-    ccMetric('current', summary.decision, `${summary.market} · ${summary.symbol}`),
+    ccMetric('current', summary.sourceStatus === 'CURRENT' ? summary.decision : summary.sourceStatus,
+      `${summary.market} · ${summary.symbol} · ${observedTime(summary.observedAt)}`),
     ccMetric('risk', summary.risk === 'TRUE' ? 'APPROVED' : summary.risk === 'FALSE' ? 'NOT_APPROVED' : summary.risk),
-    ccMetric('validation', 'DATA_UNAVAILABLE', ccText('absent')),
-    ccMetric('governance', 'DATA_UNAVAILABLE', ccText('absent')),
   );
   return grid;
+}
+function ccHistoricalSummary(): HTMLElement {
+  const panel = ccPanel('decision');
+  const selected = selectedDecision();
+  panel.append(ccNode('p', ccLabel('Selected historical receipt — separate from the background observation.',
+    'Seçili geçmiş kayıt — arka plan gözleminden ayrıdır.')));
+  panel.append(ccNode('p', `${selected?.symbol || 'DATA_UNAVAILABLE'} · ${ccValue(selected?.status)} · ${observedTime(selected?.observed_at)}`));
+  const grid = ccNode('dl', '', 'cc-metrics');
+  grid.append(ccMetric('riskStage', decisionStage(selected, 'risk')),
+    ccMetric('validation', decisionStage(selected, 'validation')),
+    ccMetric('governance', ccValue(selected?.governance_status)));
+  panel.append(grid, ccLink('inspect', 'decision'));
+  return panel;
+}
+function commandFindingKey(item: HealthFinding): string {
+  return `${item.finding_id || ''}|${item.evidence || ''}`;
+}
+function ccFindingDetail(): HTMLElement | undefined {
+  if (!commandFindingId) return undefined;
+  const panel = ccPanel('attention');
+  const finding = localData?.health_findings?.find(item => commandFindingKey(item) === commandFindingId);
+  if (!finding) panel.append(ccNode('p', ccLabel('DATA_UNAVAILABLE — The selected finding is no longer present.',
+    'DATA_UNAVAILABLE — Seçili bulgu artık mevcut değil.')));
+  else {
+    panel.append(ccNode('h3', ccValue(finding.finding_id)),
+      ccNode('p', `${ccValue(finding.severity)} · ${ccValue(finding.status)}`, 'cc-blockers'),
+      ccNode('p', `${ccText('source')}: ${ccValue(finding.evidence)}`));
+    panel.append(ccNode('p', ccLabel('Source reference only; this view does not verify the referenced file contents.',
+      'Yalnızca kaynak referansı; bu görünüm referans verilen dosyanın içeriğini doğrulamaz.')));
+  }
+  return panel;
 }
 function ccAttention(): HTMLElement {
   const panel = ccPanel('attention');
@@ -181,6 +253,10 @@ function ccAttention(): HTMLElement {
         detail.className = ['P0', 'P1'].includes(item.severity || '') ? 'critical' : ccTone(item.status || '');
         detail.append(ccNode('summary', `${item.severity || 'UNKNOWN'} · ${ccValue(item.finding_id)} · ${ccValue(item.status)}`));
         detail.append(ccNode('p', `${ccText('source')}: ${ccValue(item.evidence)}`));
+        const open = ccNode('button', ccText('evidence'), 'aw-button'); open.type = 'button';
+        open.dataset.commandKey = `finding:${commandFindingKey(item)}`;
+        open.addEventListener('click', () => { commandFindingId = commandFindingKey(item); go('evidence'); });
+        detail.append(open);
         const row = ccNode('li'); row.append(detail); list.append(row);
       });
     panel.append(list);
@@ -197,6 +273,28 @@ function ccAttention(): HTMLElement {
   return panel;
 }
 function ccDecision(content: HTMLElement): void {
+  const history = localData?.decision_history;
+  const chooser = ccPanel('decision');
+  const label = ccNode('label', ccLabel('Recorded decision', 'Kayıtlı karar'));
+  const select = ccNode('select', '', 'aw-button'); select.dataset.commandKey = 'decision-selection';
+  const records = history?.records || [];
+  records.forEach(item => {
+    const option = ccNode('option', `${item.symbol || 'DATA_UNAVAILABLE'} · ${item.action || 'DATA_UNAVAILABLE'} · ${item.observed_at}`);
+    option.value = item.decision_id; select.append(option);
+  });
+  const selected = selectedDecision();
+  select.value = selected?.decision_id || ''; select.disabled = records.length === 0;
+  select.addEventListener('change', () => { commandDecisionId = select.value; commandReferenceId = ''; render(); });
+  label.append(select); chooser.append(label, ccNode('p', ccValue(history?.status)));
+  if (history?.findings.length) {
+    const findings = ccNode('ul', '', 'cc-blockers');
+    history.findings.forEach(item => findings.append(ccNode('li', `${item.source}: ${item.status}`)));
+    chooser.append(findings);
+  }
+  content.append(chooser);
+  if (selected) { ccRecordedDecision(content, selected); return; }
+  chooser.append(ccNode('p', ccLabel('No matching canonical decision receipt is available. Background observation follows.',
+    'Eşleşen kanonik karar kaydı yok. Arka plan gözlemi aşağıdadır.')));
   content.append(ccMetrics());
   const summary = commandSummary(localData);
   const result = ccPanel('current');
@@ -219,6 +317,54 @@ function ccDecision(content: HTMLElement): void {
   technical.append(ccNode('p', `risk_approved: ${summary.risk}`));
   result.append(technical, ccLink('evidence', 'evidence'));
   content.append(result, evidence);
+}
+function ccRecordedDecision(content: HTMLElement, item: DecisionRecord): void {
+  const panel = ccPanel('decision');
+  const status = ccNode('p', `${item.status} · ${item.action || 'DATA_UNAVAILABLE'} · ${item.symbol || 'DATA_UNAVAILABLE'}`, 'cc-connection');
+  status.setAttribute('role', 'status');
+  panel.append(status, ccNode('p', `${item.observed_at} · ${item.execution_surface}`),
+    ccNode('p', ccLabel('Historical receipt; workspace filters do not relabel this record.',
+      'Geçmiş döngü kaydı; çalışma alanı filtreleri bu kaydı yeniden etiketlemez.')));
+  const metrics = ccNode('dl', '', 'cc-metrics');
+  metrics.append(ccMetric('riskStage', decisionStage(item, 'risk')),
+    ccMetric('validation', decisionStage(item, 'validation')),
+    ccMetric('governance', item.governance_status));
+  panel.append(metrics, ccNode('h3', ccText('reason')));
+  const blockers = [...new Set([...item.blockers, ...item.analysis_blockers, ...item.stages.flatMap(stage => stage.blockers)])];
+  const list = ccNode('ul', '', 'cc-blockers');
+  blockers.forEach(reason => list.append(ccNode('li', reason)));
+  panel.append(list, ccNode('p', ccLabel('Reported stage completion is not approval. Live orders remain blocked.',
+    'Bildirilen aşama tamamlanması onay değildir. Canlı emirler kapalıdır.')));
+  const stages = ccNode('details'); stages.append(ccNode('summary', ccText('details')));
+  item.stages.forEach(stage => stages.append(ccNode('p', `${stage.name}: ${stage.status}`)));
+  panel.append(stages);
+  const groups = ccNode('dl', '', 'cc-metrics');
+  (['support', 'counter', 'missing', 'conflict'] as CopyKey[]).forEach(key => groups.append(
+    ccMetric(key, 'DATA_UNAVAILABLE', ccLabel('The source does not classify evidence into this group.', 'Kaynak, kanıtları bu gruba sınıflandırmıyor.'))));
+  panel.append(groups, ccNode('p', `${item.receipt_status} · ${item.historical_authenticity}`));
+  panel.append(ccNode('p', ccLabel('Receipt references are hash-bound. Referenced payloads are unavailable; historical authenticity is not verified.',
+    'Kayıt referansları hash ile bağlıdır. Referans verilen içerikler yok; geçmiş kaydın özgünlüğü doğrulanmadı.')));
+  content.append(panel, ccLineage(item));
+}
+function ccLineage(item: DecisionRecord): HTMLElement {
+  const panel = ccPanel('lineage');
+  panel.append(ccNode('p', `${item.cycle_id} · ${item.snapshot_id} · ${item.source}`));
+  item.references.forEach(ref => {
+    const detail = ccNode('details'); detail.dataset.referenceId = ref.artifact_id;
+    detail.append(ccNode('summary', `${ref.artifact_kind} · ${ref.status}`));
+    const values = ccNode('dl');
+    Object.entries(ref).forEach(([key, value]) => values.append(ccNode('dt', key), ccNode('dd', value)));
+    detail.append(values);
+    if (state.page === 'decision') {
+      const button = ccNode('button', ccLabel('Open in evidence', 'Kanıtlarda aç'), 'aw-button');
+      button.type = 'button'; button.addEventListener('click', () => {
+        commandDecisionId = item.decision_id; commandReferenceId = ref.artifact_id; go('evidence');
+      });
+      detail.append(button);
+    }
+    panel.append(detail);
+  });
+  return panel;
 }
 function ccSources(): HTMLElement {
   const panel = ccPanel('sources');
@@ -249,9 +395,12 @@ function renderCommandCenter(content: HTMLElement): boolean {
     message.setAttribute('role', 'status'); content.append(message);
     content.append(ccMetrics()); return true;
   }
-  if (state.page === 'overview') content.append(ccMetrics(), ccAttention());
+  if (state.page === 'overview') content.append(ccMetrics(), ccHistoricalSummary(), ccAttention());
   if (state.page === 'decision') ccDecision(content);
   if (state.page === 'evidence') {
+    const finding = ccFindingDetail(); if (finding) content.append(finding);
+    const selected = selectedDecision();
+    if (selected) content.append(ccLineage(selected));
     content.append(ccSources(), healthFindingsPanel(['All reported findings', 'Bildirilen tüm bulgular'], 100), auditObserverPanel());
   }
   if (state.page === 'system') {
@@ -266,6 +415,8 @@ function renderCommandCenter(content: HTMLElement): boolean {
 let commandLastPage = '';
 const commandExpanded = new Map<string, Set<string>>();
 function ccDetailsKey(detail: HTMLDetailsElement): string {
+  if (detail.dataset.referenceId) return `reference:${detail.dataset.referenceId}`;
+  if (detail.dataset.detailId) return `detail:${detail.dataset.detailId}`;
   return `${detail.closest('article,section')?.querySelector('h2')?.textContent}|${detail.querySelector('summary')?.textContent}`;
 }
 function captureCommandView(): string | undefined {
@@ -281,6 +432,9 @@ function captureCommandView(): string | undefined {
 }
 function prepareCommandRender(): void {
   if (state.mode !== 'local' && ['decision', 'system', 'evidence'].includes(state.page)) state.page = 'overview';
+  if (commandMarket && commandMarket !== state.market) commandTimeframes[commandMarket] = marketFilter;
+  if (commandMarket !== state.market) marketFilter = commandTimeframes[state.market] || 'All';
+  commandMarket = state.market;
 }
 function enhanceCommandShell(focusKey?: string): void {
   const local = state.mode === 'local';
@@ -358,8 +512,9 @@ function enhanceCommandShell(focusKey?: string): void {
     wrap.setAttribute('aria-label', wrap.closest('article,section')?.querySelector('h2')?.textContent || ccText('details'));
   });
   root.querySelectorAll<HTMLDetailsElement>('details').forEach(detail => {
-    detail.open = commandExpanded.get(state.page)?.has(ccDetailsKey(detail)) || false;
+    detail.open = detail.dataset.referenceId === commandReferenceId || commandExpanded.get(state.page)?.has(ccDetailsKey(detail)) || false;
   });
+  enhanceCommandTables();
   commandLastPage = state.page;
   if (pageChanged) {
     const heading = root.querySelector<HTMLElement>('#aw-title')!;
@@ -379,3 +534,93 @@ Object.defineProperty(state, 'virtualMarket', {
   get: () => state.market,
   set: (value: string) => { state.market = value; },
 });
+
+interface CommandTableState {query: string; column: number; descending: boolean; page: number}
+const commandTables = new Map<string, CommandTableState>();
+function commandDecimal(value: string, locale = state.language): {value: bigint; scale: number} | undefined {
+  const trimmed = value.trim().replace(/[%\s]/g, '');
+  const pattern = locale === 'tr' ? /^[+-]?(?:\d+|\d{1,3}(?:\.\d{3})+)(?:,\d+)?$/
+    : /^[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$/;
+  if (!pattern.test(trimmed)) return undefined;
+  const normalized = locale === 'tr' ? trimmed.replace(/\./g, '').replace(',', '.') : trimmed.replace(/,/g, '');
+  const [whole, fraction = ''] = normalized.split('.');
+  return {value: BigInt(whole + fraction), scale: fraction.length};
+}
+function commandCompare(a: string, b: string): number {
+  const left = commandDecimal(a), right = commandDecimal(b);
+  if (left && right) {
+    const scale = Math.max(left.scale, right.scale);
+    const x = left.value * 10n ** BigInt(scale - left.scale);
+    const y = right.value * 10n ** BigInt(scale - right.scale);
+    return x < y ? -1 : x > y ? 1 : 0;
+  }
+  // Missing values remain last in ascending order; identifiers remain textual.
+  const missing = (value: string) => ['', '—', 'DATA_UNAVAILABLE'].includes(value.trim());
+  if (missing(a) !== missing(b)) return missing(a) ? 1 : -1;
+  return a.localeCompare(b, state.language === 'tr' ? 'tr-TR' : 'en-US', {numeric: true});
+}
+function commandTablePage(rows: string[][], view: CommandTableState): number[] {
+  const matching = rows.map((cells, index) => ({cells, index}))
+    .filter(row => row.cells.join(' ').toLocaleLowerCase().includes(view.query.toLocaleLowerCase()));
+  if (view.column >= 0) matching.sort((a, b) => {
+    const compared = commandCompare(a.cells[view.column] || '', b.cells[view.column] || '');
+    return (view.descending ? -compared : compared) || a.index - b.index;
+  });
+  return matching.map(row => row.index);
+}
+function enhanceCommandTables(): void {
+  root.querySelectorAll<HTMLTableElement>('#aw-content table').forEach((table, index) => {
+    const body = table.tBodies[0]; if (!body || body.rows.length < 2) return;
+    const rows = Array.from(body.rows);
+    const cells = rows.map(row => Array.from(row.cells, cell => cell.textContent || ''));
+    const owner = table.closest<HTMLElement>('[data-panel-key]')?.dataset.panelKey || table.closest('article,section')?.querySelector('h2')?.textContent || '';
+    const identity = `${owner}|${table.dataset.tableKey || Array.from(table.querySelectorAll('th'), cell => cell.textContent).join('|')}`;
+    const key = `${state.mode}|${state.page}|${state.market}|${identity}`;
+    const view = commandTables.get(key) || {query: '', column: -1, descending: false, page: 0};
+    commandTables.set(key, view);
+    const controls = ccNode('div', '', 'cc-table-controls');
+    const label = ccNode('label', ccLabel('Search table', 'Tabloda ara'));
+    const search = ccNode('input'); search.type = 'search'; search.value = view.query;
+    search.dataset.commandKey = `table-search-${identity}`; label.append(search);
+    const status = ccNode('span'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
+    const previous = ccNode('button', ccLabel('Previous', 'Önceki'), 'aw-button'); previous.type = 'button';
+    const next = ccNode('button', ccLabel('Next', 'Sonraki'), 'aw-button'); next.type = 'button';
+    previous.dataset.commandKey = `table-previous-${identity}`; next.dataset.commandKey = `table-next-${identity}`;
+    const update = () => {
+      const matching = commandTablePage(cells, view);
+      const pages = Math.max(1, Math.ceil(matching.length / 25)); view.page = Math.min(view.page, pages - 1);
+      body.replaceChildren(...matching.slice(view.page * 25, (view.page + 1) * 25).map(i => rows[i]));
+      status.textContent = `${matching.length} / ${rows.length} · ${view.page + 1} / ${pages}`;
+      previous.disabled = view.page === 0; next.disabled = view.page >= pages - 1;
+      table.querySelectorAll<HTMLTableCellElement>('thead th').forEach((head, i) =>
+        head.setAttribute('aria-sort', i !== view.column ? 'none' : view.descending ? 'descending' : 'ascending'));
+    };
+    search.addEventListener('input', () => { view.query = search.value; view.page = 0; update(); });
+    previous.addEventListener('click', () => { view.page--; update(); });
+    next.addEventListener('click', () => { view.page++; update(); });
+    table.querySelectorAll<HTMLTableCellElement>('thead th').forEach((head, column) => {
+      const button = ccNode('button', head.textContent || '', 'cc-sort'); button.type = 'button';
+      button.dataset.commandKey = `table-sort-${identity}-${column}`;
+      button.addEventListener('click', () => {
+        view.descending = view.column === column && !view.descending; view.column = column; view.page = 0; update();
+      }); head.replaceChildren(button);
+    });
+    controls.append(label, previous, next, status); table.before(controls); update();
+  });
+}
+function finishCommandMarketRefresh(suppressRender: boolean): void {
+  if (!suppressRender) render();
+}
+async function pollLocal(): Promise<void> {
+  try {
+    await refreshLocal();
+    await loadMarket(true);
+    if (state.mode === 'local' && localData &&
+        ['STALE', 'UNAVAILABLE'].includes(sourceInfo('learning').status || '') &&
+        Date.now() - lastLearningAttempt >= 60000) await refreshLearning();
+    if (state.mode === 'local') render();
+  } finally {
+    // Rendering failures must not permanently stop source freshness checks.
+    setTimeout(() => { void pollLocal(); }, 30000);
+  }
+}

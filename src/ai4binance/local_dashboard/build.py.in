@@ -1,4 +1,5 @@
 """Package the approved dashboard design for offline local operation."""
+
 from pathlib import Path
 import re
 import subprocess
@@ -8,49 +9,52 @@ app = Path(__file__).resolve().parent
 fragment = Path(sys.argv[1]).read_text(encoding="utf-8")
 css = re.search(r"<style>([\s\S]*?)</style>", fragment).group(1)
 interface_root = Path(sys.argv[2]) if len(sys.argv) > 2 else app
+
+
 def compile_interface(name):
     source = (interface_root / name).read_text(encoding="utf-8")
     return subprocess.run(
-        ["node", "--input-type=module", "-e",
-         "import {stripTypeScriptTypes} from 'node:module';"
-         "let source='';for await(const part of process.stdin)source+=part;"
-         "process.stdout.write(stripTypeScriptTypes(source));"],
-        input=source, text=True, encoding="utf-8", capture_output=True,
-        check=True, timeout=30,
+        [
+            "node",
+            "--input-type=module",
+            "-e",
+            "import {stripTypeScriptTypes} from 'node:module';"
+            "let source='';for await(const part of process.stdin)source+=part;"
+            "process.stdout.write(stripTypeScriptTypes(source));",
+        ],
+        input=source,
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
+        check=True,
+        timeout=30,
     ).stdout
 
-js = compile_interface("dashboard_icons.ts") + "\n" + compile_interface("dashboard_shell.ts")
+
+js = (
+    compile_interface("dashboard_icons.ts")
+    + "\n"
+    + compile_interface("dashboard_shell.ts")
+)
 compiled = compile_interface("command_center.ts")
 css += "\n" + (interface_root / "command_center.css").read_text(encoding="utf-8")
-markup = re.sub(r"<style>[\s\S]*?</style>|<script>[\s\S]*?</script>", "", fragment).strip()
-markup = markup.replace('<span class="aw-zone">Europe/Istanbul</span>', '<span class="aw-zone">Europe/Istanbul</span><button type="button" id="aw-mode" class="aw-button">Design example</button>')
-js = js.replace("hideBalances:false", "hideBalances:true,mode:'local'")
-assert js.count("language:'tr'") == 1
-js = js.replace("language:'tr'", "language:'en'", 1)
-js = js.replace("  function render(){", (app / "local_views.js").read_text(encoding="utf-8") + "\n" + compiled + "\n  function render(){\n    prepareCommandRender();\n    const commandFocus=captureCommandView();")
-selection = "(pageRenderers[state.page] ?? overview)(content);"
-assert selection in js
-js = js.replace(selection, "if(state.mode==='local'){if(!renderCommandCenter(content))renderLocal(content);}else{" + selection + "}")
-js = js.replace("    if(focusTarget)focusTarget.focus({preventScroll:true});", "    if(focusTarget)focusTarget.focus({preventScroll:true});\n    enhanceCommandShell(commandFocus);\n    root.querySelector('#aw-mode').textContent=state.mode==='local'?t('Design example','Tasarım örneği'):t('Local data','Yerel veriler');\n    if(state.mode==='local'){root.querySelector('#aw-demo').textContent=t('Local data · Read only','Yerel veriler · Salt okunur');root.querySelector('#aw-footnote').textContent=t('Refresh: 30 seconds · ','Yenileme: 30 saniye · ')+observedTime(localData?.generated_at);}")
-js = re.sub(r"  if\(globalThis.Tweak\)\{[^\n]+\}\n", "", js)
-final_render = "  render();\n\n})();"
-assert final_render in js
-js = js.replace(final_render, "  root.querySelector('#aw-mode').addEventListener('click',()=>{state.mode=state.mode==='local'?'sample':'local';render();});\n  render();\n  pollLocal();\n})();", 1)
-document = '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI4Binance Dashboard</title><link rel="stylesheet" href="/app.css"><script src="/app.js" defer></script></head><body>\n' + markup + '\n</body></html>\n'
+markup = re.sub(
+    r"<style>[\s\S]*?</style>|<script>[\s\S]*?</script>", "", fragment
+).strip()
+marker = "// @dashboard-adapters"
+assert js.count(marker) == 1, "DASHBOARD_COMPOSITION_MARKER_INVALID"
+js = js.replace(
+    marker, (app / "local_views.js").read_text(encoding="utf-8") + "\n" + compiled
+)
+document = (
+    '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI4Binance Dashboard</title><link rel="stylesheet" href="/app.css"><script src="/app.js" defer></script></head><body>\n'
+    + markup
+    + "\n</body></html>\n"
+)
 (app / "index.html").write_text(document, encoding="utf-8")
 (app / "app.js").write_text(js, encoding="utf-8")
-local_css = """
-.aw-status{overflow-wrap:anywhere}
-@media (min-width:821px){
-  #a4-workspace{--aw-top-height:69px;overflow:clip}
-  #a4-workspace .aw-top{position:sticky;top:0;z-index:20}
-  #a4-workspace .aw-sidebar{position:sticky;top:var(--aw-top-height);align-self:start;box-sizing:border-box;height:calc(100vh - var(--aw-top-height));overflow-y:auto}
-}
-"""
 (app / "app.css").write_text(
-    ':root{color-scheme:dark}body{margin:0;background:#11171b}#a4-workspace{border:0;border-radius:0;min-height:100vh}\n'
-    + css
-    + local_css,
+    css,
     encoding="utf-8",
 )
 print("DASHBOARD_PACKAGE_BUILT")

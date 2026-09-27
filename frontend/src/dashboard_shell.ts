@@ -8,7 +8,17 @@ interface DashboardState {
   language: string;
   density: string;
   radius: number;
+  mode: string;
 }
+declare function prepareCommandRender(): void;
+declare function captureCommandView(): string | undefined;
+declare function enhanceCommandShell(focusKey?: string): void;
+declare function renderCommandCenter(content: HTMLElement): boolean;
+declare function renderLocal(content: HTMLElement): void;
+declare function observedTime(value?: string): string;
+declare function pollLocal(): Promise<void>;
+declare function renderDashboardIcons(root: ParentNode): void;
+declare const localData: {generated_at?: string} | null;
 
 (() => {
   function requiredElement(parent: ParentNode, selector: string): HTMLElement {
@@ -17,7 +27,7 @@ interface DashboardState {
     return node;
   }
   const root = requiredElement(document, '#a4-workspace');
-  const state: DashboardState = {page:'overview',market:'Spot',virtualMarket:'Spot',radar:'Web Radar',hideBalances:false,language:'tr',density:'comfortable',radius:12};
+  const state: DashboardState = {page:'overview',market:'Spot',virtualMarket:'Spot',radar:'Web Radar',hideBalances:true,language:'en',density:'comfortable',radius:12,mode:'local'};
   const t = (en: string, tr: string) => state.language==='tr'?tr:en;
   const text = (value: unknown): string => Array.isArray(value)?t(value[0],value[1]):String(value);
   const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, value?: unknown): HTMLElementTagNameMap[K] => {const n=document.createElement(tag);if(className)n.className=className;if(value!==undefined)n.textContent=text(value);return n;};
@@ -94,10 +104,10 @@ interface DashboardState {
   const walletSnapshots: Record<string, { cash: number; equity: number }> = {Spot:{cash:9408.19,equity:10018.19},Futures:{cash:10009.41,equity:10009.41}};
   function go(page: string){state.page=page;render();}
   function kpis(items: [unknown, unknown, unknown][]){const grid=el('div','aw-kpis');items.forEach(([label,value,note])=>append(grid,append(el('div','aw-kpi'),el('div','aw-kpi-label',label),el('div','aw-kpi-value',value),el('div','aw-kpi-note',note))));return grid;}
-  function panel(title: unknown,tag?: HTMLElement){const p=el('article','aw-panel');const head=append(el('div','aw-panelhead'),el('h2','',title));if(tag)head.appendChild(tag);p.appendChild(head);return p;}
-  function row(label: unknown,value: string | HTMLElement,note?: unknown){const left=el('div','',label);if(note)left.appendChild(el('small','',note));return append(el('div','aw-row'),left,typeof value==='string'?el('span','',value):value);}
+  function panel(title: unknown,tag?: HTMLElement){const p=el('article','aw-panel');p.dataset.panelKey=String(Array.isArray(title)?title[0]:title);const head=append(el('div','aw-panelhead'),el('h2','',title));if(tag)head.appendChild(tag);p.appendChild(head);return p;}
+  function row(label: unknown,value: unknown,note?: unknown){const left=el('div','',label);if(note)left.appendChild(el('small','',note));return append(el('div','aw-row'),left,value instanceof Node?value:el('span','',value ?? 'DATA_UNAVAILABLE'));}
   function detail(fields: [unknown, unknown][],label=['Evidence & details','Kanıt ve ayrıntılar']){const d=el('details');append(d,el('summary','',label));const grid=el('div','aw-detailgrid');fields.forEach(([name,value])=>append(grid,append(el('div'),el('span','',name),el('div','',value))));d.appendChild(grid);return d;}
-  function table(headers: unknown[],rows: unknown[][]){const wrap=el('div','aw-tablewrap');const tab=el('table');const head=el('thead');const hr=el('tr');headers.forEach(h=>hr.appendChild(el('th','',h)));head.appendChild(hr);const body=el('tbody');rows.forEach(values=>{const tr=el('tr');values.forEach(v=>tr.appendChild(el('td','',v)));body.appendChild(tr);});append(tab,head,body);wrap.appendChild(tab);return wrap;}
+  function table(headers: unknown[],rows: unknown[][]){const wrap=el('div','aw-tablewrap');const tab=el('table');tab.dataset.tableKey=JSON.stringify(headers.map(h=>Array.isArray(h)?h[0]:h));const head=el('thead');const hr=el('tr');headers.forEach(h=>hr.appendChild(el('th','',h)));head.appendChild(hr);const body=el('tbody');rows.forEach(values=>{const tr=el('tr');values.forEach(v=>tr.appendChild(el('td','',v)));body.appendChild(tr);});append(tab,head,body);wrap.appendChild(tab);return wrap;}
   function segment(prop: 'market' | 'virtualMarket' | 'radar',options: string[]){const group=el('div','aw-segment');group.setAttribute('role','group');group.setAttribute('aria-label',prop);options.forEach(value=>{const b=button(value,()=>{state[prop]=value;render();});b.setAttribute('aria-pressed',String(state[prop]===value));b.dataset.choice=prop+':'+value;group.appendChild(b);});return group;}
   function sampleNote(){return el('div','aw-status',t('Illustrative scenario · ','Örnek senaryo · ')+sampleTime);}
   function overview(content: HTMLElement){
@@ -159,18 +169,33 @@ interface DashboardState {
     const list=panel(['System improvement queue','Sistem iyileştirme kuyruğu']);kaizenItems.forEach(i=>{append(list,row(i.title,badge(i.stage==='experiment'?['Experiment','Deney']:['Idea','Fikir'],i.stage==='experiment'?'warn':'neutral'),text(i.area)+' · '+text(i.metric)),detail([[['Hypothesis','Hipotez'],i.title],[['Measure','Ölçüt'],i.metric],[['Baseline / result','Başlangıç / sonuç'],'— / —'],[['Decision','Karar'],['Await measurement','Ölçüm bekleniyor']],[['Next step','Sonraki adım'],['Measure baseline, run a bounded experiment','Başlangıcı ölç, sınırlı deney yap']],[['Rollback condition','Geri alma koşulu'],['Regression against baseline or invariant violation','Başlangıca göre gerileme veya değişmez kural ihlali']]],['Improvement record','İyileştirme kaydı']));});content.appendChild(list);
   }
   function evidencePage(content: HTMLElement){const p=panel(['Evidence provenance','Kanıtın kaynağı'],badge('NOT_VERIFIED','warn'));[['Quality gate','Kalite kapısı'],['OOS validation','OOS doğrulaması'],['Auto-Audit','Auto-Audit'],['DGE','DGE']].forEach(v=>p.appendChild(row(v,badge(['Not connected','Bağlı değil'],'warn'))));p.appendChild(detail([[['Run ID','Çalışma kimliği'],'—'],[['Source revision','Kaynak revizyonu'],'—'],[['Generated at','Üretim zamanı'],'—'],[['Data provenance','Veri kökeni'],['Synthetic interface fixtures','Sentetik arayüz örnekleri']]]));content.appendChild(p);content.appendChild(button(['Back to overview','Genel Bakış’a dön'],()=>go('overview')));}
+  // @dashboard-adapters
   function render(){
+    prepareCommandRender();
+    const commandFocus=captureCommandView();
     const active=document.activeElement;
     const focusKey=active instanceof HTMLElement&&root.contains(active)?{page:active.dataset.page,choice:active.dataset.choice}:{};
     root.lang=state.language;root.dataset.density=state.density;root.style.setProperty('--aw-radius',state.radius+'px');
     requiredElement(root, '#aw-demo').textContent=t('Design preview · Sample data','Tasarım taslağı · Örnek veriler');requiredElement(root, '#aw-eyebrow').textContent=t('PERSONAL WORKSPACE','KİŞİSEL ÇALIŞMA ALANI');requiredElement(root, '#aw-safety').textContent=t('Live orders disabled · Manual confirmation','Canlı emirler kapalı · Manuel onay');requiredElement(root, '#aw-footnote').textContent=t('Local preview · No live data connections','Yerel önizleme · Canlı veri bağlantısı yok');
     const current=pages.find(p=>p[0]===state.page);requiredElement(root, '#aw-title').textContent=current?text(current[2]):t('Evidence','Kanıtlar');requiredElement(root, '#aw-subtitle').textContent=current?text(current[3]):t('Source, time, and verification','Kaynak, zaman ve doğrulama');
     const nav=requiredElement(root, '#aw-nav');nav.replaceChildren();pages.forEach(([id,icon,label])=>{const b=button('',()=>go(id),'aw-nav');b.dataset.page=id;b.setAttribute('aria-pressed',String(state.page===id));const i=el('i');i.dataset.lucide=icon;i.setAttribute('aria-hidden','true');append(b,i,el('span','',label));nav.appendChild(b);});nav.appendChild(el('div','aw-sidefoot',['Local workspace · Research only','Yerel çalışma alanı · Yalnızca araştırma']));
-    const content=requiredElement(root, '#aw-content');content.replaceChildren();const pageRenderers: Record<string, (content: HTMLElement) => void> = {overview,opportunities:opportunityPage,research:researchPage,news:newsPage,recommendations:recommendationsPage,'virtual-market':virtualPage,'binance-wallet':binancePage,kaizen:kaizenPage,evidence:evidencePage};(pageRenderers[state.page] ?? overview)(content);
+    const content=requiredElement(root, '#aw-content');content.replaceChildren();const pageRenderers: Record<string, (content: HTMLElement) => void> = {overview,opportunities:opportunityPage,research:researchPage,news:newsPage,recommendations:recommendationsPage,'virtual-market':virtualPage,'binance-wallet':binancePage,kaizen:kaizenPage,evidence:evidencePage};
+    if(state.mode==='local'){if(!renderCommandCenter(content))renderLocal(content);}else{(pageRenderers[state.page] ?? overview)(content);}
     requiredElement(root, '#aw-status').textContent=text(current?current[2]:['Evidence','Kanıtlar']);renderDashboardIcons(root);
     const focusTarget=focusKey.page?root.querySelector<HTMLElement>('[data-page="'+focusKey.page+'"]'):focusKey.choice?root.querySelector<HTMLElement>('[data-choice="'+focusKey.choice+'"]'):null;
     if(focusTarget)focusTarget.focus({preventScroll:true});
+    enhanceCommandShell(commandFocus);
+    requiredElement(root, '#aw-mode').textContent=state.mode==='local'?t('Design example','Tasarım örneği'):t('Local data','Yerel veriler');
+    if(state.mode==='local'){
+      requiredElement(root, '#aw-demo').textContent=t('Local data · Read only','Yerel veriler · Salt okunur');
+      requiredElement(root, '#aw-footnote').textContent=t('Refresh: 30 seconds · ','Yenileme: 30 saniye · ')+observedTime(localData?.generated_at);
+    }
   }
+  const modeButton = document.createElement('button');
+  modeButton.type='button'; modeButton.id='aw-mode'; modeButton.className='aw-button';
+  requiredElement(root, '.aw-zone').after(modeButton);
+  modeButton.addEventListener('click',()=>{state.mode=state.mode==='local'?'sample':'local';render();});
   render();
+  void pollLocal();
 
 })();

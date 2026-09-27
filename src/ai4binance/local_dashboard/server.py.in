@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import mimetypes
@@ -1191,6 +1192,184 @@ def warm_dashboard_dependencies() -> None:
     )
 
 
+def decision_record(event, source, now):
+    """Project a canonical receipt; a reference never proves its absent payload."""
+    from ai4binance.domain.research.canonical_cycle import (
+        CanonicalCycleEnvelope,
+        CanonicalCycleStep,
+        CycleArtifactKind,
+        CycleArtifactRef,
+        CycleExecutionSurface,
+        CycleGovernanceStatus,
+    )
+
+    payload = event["payload"]
+    raw = payload["canonical_cycle"]
+    ref = lambda value: CycleArtifactRef(
+        artifact_id=value["artifact_id"],
+        artifact_kind=CycleArtifactKind(value["artifact_kind"]),
+        cycle_id=value["cycle_id"],
+        snapshot_id=value["snapshot_id"],
+        payload_sha256=value["payload_sha256"],
+    )
+    envelope = CanonicalCycleEnvelope(
+        cycle_id=raw["cycle_id"],
+        snapshot_id=raw["snapshot_id"],
+        created_at=datetime.fromisoformat(raw["created_at"]),
+        execution_surface=CycleExecutionSurface(raw["execution_surface"]),
+        governance_status=CycleGovernanceStatus(raw["governance_status"]),
+        canonical_snapshot=ref(raw["canonical_snapshot"]),
+        shared_state=ref(raw["shared_state"]),
+        observations=tuple(ref(item) for item in raw["observations"]),
+        decision=ref(raw["decision"]),
+        risk_assessment=ref(raw["risk_assessment"]),
+        governance_result=ref(raw["governance_result"]),
+        execution_plan=ref(raw["execution_plan"]) if raw["execution_plan"] else None,
+        audit_trail=ref(raw["audit_trail"]),
+        blockers=tuple(raw["blockers"]),
+        completed_steps=tuple(
+            CanonicalCycleStep(item) for item in raw["completed_steps"]
+        ),
+        execution_allowed=raw["execution_allowed"],
+        promotion_status=raw["promotion_status"],
+        live_eligibility_status=raw["live_eligibility_status"],
+    )
+    if raw.get("semantic_sha256") != envelope.semantic_sha256:
+        raise ValueError("CYCLE_RECEIPT_HASH_MISMATCH")
+    if json.dumps(raw, sort_keys=True) != json.dumps(envelope.to_payload(), sort_keys=True):
+        raise ValueError("CYCLE_RECEIPT_SHAPE_MISMATCH")
+    if (
+        event.get("snapshot_id") != envelope.snapshot_id
+        or payload.get("snapshot_ref", {}).get("snapshot_id") != envelope.snapshot_id
+        or payload.get("analysis_ref", {}).get("snapshot_id") != envelope.snapshot_id
+        or payload.get("execution_allowed") is not False
+        or payload.get("live_eligibility_status") != "LIVE_ORDER_BLOCKED"
+        or datetime.fromisoformat(event["timestamp"]) != envelope.created_at
+        or datetime.fromisoformat(payload["snapshot_ref"]["created_at"]) != envelope.created_at
+    ):
+        raise ValueError("CYCLE_CONTEXT_MISMATCH")
+    age = (now - envelope.created_at).total_seconds()
+    if age < -30:
+        raise ValueError("CYCLE_TIME_INVALID")
+    references = [
+        envelope.canonical_snapshot,
+        envelope.shared_state,
+        *envelope.observations,
+        envelope.decision,
+        envelope.risk_assessment,
+        envelope.governance_result,
+        envelope.audit_trail,
+    ]
+    if envelope.execution_plan is not None:
+        references.append(envelope.execution_plan)
+    stages = []
+    for stage in payload.get("stages", [])[:20]:
+        stages.append(
+            {
+                **fields(stage, ("name", "status")),
+                "blockers": reasons(stage.get("blockers")),
+            }
+        )
+    return {
+        "decision_id": envelope.decision.artifact_id,
+        "cycle_id": envelope.cycle_id,
+        "snapshot_id": envelope.snapshot_id,
+        "observed_at": envelope.created_at.isoformat(),
+        "status": "STALE" if age > 180 else "CURRENT",
+        "source": source,
+        "receipt_status": "RECEIPT_HASH_MATCH",
+        "payload_status": "DATA_UNAVAILABLE",
+        "historical_authenticity": "NOT_VERIFIED",
+        "symbol": scalar(payload["snapshot_ref"].get("symbol")),
+        "market": None,
+        "execution_surface": envelope.execution_surface.value,
+        "action": scalar(payload["analysis_ref"].get("final_action")),
+        "governance_status": envelope.governance_status.value,
+        "blockers": reasons(raw["blockers"]),
+        "stages": stages,
+        "analysis_blockers": reasons(payload["analysis_ref"].get("blockers")),
+        "references": [
+            {**item.to_payload(), "status": "PAYLOAD_UNAVAILABLE"}
+            for item in references
+        ],
+        "execution_allowed": False,
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+    }
+
+
+def decision_history(root, now):
+    """Read bounded existing audit tails without creating or repairing journals."""
+    from ai4binance.config import Settings
+    from ai4binance.core import read_bounded_jsonl_tail
+
+    result = {
+        "status": "DATA_UNAVAILABLE",
+        "records": [],
+        "findings": [],
+        "execution_allowed": False,
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+    }
+    try:
+        directory = (root / Settings(_env_file=root / ".env").audit_directory).resolve()
+        if not directory.is_relative_to(root.resolve() / "runtime"):
+            raise ValueError("AUDIT_PATH_OUTSIDE_RUNTIME")
+        identities = {}
+        conflicts = set()
+        for name in ("research_events.jsonl", "runtime_research_events.chained.jsonl"):
+            path = directory / name
+            if not path.exists():
+                continue
+            if not path.resolve().is_relative_to(root.resolve() / "runtime"):
+                raise ValueError("AUDIT_PATH_OUTSIDE_RUNTIME")
+            before = path.stat()
+            lines = read_bounded_jsonl_tail(path, max_lines=100, max_bytes=4_000_000)
+            after = path.stat()
+            if (before.st_size, before.st_mtime_ns) != (
+                after.st_size,
+                after.st_mtime_ns,
+            ):
+                result["findings"].append({"source": name, "status": "SOURCE_CHANGED"})
+                continue
+            for line in lines:
+                try:
+                    event = json.loads(line)
+                    if event.get("event_type") != "RESEARCH_WORKFLOW_COMPLETED":
+                        continue
+                    record = decision_record(event, name, now)
+                    key = record["decision_id"]
+                    previous = identities.get(key)
+                    if previous is not None:
+                        # Same identity with different content invalidates both observations.
+                        if {k: v for k, v in previous.items() if k != "source"} != {
+                            k: v for k, v in record.items() if k != "source"
+                        }:
+                            conflicts.add(key)
+                        continue
+                    identities[key] = record
+                except (KeyError, TypeError, ValueError, AttributeError):
+                    result["findings"].append(
+                        {"source": name, "status": "INVALID_CYCLE_RECEIPT"}
+                    )
+        result["records"] = sorted(
+            (value for key, value in identities.items() if key not in conflicts),
+            key=lambda item: item["observed_at"],
+            reverse=True,
+        )[:100]
+        if conflicts:
+            result["findings"].append(
+                {"source": "audit", "status": "CONFLICTING_DECISION_ID"}
+            )
+        result["status"] = (
+            "PARTIALLY_VERIFIED" if result["records"] else "DATA_UNAVAILABLE"
+        )
+        if result["findings"]:
+            result["status"] = "DEGRADED"
+    except (OSError, ValueError):
+        result["status"] = "UNAVAILABLE"
+        result["records"] = []
+    return result
+
+
 def snapshot(config):
     root = Path(config["repository_root"])
     state = root / "runtime" / "state"
@@ -1392,11 +1571,13 @@ def snapshot(config):
     result["operational_readiness"] = operational_readiness_projection(
         result["health_findings"], result["services"]
     )
+    result["decision_history"] = decision_history(root, now)
     return result
 
 
 def create_server(config, port=None):
     selected_port = config["port"] if port is None else port
+    loaded_server_sha256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "AI4BinanceDashboard/1"
@@ -1443,6 +1624,7 @@ def create_server(config, port=None):
                     "installation_id": config["installation_id"],
                     "status": "RUNNING",
                     "execution_allowed": False,
+                    "loaded_server_sha256": loaded_server_sha256,
                 }
             elif path == "/api/state":
                 payload = snapshot(config)
