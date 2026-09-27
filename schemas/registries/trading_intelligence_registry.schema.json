@@ -252,6 +252,17 @@
           "default": "RESEARCH_ONLY",
           "title": "Governance Status",
           "type": "string"
+        },
+        "reference": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MethodReference"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -312,6 +323,90 @@
       "title": "MethodInteraction",
       "type": "object"
     },
+    "MethodReference": {
+      "additionalProperties": false,
+      "description": "Explicit interpretation and limitations for the generated reference manual.",
+      "properties": {
+        "definition": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Definition",
+          "type": "string"
+        },
+        "purpose": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Purpose",
+          "type": "string"
+        },
+        "origin_or_school": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Origin Or School",
+          "type": "string"
+        },
+        "standardization_status": {
+          "enum": [
+            "LOCAL_IMPLEMENTATION",
+            "SOURCE_SPECIFIC",
+            "NOT_VERIFIED"
+          ],
+          "title": "Standardization Status",
+          "type": "string"
+        },
+        "market_context": {
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Market Context",
+          "type": "array"
+        },
+        "direction_semantics": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Direction Semantics",
+          "type": "string"
+        },
+        "timeframe_semantics": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Timeframe Semantics",
+          "type": "string"
+        },
+        "known_failure_modes": {
+          "items": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Known Failure Modes",
+          "type": "array"
+        },
+        "ambiguity_notes": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Ambiguity Notes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "definition",
+        "purpose",
+        "origin_or_school",
+        "standardization_status",
+        "market_context",
+        "direction_semantics",
+        "timeframe_semantics",
+        "known_failure_modes",
+        "ambiguity_notes"
+      ],
+      "title": "MethodReference",
+      "type": "object"
+    },
     "RuleDefinition": {
       "additionalProperties": false,
       "properties": {
@@ -329,7 +424,14 @@
         "rule_type": {
           "enum": [
             "AI4BINANCE_IMPLEMENTATION_RULE",
-            "SOURCE_DEFINITION"
+            "SOURCE_DEFINITION",
+            "SOURCE_RULE",
+            "SOURCE_GUIDELINE",
+            "INDUSTRY_CONVENTION",
+            "EMPIRICAL_FINDING",
+            "AI4BINANCE_CANONICAL_RULE",
+            "AI4BINANCE_VALIDATION_RULE",
+            "AI4BINANCE_RISK_RULE"
           ],
           "title": "Rule Type",
           "type": "string"
@@ -451,6 +553,109 @@
       "title": "ScopeDefinition",
       "type": "object"
     },
+    "SourceBibliography": {
+      "additionalProperties": false,
+      "description": "Reviewed source metadata, without source-content or performance approval.",
+      "properties": {
+        "title": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Title",
+          "type": "string"
+        },
+        "organization": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Organization",
+          "type": "string"
+        },
+        "author": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Author"
+        },
+        "source_family": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Source Family",
+          "type": "string"
+        },
+        "primary_or_secondary": {
+          "enum": [
+            "PRIMARY",
+            "SECONDARY",
+            "IMPLEMENTATION_REFERENCE"
+          ],
+          "title": "Primary Or Secondary",
+          "type": "string"
+        },
+        "publication_date": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Publication Date"
+        },
+        "source_version": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Version"
+        },
+        "accessed_at": {
+          "format": "date-time",
+          "title": "Accessed At",
+          "type": "string"
+        },
+        "licensing_notes": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Licensing Notes",
+          "type": "string"
+        },
+        "conflict_notes": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Conflict Notes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "organization",
+        "author",
+        "source_family",
+        "primary_or_secondary",
+        "publication_date",
+        "source_version",
+        "accessed_at",
+        "licensing_notes",
+        "conflict_notes"
+      ],
+      "title": "SourceBibliography",
+      "type": "object"
+    },
     "SourceDefinition": {
       "additionalProperties": false,
       "properties": {
@@ -512,6 +717,17 @@
           "pattern": "\\S",
           "title": "Notes",
           "type": "string"
+        },
+        "bibliography": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceBibliography"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [

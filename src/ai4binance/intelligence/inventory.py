@@ -7,6 +7,7 @@ from importlib import import_module
 from pathlib import Path
 
 from ai4binance.intelligence.method_registry import (
+    MethodDefinition,
     TradingMethodRegistry,
     current_method_registry,
 )
@@ -294,31 +295,48 @@ def render_reference_manual(registry: TradingMethodRegistry | None = None) -> st
                     f"rules: {method.rule_set_version}.",
                     f"Implementation: {method.implementation_status}; "
                     f"OOS: {method.oos_status}.",
+                    f"Validation: {method.validation_status}; "
+                    f"governance: {method.governance_status}.",
                     f"Owner: {method.module or 'NOT_IMPLEMENTED'} / "
                     f"{method.owner or 'NOT_IMPLEMENTED'}.",
+                    f"Lifecycle scope: {method.lifecycle_scope}; "
+                    f"markets: {', '.join(method.markets)}.",
                     f"Inputs: {', '.join(method.input_requirements)}.",
                     f"Limits: {method.limitations}",
                     "",
                 )
             )
+            aliases = tuple(
+                f"{alias.alias} ({alias.context})"
+                for alias in registry.aliases
+                if alias.method_id == method.method_id
+            )
+            lines.extend((f"Aliases: {'; '.join(aliases) or 'None registered'}.", ""))
+            lines.extend(_method_reference_lines(method))
             for rule_id in method.rule_ids:
                 rule = rules[rule_id]
                 lines.extend(
                     (
-                        f"- {rule.rule_id}@{rule.version}: {rule.statement}",
+                        f"- {rule.rule_id}@{rule.version} [{rule.rule_type}]: "
+                        f"{rule.statement}",
                         f"  Applicability: {rule.applicability}",
                         f"  Tolerances: {rule.tolerance_policy}",
                         f"  Ambiguity: {rule.ambiguity}",
+                        f"  Sources: {', '.join(rule.source_ids)}; "
+                        f"tests: {', '.join(rule.test_refs) or 'NOT_VERIFIED'}.",
                     )
                 )
             lines.extend(
                 (
                     "",
                     "Sources: "
-                    + "; ".join(sources[key].locator for key in method.source_ids),
+                    + "; ".join(
+                        f"[{key}]({sources[key].locator})" for key in method.source_ids
+                    ),
                     "",
                 )
             )
+    lines.extend(_registry_reference_lines(registry))
     lines.extend(("## Dated source comparisons", ""))
     for review in registry.source_reviews:
         lines.extend(
@@ -330,6 +348,80 @@ def render_reference_manual(registry: TradingMethodRegistry | None = None) -> st
             )
         )
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _method_reference_lines(method: MethodDefinition) -> list[str]:
+    reference = method.reference
+    if reference is None:
+        return [
+            "Detailed reference definition: NOT_VERIFIED. "
+            "The registered implementation limits above remain authoritative "
+            "for this catalog entry.",
+            "",
+        ]
+    return [
+        f"Definition: {reference.definition}",
+        f"Purpose: {reference.purpose}",
+        f"Origin / school: {reference.origin_or_school}",
+        f"Standardization: {reference.standardization_status}",
+        f"Market context: {'; '.join(reference.market_context)}",
+        f"Direction semantics: {reference.direction_semantics}",
+        f"Timeframe semantics: {reference.timeframe_semantics}",
+        f"Known failure modes: {'; '.join(reference.known_failure_modes)}",
+        f"Ambiguity: {reference.ambiguity_notes}",
+        "",
+    ]
+
+
+def _registry_reference_lines(registry: TradingMethodRegistry) -> list[str]:
+    lines = ["## Method interactions", ""]
+    for edge in registry.interactions:
+        lines.append(
+            f"- {edge.left} / {edge.right}: {edge.relationship}; "
+            f"statistical independence: {edge.independence_status}."
+        )
+    lines.extend(("", "## Implementation coverage and research gaps", ""))
+    for coverage in registry.coverage:
+        lines.extend(
+            (
+                f"- {coverage.family}: {coverage.decision_role}",
+                f"  Implemented scope: {'; '.join(coverage.implemented)}.",
+                f"  Missing scope: {'; '.join(coverage.missing) or 'None registered'}.",
+                f"  Limits: {coverage.limitations}",
+            )
+        )
+    lines.extend(("", "## Source provenance", ""))
+    for source in registry.sources:
+        lines.extend(
+            (
+                f"### {source.source_id}",
+                "",
+                f"Reference: [{source.source_id}]({source.locator})",
+                f"Verification: {source.verification}; "
+                f"revision: {source.revision or 'NOT_VERIFIED'}; "
+                f"content SHA-256: {source.content_sha256 or 'NOT_ARCHIVED'}.",
+                f"Limits: {source.notes}",
+            )
+        )
+        bibliography = source.bibliography
+        if bibliography is not None:
+            lines.extend(
+                (
+                    f"Title: {bibliography.title}",
+                    f"Organization: {bibliography.organization}; "
+                    f"author: {bibliography.author or 'NOT_VERIFIED'}.",
+                    f"Source family: {bibliography.source_family}; "
+                    f"classification: {bibliography.primary_or_secondary}.",
+                    "Publication date: "
+                    f"{bibliography.publication_date or 'NOT_VERIFIED'}; "
+                    f"version: {bibliography.source_version or 'NOT_VERIFIED'}.",
+                    f"Accessed: {bibliography.accessed_at.isoformat()}",
+                    f"Licensing: {bibliography.licensing_notes}",
+                    f"Source conflicts: {bibliography.conflict_notes}",
+                )
+            )
+        lines.append("")
+    return lines
 
 
 def write_reference_manual(directory: Path) -> Path:

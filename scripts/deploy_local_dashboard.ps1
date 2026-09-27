@@ -61,13 +61,14 @@ $sourceFiles = @(
     "server.py.in"
 )
 $operationsFiles = @("install.ps1.in", "launch.ps1.in")
-$interfaceFiles = @("command_center.ts", "command_center.css")
+$interfaceFiles = @("command_center.ts", "command_center.css", "dashboard_shell.ts")
 $deploymentFiles = @(
     "app.css",
     "app.js",
     "build.py",
     "command_center.ts",
     "command_center.css",
+    "dashboard_shell.ts",
     "index.html",
     "install.ps1",
     "launch.ps1",

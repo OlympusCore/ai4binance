@@ -501,6 +501,79 @@ def test_structural_leverage_vetoes(overrides: dict[str, object], blocker: str) 
     assert blocker in result.blockers
 
 
+@pytest.mark.parametrize(
+    "brackets",
+    [
+        (FuturesRiskBracket(D("1"), D("1000"), 10, D(".005"), D("0")),),
+        (
+            FuturesRiskBracket(D("0"), D("90"), 10, D(".005"), D("0")),
+            FuturesRiskBracket(D("90"), D("1000"), 5, D(".01"), D(".9")),
+        ),
+        (
+            FuturesRiskBracket(D("0"), D("90"), 5, D(".005"), D("0")),
+            FuturesRiskBracket(D("90"), D("1000"), 10, D(".01"), D(".45")),
+        ),
+    ],
+    ids=["missing-zero-floor", "maintenance-discontinuity", "increasing-leverage"],
+)
+def test_structural_leverage_rejects_invalid_bracket_schedule(
+    brackets: tuple[FuturesRiskBracket, ...],
+) -> None:
+    result = FuturesLeverageGovernor().assess_structural_leverage(
+        **cast(RiskInputs, {**risk_inputs(), "brackets": brackets})
+    )
+    assert result.permitted_leverage is None
+    assert result.initial_margin is None
+    assert result.blockers == ("FUTURES_RISK_BRACKETS_UNAVAILABLE_OR_INCONSISTENT",)
+    assert not result.execution_allowed
+    blockers = FuturesLeverageGovernor().structural_margin_blockers(
+        context={
+            "snapshot_id": "snapshot:test-invalid-brackets",
+            "symbol": "BTCUSDT",
+            "margin_mode": "ISOLATED",
+            "strategy_oos_approved": True,
+            "adverse_funding_ratio": ".001",
+            "mark_stress_ratio": ".01",
+            "brackets": [
+                {
+                    "notionalFloor": str(tier.notional_floor),
+                    "notionalCap": str(tier.notional_cap),
+                    "initialLeverage": tier.initial_leverage,
+                    "maintMarginRatio": str(tier.maintenance_ratio),
+                    "cum": str(tier.cumulative_maintenance),
+                }
+                for tier in brackets
+            ],
+        },
+        requested_leverage=2,
+        snapshot_id="snapshot:test-invalid-brackets",
+        symbol="BTCUSDT",
+        entry=D("100"),
+        stop=D("95"),
+        quantity=D("1"),
+        mark_price=D("100"),
+        available_margin=D("50"),
+        round_trip_cost_ratio=D(".002"),
+        risk_budget=D("10"),
+    )
+    assert blockers == result.blockers
+
+
+def test_structural_leverage_accepts_continuous_maintenance_schedule() -> None:
+    brackets = (
+        FuturesRiskBracket(D("0"), D("90"), 10, D(".005"), D("0")),
+        FuturesRiskBracket(D("90"), D("1000"), 5, D(".01"), D(".45")),
+    )
+    result = FuturesLeverageGovernor().assess_structural_leverage(
+        **cast(RiskInputs, {**risk_inputs(), "brackets": brackets})
+    )
+    assert result.permitted_leverage == 2
+    assert result.initial_margin == D("50")
+    assert result.margin_surplus_at_stressed_stop == D("43.21")
+    assert not result.blockers
+    assert not result.execution_allowed
+
+
 def test_virtual_structural_plan_requires_bound_margin_proof() -> None:
     request = approved_virtual_runtime_request(
         snapshot_id="snapshot:structural",

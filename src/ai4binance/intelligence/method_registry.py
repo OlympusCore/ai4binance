@@ -14,6 +14,7 @@ from functools import lru_cache
 from hashlib import sha256
 from pathlib import Path
 from typing import Annotated, Literal, Self
+from urllib.parse import unquote, urlsplit
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, StrictStr, model_validator
@@ -31,6 +32,27 @@ class RegistryRecord(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
 
+class SourceBibliography(RegistryRecord):
+    """Reviewed source metadata, without source-content or performance approval."""
+
+    title: Text
+    organization: Text
+    author: Text | None
+    source_family: Text
+    primary_or_secondary: Literal["PRIMARY", "SECONDARY", "IMPLEMENTATION_REFERENCE"]
+    publication_date: Text | None
+    source_version: Text | None
+    accessed_at: datetime
+    licensing_notes: Text
+    conflict_notes: Text
+
+    @model_validator(mode="after")
+    def validate_timestamp(self) -> Self:
+        if self.accessed_at.utcoffset() is None:
+            raise ValueError("source access timestamp must be timezone-aware")
+        return self
+
+
 class SourceDefinition(RegistryRecord):
     source_id: Text
     locator: Text
@@ -39,12 +61,23 @@ class SourceDefinition(RegistryRecord):
     revision: Text | None
     content_sha256: Annotated[StrictStr, Field(pattern=r"^[0-9a-f]{64}$")] | None
     notes: Text
+    bibliography: SourceBibliography | None = None
 
 
 class RuleDefinition(RegistryRecord):
     rule_id: Text
     version: Version
-    rule_type: Literal["AI4BINANCE_IMPLEMENTATION_RULE", "SOURCE_DEFINITION"]
+    rule_type: Literal[
+        "AI4BINANCE_IMPLEMENTATION_RULE",
+        "SOURCE_DEFINITION",
+        "SOURCE_RULE",
+        "SOURCE_GUIDELINE",
+        "INDUSTRY_CONVENTION",
+        "EMPIRICAL_FINDING",
+        "AI4BINANCE_CANONICAL_RULE",
+        "AI4BINANCE_VALIDATION_RULE",
+        "AI4BINANCE_RISK_RULE",
+    ]
     statement: Text
     implementation_ref: Text | None
     source_ids: tuple[Text, ...] = Field(min_length=1)
@@ -71,6 +104,22 @@ class SourceReview(RegistryRecord):
         return self
 
 
+class MethodReference(RegistryRecord):
+    """Explicit interpretation and limitations for the generated reference manual."""
+
+    definition: Text
+    purpose: Text
+    origin_or_school: Text
+    standardization_status: Literal[
+        "LOCAL_IMPLEMENTATION", "SOURCE_SPECIFIC", "NOT_VERIFIED"
+    ]
+    market_context: tuple[Text, ...] = Field(min_length=1)
+    direction_semantics: Text
+    timeframe_semantics: Text
+    known_failure_modes: tuple[Text, ...] = Field(min_length=1)
+    ambiguity_notes: Text
+
+
 class MethodDefinition(RegistryRecord):
     method_id: Text
     version: Version
@@ -91,6 +140,7 @@ class MethodDefinition(RegistryRecord):
         "METHOD_LEVEL_OOS_NOT_VERIFIED"
     )
     governance_status: Literal["RESEARCH_ONLY"] = "RESEARCH_ONLY"
+    reference: MethodReference | None = None
 
 
 class FamilyCoverage(RegistryRecord):
@@ -165,8 +215,19 @@ class TradingMethodRegistry(RegistryRecord):
             _references(scope.method_ids, methods)
             if any(self.method(key).family != scope.family for key in scope.method_ids):
                 raise ValueError("scope cannot claim methods from another family")
+        scoped_methods = {key for scope in self.scope for key in scope.method_ids}
+        if methods != scoped_methods:
+            raise ValueError("orphan method must belong to its declared family scope")
+        used_rules = {key for method in self.methods for key in method.rule_ids}
+        if rules != used_rules:
+            raise ValueError("orphan rule must be referenced by a registered method")
+        interactions: set[tuple[str, str]] = set()
         for edge in self.interactions:
             _references((edge.left, edge.right), methods)
+            pair = (min(edge.left, edge.right), max(edge.left, edge.right))
+            if pair in interactions:
+                raise ValueError("duplicate undirected method interaction")
+            interactions.add(pair)
         return self
 
     def _validate_coverage(self) -> None:
@@ -186,6 +247,8 @@ class TradingMethodRegistry(RegistryRecord):
                 _relative_path(source.locator)
             elif source.verification != "REFERENCE_ONLY" or source.content_sha256:
                 raise ValueError("external references cannot claim verified content")
+            else:
+                _external_reference_url(source.locator)
 
     def _validate_method_links(self, rules: set[str], sources: set[str]) -> None:
         for method in self.methods:
@@ -230,13 +293,19 @@ class TradingMethodRegistry(RegistryRecord):
             source for source in self.sources if source.source_id in source_ids
         )
         definition = {
-            "method": method.model_dump(mode="json"),
+            "method": method.model_dump(
+                mode="json",
+                exclude={"reference"} if method.reference is None else set(),
+            ),
             "rules": [
                 rule.model_dump(mode="json")
                 for rule in sorted(rules, key=lambda r: r.rule_id)
             ],
             "sources": [
-                source.model_dump(mode="json")
+                source.model_dump(
+                    mode="json",
+                    exclude={"bibliography"} if source.bibliography is None else set(),
+                )
                 for source in sorted(sources, key=lambda s: s.source_id)
             ],
         }
@@ -299,6 +368,30 @@ def _relative_path(value: str) -> Path:
     if path.is_absolute() or ".." in path.parts or "\\" in value or ":" in value:
         raise ValueError("registry paths must be repository-relative")
     return path
+
+
+def _external_reference_url(value: str) -> None:
+    """Validate passive source links locally without resolving or fetching them."""
+    error = "external source requires a safe absolute HTTP(S) reference URL"
+    if any(char.isspace() or char in "()[]<>\\\"'`" for char in value) or any(
+        ord(char) < 32 or 127 <= ord(char) <= 159 for char in unquote(value)
+    ):
+        raise ValueError(error)
+    try:
+        parsed = urlsplit(value)
+        valid = (
+            parsed.scheme in {"http", "https"}
+            and bool(parsed.hostname and parsed.hostname.strip("."))
+            and "%" not in parsed.netloc
+            and parsed.username is None
+            and parsed.password is None
+        )
+        # Accessing the port also rejects malformed and out-of-range ports.
+        _ = parsed.port
+    except ValueError:
+        raise ValueError(error) from None
+    if not valid:
+        raise ValueError(error)
 
 
 def load_method_registry(path: Path | None = None) -> TradingMethodRegistry:

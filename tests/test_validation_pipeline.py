@@ -21,7 +21,10 @@ from ai4binance.indicators import atr
 from ai4binance.research.backtesting import BacktestConfig, BacktestEngine
 from ai4binance.schemas import OHLCVCandle
 from ai4binance.storage import JsonlAuditStore
-from ai4binance.strategies.registry import StrategyRiskProfileRegistry
+from ai4binance.strategies.registry import (
+    StrategyRiskProfileRegistry,
+    build_strategy_risk_profile_registry,
+)
 from ai4binance.strategies.rules import historical_playbook_decision
 from ai4binance.validation import ParameterSet
 from ai4binance.validation_pipeline_runtime import (
@@ -595,6 +598,7 @@ def test_historical_adapter_incremental_atr_matches_batch_wilder_atr() -> None:
         decision_resolver=historical_playbook_decision,
         atr_calculator=atr,
         intent_builder=build_intent,
+        risk_profile_registry=build_strategy_risk_profile_registry(),
     )
 
     for length in range(1, len(candles) + 1):
@@ -616,6 +620,7 @@ def test_historical_adapter_records_blockers_and_emits_quality_intent() -> None:
         decision_resolver=historical_playbook_decision,
         atr_calculator=atr,
         intent_builder=build_intent,
+        risk_profile_registry=build_strategy_risk_profile_registry(),
     )
 
     intents = tuple(adapter(history[:length]) for length in range(1, len(history) + 1))

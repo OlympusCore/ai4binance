@@ -9,10 +9,9 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime
 from decimal import Decimal
 from hashlib import sha256
-from importlib import import_module
 from pathlib import Path
 from time import perf_counter_ns
-from typing import Any, Protocol, cast
+from typing import Any, Protocol
 
 from ai4binance.core.serialization import to_primitive
 from ai4binance.domain import ValidationStatus
@@ -52,14 +51,6 @@ class StrategyRiskProfileRegistryLike(Protocol):
         *,
         regime: str | None = None,
     ) -> Any: ...
-
-
-def _build_strategy_risk_profile_registry() -> StrategyRiskProfileRegistryLike:
-    registry_module = import_module("ai4binance.strategies.registry")
-    return cast(
-        StrategyRiskProfileRegistryLike,
-        registry_module.build_strategy_risk_profile_registry(),
-    )
 
 
 class CandleLike(Protocol):
@@ -249,9 +240,7 @@ class HistoricalPlaybookAdapter:
     strategy_version: str = "1"
     market: str = "SPOT"
     regime_classifier: Callable[[Any], Any] | None = None
-    risk_profile_registry: StrategyRiskProfileRegistryLike = field(
-        default_factory=_build_strategy_risk_profile_registry
-    )
+    risk_profile_registry: StrategyRiskProfileRegistryLike = field(kw_only=True)
     _history_length: int = field(init=False, default=0, repr=False)
     _last_timestamp: datetime | None = field(init=False, default=None, repr=False)
     _current_atr: Decimal | None = field(init=False, default=None, repr=False)

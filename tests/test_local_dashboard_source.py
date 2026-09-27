@@ -41,7 +41,7 @@ def test_canonical_dashboard_source_builds_deterministic_offline_assets(
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "DASHBOARD_PACKAGE_BUILT"
     assert _sha256(stage / "app.js") == (
-        "e23b4d8cbd88abe9ece8e2122cff53f4010e65b61764e6d6e2ac886c92d2687e"
+        "e3f683d653b8bc36975c4145baffdc1ec7e26291983286b7cc90b198a43af6b8"
     )
     assert _sha256(stage / "app.css") == (
         "ccd0dfd34c78fbf9809a3353ed1fc02d007d01723850ed71557b68e812bd7bdc"
@@ -93,7 +93,7 @@ def test_dashboard_packaging_reads_operations_from_canonical_owner(
         path = ROOT / "scripts/local_dashboard" / name
         assert records[path.relative_to(ROOT).as_posix()] == _sha256(path)
         assert not (SOURCE / name).exists()
-    for name in ("command_center.ts", "command_center.css"):
+    for name in ("command_center.ts", "command_center.css", "dashboard_shell.ts"):
         path = ROOT / "frontend" / "src" / name
         assert records[path.relative_to(ROOT).as_posix()] == _sha256(path)
 

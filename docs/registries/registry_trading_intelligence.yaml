@@ -1,5 +1,5 @@
 registry_id: AI4B-TRADING-METHODS-001
-version: 1.2.0
+version: 1.3.0
 source_of_truth: true
 source_of_truth_scope: trading_method_definitions
 authority_effect: EVIDENCE_ONLY
@@ -9,6 +9,17 @@ promotion_status: RESEARCH_ONLY
 live_eligibility_status: LIVE_ORDER_BLOCKED
 sources:
 - source_id: reference-01
+  bibliography:
+    title: "Technical Patterns: Reversals"
+    organization: "CME Group"
+    author: null
+    source_family: EXCHANGE_EDUCATION
+    primary_or_secondary: SECONDARY
+    publication_date: null
+    source_version: null
+    accessed_at: '2026-09-27T03:13:46Z'
+    licensing_notes: Original paraphrase only; no redistribution clearance or archived content hash is asserted.
+    conflict_notes: "Confirmation examples do not specify local pivot tolerances or lifecycle expiration."
   locator: https://www.cmegroup.com/education/courses/technical-analysis/technical-patterns-reversals
   source_type: EXTERNAL_REFERENCE
   verification: REFERENCE_ONLY
@@ -17,6 +28,17 @@ sources:
   notes: Inherited reference URL. Page contents, licensing and exact rule coverage are not verified by
     D0-D2.
 - source_id: reference-02
+  bibliography:
+    title: "Trend and Continuation Patterns"
+    organization: "CME Group"
+    author: null
+    source_family: EXCHANGE_EDUCATION
+    primary_or_secondary: SECONDARY
+    publication_date: null
+    source_version: null
+    accessed_at: '2026-09-27T03:13:46Z'
+    licensing_notes: Original paraphrase only; no redistribution clearance or archived content hash is asserted.
+    conflict_notes: "Directional tendencies are qualitative; symmetric triangles can resolve in either direction."
   locator: https://www.cmegroup.com/education/courses/technical-analysis/trend-and-continuation-patterns
   source_type: EXTERNAL_REFERENCE
   verification: REFERENCE_ONLY
@@ -25,6 +47,17 @@ sources:
   notes: Inherited reference URL. Page contents, licensing and exact rule coverage are not verified by
     D0-D2.
 - source_id: reference-03
+  bibliography:
+    title: "Support and Resistance"
+    organization: "CME Group"
+    author: null
+    source_family: EXCHANGE_EDUCATION
+    primary_or_secondary: SECONDARY
+    publication_date: null
+    source_version: null
+    accessed_at: '2026-09-27T03:13:46Z'
+    licensing_notes: Original paraphrase only; no redistribution clearance or archived content hash is asserted.
+    conflict_notes: "Zone descriptions do not define local BOS, CHoCH, pivot windows or ATR tolerances."
   locator: https://www.cmegroup.com/education/courses/technical-analysis/support-and-resistance
   source_type: EXTERNAL_REFERENCE
   verification: REFERENCE_ONLY
@@ -33,6 +66,17 @@ sources:
   notes: Inherited reference URL. Page contents, licensing and exact rule coverage are not verified by
     D0-D2.
 - source_id: reference-04
+  bibliography:
+    title: "Impulse"
+    organization: "Elliott Wave International"
+    author: null
+    source_family: ELLIOTT_WAVE_SCHOOL
+    primary_or_secondary: PRIMARY
+    publication_date: null
+    source_version: null
+    accessed_at: '2026-09-27T03:13:46Z'
+    licensing_notes: Original paraphrase only; no redistribution clearance or archived content hash is asserted.
+    conflict_notes: "The source discusses rare intraday Futures overlap; the local implementation retains strict non-overlap."
   locator: https://www.elliottwave.com/waveopedia/impulse/
   source_type: EXTERNAL_REFERENCE
   verification: REFERENCE_ONLY
@@ -41,6 +85,17 @@ sources:
   notes: Inherited reference URL. Page contents, licensing and exact rule coverage are not verified by
     D0-D2.
 - source_id: reference-05
+  bibliography:
+    title: "Corrective Waves"
+    organization: "Elliott Wave International"
+    author: null
+    source_family: ELLIOTT_WAVE_SCHOOL
+    primary_or_secondary: PRIMARY
+    publication_date: null
+    source_version: null
+    accessed_at: '2026-09-27T03:13:46Z'
+    licensing_notes: Original paraphrase only; no redistribution clearance or archived content hash is asserted.
+    conflict_notes: "Named corrective families require separate subdivision rules; a generic proxy does not cover them."
   locator: https://www.elliottwave.com/waveopedia/corrective-waves/
   source_type: EXTERNAL_REFERENCE
   verification: REFERENCE_ONLY
@@ -49,6 +104,17 @@ sources:
   notes: Inherited reference URL. Page contents, licensing and exact rule coverage are not verified by
     D0-D2.
 - source_id: reference-06
+  bibliography:
+    title: "Fibonacci Retracements and Extensions"
+    organization: "CME Group"
+    author: null
+    source_family: EXCHANGE_EDUCATION
+    primary_or_secondary: SECONDARY
+    publication_date: null
+    source_version: null
+    accessed_at: '2026-09-27T03:13:46Z'
+    licensing_notes: Original paraphrase only; no redistribution clearance or archived content hash is asserted.
+    conflict_notes: "The text contains one 62.8 percent value inconsistent with its repeated 61.8 percent definition; local ratios are not changed. Extension conventions differ."
   locator: https://www.cmegroup.com/education/courses/technical-analysis/fibonacci-retracements-and-extensions
   source_type: EXTERNAL_REFERENCE
   verification: REFERENCE_ONLY
@@ -57,6 +123,17 @@ sources:
   notes: Inherited reference URL. Page contents, licensing and exact rule coverage are not verified by
     D0-D2.
 - source_id: reference-07
+  bibliography:
+    title: "Harmonic Patterns"
+    organization: "Harmonic Trader"
+    author: "Scott M. Carney"
+    source_family: HARMONIC_PATTERN_ORIGINATOR
+    primary_or_secondary: PRIMARY
+    publication_date: null
+    source_version: null
+    accessed_at: '2026-09-27T03:13:46Z'
+    licensing_notes: Original paraphrase only; no redistribution clearance or archived content hash is asserted.
+    conflict_notes: "A family index supplies taxonomy, not a complete ratio specification for every pattern."
   locator: https://harmonictrader.com/harmonic-patterns/
   source_type: EXTERNAL_REFERENCE
   verification: REFERENCE_ONLY
@@ -145,6 +222,17 @@ sources:
   notes: Inspected implementation baseline at the recorded Git revision. This hash identifies baseline
     bytes, not a web page or an OOS result.
 - source_id: reference-08
+  bibliography:
+    title: "Bat pattern"
+    organization: "Harmonic Trader"
+    author: "Scott M. Carney"
+    source_family: HARMONIC_PATTERN_ORIGINATOR
+    primary_or_secondary: PRIMARY
+    publication_date: null
+    source_version: null
+    accessed_at: '2026-09-27T03:13:46Z'
+    licensing_notes: Original paraphrase only; no redistribution clearance or archived content hash is asserted.
+    conflict_notes: "The source permits B below 0.618 with preferred 0.382 or 0.5; the local B interval is narrower."
   locator: https://harmonictrader.com/harmonic-patterns/bat-pattern/
   source_type: EXTERNAL_REFERENCE
   verification: REFERENCE_ONLY
@@ -152,12 +240,149 @@ sources:
   content_sha256: null
   notes: Dated source review exists separately. No archived content hash or empirical performance attestation.
 - source_id: reference-09
+  bibliography:
+    title: "Fibonacci Retracements"
+    organization: "StockCharts"
+    author: null
+    source_family: CHARTING_PLATFORM_EDUCATION
+    primary_or_secondary: SECONDARY
+    publication_date: null
+    source_version: null
+    accessed_at: '2026-09-27T03:13:46Z'
+    licensing_notes: Original paraphrase only; no redistribution clearance or archived content hash is asserted.
+    conflict_notes: "The platform includes 0.236; the local detector uses a smaller explicit set. The midpoint is conventional."
   locator: https://chartschool.stockcharts.com/table-of-contents/chart-analysis/chart-annotation-tools/fibonacci-retracements
   source_type: EXTERNAL_REFERENCE
   verification: REFERENCE_ONLY
   revision: null
   content_sha256: null
   notes: Dated source review exists separately. No archived content hash or empirical performance attestation.
+- source_id: reference-10
+  bibliography:
+    title: "Chart Types: candlestick, line, bar"
+    organization: "CME Group"
+    author: null
+    source_family: EXCHANGE_EDUCATION
+    primary_or_secondary: SECONDARY
+    publication_date: null
+    source_version: null
+    accessed_at: '2026-09-27T03:13:46Z'
+    licensing_notes: Original paraphrase only; no redistribution clearance or archived content hash is asserted.
+    conflict_notes: "Anatomy does not define numerical pattern thresholds or calibrate signals."
+  locator: https://www.cmegroup.com/education/courses/technical-analysis/chart-types-candlestick-line-bar
+  source_type: EXTERNAL_REFERENCE
+  verification: REFERENCE_ONLY
+  revision: null
+  content_sha256: null
+  notes: Dated source review records accessible content; no pinned source revision or performance attestation.
+- source_id: reference-11
+  bibliography:
+    title: "TA-Lib CDLENGULFING implementation"
+    organization: "TA-Lib"
+    author: null
+    source_family: OPEN_SOURCE_DETECTOR
+    primary_or_secondary: IMPLEMENTATION_REFERENCE
+    publication_date: null
+    source_version: null
+    accessed_at: '2026-09-27T03:13:46Z'
+    licensing_notes: Original paraphrase only; no redistribution clearance or archived content hash is asserted.
+    conflict_notes: "Body containment allows one matched endpoint; the function does not verify prior trend. Integer outputs are match labels, not probabilities."
+  locator: https://raw.githubusercontent.com/TA-Lib/ta-lib/main/src/ta_func/ta_CDLENGULFING.c
+  source_type: EXTERNAL_REFERENCE
+  verification: REFERENCE_ONLY
+  revision: null
+  content_sha256: null
+  notes: Dated source review records accessible content; no pinned source revision or performance attestation.
+- source_id: reference-12
+  bibliography:
+    title: "TA-Lib CDLHAMMER implementation"
+    organization: "TA-Lib"
+    author: null
+    source_family: OPEN_SOURCE_DETECTOR
+    primary_or_secondary: IMPLEMENTATION_REFERENCE
+    publication_date: null
+    source_version: null
+    accessed_at: '2026-09-27T03:13:46Z'
+    licensing_notes: Original paraphrase only; no redistribution clearance or archived content hash is asserted.
+    conflict_notes: "Configurable relative candle settings differ from fixed wick ratios; prior downtrend is not checked."
+  locator: https://raw.githubusercontent.com/TA-Lib/ta-lib/main/src/ta_func/ta_CDLHAMMER.c
+  source_type: EXTERNAL_REFERENCE
+  verification: REFERENCE_ONLY
+  revision: null
+  content_sha256: null
+  notes: Dated source review records accessible content; no pinned source revision or performance attestation.
+- source_id: reference-13
+  bibliography:
+    title: "Wyckoff Method"
+    organization: "Wyckoff Analytics"
+    author: null
+    source_family: WYCKOFF_METHOD_PRACTITIONER
+    primary_or_secondary: SECONDARY
+    publication_date: null
+    source_version: null
+    accessed_at: '2026-09-27T03:13:46Z'
+    licensing_notes: Original paraphrase only; no redistribution clearance or archived content hash is asserted.
+    conflict_notes: "Optional spring and UTAD schematics are broader than the local high-volume sweep proxy; phase inference is not implemented."
+  locator: https://www.wyckoffanalytics.com/wyckoff-method/
+  source_type: EXTERNAL_REFERENCE
+  verification: REFERENCE_ONLY
+  revision: null
+  content_sha256: null
+  notes: Dated source review records accessible content; no pinned source revision or performance attestation.
+- source_id: reference-14
+  bibliography:
+    title: "Basics of Dow Theory: From Charles H. Dow to Present"
+    organization: "The Dow Theory"
+    author: null
+    source_family: DOW_THEORY_INTERPRETATION
+    primary_or_secondary: SECONDARY
+    publication_date: null
+    source_version: null
+    accessed_at: '2026-09-27T03:13:46Z'
+    licensing_notes: Original paraphrase only; no redistribution clearance or archived content hash is asserted.
+    conflict_notes: "Historical duration interpretations differ; author-specific percentage thresholds are not universal rules or Binance calibration."
+  locator: https://thedowtheory.com/basics-of-dow-theory/
+  source_type: EXTERNAL_REFERENCE
+  verification: REFERENCE_ONLY
+  revision: null
+  content_sha256: null
+  notes: Dated source review records accessible content; no pinned source revision or performance attestation.
+- source_id: reference-15
+  bibliography:
+    title: "Non-standard charts data"
+    organization: "TradingView"
+    author: null
+    source_family: CHART_ENGINE_DOCUMENTATION
+    primary_or_secondary: PRIMARY
+    publication_date: null
+    source_version: null
+    accessed_at: '2026-09-27T03:13:46Z'
+    licensing_notes: Original paraphrase only; no redistribution clearance or archived content hash is asserted.
+    conflict_notes: "Platform bars built from lower-timeframe prices approximate tick-derived charts; transformed values are not executable prices."
+  locator: https://www.tradingview.com/pine-script-docs/concepts/non-standard-charts-data/
+  source_type: EXTERNAL_REFERENCE
+  verification: REFERENCE_ONLY
+  revision: null
+  content_sha256: null
+  notes: Dated source review records accessible content; no pinned source revision or performance attestation.
+- source_id: reference-16
+  bibliography:
+    title: "Understanding Renko charts"
+    organization: "TradingView"
+    author: null
+    source_family: CHART_ENGINE_DOCUMENTATION
+    primary_or_secondary: PRIMARY
+    publication_date: null
+    source_version: null
+    accessed_at: '2026-09-27T03:13:46Z'
+    licensing_notes: Original paraphrase only; no redistribution clearance or archived content hash is asserted.
+    conflict_notes: "Fixed, ATR and last-price-percentage sizing differ; percentage sizing may repaint and projection bricks are transient."
+  locator: https://www.tradingview.com/support/solutions/43000502284-understanding-renko-charts/
+  source_type: EXTERNAL_REFERENCE
+  verification: REFERENCE_ONLY
+  revision: null
+  content_sha256: null
+  notes: Dated source review records accessible content; no pinned source revision or performance attestation.
 rules:
 - rule_id: pattern_lifecycle.implementation
   version: 1.0.0
@@ -628,6 +853,20 @@ rules:
     variants are excluded.
 methods:
 - method_id: pattern_lifecycle
+  reference:
+    definition: "Versioned observation and opportunity states with chronological, idempotent event history."
+    purpose: "Separate formation, confirmation and invalidation from opportunity outcomes."
+    origin_or_school: "AI4Binance lifecycle model"
+    standardization_status: LOCAL_IMPLEMENTATION
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "State labels do not grant direction or execution authority."
+    timeframe_semantics: "Closed-bar availability governs observations; event time cannot regress."
+    known_failure_modes:
+    - "Changed content under one event identity"
+    - "Treating formation as trade confirmation"
+    ambiguity_notes: "Expiry and transition rules belong to the local ledger, not external chart textbooks."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: pattern_lifecycle
@@ -652,6 +891,20 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: trend_geometry
+  reference:
+    definition: "Confirmed-pivot lines and projected trend zones with an explicit endpoint fallback."
+    purpose: "Describe slope, channel location and break/retest context."
+    origin_or_school: "Classical trend lines with local deterministic geometry"
+    standardization_status: LOCAL_IMPLEMENTATION
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "Slope and boundary behavior provide context; fallback lines do not qualify entries."
+    timeframe_semantics: "Closed candles are selected as of the snapshot; lifecycle bars are held out from fallback fitting."
+    known_failure_modes:
+    - "Insufficient confirmed anchors"
+    - "A breakout refitting its own baseline"
+    ambiguity_notes: "Local anchor selection and ATR widths are implementation choices."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: trend_geometry
@@ -696,6 +949,20 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: market_structure
+  reference:
+    definition: "A confirmed-swing graph with structure states, events and invalidation evidence."
+    purpose: "Provide shared causal pivots to downstream analyses."
+    origin_or_school: "Classical swing structure with local event definitions"
+    standardization_status: LOCAL_IMPLEMENTATION
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "Structure context is inferred from confirmed swing ordering."
+    timeframe_semantics: "Pivot occurrence and availability differ because right-hand confirmation requires later closed bars."
+    known_failure_modes:
+    - "Ambiguous same-bar high and low ordering"
+    - "Using an unconfirmed pivot prematurely"
+    ambiguity_notes: "External support/resistance prose does not standardize local BOS or CHoCH definitions."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: market_structure
@@ -720,6 +987,20 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: chart_patterns
+  reference:
+    definition: "A bounded detector catalog for reversal and consolidation geometry."
+    purpose: "Keep recognized patterns and unsupported variants distinguishable."
+    origin_or_school: "Classical chart analysis"
+    standardization_status: LOCAL_IMPLEMENTATION
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "Shape suggests a hypothesis; confirmation determines observed breakout direction."
+    timeframe_semantics: "Pattern evidence uses closed bars and explicit expiry."
+    known_failure_modes:
+    - "False breakouts"
+    - "Incomplete formation"
+    ambiguity_notes: "Named source families do not imply every variant has a detector."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: chart_patterns
@@ -1066,6 +1347,19 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: trendline_flowing
+  reference:
+    definition: "An alias to the canonical dynamic trend-geometry capability."
+    purpose: "Reuse trend lines and lifecycle context without a second detector."
+    origin_or_school: "AI4Binance terminology mapping"
+    standardization_status: LOCAL_IMPLEMENTATION
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "Inherits canonical trend context and its limits."
+    timeframe_semantics: "Uses the same closed-bar observations as trend_geometry."
+    known_failure_modes:
+    - "Duplicating the same evidence as independent confirmation"
+    ambiguity_notes: "The alias is not a separately standardized school."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: trendline_flowing
@@ -1090,6 +1384,20 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: elliott_waves
+  reference:
+    definition: "A local impulse hypothesis over six confirmed alternating pivots."
+    purpose: "Expose the observed count and unresolved degree/correction context."
+    origin_or_school: "Elliott Wave Principle"
+    standardization_status: LOCAL_IMPLEMENTATION
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "Mirrored impulse geometry supplies a hypothesis, not an independent entry."
+    timeframe_semantics: "Pivot confirmation governs when a count becomes observable."
+    known_failure_modes:
+    - "Unresolved wave degree"
+    - "Alternative counts after later structure"
+    ambiguity_notes: "Subwave subdivisions are not established; local non-overlap remains stricter than the cited Futures exception."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: elliott_waves
@@ -1268,6 +1576,20 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: fibonacci
+  reference:
+    definition: "Retracement and extension levels from the latest confirmed alternating swing pair."
+    purpose: "Provide neutral structural confluence."
+    origin_or_school: "Fibonacci ratio analysis"
+    standardization_status: LOCAL_IMPLEMENTATION
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "Always neutral context; proximity does not select a trade direction."
+    timeframe_semantics: "Anchors must already be available at the observation time."
+    known_failure_modes:
+    - "Anchor sensitivity"
+    - "Interpreting a nearby level as reversal confirmation"
+    ambiguity_notes: "The midpoint is conventional; ratio and extension conventions are explicit local choices."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: fibonacci
@@ -1359,6 +1681,20 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: harmonic_patterns
+  reference:
+    definition: "A bounded XABCD detector for Gartley and Bat candidates."
+    purpose: "Record leg geometry and a potential reversal zone."
+    origin_or_school: "Harmonic Trading"
+    standardization_status: LOCAL_IMPLEMENTATION
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "A potential reversal remains unconfirmed until separate evidence supports it."
+    timeframe_semantics: "Five alternating confirmed pivots define the observed geometry."
+    known_failure_modes:
+    - "Ratio sensitivity"
+    - "A potential reversal zone failing"
+    ambiguity_notes: "Other named families remain catalog-only; numerical tolerances are local."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: harmonic_patterns
@@ -1382,6 +1718,20 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: harmonic_patterns.gartley
+  reference:
+    definition: "The local Gartley branch of the confirmed XABCD detector."
+    purpose: "Identify a named geometry without widening trading authority."
+    origin_or_school: "Harmonic Trading; local detector variant"
+    standardization_status: LOCAL_IMPLEMENTATION
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "The returned orientation is a hypothesis."
+    timeframe_semantics: "Uses the latest confirmed alternating pivot sequence."
+    known_failure_modes:
+    - "Incomplete pattern-specific source verification"
+    - "Sensitivity to pivot selection"
+    ambiguity_notes: "The family index is not a complete Gartley specification; exact source-rule correspondence remains unverified."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: harmonic_patterns
@@ -1405,6 +1755,20 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: harmonic_patterns.bat
+  reference:
+    definition: "The local Bat branch of the confirmed XABCD detector."
+    purpose: "Describe a bounded terminal retracement candidate."
+    origin_or_school: "Scott Carney harmonic method"
+    standardization_status: LOCAL_IMPLEMENTATION
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "The potential reversal zone is not a confirmation."
+    timeframe_semantics: "The full local pivot sequence must be confirmed."
+    known_failure_modes:
+    - "Price passing through the reversal zone"
+    - "Local tolerance dependence"
+    ambiguity_notes: "The implemented B range is narrower than the originator's broader permitted range."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: harmonic_patterns
@@ -1597,6 +1961,20 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: support_resistance
+  reference:
+    definition: "Shared structural zones from confirmed pivot clusters or rolling extrema."
+    purpose: "Locate contextual barriers and structural invalidation references."
+    origin_or_school: "Classical support/resistance"
+    standardization_status: LOCAL_IMPLEMENTATION
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "Support and resistance depend on location relative to price."
+    timeframe_semantics: "The map uses snapshot-matched, closed-bar evidence."
+    known_failure_modes:
+    - "False precision from treating zones as exact points"
+    - "Repeated tests exhausting a level"
+    ambiguity_notes: "ATR zone widths and clustering are local; no guaranteed reaction is asserted."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: support_resistance
@@ -1620,6 +1998,20 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: formations
+  reference:
+    definition: "Canonical candle geometry plus an umbrella link to chart patterns."
+    purpose: "Describe bodies, wicks and selected local labels without duplicating detectors."
+    origin_or_school: "Candlestick and classical chart analysis"
+    standardization_status: LOCAL_IMPLEMENTATION
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "Geometry describes price behavior; labels do not independently establish a reversal."
+    timeframe_semantics: "The analyzer consumes a closed-candle sequence."
+    known_failure_modes:
+    - "Ignoring preceding structure"
+    - "Confusing rejection geometry with a fully specified hammer"
+    ambiguity_notes: "Local thresholds differ from TA-Lib configurable settings; the catalog is not exhaustive."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: formations
@@ -1632,6 +2024,9 @@ methods:
   source_ids:
   - reference-01
   - implementation-01
+  - reference-10
+  - reference-11
+  - reference-12
   input_requirements:
   - CLOSED_BAR_ASOF_EVIDENCE
   markets:
@@ -1670,6 +2065,20 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: price_action
+  reference:
+    definition: "Opposite-color two-candle body engulfing observations from canonical geometry."
+    purpose: "Aggregate available timeframe observations for advisory context."
+    origin_or_school: "Candlestick analysis; local inclusive containment variant"
+    standardization_status: LOCAL_IMPLEMENTATION
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "Candle direction determines the advisory vote."
+    timeframe_semantics: "Each contributing timeframe retains its own candle geometry."
+    known_failure_modes:
+    - "Absent preceding-trend verification"
+    - "Opposing higher-timeframe context"
+    ambiguity_notes: "Both equal endpoints are permitted locally; TA-Lib's separate endpoint convention is not adopted."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: formations
@@ -1681,6 +2090,8 @@ methods:
   - price_action.implementation
   source_ids:
   - implementation-07
+  - reference-10
+  - reference-11
   input_requirements:
   - CLOSED_BAR_ASOF_EVIDENCE
   markets:
@@ -1692,6 +2103,19 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: dow_theory.primary_secondary_minor_trend
+  reference:
+    definition: "A catalog reference for distinguishing trend horizons."
+    purpose: "Keep historical trend concepts separate from local detector coverage."
+    origin_or_school: "Dow Theory interpretations"
+    standardization_status: SOURCE_SPECIFIC
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "No local directional output is implemented."
+    timeframe_semantics: "Historical duration conventions vary; none is imposed on Binance bars."
+    known_failure_modes:
+    - "Misclassifying a correction as a primary reversal"
+    ambiguity_notes: "Author-specific numerical thresholds are not universal definitions."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: dow_theory
@@ -1700,7 +2124,8 @@ methods:
   module: null
   owner: null
   rule_ids: []
-  source_ids: []
+  source_ids:
+  - reference-14
   input_requirements:
   - SOURCE_AND_RULE_RESEARCH_REQUIRED
   markets:
@@ -1712,6 +2137,19 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: dow_theory.confirmation
+  reference:
+    definition: "A catalog reference for confirmation across related averages."
+    purpose: "Record a methodological requirement before selecting market proxies."
+    origin_or_school: "Dow Theory interpretations"
+    standardization_status: SOURCE_SPECIFIC
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "No local trade signal is generated."
+    timeframe_semantics: "Joint confirmation requires aligned observations; the local mapping is unresolved."
+    known_failure_modes:
+    - "Choosing unrelated confirmation series"
+    ambiguity_notes: "A Binance cross-market confirmation mapping has not been validated."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: dow_theory
@@ -1720,7 +2158,8 @@ methods:
   module: null
   owner: null
   rule_ids: []
-  source_ids: []
+  source_ids:
+  - reference-14
   input_requirements:
   - SOURCE_AND_RULE_RESEARCH_REQUIRED
   markets:
@@ -1732,6 +2171,20 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: wyckoff
+  reference:
+    definition: "A volume-conditioned range-sweep proxy producing spring or upthrust labels."
+    purpose: "Expose limited event context without inferring a full phase sequence."
+    origin_or_school: "Wyckoff method; local proxy"
+    standardization_status: LOCAL_IMPLEMENTATION
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "A reclaimed lower boundary or rejected upper boundary supplies the proxy orientation."
+    timeframe_semantics: "The implementation uses a bounded preceding candle window."
+    known_failure_modes:
+    - "A sweep without a valid phase context"
+    - "Missing lower-volume source variants"
+    ambiguity_notes: "Full phases, cause/effect counts and participant intentions are not inferred."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: wyckoff
@@ -1743,6 +2196,7 @@ methods:
   - wyckoff.implementation
   source_ids:
   - implementation-08
+  - reference-13
   input_requirements:
   - CLOSED_BAR_ASOF_EVIDENCE
   markets:
@@ -1754,6 +2208,19 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: wyckoff.phases_a_to_e
+  reference:
+    definition: "A catalog of accumulation and distribution phase interpretations."
+    purpose: "Distinguish phase hypotheses from single detected events."
+    origin_or_school: "Wyckoff method"
+    standardization_status: SOURCE_SPECIFIC
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "No phase-derived direction is implemented."
+    timeframe_semantics: "Phase duration and event ordering require separate research."
+    known_failure_modes:
+    - "Forcing every schematic to contain a spring or UTAD"
+    ambiguity_notes: "Optional events and differing schematics prevent one universal sequence."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: wyckoff
@@ -1762,7 +2229,8 @@ methods:
   module: null
   owner: null
   rule_ids: []
-  source_ids: []
+  source_ids:
+  - reference-13
   input_requirements:
   - SOURCE_AND_RULE_RESEARCH_REQUIRED
   markets:
@@ -1774,6 +2242,19 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: wyckoff.cause_and_effect
+  reference:
+    definition: "A catalog reference to Point-and-Figure range counts and objectives."
+    purpose: "Separate count methodology from the existing sweep proxy."
+    origin_or_school: "Wyckoff method"
+    standardization_status: SOURCE_SPECIFIC
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "No projected target is implemented."
+    timeframe_semantics: "Count phases are distinct from phase labels A through E."
+    known_failure_modes:
+    - "Treating a projection as an exact reversal point"
+    ambiguity_notes: "Count construction and parameter selection remain unimplemented."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: wyckoff
@@ -1782,7 +2263,8 @@ methods:
   module: null
   owner: null
   rule_ids: []
-  source_ids: []
+  source_ids:
+  - reference-13
   input_requirements:
   - SOURCE_AND_RULE_RESEARCH_REQUIRED
   markets:
@@ -1794,6 +2276,19 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: wyckoff.effort_and_result
+  reference:
+    definition: "A catalog reference to comparing volume with price movement."
+    purpose: "Scope future price-volume interpretation research."
+    origin_or_school: "Wyckoff method"
+    standardization_status: SOURCE_SPECIFIC
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "No independent directional output is implemented."
+    timeframe_semantics: "Comparisons require aligned windows and consistent volume semantics."
+    known_failure_modes:
+    - "Mixing incompatible volume measures"
+    ambiguity_notes: "The present sweep proxy does not implement the complete method."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: wyckoff
@@ -1802,7 +2297,8 @@ methods:
   module: null
   owner: null
   rule_ids: []
-  source_ids: []
+  source_ids:
+  - reference-13
   input_requirements:
   - SOURCE_AND_RULE_RESEARCH_REQUIRED
   markets:
@@ -1814,6 +2310,19 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: alternative_charting.point_and_figure
+  reference:
+    definition: "Price-movement columns represented by rising and falling marks."
+    purpose: "Catalog an alternative representation for future evaluation."
+    origin_or_school: "Point-and-Figure charting"
+    standardization_status: SOURCE_SPECIFIC
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "Column orientation is not execution permission."
+    timeframe_semantics: "Construction depends on price changes and source sampling."
+    known_failure_modes:
+    - "Treating transformed values as executable prices"
+    ambiguity_notes: "No local transformer or box/reversal convention is implemented."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: alternative_charting
@@ -1822,7 +2331,8 @@ methods:
   module: null
   owner: null
   rule_ids: []
-  source_ids: []
+  source_ids:
+  - reference-15
   input_requirements:
   - SOURCE_AND_RULE_RESEARCH_REQUIRED
   markets:
@@ -1834,6 +2344,20 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: alternative_charting.renko
+  reference:
+    definition: "Price-movement bricks using an explicit size convention."
+    purpose: "Catalog a transformed chart independently of native candles."
+    origin_or_school: "Renko charting"
+    standardization_status: SOURCE_SPECIFIC
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "Brick direction is descriptive."
+    timeframe_semantics: "Brick formation and transient projections differ from native interval closure."
+    known_failure_modes:
+    - "Projection disappearance"
+    - "Sizing-method repainting"
+    ambiguity_notes: "Fixed, ATR and percentage variants require separate provenance."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: alternative_charting
@@ -1842,7 +2366,9 @@ methods:
   module: null
   owner: null
   rule_ids: []
-  source_ids: []
+  source_ids:
+  - reference-15
+  - reference-16
   input_requirements:
   - SOURCE_AND_RULE_RESEARCH_REQUIRED
   markets:
@@ -1854,6 +2380,19 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: alternative_charting.kagi
+  reference:
+    definition: "A continuous line whose direction changes after a configured price movement."
+    purpose: "Catalog a threshold-based representation."
+    origin_or_school: "Kagi charting"
+    standardization_status: SOURCE_SPECIFIC
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "Line direction supplies no local signal."
+    timeframe_semantics: "Input resolution affects the approximation."
+    known_failure_modes:
+    - "Unspecified reversal threshold"
+    ambiguity_notes: "No local transformer or parameter convention is implemented."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: alternative_charting
@@ -1862,7 +2401,8 @@ methods:
   module: null
   owner: null
   rule_ids: []
-  source_ids: []
+  source_ids:
+  - reference-15
   input_requirements:
   - SOURCE_AND_RULE_RESEARCH_REQUIRED
   markets:
@@ -1874,6 +2414,19 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: alternative_charting.three_line_break
+  reference:
+    definition: "Price-change boxes governed by a line-break setting."
+    purpose: "Catalog a non-standard chart representation."
+    origin_or_school: "Line Break charting"
+    standardization_status: SOURCE_SPECIFIC
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "Box orientation supplies no local signal."
+    timeframe_semantics: "Construction depends on sampled price changes."
+    known_failure_modes:
+    - "Unspecified construction convention"
+    ambiguity_notes: "The named three-line variant requires a separately verified local specification."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: alternative_charting
@@ -1882,7 +2435,8 @@ methods:
   module: null
   owner: null
   rule_ids: []
-  source_ids: []
+  source_ids:
+  - reference-15
   input_requirements:
   - SOURCE_AND_RULE_RESEARCH_REQUIRED
   markets:
@@ -1894,6 +2448,19 @@ methods:
   oos_status: METHOD_LEVEL_OOS_NOT_VERIFIED
   governance_status: RESEARCH_ONLY
 - method_id: alternative_charting.heikin_ashi
+  reference:
+    definition: "Averaged synthetic candle values derived from real OHLC."
+    purpose: "Catalog a smoothed visual representation."
+    origin_or_school: "Heikin-Ashi charting"
+    standardization_status: SOURCE_SPECIFIC
+    market_context:
+    - SPOT research context
+    - USD_M_FUTURES research context
+    direction_semantics: "Visual candle direction is not an executable price signal."
+    timeframe_semantics: "Current and preceding bars contribute to the transformation."
+    known_failure_modes:
+    - "Using synthetic prices for simulated fills"
+    ambiguity_notes: "The repository has no admitted local transformer for this entry."
   version: 1.0.0
   rule_set_version: 1.0.0
   family: alternative_charting
@@ -1902,7 +2469,8 @@ methods:
   module: null
   owner: null
   rule_ids: []
-  source_ids: []
+  source_ids:
+  - reference-15
   input_requirements:
   - SOURCE_AND_RULE_RESEARCH_REQUIRED
   markets:
@@ -3205,3 +3773,31 @@ source_reviews:
     definitions.
   implementation_consequence: A family index is not proof that every variant is implemented. Preserve
     individual catalog-only entries and pattern-specific source bindings.
+- source_id: reference-10
+  reviewed_at: '2026-09-27T03:13:46Z'
+  finding: Candles summarize period OHLC using bodies and wicks; time and trade-count sampling answer different questions.
+  implementation_consequence: Separate geometric descriptions from reversal context and keep native timeframe provenance.
+- source_id: reference-11
+  reviewed_at: '2026-09-27T03:13:46Z'
+  finding: TA-Lib matches opposite-color bodies and distinguishes strict engulfing from one matching endpoint; preceding trend is not checked.
+  implementation_consequence: Document local inclusive endpoint matching separately; neither match integers nor local scores are probabilities.
+- source_id: reference-12
+  reviewed_at: '2026-09-27T03:13:46Z'
+  finding: TA-Lib hammer geometry uses configurable relative candle settings and proximity to the prior low.
+  implementation_consequence: Use this as a comparison only; the local rejection label does not claim a complete hammer detector.
+- source_id: reference-13
+  reviewed_at: '2026-09-27T03:13:46Z'
+  finding: Wyckoff separates events, phases and Point-and-Figure counts; spring and UTAD are optional schematic elements.
+  implementation_consequence: Retain the local high-volume sweep proxy label; do not infer full phases or institutional intent from one event.
+- source_id: reference-14
+  reviewed_at: '2026-09-27T03:13:46Z'
+  finding: Dow interpretations distinguish primary and secondary moves with cross-average confirmation and differing duration conventions.
+  implementation_consequence: Retain catalog status; author thresholds and equity-average relationships do not establish Binance calibration.
+- source_id: reference-15
+  reviewed_at: '2026-09-27T03:13:46Z'
+  finding: Transformed chart values differ from market prices; lower-timeframe construction approximates tick-derived bars.
+  implementation_consequence: Retain catalog status and require transform provenance plus actual market prices for any future execution simulation.
+- source_id: reference-16
+  reviewed_at: '2026-09-27T03:13:46Z'
+  finding: Renko sizing methods and transient projection bricks have different historical behavior.
+  implementation_consequence: Require explicit box-size method, source resolution and closed-interval policy before implementing a transformer.

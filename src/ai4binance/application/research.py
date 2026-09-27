@@ -38,6 +38,7 @@ from ai4binance.application.services.virtual_runtime import (
 from ai4binance.application.virtual_runtime_eligibility import (
     evaluate_virtual_simulation_eligibility,
 )
+from ai4binance.core.contracts.execution_surface import ExecutionSurface
 from ai4binance.core.contracts.memory import CompiledCycleContext
 from ai4binance.core.contracts.virtual_governance import (
     DGE_APPROVED_PAPER_ONLY,
@@ -1497,9 +1498,5 @@ def _canonical_sha256(
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _virtual_market_execution_surface() -> Any:
-    execution_authority = __import__(
-        "ai4binance.governance.execution_authority",
-        fromlist=["ExecutionSurface"],
-    )
-    return execution_authority.ExecutionSurface.VIRTUAL_MARKET
+def _virtual_market_execution_surface() -> ExecutionSurface:
+    return ExecutionSurface.VIRTUAL_MARKET

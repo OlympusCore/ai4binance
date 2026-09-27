@@ -7,30 +7,33 @@ import sys
 app = Path(__file__).resolve().parent
 fragment = Path(sys.argv[1]).read_text(encoding="utf-8")
 css = re.search(r"<style>([\s\S]*?)</style>", fragment).group(1)
-js = re.search(r"<script>([\s\S]*?)</script>", fragment).group(1)
 interface_root = Path(sys.argv[2]) if len(sys.argv) > 2 else app
-interface_source = (interface_root / "command_center.ts").read_text(encoding="utf-8")
-compiled = subprocess.run(
-    ["node", "--input-type=module", "-e",
-     "import {stripTypeScriptTypes} from 'node:module';"
-     "let source='';for await(const part of process.stdin)source+=part;"
-     "process.stdout.write(stripTypeScriptTypes(source));"],
-    input=interface_source, text=True, encoding="utf-8", capture_output=True,
-    check=True, timeout=30,
-)
+def compile_interface(name):
+    source = (interface_root / name).read_text(encoding="utf-8")
+    return subprocess.run(
+        ["node", "--input-type=module", "-e",
+         "import {stripTypeScriptTypes} from 'node:module';"
+         "let source='';for await(const part of process.stdin)source+=part;"
+         "process.stdout.write(stripTypeScriptTypes(source));"],
+        input=source, text=True, encoding="utf-8", capture_output=True,
+        check=True, timeout=30,
+    ).stdout
+
+js = compile_interface("dashboard_shell.ts")
+compiled = compile_interface("command_center.ts")
 css += "\n" + (interface_root / "command_center.css").read_text(encoding="utf-8")
 markup = re.sub(r"<style>[\s\S]*?</style>|<script>[\s\S]*?</script>", "", fragment).strip()
 markup = markup.replace('<span class="aw-zone">Europe/Istanbul</span>', '<span class="aw-zone">Europe/Istanbul</span><button type="button" id="aw-mode" class="aw-button">Design example</button>')
 js = js.replace("hideBalances:false", "hideBalances:true,mode:'local'")
 assert js.count("language:'tr'") == 1
 js = js.replace("language:'tr'", "language:'en'", 1)
-js = js.replace("  function render(){", (app / "local_views.js").read_text(encoding="utf-8") + "\n" + compiled.stdout + "\n  function render(){\n    prepareCommandRender();\n    const commandFocus=captureCommandView();")
-selection = "({overview,opportunities:opportunityPage,research:researchPage,news:newsPage,recommendations:recommendationsPage,'virtual-market':virtualPage,'binance-wallet':binancePage,kaizen:kaizenPage,evidence:evidencePage})[state.page](content);"
+js = js.replace("  function render(){", (app / "local_views.js").read_text(encoding="utf-8") + "\n" + compiled + "\n  function render(){\n    prepareCommandRender();\n    const commandFocus=captureCommandView();")
+selection = "(pageRenderers[state.page] ?? overview)(content);"
 assert selection in js
 js = js.replace(selection, "if(state.mode==='local'){if(!renderCommandCenter(content))renderLocal(content);}else{" + selection + "}")
 js = js.replace("    if(focusTarget)focusTarget.focus({preventScroll:true});", "    if(focusTarget)focusTarget.focus({preventScroll:true});\n    enhanceCommandShell(commandFocus);\n    root.querySelector('#aw-mode').textContent=state.mode==='local'?t('Design example','Tasarım örneği'):t('Local data','Yerel veriler');\n    if(state.mode==='local'){root.querySelector('#aw-demo').textContent=t('Local data · Read only','Yerel veriler · Salt okunur');root.querySelector('#aw-footnote').textContent=t('Refresh: 30 seconds · ','Yenileme: 30 saniye · ')+observedTime(localData?.generated_at);}")
 js = re.sub(r"  if\(globalThis.Tweak\)\{[^\n]+\}\n", "", js)
-final_render = "  render();\n})();"
+final_render = "  render();\n\n})();"
 assert final_render in js
 js = js.replace(final_render, "  root.querySelector('#aw-mode').addEventListener('click',()=>{state.mode=state.mode==='local'?'sample':'local';render();});\n  render();\n  pollLocal();\n})();", 1)
 document = '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI4Binance Dashboard</title><link rel="stylesheet" href="/app.css"><script src="/lucide.js" defer></script><script src="/app.js" defer></script></head><body>\n' + markup + '\n</body></html>\n'

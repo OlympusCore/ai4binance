@@ -64,7 +64,9 @@ def event() -> EventObservation:
 
 def test_source_review_and_manual_are_deterministic_not_implementation_claims() -> None:
     registry = current_method_registry()
-    assert len(registry.source_reviews) == 9
+    assert {review.source_id for review in registry.source_reviews} >= {
+        f"reference-{index:02d}" for index in range(1, 10)
+    }
     assert all(
         rule.applicability and rule.tolerance_policy and rule.ambiguity
         for rule in registry.rules
@@ -75,6 +77,36 @@ def test_source_review_and_manual_are_deterministic_not_implementation_claims() 
     assert "CATALOG_ONLY" in manual
     assert "METHOD_LEVEL_OOS_NOT_VERIFIED" in manual
     assert all(method.method_id in manual for method in registry.methods)
+    assert "## Method interactions" in manual
+    assert "statistical independence: NOT_MEASURED" in manual
+    assert "## Source provenance" in manual
+    assert all(f"[{rule.rule_type}]" in manual for rule in registry.rules)
+    assert all(
+        f"{alias.alias} ({alias.context})" in manual for alias in registry.aliases
+    )
+
+
+def test_manual_preserves_source_conflicts_and_unimplemented_scope() -> None:
+    registry = current_method_registry()
+    manual = render_reference_manual(registry)
+    for method in registry.methods:
+        if method.reference is not None:
+            assert method.reference.ambiguity_notes in manual
+            assert all(
+                failure in manual for failure in method.reference.known_failure_modes
+            )
+        if method.implementation_status == "CATALOG_ONLY":
+            assert method.module is None
+            assert method.owner is None
+    for source in registry.sources:
+        if source.bibliography is not None:
+            assert source.bibliography.conflict_notes in manual
+            assert source.bibliography.licensing_notes in manual
+        if source.source_type == "EXTERNAL_REFERENCE":
+            assert source.content_sha256 is None
+            assert source.verification == "REFERENCE_ONLY"
+    assert "Detailed reference definition: NOT_VERIFIED" in manual
+    assert "content SHA-256: NOT_ARCHIVED" in manual
 
 
 def test_rejected_opposition_and_blockers_are_retained() -> None:

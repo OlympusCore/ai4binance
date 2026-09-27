@@ -5,12 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-
-class ExecutionSurface(StrEnum):
-    """Canonical execution surfaces with distinct authority envelopes."""
-
-    BINANCE_MARKET = "BINANCE_MARKET"
-    VIRTUAL_MARKET = "VIRTUAL_MARKET"
+from ai4binance.core.contracts.execution_surface import (
+    ExecutionSurface as ExecutionSurface,
+)
 
 
 class ExecutionAutomationMode(StrEnum):

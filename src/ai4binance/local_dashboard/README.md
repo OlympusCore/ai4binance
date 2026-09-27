@@ -13,6 +13,8 @@ with source and deployment SHA-256 records.
 ## Command center presentation
 
 `frontend/src/command_center.ts` owns the incremental human-interface adapter;
+`frontend/src/dashboard_shell.ts` owns the navigation and labelled design preview.
+The HTML source contains presentation markup and CSS only.
 `frontend/src/command_center.css` extends the existing semantic tokens. Packaging
 requires an existing Node.js runtime with `node:module.stripTypeScriptTypes`
 (validated with Node 24). No frontend framework or runtime dependency is added.

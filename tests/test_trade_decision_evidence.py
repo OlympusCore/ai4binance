@@ -23,6 +23,7 @@ from ai4binance.research.backtesting import BacktestEngine, BacktestIntent
 from ai4binance.research.backtesting.storage import BacktestAuditWriter
 from ai4binance.storage import JsonlAuditStore
 from ai4binance.strategies.engine import StrategyEngine
+from ai4binance.strategies.registry import build_strategy_risk_profile_registry
 from ai4binance.strategies.rules import historical_playbook_decision
 from ai4binance.validation import ParameterSet
 from tests.test_backtest_engine import NOW, candle, intent
@@ -95,6 +96,7 @@ def test_historical_decision_records_causal_inputs_and_unique_market_identity() 
             symbol=symbol,
             market=market,
             timeframe=timeframe,
+            risk_profile_registry=build_strategy_risk_profile_registry(),
         )
         proposals = [adapter(rows[:n]) for n in range(1, len(rows) + 1)]
         proposal = next(p for p in proposals if p is not None)

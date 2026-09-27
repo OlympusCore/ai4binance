@@ -294,9 +294,9 @@ class FuturesLeverageGovernor:
         if strategy_oos_approved is not True:
             blockers.append("SIMULATED_LEVERAGE_OOS_APPROVAL_MISSING")
         ordered = tuple(sorted(brackets, key=lambda b: b.notional_floor))
-        if not ordered or any(
-            a.notional_cap != b.notional_floor for a, b in pairwise(ordered)
-        ):
+        try:
+            validate_futures_brackets(ordered)
+        except ValueError:
             blockers.append("FUTURES_RISK_BRACKETS_UNAVAILABLE_OR_INCONSISTENT")
         if blockers:
             return StructuralLeverageAssessment(

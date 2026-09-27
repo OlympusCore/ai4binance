@@ -83,7 +83,8 @@ def _replay(
 ) -> tuple[BacktestResult, tuple[ReplayForecast, ...]]:
     interval = timeframe_duration(timeframe)
     registry = build_playbook_registry()
-    profile = HistoricalValidationRuntime().risk_profile_registry.resolve(playbook)
+    risk_profiles = HistoricalValidationRuntime().risk_profile_registry
+    profile = risk_profiles.resolve(playbook)
     parameters = ParameterSet(
         "FROZEN_REGISTRY_DEFAULTS",
         (
@@ -102,6 +103,7 @@ def _replay(
         symbol=symbol,
         timeframe=timeframe,
         regime_classifier=classify_validation_regime,
+        risk_profile_registry=risk_profiles,
     )
     forecasts: list[ReplayForecast] = []
 

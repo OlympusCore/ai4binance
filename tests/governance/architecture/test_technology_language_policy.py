@@ -55,18 +55,15 @@ def test_policy_projection_validates_and_accepts_current_representative_paths() 
         "scripts/quality.ps1",
         "src/ai4binance/local_dashboard/design_source.html",
         "src/ai4binance/local_dashboard/local_views.js",
+        "frontend/src/dashboard_shell.ts",
+        "frontend/src/command_center.ts",
         "src/ai4binance/governance/technology_language_policy.py",
         "tests/governance/architecture/test_technology_language_policy.py",
     )
 
     violations = evaluate_technology_language_policy(ROOT, policy, paths)
 
-    assert [(item.code, item.path) for item in violations] == [
-        (
-            "EMBEDDED_EXECUTABLE_SOURCE",
-            "src/ai4binance/local_dashboard/design_source.html",
-        ),
-    ]
+    assert violations == ()
     assert policy.execution_allowed is False
     assert policy.promotion_status == "RESEARCH_ONLY"
     assert policy.live_eligibility_status == "LIVE_ORDER_BLOCKED"
@@ -86,12 +83,7 @@ def test_legacy_dashboard_assets_are_bounded_by_ui_language_owners() -> None:
         "src/ai4binance/local_dashboard/local_views.js",
     }
     violations = evaluate_technology_language_policy(ROOT, policy, web_sources)
-    assert [(item.code, item.path) for item in violations] == [
-        (
-            "EMBEDDED_EXECUTABLE_SOURCE",
-            "src/ai4binance/local_dashboard/design_source.html",
-        ),
-    ]
+    assert violations == ()
 
 
 def test_policy_blocks_placement_forbidden_ownership_and_research_dependency(
