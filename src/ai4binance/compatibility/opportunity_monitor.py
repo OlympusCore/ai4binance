@@ -304,11 +304,13 @@ def inspect_market_data(
                 blockers.append("DATASET_GAPS")
             row.update(
                 status="STALE" if stale else "INVALID" if blockers else "CURRENT",
+                data_quality=result.data_quality.value,
                 candle_count=len(rows),
                 last_close=last_close.isoformat() if last_close else None,
                 gap_count=manifest.gap_count,
                 window_gap_count=gap_count,
                 checksum_verified=True,
+                quality_warnings=list(result.warnings),
                 source=manifest.source,
                 dataset_sha256=manifest.sha256,
                 total_candles=manifest.row_count,

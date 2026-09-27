@@ -666,6 +666,7 @@ def test_sync_finishes_symbol_streams_and_publishes_durable_progress(
     assert isinstance(spot_coverage, list)
     assert {row["timeframe"] for row in spot_coverage} == set(MARKET_HISTORY_TIMEFRAMES)
     assert all(row["current_count"] == 1 for row in spot_coverage)
+    assert all(row["stale_count"] is None for row in spot_coverage)
     assert all(row["pending_count"] == 0 for row in spot_coverage)
     assert universe_provider.calls == (2 if long_backfill else 1)
 

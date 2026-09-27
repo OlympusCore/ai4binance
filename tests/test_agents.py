@@ -122,6 +122,30 @@ def test_data_quality_agent_blocks_duplicate_stale_and_missing_history() -> None
     assert result.blockers == ("INSUFFICIENT_CANDLES:1h",)
 
 
+def test_data_quality_gate_fails_closed_on_missing_or_old_freshness_evidence() -> None:
+    gate = DataQualityGate(build_default_registry().get("data_quality"))
+
+    missing = gate.evaluate(replace(snapshot(), data_freshness={}))
+    assert missing.status is AgentStatus.BLOCKED
+    assert missing.blockers == ("DATA_FRESHNESS_UNAVAILABLE:1h",)
+
+    old_candles = replace(
+        snapshot(),
+        created_at=NOW + timedelta(hours=4),
+        data_freshness={"1h": {"stale": False}},
+    )
+    stale = gate.evaluate(old_candles)
+    assert stale.status is AgentStatus.BLOCKED
+    assert "STALE_CANDLES:1h" in stale.blockers
+
+    degraded = gate.evaluate(
+        replace(snapshot(), data_quality=DataQuality.DATA_DEGRADED)
+    )
+    assert degraded.status is AgentStatus.PARTIAL
+    assert degraded.data_quality is DataQuality.DATA_DEGRADED
+    assert "SNAPSHOT_DATA_QUALITY_DEGRADED" in degraded.warnings
+
+
 def test_universe_liquidity_agent_blocks_wide_spread_and_missing_filters() -> None:
     registry = build_default_registry()
     data_result = DataQualityAgent(registry.get("data_quality")).run(snapshot(), {})

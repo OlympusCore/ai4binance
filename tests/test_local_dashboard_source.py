@@ -6,8 +6,9 @@ import runpy
 import shutil
 import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -41,7 +42,7 @@ def test_canonical_dashboard_source_builds_deterministic_offline_assets(
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "DASHBOARD_PACKAGE_BUILT"
     assert _sha256(stage / "app.js") == (
-        "1ce6c913f0e3bf0eb5afeda80f7c683096b421ecab81c913a084b87e362ac2ce"
+        "f20d4df3f00f71e1f87bcaca465fde4ffe808196824b5efb0bdebf5e7697d9ef"
     )
     assert _sha256(stage / "app.css") == (
         "d457b4b0bce41e50a9eece8a3dcc0356e90ade6797d7ddaa05ce7fe7d1dc07d1"
@@ -386,3 +387,53 @@ def test_dashboard_rejects_auto_audit_artifact_with_execution_authority(
 
     assert meta["status"] == "INVALID"
     assert data == {}
+
+
+def test_market_quality_projection_validates_collector_age_and_counts(
+    tmp_path: Path,
+) -> None:
+    module = runpy.run_path(str(SOURCE / "market_views.py.in"))
+    project = module["universe_view"]
+    now = datetime(2026, 9, 28, 12, tzinfo=UTC)
+    state_path = tmp_path / "runtime/state/market-history-latest.json"
+    state_path.parent.mkdir(parents=True)
+    state = {
+        "observed_at": now.isoformat(),
+        "status": "COLLECTING",
+        "collector_coverage": {
+            "SPOT": [
+                {
+                    "timeframe": timeframe,
+                    "universe_count": 2,
+                    "current_count": 1,
+                    "invalid_count": 0,
+                    "unavailable_count": 0,
+                    "refresh_required_count": 0,
+                    "pending_count": 1,
+                }
+                for timeframe in module["MARKET_TIMEFRAMES"]["SPOT"]
+            ]
+        },
+    }
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    settings = SimpleNamespace(market_history_live_interval_seconds=300)
+
+    current = project(tmp_path, settings, "SPOT", ("BTCUSDT", "ETHUSDT"), now)
+    assert current["quality_status"] == "COLLECTING"
+    assert current["quality"][0]["current_count"] == 1
+    assert current["quality"][0]["pending_count"] == 1
+    assert current["quality"][0]["stale_count"] is None
+    views = (SOURCE / "local_views.js").read_text(encoding="utf-8")
+    assert "Window gaps" in views
+    assert "Dataset gaps" in views
+    assert "Warnings" in views
+    assert "collector_observed_at" in views
+    assert "dataset_sha256" in views
+
+    state["observed_at"] = (now - timedelta(minutes=16)).isoformat()
+    state["status"] = "READY"
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    stale = project(tmp_path, settings, "SPOT", ("BTCUSDT", "ETHUSDT"), now)
+    assert stale["quality_status"] == "DATA_UNAVAILABLE"
+    assert stale["collector_stale"] is True
+    assert stale["quality"][0]["current_count"] is None

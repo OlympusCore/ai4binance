@@ -609,6 +609,42 @@ def test_each_timeframe_has_separate_checksum_verified_quality(tmp_path: Path) -
     assert all(not c.execution_allowed for c in candidates)
 
 
+def test_selected_market_quality_preserves_gate_warnings_and_provenance(
+    tmp_path: Path,
+) -> None:
+    archive = ParquetOHLCVArchive(tmp_path / "archive")
+    duration = TIMEFRAME_DURATIONS["1h"]
+    rows = tuple(
+        OHLCVCandle(
+            timestamp=NOW - duration * offset,
+            open=Decimal(100),
+            high=Decimal(105),
+            low=Decimal(98),
+            close=Decimal(101),
+            volume=Decimal(0) if offset == 2 else Decimal(100),
+        )
+        for offset in (2, 1)
+    )
+    archive.update("BTCUSDT", "1h", rows, source="LOCAL_TEST", generated_at=NOW)
+
+    _, quality = inspect_market_data(
+        archive,
+        market="SPOT",
+        symbol="BTCUSDT",
+        now=NOW,
+        minimum_candles=2,
+        candle_limit=2,
+        timeframes=("1h",),
+    )
+
+    assert quality[0]["status"] == "CURRENT"
+    assert quality[0]["data_quality"] == "DATA_DEGRADED"
+    assert quality[0]["quality_warnings"] == ["ZERO_VOLUME:1h"]
+    assert quality[0]["source"] == "LOCAL_TEST"
+    assert quality[0]["checksum_verified"] is True
+    assert isinstance(quality[0]["dataset_sha256"], str)
+
+
 def test_refresh_monitor_supports_virtual_market_four_timeframe_scope(
     tmp_path: Path,
 ) -> None:

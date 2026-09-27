@@ -1,6 +1,6 @@
 """Core deterministic technical-agent tests."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
 
@@ -11,6 +11,7 @@ from ai4binance.agents.technical import (
     PriceActionAgent,
     build_core_technical_agent,
 )
+from ai4binance.data.timeframes import timeframe_duration
 from ai4binance.domain import Decision
 from ai4binance.schemas import AgentStatus, DataQuality, MarketSnapshot, OHLCVCandle
 
@@ -20,14 +21,16 @@ NOW = datetime(2026, 7, 11, 12, tzinfo=UTC)
 def trend_candles(
     count: int,
     *,
+    timeframe: str,
     direction: int = 1,
 ) -> tuple[OHLCVCandle, ...]:
     rows = []
+    duration = timeframe_duration(timeframe)
     for index in range(count):
         close = Decimal("1") + (Decimal(direction * index) * Decimal("0.002"))
         rows.append(
             OHLCVCandle(
-                timestamp=NOW - timedelta(hours=count - index),
+                timestamp=NOW - duration * (count - index),
                 open=close - (Decimal(direction) * Decimal("0.001")),
                 high=max(close, close - Decimal(direction) * Decimal("0.001"))
                 + Decimal("0.002"),
@@ -42,7 +45,7 @@ def trend_candles(
 
 def technical_snapshot(*, direction: int = 1) -> MarketSnapshot:
     data = {
-        timeframe: trend_candles(60, direction=direction)
+        timeframe: trend_candles(60, timeframe=timeframe, direction=direction)
         for timeframe in ("5m", "15m", "1h", "4h", "1d")
     }
     latest = data["5m"][-1].close

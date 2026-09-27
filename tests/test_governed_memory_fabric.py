@@ -102,7 +102,7 @@ def _intent(intent_id: str = "intent-1") -> MemoryWriteIntent:
 def _candle(index: int) -> OHLCVCandle:
     price = Decimal(index)
     return OHLCVCandle(
-        timestamp=NOW + timedelta(minutes=index),
+        timestamp=NOW + timedelta(hours=index - 1),
         open=price,
         high=price + Decimal("0.2"),
         low=price - Decimal("0.1"),
@@ -114,7 +114,7 @@ def _candle(index: int) -> OHLCVCandle:
 def _market_snapshot() -> MarketSnapshot:
     return MarketSnapshot(
         snapshot_id="market-snapshot-gmf",
-        created_at=NOW + timedelta(minutes=10),
+        created_at=NOW + timedelta(hours=2, minutes=10),
         exchange="Binance",
         market_type="Spot",
         symbol="BTCUSDT",

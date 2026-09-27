@@ -766,7 +766,9 @@ class ContinuousMarketHistory:
                                 "timeframe": timeframe,
                                 "universe_count": expected,
                                 "current_count": counts["CURRENT"],
-                                "stale_count": 0,
+                                # Stream outcomes do not independently classify
+                                # the persisted candle window as stale.
+                                "stale_count": None,
                                 "invalid_count": counts["BLOCKED"],
                                 "unavailable_count": counts["UNAVAILABLE"],
                                 "refresh_required_count": counts["BACKFILLING"],

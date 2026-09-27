@@ -8,6 +8,7 @@ import threading
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
 from ai4binance.application.opportunity_monitor import (
     MARKET_TIMEFRAMES,
@@ -180,9 +181,7 @@ def _generation_health_view(market_projection, market):
         value = market_projection.get(name)
         return (
             value
-            if isinstance(value, int)
-            and not isinstance(value, bool)
-            and value >= 0
+            if isinstance(value, int) and not isinstance(value, bool) and value >= 0
             else 0
         )
 
@@ -252,7 +251,7 @@ def _generation_health_view(market_projection, market):
 
 
 def universe_view(root, settings, market, symbols, now):
-    """Return a bounded collector-state projection without archive traversal."""
+    """Project bounded collector evidence without inferring candle freshness."""
     path = root / "runtime/state/market-history-latest.json"
     state = {}
     try:
@@ -263,12 +262,22 @@ def universe_view(root, settings, market, symbols, now):
             raise ValueError("MARKET_HISTORY_STATE_INVALID")
     except (OSError, ValueError, TypeError, json.JSONDecodeError):
         state = {}
-    universe_count = state.get(
-        "spot_universe_count" if market == "SPOT" else "futures_universe_count",
-        len(symbols),
-    )
-    if not isinstance(universe_count, int) or universe_count < 0:
-        universe_count = len(symbols)
+    universe_count = len(symbols)
+    collector_observed_at = state.get("observed_at")
+    collector_stale = True
+    if isinstance(collector_observed_at, str):
+        try:
+            observed = datetime.fromisoformat(
+                collector_observed_at.replace("Z", "+00:00")
+            )
+            if observed.utcoffset() is None:
+                raise ValueError("MARKET_HISTORY_TIMESTAMP_NOT_AWARE")
+            age = (now - observed.astimezone(UTC)).total_seconds()
+            collector_stale = (
+                age < 0 or age > settings.market_history_live_interval_seconds * 3
+            )
+        except (ValueError, TypeError, OverflowError):
+            collector_stale = True
     collector_coverage = state.get("collector_coverage")
     if not isinstance(collector_coverage, dict):
         collector_coverage = {}
@@ -307,36 +316,86 @@ def universe_view(root, settings, market, symbols, now):
     projection_status = market_projection.get("status", "ANALYSIS_PENDING")
     if not isinstance(projection_status, str):
         projection_status = "ANALYSIS_PENDING"
+    quality_rows = []
+    for timeframe in MARKET_TIMEFRAMES[market]:
+        collector_row = coverage_by_timeframe.get(timeframe, {})
+        expected = collector_row.get("universe_count")
+        count_fields = {
+            "current_count": collector_row.get("current_count"),
+            "invalid_count": collector_row.get("invalid_count"),
+            "unavailable_count": collector_row.get("unavailable_count"),
+            "refresh_required_count": collector_row.get("refresh_required_count"),
+            "pending_count": collector_row.get("pending_count"),
+        }
+        complete_counts = (
+            isinstance(expected, int)
+            and not isinstance(expected, bool)
+            and expected == universe_count
+            and all(
+                isinstance(value, int)
+                and not isinstance(value, bool)
+                and 0 <= value <= expected
+                for value in count_fields.values()
+            )
+            and sum(cast(int, value) for value in count_fields.values()) == expected
+        )
+        if not symbols or collector_stale or not complete_counts:
+            quality_rows.append(
+                {
+                    "timeframe": timeframe,
+                    "universe_count": expected if complete_counts else None,
+                    "current_count": None,
+                    "stale_count": None,
+                    "invalid_count": None,
+                    "unavailable_count": None,
+                    "refresh_required_count": None,
+                    "pending_count": None,
+                }
+            )
+            continue
+        quality_rows.append(
+            {
+                "timeframe": timeframe,
+                "universe_count": expected,
+                **count_fields,
+                # Collector coverage counts stream outcomes; stale candles are
+                # not independently classified by that aggregate.
+                "stale_count": None,
+            }
+        )
+    quality_summary_status = (
+        "DATA_UNAVAILABLE"
+        if (
+            not symbols
+            or collector_stale
+            or not coverage_by_timeframe
+            or any(row.get("current_count") is None for row in quality_rows)
+            or state.get("status") == "UNAVAILABLE"
+        )
+        else "DEGRADED"
+        if state.get("status") == "DEGRADED"
+        or any(
+            row.get(name) not in (0, None)
+            for row in quality_rows
+            for name in ("invalid_count", "unavailable_count")
+        )
+        else "COLLECTING"
+        if state.get("status") == "COLLECTING"
+        or any(
+            row.get("pending_count", 0) or row.get("refresh_required_count", 0)
+            for row in quality_rows
+        )
+        else "CURRENT"
+    )
     return {
-        "generated_at": state.get("observed_at"),
+        "generated_at": now.isoformat(),
+        "collector_observed_at": collector_observed_at,
+        "collector_stale": collector_stale,
         "market": market,
         "universe_count": universe_count,
         "status": state.get("status", "UNAVAILABLE"),
-        "quality": [
-            {
-                "timeframe": timeframe,
-                "universe_count": universe_count,
-                "current_count": coverage_by_timeframe.get(timeframe, {}).get(
-                    "current_count"
-                ),
-                "stale_count": coverage_by_timeframe.get(timeframe, {}).get(
-                    "stale_count"
-                ),
-                "invalid_count": coverage_by_timeframe.get(timeframe, {}).get(
-                    "invalid_count"
-                ),
-                "unavailable_count": coverage_by_timeframe.get(timeframe, {}).get(
-                    "unavailable_count"
-                ),
-                "refresh_required_count": coverage_by_timeframe.get(
-                    timeframe, {}
-                ).get("refresh_required_count"),
-                "pending_count": coverage_by_timeframe.get(timeframe, {}).get(
-                    "pending_count"
-                ),
-            }
-            for timeframe in MARKET_TIMEFRAMES[market]
-        ],
+        "quality_status": quality_summary_status,
+        "quality": quality_rows,
         "opportunity_coverage": {
             "monitored_symbol_count": monitored_symbols
             if isinstance(monitored_symbols, int) and monitored_symbols >= 0
@@ -424,7 +483,9 @@ def start(config, market, symbol):
         if active:
             return {
                 **active,
-                "state": active["state"] if key in JOBS and JOBS[key] is active else "BUSY",
+                "state": active["state"]
+                if key in JOBS and JOBS[key] is active
+                else "BUSY",
             }
         previous = JOBS.get(key)
         now = datetime.now(UTC)

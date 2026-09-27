@@ -8,11 +8,13 @@ from decimal import Decimal
 from itertools import pairwise
 
 from ai4binance.agents.registry import AgentDefinition, AgentStage
+from ai4binance.data.timeframes import timeframe_duration
 from ai4binance.schemas import (
     AgentResult,
     AgentStatus,
     DataQuality,
     MarketSnapshot,
+    OHLCVCandle,
     OOSValidationStatus,
 )
 
@@ -55,6 +57,8 @@ class DataQualityGate:
 
         if snapshot.data_quality is DataQuality.DATA_INVALID:
             blockers.append("SNAPSHOT_DATA_QUALITY_INVALID")
+        elif snapshot.data_quality is DataQuality.DATA_DEGRADED:
+            warnings.append("SNAPSHOT_DATA_QUALITY_DEGRADED")
 
         for timeframe in snapshot.timeframes:
             candles = tuple(snapshot.ohlcv_by_timeframe.get(timeframe, ()))
@@ -71,9 +75,7 @@ class DataQualityGate:
                 blockers.append(f"FUTURE_CANDLE:{timeframe}")
             if any(candle.volume == Decimal("0") for candle in candles):
                 warnings.append(f"ZERO_VOLUME:{timeframe}")
-            freshness = snapshot.data_freshness.get(timeframe)
-            if isinstance(freshness, Mapping) and freshness.get("stale") is True:
-                blockers.append(f"STALE_CANDLES:{timeframe}")
+            blockers.extend(self._freshness_blockers(snapshot, timeframe, candles))
 
         unique_blockers = tuple(dict.fromkeys(blockers))
         unique_warnings = tuple(dict.fromkeys(warnings))
@@ -109,6 +111,33 @@ class DataQualityGate:
             ),
             calculation_metadata={"candle_counts": candle_counts},
         )
+
+    @staticmethod
+    def _freshness_blockers(
+        snapshot: MarketSnapshot,
+        timeframe: str,
+        candles: tuple[OHLCVCandle, ...],
+    ) -> tuple[str, ...]:
+        """Validate freshness evidence and closed-candle age for one stream."""
+        blockers: list[str] = []
+        freshness = snapshot.data_freshness.get(timeframe)
+        if not isinstance(freshness, Mapping) or not isinstance(
+            freshness.get("stale"), bool
+        ):
+            blockers.append(f"DATA_FRESHNESS_UNAVAILABLE:{timeframe}")
+        elif freshness.get("stale"):
+            blockers.append(f"STALE_CANDLES:{timeframe}")
+        try:
+            duration = timeframe_duration(timeframe)
+        except ValueError:
+            blockers.append(f"UNSUPPORTED_TIMEFRAME:{timeframe}")
+            return tuple(blockers)
+        last_close = candles[-1].timestamp + duration
+        if last_close > snapshot.created_at:
+            blockers.append(f"FUTURE_CANDLE_CLOSE:{timeframe}")
+        elif snapshot.created_at - last_close > duration * 2:
+            blockers.append(f"STALE_CANDLES:{timeframe}")
+        return tuple(blockers)
 
     def _result(
         self,
