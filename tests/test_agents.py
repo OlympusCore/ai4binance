@@ -4,7 +4,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any, TypedDict, cast
 
 import pytest
 
@@ -36,6 +36,17 @@ from ai4binance.schemas import (
 from tests.test_technical_agents import technical_snapshot
 
 NOW = datetime(2026, 7, 11, 12, tzinfo=UTC)
+
+
+class AgentEvidenceChanges(TypedDict, total=False):
+    blockers: tuple[str, ...]
+    data_quality: DataQuality
+    applicable: bool
+    snapshot_id: str
+    timestamp: datetime
+    symbol: str
+    timeframes: tuple[str, ...]
+    agent_name: str
 
 
 def candle(hours_ago: int, *, volume: str = "100") -> OHLCVCandle:
@@ -144,6 +155,16 @@ def test_data_quality_gate_fails_closed_on_missing_or_old_freshness_evidence() -
     assert degraded.status is AgentStatus.PARTIAL
     assert degraded.data_quality is DataQuality.DATA_DEGRADED
     assert "SNAPSHOT_DATA_QUALITY_DEGRADED" in degraded.warnings
+
+
+def test_missing_candle_cannot_be_hidden_by_fresh_latest_candle() -> None:
+    market = replace(snapshot(), ohlcv_by_timeframe={"1h": (candle(3), candle(1))})
+    result = EnterpriseOrchestrator().analyze(market)
+    assert result.agent_results["data_quality"].status is AgentStatus.BLOCKED
+    assert "MISSING_CANDLES:1h" in result.blockers
+    assert result.final_decision is not None
+    assert result.final_decision.decision_state is Decision.NO_TRADE
+    assert result.final_decision.execution_allowed is False
 
 
 def test_universe_liquidity_agent_blocks_wide_spread_and_missing_filters() -> None:
@@ -357,6 +378,59 @@ def test_evidence_fusion_engine_preserves_fail_closed_dependency_contract() -> N
         "DEPENDENCY_NOT_READY:universe_liquidity",
     )
     assert result.reason_codes == ("AGENT_DEPENDENCY_BLOCKED",)
+    assert result.hard_gate_eligible is False
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"blockers": ("RISK_VETO",)},
+        {"data_quality": DataQuality.DATA_INVALID},
+        {"applicable": False},
+        {"snapshot_id": "other-snapshot"},
+        {"timestamp": NOW - timedelta(hours=1)},
+        {"symbol": "BTCUSDT"},
+        {"timeframes": ("4h",)},
+        {"agent_name": "forged-agent"},
+    ],
+)
+def test_dependency_routes_reject_positive_status_with_invalid_evidence(
+    changes: AgentEvidenceChanges,
+) -> None:
+    registry = build_default_registry()
+    market = snapshot()
+    results = eligibility_results(market)
+    results["data_quality"] = replace(results["data_quality"], **changes)
+    routes = (
+        UniverseLiquidityGate(registry.get("universe_liquidity")).evaluate,
+        EvidenceFusionEngine(registry.get("confluence"), registry).fuse,
+        ReadyResultAgent(registry.get("trend")).run,
+    )
+    for route in routes:
+        result = route(market, results)
+        assert result.status is AgentStatus.BLOCKED
+        assert "DEPENDENCY_NOT_READY:data_quality" in result.blockers
+        assert result.hard_gate_eligible is False
+
+
+@pytest.mark.parametrize("status", [AgentStatus.SUCCESS, AgentStatus.PARTIAL])
+def test_high_scores_cannot_contribute_blocked_or_invalid_evidence(
+    status: AgentStatus,
+) -> None:
+    registry = build_default_registry()
+    engine = EvidenceFusionEngine(registry.get("confluence"), registry)
+    results = eligibility_results(snapshot())
+    results["trend"] = replace(
+        agent_result("trend", 100.0, 1.0), status=status, blockers=("RISK_VETO",)
+    )
+    results["volume"] = replace(
+        agent_result("volume", 100.0, 1.0),
+        status=status,
+        data_quality=DataQuality.DATA_INVALID,
+    )
+    result = engine.fuse(snapshot(), results)
+    assert result.evidence == ()
+    assert result.score == 0.0
     assert result.hard_gate_eligible is False
 
 

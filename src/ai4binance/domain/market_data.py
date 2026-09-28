@@ -34,6 +34,11 @@ class OHLCVCandle:
     def __post_init__(self) -> None:
         """Reject impossible OHLC relationships and negative values."""
         _require_aware_timestamp("timestamp", self.timestamp)
+        if any(
+            not value.is_finite()
+            for value in (self.open, self.high, self.low, self.close, self.volume)
+        ):
+            raise ValueError("OHLCV values must be finite")
         if min(self.open, self.high, self.low, self.close, self.volume) < Decimal("0"):
             raise ValueError("OHLCV values cannot be negative")
         if self.low > self.high:

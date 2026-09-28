@@ -1,7 +1,25 @@
 """Live gate regression tests."""
 
+from dataclasses import replace
+
+import pytest
+
 from ai4binance.domain import ExecutionStatus, LiveGateInput
 from ai4binance.safety import LIVE_GATE_REQUIREMENTS, evaluate_live_gate
+
+
+@pytest.mark.parametrize("requirement", LIVE_GATE_REQUIREMENTS)
+@pytest.mark.parametrize(
+    "value", ["false", "true", 1, -1, None, [], {"approved": True}]
+)
+def test_live_gate_rejects_non_boolean_prerequisites(
+    requirement: str, value: object
+) -> None:
+    """Untrusted config values cannot satisfy even one execution prerequisite."""
+    approved = LiveGateInput(**dict.fromkeys(LIVE_GATE_REQUIREMENTS, True))
+    result = evaluate_live_gate(replace(approved, **{requirement: value}))
+    assert result.status is ExecutionStatus.LIVE_ORDER_BLOCKED
+    assert result.blockers == (requirement,)
 
 
 def test_live_gate_is_blocked_by_default_and_returns_every_gate() -> None:

@@ -1,8 +1,9 @@
 """Paper-only execution and trailing lifecycle tests."""
 
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import cast
 
 import pytest
 
@@ -29,6 +30,39 @@ from ai4binance.risk import RiskAssessment
 from ai4binance.schemas import OHLCVCandle
 
 NOW = datetime(2026, 7, 11, tzinfo=UTC)
+
+
+def test_paper_broker_rejects_risk_approval_for_another_candidate() -> None:
+    assessment = replace(approved_assessment(), candidate_id="another-candidate")
+    order = PaperBroker().submit(approved_candidate(), assessment, NOW)
+    assert order.status is PaperOrderStatus.REJECTED
+    assert "RISK_ASSESSMENT_CANDIDATE_MISMATCH" in order.blockers
+    assert order.fill_price == Decimal("0")
+
+
+def test_spot_paper_model_cannot_fabricate_futures_execution() -> None:
+    candidate = replace(approved_candidate(), market_type="USD_M_FUTURES")
+    order = PaperBroker().submit(candidate, approved_assessment(), NOW)
+    assert order.status is PaperOrderStatus.REJECTED
+    assert "FUTURES_EXECUTION_MODEL_UNAVAILABLE" in order.blockers
+
+
+@pytest.mark.parametrize("value", ["false", "true", 1, None])
+def test_risk_approval_rejects_non_boolean_input(value: object) -> None:
+    with pytest.raises(ValueError, match="explicit boolean"):
+        replace(approved_assessment(), approved=cast("bool", value))
+
+
+@pytest.mark.parametrize("offset", [-1, 1, 2])
+def test_paper_broker_rejects_future_or_expired_candidates(offset: int) -> None:
+    candidate = replace(approved_candidate(), entry_expiry=NOW + timedelta(hours=1))
+    order = PaperBroker().submit(
+        candidate, approved_assessment(), NOW + timedelta(hours=offset)
+    )
+    assert order.status is PaperOrderStatus.REJECTED
+    assert (
+        "CANDIDATE_NOT_YET_AVAILABLE" if offset < 0 else "CANDIDATE_EXPIRED"
+    ) in order.blockers
 
 
 def test_paper_execution_reexports_canonical_contract_identities() -> None:

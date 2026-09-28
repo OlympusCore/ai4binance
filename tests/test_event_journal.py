@@ -6,7 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 from pathlib import Path
-from typing import Any, cast
+from threading import Event
+from typing import Any, BinaryIO, cast
 
 import pytest
 
@@ -20,6 +21,39 @@ from ai4binance.events import (
 from ai4binance.execution.order_state import OrderStateMachine, OrderStatus
 
 NOW = datetime(2026, 7, 13, tzinfo=UTC)
+
+
+def test_empty_lock_file_initialization_waits_for_existing_owner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A contender must not write an empty lock file before owning its lock."""
+    from ai4binance.events import file_lock
+
+    target = tmp_path / "empty.lock"
+    attempted = Event()
+    acquire = file_lock._acquire_file_lock
+
+    def observe_acquisition(stream: BinaryIO) -> None:
+        attempted.set()
+        acquire(stream)
+
+    def initialize() -> None:
+        with file_lock.exclusive_file_lock(target):
+            assert target.stat().st_size == 1
+
+    with target.open("a+b") as owner:
+        acquire(owner)
+        monkeypatch.setattr(file_lock, "_acquire_file_lock", observe_acquisition)
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            contender = executor.submit(initialize)
+            contender.add_done_callback(lambda _future: attempted.set())
+            try:
+                assert attempted.wait(timeout=5)
+                assert target.stat().st_size == 0
+            finally:
+                file_lock._release_file_lock(owner)
+            contender.result(timeout=5)
+    assert target.read_bytes() == b"0"
 
 
 def build_events() -> tuple[DomainEvent, ...]:

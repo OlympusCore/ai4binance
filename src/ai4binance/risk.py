@@ -76,6 +76,8 @@ class RiskAssessment:
     scenario_id: str | None = None
 
     def __post_init__(self) -> None:
+        if not isinstance(self.approved, bool):
+            raise ValueError("risk approval must be an explicit boolean")
         if not self.candidate_id.strip():
             raise ValueError("candidate_id cannot be empty")
         if self.scenario_id is not None and not self.scenario_id.strip():

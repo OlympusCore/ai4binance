@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from decimal import Decimal
 from enum import StrEnum
 from hashlib import sha256
@@ -276,6 +276,13 @@ class DgeGovernanceContext:
     live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
 
     def __post_init__(self) -> None:
+        for contract_field in fields(self):
+            if isinstance(contract_field.default, bool) and not isinstance(
+                getattr(self, contract_field.name), bool
+            ):
+                raise ValueError(
+                    f"DGE {contract_field.name} must be an explicit boolean"
+                )
         required = (
             self.context_id,
             self.data_snapshot_id,

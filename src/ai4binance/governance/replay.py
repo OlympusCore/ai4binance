@@ -142,28 +142,24 @@ def _context_from_payload(payload: Mapping[str, object]) -> DgeGovernanceContext
         data_snapshot_id=str(payload.get("data_snapshot_id", "")),
         semantic_graph_id=str(payload.get("semantic_graph_id", "")),
         position_context_ref=str(payload.get("position_context_ref", "")),
-        wallet_verified=bool(payload.get("wallet_verified", False)),
-        snapshot_integrity_verified=bool(
-            payload.get("snapshot_integrity_verified", True)
+        wallet_verified=_boolean(payload, "wallet_verified"),
+        snapshot_integrity_verified=_boolean(payload, "snapshot_integrity_verified"),
+        data_quality_passed=_boolean(payload, "data_quality_passed"),
+        required_timeframes_present=_boolean(payload, "required_timeframes_present"),
+        liquidity_approved=_boolean(payload, "liquidity_approved"),
+        regime_compatible=_boolean(payload, "regime_compatible"),
+        mtf_aligned=_boolean(payload, "mtf_aligned"),
+        structure_valid=_boolean(payload, "structure_valid"),
+        negative_evidence_clear=_boolean(payload, "negative_evidence_clear"),
+        oos_approved=_boolean(payload, "oos_approved"),
+        risk_approved=_boolean(payload, "risk_approved"),
+        validation_approved=_boolean(payload, "validation_approved"),
+        execution_feasible=_boolean(payload, "execution_feasible"),
+        human_approval_recorded=_boolean(payload, "human_approval_recorded"),
+        position_dependency_bias_detected=_boolean(
+            payload, "position_dependency_bias_detected"
         ),
-        data_quality_passed=bool(payload.get("data_quality_passed", True)),
-        required_timeframes_present=bool(
-            payload.get("required_timeframes_present", True)
-        ),
-        liquidity_approved=bool(payload.get("liquidity_approved", True)),
-        regime_compatible=bool(payload.get("regime_compatible", True)),
-        mtf_aligned=bool(payload.get("mtf_aligned", True)),
-        structure_valid=bool(payload.get("structure_valid", True)),
-        negative_evidence_clear=bool(payload.get("negative_evidence_clear", True)),
-        oos_approved=bool(payload.get("oos_approved", False)),
-        risk_approved=bool(payload.get("risk_approved", False)),
-        validation_approved=bool(payload.get("validation_approved", False)),
-        execution_feasible=bool(payload.get("execution_feasible", False)),
-        human_approval_recorded=bool(payload.get("human_approval_recorded", False)),
-        position_dependency_bias_detected=bool(
-            payload.get("position_dependency_bias_detected", False)
-        ),
-        no_new_capital_required=bool(payload.get("no_new_capital_required", True)),
+        no_new_capital_required=_boolean(payload, "no_new_capital_required"),
         execution_surface=ExecutionSurface(
             str(payload.get("execution_surface", ExecutionSurface.BINANCE_MARKET.value))
         ),
@@ -182,6 +178,13 @@ def _context_from_payload(payload: Mapping[str, object]) -> DgeGovernanceContext
             ontology_version=str(versions.get("ontology_version", "unknown")),
         ),
     )
+
+
+def _boolean(payload: Mapping[str, object], name: str) -> bool:
+    value = payload.get(name)
+    if not isinstance(value, bool):
+        raise ValueError(f"DGE replay {name} requires explicit boolean evidence")
+    return value
 
 
 def _mapping(value: object) -> Mapping[str, object]:

@@ -22,7 +22,7 @@ SPOT_WS_URL = "wss://ws-api.binance.com:443/ws-api/v3"
 SPOT_TESTNET_WS_URL = "wss://ws-api.testnet.binance.vision/ws-api/v3"
 APPROVED_WS_URLS = frozenset({SPOT_WS_URL, SPOT_TESTNET_WS_URL})
 READ_ONLY_WS_METHODS = frozenset({"account.status", "openOrders.status"})
-ORDER_WS_METHODS = frozenset({"order.test", "order.place", "order.cancel"})
+ORDER_WS_METHODS = frozenset({"order.test"})
 _KEY_PARTS = ("secrets", "binance_ed25519_private.pem")
 _MAX_KEY_BYTES = 32_768
 
@@ -167,6 +167,10 @@ class BinanceSpotWsConnection:
                     close()
 
     def request(self, method: str, params: Mapping[str, object]) -> object:
+        if method in {"order.place", "order.cancel"}:
+            raise PermissionError(
+                "LIVE_ORDER_BLOCKED: raw transport has no order authority"
+            )
         if method not in {"session.logon", *READ_ONLY_WS_METHODS, *ORDER_WS_METHODS}:
             raise ValueError("WebSocket API method is not allowlisted")
         with self._lock:
@@ -263,6 +267,12 @@ class BinanceEd25519SpotSession:
     def _authenticated_request(
         self, method: str, params: Mapping[str, object]
     ) -> object:
+        if method in {"order.place", "order.cancel"}:
+            raise PermissionError(
+                "LIVE_ORDER_BLOCKED: raw session has no order authority"
+            )
+        if method not in {*READ_ONLY_WS_METHODS, *ORDER_WS_METHODS}:
+            raise ValueError("authenticated method is not allowlisted")
         if not self._authenticated:
             raise RuntimeError("Ed25519 session is not authenticated")
         controlled = dict(params)

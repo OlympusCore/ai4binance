@@ -13,6 +13,7 @@ from ai4binance.schemas import (
     DataQuality,
     MarketSnapshot,
     OOSValidationStatus,
+    is_usable_agent_result,
 )
 
 
@@ -44,8 +45,8 @@ class UniverseLiquidityGate:
             dependency
             for dependency in self.definition.dependencies
             if dependency not in prior_results
-            or prior_results[dependency].status
-            not in {AgentStatus.SUCCESS, AgentStatus.PARTIAL}
+            or prior_results[dependency].agent_name != dependency
+            or not is_usable_agent_result(prior_results[dependency], snapshot=snapshot)
         )
         if blocked_dependencies:
             return self._result(

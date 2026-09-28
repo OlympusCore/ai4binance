@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -49,6 +50,56 @@ def read_descriptor() -> ToolDescriptor:
         tags=("quality", "triage"),
         schema_tokens=64,
     )
+
+
+@pytest.mark.parametrize("approved", [True, False, "false", 1])
+def test_direct_tool_route_cannot_override_descriptor_project_allowlist(
+    approved: object,
+) -> None:
+    descriptor = read_descriptor()
+    rule = ToolPolicyRule(
+        "overbroad-read",
+        ToolPolicyDecision.ALLOW,
+        (descriptor.name,),
+        ("other",),
+        (ToolPermission.READ_ONLY,),
+        (ToolSideEffect.READ_LOCAL,),
+    )
+    gateway = ToolGateway(
+        ToolRegistry((descriptor,)),
+        ToolPolicyEngine(ToolPolicyDocument("policy", "1", rules=(rule,))),
+    )
+    result = gateway.execute(
+        tool=descriptor.name,
+        project="other",
+        permission=ToolPermission.READ_ONLY,
+        approved=cast("bool", approved),
+        operation=lambda: pytest.fail("project-denied tool must not run"),
+    )
+    assert result.record.policy_decision is ToolPolicyDecision.DENY
+    assert result.record.outcome.status is ToolOutcomeStatus.NOT_EXECUTED
+    assert result.record.execution_allowed is False
+
+
+@pytest.mark.parametrize("approved", ["false", "true", 1, None])
+def test_tool_approval_requires_explicit_boolean(approved: object) -> None:
+    descriptor = read_descriptor()
+    rule = ToolPolicyRule(
+        "approve-read",
+        ToolPolicyDecision.REQUIRE_APPROVAL,
+        (descriptor.name,),
+        descriptor.allowed_projects,
+        (ToolPermission.READ_ONLY,),
+        (ToolSideEffect.READ_LOCAL,),
+    )
+    policy = ToolPolicyEngine(ToolPolicyDocument("policy", "1", rules=(rule,)))
+    result = policy.evaluate(
+        descriptor,
+        project="ai4binance",
+        permission=ToolPermission.READ_ONLY,
+        approved=cast("bool", approved),
+    )
+    assert result.decision is not ToolPolicyDecision.ALLOW
 
 
 def test_capability_tool_permission_requires_governed_chain() -> None:

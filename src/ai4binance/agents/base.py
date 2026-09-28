@@ -11,6 +11,7 @@ from ai4binance.schemas import (
     DataQuality,
     MarketSnapshot,
     OOSValidationStatus,
+    is_usable_agent_result,
 )
 
 
@@ -30,8 +31,8 @@ class BaseAgent(ABC):
             dependency
             for dependency in self.definition.dependencies
             if dependency not in prior_results
-            or prior_results[dependency].status
-            not in {AgentStatus.SUCCESS, AgentStatus.PARTIAL}
+            or prior_results[dependency].agent_name != dependency
+            or not is_usable_agent_result(prior_results[dependency], snapshot=snapshot)
         )
         if blocked_dependencies:
             return self.result(
@@ -56,7 +57,17 @@ class BaseAgent(ABC):
                 reason_codes=("AGENT_FAILED_CLOSED",),
                 calculation_metadata={"error_type": type(error).__name__},
             )
-        if result.agent_name != self.definition.name:
+        if (
+            result.agent_name != self.definition.name
+            or result.agent_version != self.definition.version
+            or (result.snapshot_id, result.symbol, result.timestamp, result.timeframes)
+            != (
+                snapshot.snapshot_id,
+                snapshot.symbol,
+                snapshot.created_at,
+                snapshot.timeframes,
+            )
+        ):
             return self.result(
                 snapshot,
                 status=AgentStatus.FAILED,

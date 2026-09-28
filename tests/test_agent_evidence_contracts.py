@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Literal, cast
 
@@ -27,6 +28,32 @@ from ai4binance.agents import (
 
 NOW = datetime(2026, 8, 13, 19, 0, tzinfo=UTC)
 HASH = "a" * 64
+
+
+@pytest.mark.parametrize("digest", ["g" * 64, " " * 64, "0" * 63 + "\n"])
+def test_agent_evidence_rejects_non_hex_content_hash(digest: str) -> None:
+    with pytest.raises(ValueError, match="SHA-256"):
+        replace(evidence("ev-1"), content_hash=digest)
+
+
+def test_evidence_label_without_content_binding_cannot_complete_layer() -> None:
+    unbound = replace(evidence("ev-1"), content_hash=None)
+    layer = AgentEvidenceLayer("layer", "agent", "cycle", "snapshot", (unbound,))
+    assert layer.verified_count == 0
+    assert layer.evidence_complete is False
+    assert "AGENT_EVIDENCE_INCOMPLETE" in layer.blockers
+
+
+def test_conflicted_evidence_cannot_be_hidden_by_verified_majority() -> None:
+    layer = AgentEvidenceLayer(
+        "layer",
+        "agent",
+        "cycle",
+        "snapshot",
+        (evidence("ev-1"), evidence("ev-2", AgentEvidenceStatus.CONFLICTED)),
+    )
+    assert layer.evidence_complete is False
+    assert "AGENT_EVIDENCE_CONFLICTED" in layer.blockers
 
 
 def evidence(

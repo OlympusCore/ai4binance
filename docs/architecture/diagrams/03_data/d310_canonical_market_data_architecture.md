@@ -56,7 +56,9 @@ This document is `source_of_truth: false`. `docs/governance/framework_core_vnext
 
 - `src/ai4binance/exchange/client.py`
 - `src/ai4binance/data/acquisition.py`
+- `src/ai4binance/agents/data_quality_gate.py` — deterministic freshness evidence and closed-candle age validation.
 - `src/ai4binance/data/market_history_continuous.py`
+- `src/ai4binance/compatibility/opportunity_monitor.py` — per-timeframe quality, warning, and archive provenance projection.
 - `schemas/snapshots/market_snapshot.schema.json`
 
 ## 6. Diagram
@@ -128,6 +130,9 @@ Missing, corrupt, stale, inconsistent, unauthorized, or unvalidated inputs produ
 ## 19. Validation / Test Evidence
 
 - `tests/test_market_history_continuous.py`
+- `tests/test_agents.py`
+- `tests/test_opportunity_monitor.py`
+- `tests/test_local_dashboard_source.py`
 - `tests/contract/schema/test_market_snapshot_wire_contract.py`
 
 The paths are relevant test surfaces, not a claim that they passed in this change. Executed evidence is recorded in `diagram_validation_report.md`.

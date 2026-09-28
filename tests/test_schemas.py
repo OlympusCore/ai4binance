@@ -1,7 +1,9 @@
 """Shared snapshot and agent-state consistency tests."""
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Literal, TypedDict
 
 import pytest
 
@@ -19,6 +21,44 @@ from ai4binance.schemas import (
 )
 
 NOW = datetime(2026, 7, 11, tzinfo=UTC)
+
+
+class SnapshotPriceChanges(TypedDict, total=False):
+    latest_price: Decimal
+    bid: Decimal
+    ask: Decimal
+    spread: Decimal
+
+
+class CandleValueChanges(TypedDict, total=False):
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: Decimal
+
+
+@pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity"])
+@pytest.mark.parametrize("field", ["latest_price", "bid", "ask", "spread"])
+def test_snapshot_rejects_non_finite_prices(
+    field: Literal["latest_price", "bid", "ask", "spread"], value: str
+) -> None:
+    changes: SnapshotPriceChanges = {}
+    changes[field] = Decimal(value)
+    with pytest.raises(ValueError, match="finite"):
+        replace(build_snapshot(), **changes)
+
+
+@pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity"])
+@pytest.mark.parametrize("field", ["open", "high", "low", "close", "volume"])
+def test_candle_rejects_non_finite_values(
+    field: Literal["open", "high", "low", "close", "volume"], value: str
+) -> None:
+    candle = build_snapshot().ohlcv_by_timeframe["1h"][0]
+    changes: CandleValueChanges = {}
+    changes[field] = Decimal(value)
+    with pytest.raises(ValueError, match="finite"):
+        replace(candle, **changes)
 
 
 def build_snapshot(snapshot_id: str = "snapshot-1") -> MarketSnapshot:

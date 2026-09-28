@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Literal, TypedDict, cast
 
 import pytest
 
@@ -25,9 +26,58 @@ from ai4binance.portfolio.opportunity_recovery import (
     RecoveryLadderStage,
     RecoveryProposalKind,
 )
+from ai4binance.reporting import to_primitive
 from ai4binance.storage.destination_verification import DestinationVerificationError
 
 NOW = datetime(2026, 8, 8, 15, 30, tzinfo=UTC)
+
+
+class GovernanceEvidenceChanges(TypedDict, total=False):
+    risk_approved: bool
+    validation_approved: bool
+    data_quality_passed: bool
+    human_approval_recorded: bool
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "risk_approved",
+        "validation_approved",
+        "data_quality_passed",
+        "human_approval_recorded",
+    ],
+)
+@pytest.mark.parametrize("value", ["false", "true", 1, None])
+def test_dge_context_and_replay_reject_truthy_gate_evidence(
+    field: Literal[
+        "risk_approved",
+        "validation_approved",
+        "data_quality_passed",
+        "human_approval_recorded",
+    ],
+    value: object,
+) -> None:
+    context = DgeGovernanceContext("context", "snapshot", "graph", "position")
+    changes: GovernanceEvidenceChanges = {}
+    changes[field] = cast("bool", value)
+    with pytest.raises(ValueError, match="explicit boolean"):
+        replace(context, **changes)
+    payload = to_primitive(context)
+    assert isinstance(payload, dict)
+    payload[field] = value
+    with pytest.raises(ValueError, match="explicit boolean"):
+        replay_module._context_from_payload(payload)
+
+
+def test_replay_cannot_invent_missing_data_quality_evidence() -> None:
+    payload = to_primitive(
+        DgeGovernanceContext("context", "snapshot", "graph", "position")
+    )
+    assert isinstance(payload, dict)
+    del payload["data_quality_passed"]
+    with pytest.raises(ValueError, match="data_quality_passed"):
+        replay_module._context_from_payload(payload)
 
 
 @pytest.mark.parametrize("stale", [False, True])

@@ -213,7 +213,13 @@ class AgentEvidenceReference:
                 raise ValueError(f"{field_name} cannot be empty")
         if self.observed_at.tzinfo is None or self.observed_at.utcoffset() is None:
             raise ValueError("observed_at must be timezone-aware")
-        if self.content_hash is not None and len(self.content_hash) != 64:
+        if self.content_hash is not None and (
+            len(self.content_hash) != 64
+            or any(
+                character not in "0123456789abcdefABCDEF"
+                for character in self.content_hash
+            )
+        ):
             raise ValueError("content_hash must be a SHA-256 hex digest")
 
 
@@ -271,22 +277,23 @@ class AgentEvidenceLayer:
     @property
     def verified_count(self) -> int:
         return sum(
-            item.status is AgentEvidenceStatus.VERIFIED for item in self.evidence
+            item.status is AgentEvidenceStatus.VERIFIED
+            and item.content_hash is not None
+            for item in self.evidence
         )
 
     @property
     def evidence_complete(self) -> bool:
-        return (
-            self.verified_count >= self.minimum_required
-            and not self.conflicting_evidence_ids
-        )
+        return not self.blockers
 
     @property
     def blockers(self) -> tuple[str, ...]:
         blockers: list[str] = []
         if self.verified_count < self.minimum_required:
             blockers.append("AGENT_EVIDENCE_INCOMPLETE")
-        if self.conflicting_evidence_ids:
+        if self.conflicting_evidence_ids or any(
+            item.status is AgentEvidenceStatus.CONFLICTED for item in self.evidence
+        ):
             blockers.append("AGENT_EVIDENCE_CONFLICTED")
         if any(
             item.status is AgentEvidenceStatus.DATA_UNAVAILABLE

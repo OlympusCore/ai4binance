@@ -20,12 +20,12 @@ def exclusive_file_lock(path: Path) -> Iterator[None]:
     """Hold one exclusive byte-range lock for the supplied lock file."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a+b") as stream:
-        stream.seek(0, os.SEEK_END)
-        if stream.tell() == 0:
-            stream.write(b"0")
-            stream.flush()
         _acquire_file_lock(stream)
         try:
+            stream.seek(0, os.SEEK_END)
+            if stream.tell() == 0:
+                stream.write(b"0")
+                stream.flush()
             yield
         finally:
             _release_file_lock(stream)

@@ -108,8 +108,8 @@ class EvidenceFusionEngine:
             dependency
             for dependency in self.definition.dependencies
             if dependency not in prior_results
-            or prior_results[dependency].status
-            not in {AgentStatus.SUCCESS, AgentStatus.PARTIAL}
+            or prior_results[dependency].agent_name != dependency
+            or not is_usable_agent_result(prior_results[dependency], snapshot=snapshot)
         )
         if blocked_dependencies:
             return self._result(
@@ -173,7 +173,10 @@ class EvidenceFusionEngine:
                     "counter_evidence": result.counter_evidence,
                 }
             )
-            if is_usable_agent_result(result) and name not in {"news", "sentiment"}:
+            if is_usable_agent_result(result, snapshot=snapshot) and name not in {
+                "news",
+                "sentiment",
+            }:
                 usable.append(result)
         groups = _dependency_groups(self.registry, tuple(usable))
         selected = tuple(

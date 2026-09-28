@@ -132,6 +132,11 @@ class DataQualityGate:
         except ValueError:
             blockers.append(f"UNSUPPORTED_TIMEFRAME:{timeframe}")
             return tuple(blockers)
+        if any(
+            following.timestamp - current.timestamp > duration
+            for current, following in pairwise(candles)
+        ):
+            blockers.append(f"MISSING_CANDLES:{timeframe}")
         last_close = candles[-1].timestamp + duration
         if last_close > snapshot.created_at:
             blockers.append(f"FUTURE_CANDLE_CLOSE:{timeframe}")

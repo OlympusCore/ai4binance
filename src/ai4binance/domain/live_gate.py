@@ -14,7 +14,7 @@ def evaluate_live_gate(gate_input: LiveGateInput) -> LiveGateResult:
     blockers = tuple(
         requirement
         for requirement in LIVE_GATE_REQUIREMENTS
-        if not getattr(gate_input, requirement)
+        if getattr(gate_input, requirement) is not True
     )
     status = (
         ExecutionStatus.LIVE_ORDER_BLOCKED

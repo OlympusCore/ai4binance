@@ -192,6 +192,18 @@ class ToolPolicyEngine:
         permission: ToolPermission,
         approved: bool,
     ) -> ToolPolicyEvaluation:
+        if project not in descriptor.allowed_projects:
+            return self._result(
+                ToolPolicyDecision.DENY, ("TOOL_PROJECT_NOT_ALLOWED",), None
+            )
+        if not isinstance(approved, bool):
+            return self._result(
+                ToolPolicyDecision.DENY, ("TOOL_APPROVAL_INVALID",), None
+            )
+        if descriptor.side_effect in _DANGEROUS_SIDE_EFFECTS:
+            return self._result(
+                ToolPolicyDecision.DENY, ("TOOL_SIDE_EFFECT_FORBIDDEN",), None
+            )
         for rule in self.document.rules:
             if not (
                 descriptor.name in rule.tools

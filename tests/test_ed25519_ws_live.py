@@ -482,7 +482,7 @@ def test_authenticated_read_methods_require_logon_without_replacing_wallet_reade
         session._read("order.place")
 
 
-def test_session_logon_signs_and_all_authenticated_methods_are_available(
+def test_session_logon_preserves_reads_and_rejects_raw_order_writes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
@@ -493,10 +493,41 @@ def test_session_logon_signs_and_all_authenticated_methods_are_available(
     assert transport.calls[0][0] == "session.logon"
     assert "signature" in transport.calls[0][1]
     assert session.order_test({"symbol": "HOTUSDT"}) == {"orderId": 42}
-    assert session.order_place({"symbol": "HOTUSDT"}) == {"orderId": 42}
-    assert session.order_cancel({"symbol": "HOTUSDT"}) == {"orderId": 42}
+    for method in (session.order_place, session.order_cancel):
+        before = len(transport.calls)
+        with pytest.raises(PermissionError, match="LIVE_ORDER_BLOCKED"):
+            method({"symbol": "HOTUSDT"})
+        assert len(transport.calls) == before
     with pytest.raises(ValueError, match="between 1000 and 60000"):
         BinanceEd25519SpotSession(transport, credentials(), receive_window_ms=999)
+
+
+@pytest.mark.parametrize("method", ["order.place", "order.cancel"])
+@pytest.mark.parametrize("authenticated", [False, True])
+def test_raw_ws_writes_are_blocked_before_connect_or_transport(
+    method: str, authenticated: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Raw helper, environment and alternate URL routes have no order authority."""
+    monkeypatch.setenv("ALLOW_AUTO_LIVE_ORDERS", "true")
+    monkeypatch.setenv("LIVE_MODE", "true")
+    for url in (
+        "wss://ws-api.binance.com:443/ws-api/v3",
+        "wss://ws-api.testnet.binance.vision/ws-api/v3",
+    ):
+        connection = BinanceSpotWsConnection(
+            url=url,
+            connection_factory=lambda *args, **kwargs: pytest.fail(
+                "blocked order must not connect"
+            ),
+        )
+        with pytest.raises(PermissionError, match="LIVE_ORDER_BLOCKED"):
+            connection.request(method, {"symbol": "HOTUSDT"})
+    transport = RecordingWsTransport()
+    session = BinanceEd25519SpotSession(transport, credentials())
+    session._authenticated = authenticated
+    with pytest.raises(PermissionError, match="LIVE_ORDER_BLOCKED"):
+        session._authenticated_request(method, {"symbol": "HOTUSDT"})
+    assert transport.calls == []
 
 
 class RecordingOrderSession:

@@ -37,9 +37,31 @@ class AgentStatus(StrEnum):
 USABLE_AGENT_STATUSES = frozenset({AgentStatus.SUCCESS, AgentStatus.PARTIAL})
 
 
-def is_usable_agent_result(result: "AgentResult") -> bool:
+def is_usable_agent_result(
+    result: "AgentResult", *, snapshot: "MarketSnapshot | None" = None
+) -> bool:
     """Return whether an agent result may contribute non-authoritative evidence."""
-    return result.applicable and result.status in USABLE_AGENT_STATUSES
+    return (
+        result.applicable is True
+        and result.status in USABLE_AGENT_STATUSES
+        and result.data_quality in {DataQuality.DATA_VALID, DataQuality.DATA_DEGRADED}
+        and not result.blockers
+        and (
+            snapshot is None
+            or (
+                result.snapshot_id,
+                result.symbol,
+                result.timestamp,
+                result.timeframes,
+            )
+            == (
+                snapshot.snapshot_id,
+                snapshot.symbol,
+                snapshot.created_at,
+                snapshot.timeframes,
+            )
+        )
+    )
 
 
 class DataQuality(StrEnum):
@@ -159,8 +181,8 @@ class MarketSnapshot:
             raise ValueError("timeframes must contain non-empty values")
         for field_name in ("latest_price", "bid", "ask", "spread"):
             value = getattr(self, field_name)
-            if value is not None and value < Decimal("0"):
-                raise ValueError(f"{field_name} cannot be negative")
+            if value is not None and (not value.is_finite() or value < Decimal("0")):
+                raise ValueError(f"{field_name} must be finite and cannot be negative")
         if self.bid is not None and self.ask is not None and self.bid > self.ask:
             raise ValueError("bid cannot exceed ask")
         for field_name in self._MAPPING_FIELDS:

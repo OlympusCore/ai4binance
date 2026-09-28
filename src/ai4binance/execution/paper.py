@@ -97,7 +97,19 @@ class PaperBroker:
     ) -> PaperOrder:
         blockers = list(assessment.blockers)
         authority_envelope = execution_envelope_for_surface(self.execution_surface)
-        if not assessment.approved:
+        if assessment.candidate_id != candidate.candidate_id:
+            blockers.append("RISK_ASSESSMENT_CANDIDATE_MISMATCH")
+        if assessment.scenario_id != candidate.scenario_id:
+            blockers.append("RISK_ASSESSMENT_SCENARIO_MISMATCH")
+        if candidate.market_type != "SPOT":
+            blockers.append("FUTURES_EXECUTION_MODEL_UNAVAILABLE")
+        if timestamp.tzinfo is None or timestamp.utcoffset() is None:
+            raise ValueError("paper submission timestamp must be timezone-aware")
+        if timestamp < candidate.timestamp:
+            blockers.append("CANDIDATE_NOT_YET_AVAILABLE")
+        if candidate.entry_expiry is not None and timestamp >= candidate.entry_expiry:
+            blockers.append("CANDIDATE_EXPIRED")
+        if assessment.approved is not True:
             blockers.append("RISK_NOT_APPROVED")
         if assessment.quantity <= ZERO or assessment.size_usdt <= ZERO:
             blockers.append("INVALID_PAPER_QUANTITY")
