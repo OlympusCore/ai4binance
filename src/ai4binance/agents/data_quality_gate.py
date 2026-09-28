@@ -8,7 +8,9 @@ from decimal import Decimal
 from itertools import pairwise
 
 from ai4binance.agents.registry import AgentDefinition, AgentStage
+from ai4binance.core.contracts.execution_surface import ExecutionSurface
 from ai4binance.data.timeframes import timeframe_duration
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.schemas import (
     AgentResult,
     AgentStatus,
@@ -25,8 +27,11 @@ class DataQualityGate:
 
     definition: AgentDefinition
     minimum_candles: int = 2
+    execution_surface: ExecutionSurface = ExecutionSurface.VIRTUAL_MARKET
 
     def __post_init__(self) -> None:
+        if not isinstance(self.execution_surface, ExecutionSurface):
+            raise ValueError("execution_surface must be an ExecutionSurface")
         if (
             self.definition.name != "data_quality"
             or self.definition.stage is not AgentStage.ELIGIBILITY
@@ -54,6 +59,8 @@ class DataQualityGate:
         blockers: list[str] = []
         warnings: list[str] = []
         candle_counts: dict[str, int] = {}
+
+        blockers.extend(self._provenance_blockers(snapshot))
 
         if snapshot.data_quality is DataQuality.DATA_INVALID:
             blockers.append("SNAPSHOT_DATA_QUALITY_INVALID")
@@ -109,8 +116,22 @@ class DataQualityGate:
                     else "DATA_VALID"
                 ),
             ),
-            calculation_metadata={"candle_counts": candle_counts},
+            calculation_metadata={
+                "candle_counts": candle_counts,
+                "provenance_class": snapshot.provenance_class.value,
+            },
         )
+
+    def _provenance_blockers(self, snapshot: MarketSnapshot) -> tuple[str, ...]:
+        """Keep unknown origins closed and simulation origins off Binance."""
+        if snapshot.provenance_class is MarketDataProvenance.UNKNOWN:
+            return ("MARKET_DATA_PROVENANCE_UNKNOWN",)
+        if (
+            self.execution_surface is not ExecutionSurface.VIRTUAL_MARKET
+            and snapshot.provenance_class is not MarketDataProvenance.LIVE_SOURCE
+        ):
+            return ("MARKET_DATA_PROVENANCE_NOT_CURRENT_REAL",)
+        return ()
 
     @staticmethod
     def _freshness_blockers(

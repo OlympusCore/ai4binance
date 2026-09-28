@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -13,6 +14,72 @@ from ai4binance.learning.lifecycle import (
     LessonTransitionRequest,
 )
 from ai4binance.learning.models import LearningSummary
+
+
+def _research_lesson(*, blockers: tuple[str, ...] = ()) -> GovernedLesson:
+    return GovernedLesson(
+        lesson_id="test-only-research-lesson",
+        code="TEST_ONLY",
+        rationale="Deterministic lesson transition fixture.",
+        evidence_count=1,
+        source_artifact_ids=("test-only-source",),
+        observed_at=datetime(2026, 1, 1, tzinfo=UTC),
+        expires_at=datetime(2026, 1, 2, tzinfo=UTC),
+        status=LessonStatus.RESEARCH_ONLY,
+        validation_artifact_ids=("test-only-validation",),
+        blockers=blockers,
+    )
+
+
+@pytest.mark.parametrize("approval", ["false", 1, None])
+def test_lesson_transition_rejects_non_boolean_approval(approval: object) -> None:
+    with pytest.raises(ValueError, match="human_approved must be a boolean"):
+        _research_lesson().transition(
+            LessonStatus.HUMAN_APPROVED,
+            at=datetime(2026, 1, 1, 1, tzinfo=UTC),
+            human_approved=cast(bool, approval),
+        )
+
+
+@pytest.mark.parametrize("approval", ["false", 1, None])
+def test_lesson_request_rejects_non_boolean_approval(approval: object) -> None:
+    with pytest.raises(ValueError, match="human_approved must be a boolean"):
+        LessonTransitionRequest(
+            lesson_id="test-only-research-lesson",
+            target_status=LessonStatus.HUMAN_APPROVED,
+            human_approved=cast(bool, approval),
+        )
+
+
+def test_lesson_approval_cannot_discard_inherited_blockers() -> None:
+    with pytest.raises(ValueError, match="blocked lesson"):
+        _research_lesson(blockers=("TEST_ONLY_UNRESOLVED",)).transition(
+            LessonStatus.HUMAN_APPROVED,
+            at=datetime(2026, 1, 1, 1, tzinfo=UTC),
+            human_approved=True,
+        )
+
+
+def test_lesson_terminal_transition_retains_existing_blockers() -> None:
+    lesson = _research_lesson(blockers=("TEST_ONLY_UNRESOLVED",)).transition(
+        LessonStatus.REJECTED,
+        at=datetime(2026, 1, 1, 1, tzinfo=UTC),
+        blockers=("TEST_ONLY_REJECTED",),
+    )
+    assert lesson.blockers == ("TEST_ONLY_UNRESOLVED", "TEST_ONLY_REJECTED")
+    assert lesson.execution_allowed is False
+
+
+def test_lesson_explicit_approval_keeps_production_authority_disabled() -> None:
+    lesson = _research_lesson().transition(
+        LessonStatus.HUMAN_APPROVED,
+        at=datetime(2026, 1, 1, 1, tzinfo=UTC),
+        human_approved=True,
+    )
+    assert lesson.status is LessonStatus.HUMAN_APPROVED
+    assert lesson.execution_allowed is False
+    assert lesson.risk_change_allowed is False
+    assert lesson.parameter_change_allowed is False
 
 
 def test_lesson_store_handles_absent_and_invalid_payloads(tmp_path: Path) -> None:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from hashlib import sha256
 from math import nan
 from types import MappingProxyType
 from typing import Any, cast
@@ -3451,13 +3452,15 @@ def test_agent_registry_definitions_expose_evidence_and_verification_layers() ->
 
 
 def test_agent_evidence_layer_blocks_incomplete_or_conflicted_evidence() -> None:
+    content = b"Test-only trend structure evidence."
     verified = AgentEvidenceReference(
         evidence_id="ev-1",
         source_id="snapshot-1",
         claim="Trend structure supports continuation.",
         status=AgentEvidenceStatus.VERIFIED,
         observed_at=NOW,
-        content_hash="a" * 64,
+        content_hash=sha256(content).hexdigest(),
+        content=content,
     )
     unavailable = AgentEvidenceReference(
         evidence_id="ev-2",

@@ -25,6 +25,7 @@ from ai4binance.agents.universe_liquidity_gate import UniverseLiquidityGate
 from ai4binance.agents.validation import ValidationAgent
 from ai4binance.agents.validation_gate import ValidationGate
 from ai4binance.domain import Decision
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.reporting import to_primitive
 from ai4binance.schemas import (
     AgentResult,
@@ -62,6 +63,7 @@ def candle(hours_ago: int, *, volume: str = "100") -> OHLCVCandle:
 
 def snapshot() -> MarketSnapshot:
     return MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="snapshot-agent-test",
         created_at=NOW,
         exchange="Binance",
@@ -90,6 +92,68 @@ def eligibility_results(
     universe_agent = UniverseLiquidityAgent(registry.get("universe_liquidity"))
     results["universe_liquidity"] = universe_agent.run(market_snapshot, results)
     return results
+
+
+def test_unknown_snapshot_origin_fails_closed_before_analysis() -> None:
+    gate = DataQualityGate(build_default_registry().get("data_quality"))
+    result = gate.evaluate(
+        replace(snapshot(), provenance_class=MarketDataProvenance.UNKNOWN)
+    )
+    assert result.status is AgentStatus.BLOCKED
+    assert result.blockers == ("MARKET_DATA_PROVENANCE_UNKNOWN",)
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        MarketDataProvenance.TEST_FIXTURE,
+        MarketDataProvenance.SYNTHETIC,
+        MarketDataProvenance.MOCK,
+        MarketDataProvenance.SIMULATED,
+        MarketDataProvenance.RECORDED_REPLAY,
+        MarketDataProvenance.HISTORICAL_REAL,
+    ],
+)
+def test_noncurrent_origin_cannot_enter_binance_analysis(
+    origin: MarketDataProvenance,
+) -> None:
+    from ai4binance.core.contracts.execution_surface import ExecutionSurface
+
+    gate = DataQualityGate(
+        build_default_registry().get("data_quality"),
+        execution_surface=ExecutionSurface.BINANCE_MARKET,
+    )
+    result = gate.evaluate(replace(snapshot(), provenance_class=origin))
+    assert result.status is AgentStatus.BLOCKED
+    assert result.blockers == ("MARKET_DATA_PROVENANCE_NOT_CURRENT_REAL",)
+
+
+def test_fixture_origin_remains_visible_in_virtual_quality_result() -> None:
+    gate = DataQualityGate(build_default_registry().get("data_quality"))
+    result = gate.evaluate(snapshot())
+    assert result.calculation_metadata["provenance_class"] == "TEST_FIXTURE"
+    assert result.hard_gate_eligible is False
+
+
+def test_binance_orchestrator_stops_fixture_before_specialists() -> None:
+    from ai4binance.core.contracts.execution_surface import ExecutionSurface
+
+    state = EnterpriseOrchestrator(
+        execution_surface=ExecutionSurface.BINANCE_MARKET
+    ).analyze(snapshot())
+    assert tuple(state.agent_results) == ("data_quality",)
+    assert state.agent_results["data_quality"].status is AgentStatus.BLOCKED
+    assert state.candidate_setups == ()
+    assert "EARLY_EXIT_NO_TRADE" in state.blockers
+
+
+def test_direct_risk_gate_rejects_unknown_origin_without_dependency_shortcut() -> None:
+    gate = RiskGate(build_default_registry().get("risk"))
+    result = gate.evaluate_candidates(
+        replace(snapshot(), provenance_class=MarketDataProvenance.UNKNOWN)
+    )
+    assert result.status is AgentStatus.BLOCKED
+    assert result.blockers == ("MARKET_DATA_PROVENANCE_REJECTED",)
 
 
 def test_data_quality_agent_validates_and_degrades_candles() -> None:

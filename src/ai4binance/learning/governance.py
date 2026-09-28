@@ -108,12 +108,15 @@ class GovernedLesson:
         blockers: tuple[str, ...] = (),
         human_approved: bool = False,
     ) -> GovernedLesson:
+        if not isinstance(human_approved, bool):
+            raise ValueError("human_approved must be a boolean")
         if at.tzinfo is None or at.utcoffset() is None:
             raise ValueError("lesson transition timestamp must be timezone-aware")
+        merged_blockers = tuple(dict.fromkeys((*self.blockers, *blockers)))
         if status in {LessonStatus.EXPIRED, LessonStatus.REJECTED}:
             if self.status in {LessonStatus.EXPIRED, LessonStatus.REJECTED}:
                 raise ValueError("terminal lesson cannot transition")
-            return replace(self, status=status, blockers=blockers)
+            return replace(self, status=status, blockers=merged_blockers)
         if self.status not in _FLOW:
             raise ValueError("terminal lesson cannot transition")
         current = _FLOW.index(self.status)
@@ -124,10 +127,10 @@ class GovernedLesson:
         )
         if status is LessonStatus.RESEARCH_ONLY and not merged:
             raise ValueError("research-only lesson requires validation artifacts")
-        if status is LessonStatus.HUMAN_APPROVED and not human_approved:
+        if status is LessonStatus.HUMAN_APPROVED and human_approved is not True:
             raise ValueError("lesson approval requires explicit human approval")
         if status in {LessonStatus.HUMAN_APPROVED, LessonStatus.ACTIVE_LESSON}:
-            if blockers:
+            if merged_blockers:
                 raise ValueError("blocked lesson cannot be approved or activated")
             if at >= self.expires_at:
                 raise ValueError("expired lesson cannot be approved or activated")
@@ -135,7 +138,7 @@ class GovernedLesson:
             self,
             status=status,
             validation_artifact_ids=merged,
-            blockers=blockers,
+            blockers=merged_blockers,
         )
 
 

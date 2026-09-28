@@ -15,6 +15,7 @@ from ai4binance.cli.opportunity_radar_persistence import (
     write_opportunity_radar_snapshot,
 )
 from ai4binance.domain import Action, SetupTier
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.domain.opportunity_observation import (
     OpportunityBias,
     OpportunityLifecycleState,
@@ -80,6 +81,7 @@ def snapshot(*, bearish: bool = False, latest_volume: str = "1000") -> MarketSna
             )
         )
     return MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="vwap-snapshot",
         created_at=rows[-1].timestamp,
         exchange="Binance",
@@ -159,6 +161,7 @@ def test_vwap_evaluator_surfaces_negative_and_degraded_paths() -> None:
         for index in range(21)
     )
     neutral_snapshot = MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="neutral-vwap",
         created_at=neutral_rows[-1].timestamp,
         exchange="Binance",
@@ -202,6 +205,7 @@ def test_vwap_evaluator_surfaces_negative_and_degraded_paths() -> None:
             )
         )
     choppy_snapshot = MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="choppy-vwap",
         created_at=choppy_rows[-1].timestamp,
         exchange="Binance",
@@ -1189,6 +1193,7 @@ def test_opportunity_radar_contracts_reject_invalid_identity_and_authority() -> 
 
 def test_opportunity_radar_blocks_invalid_snapshot_quality_and_price() -> None:
     invalid = MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="invalid-quality",
         created_at=START,
         exchange="Binance",
@@ -1233,6 +1238,7 @@ def test_opportunity_radar_trade_plan_fails_closed_for_invalid_levels() -> None:
         for index, candle in enumerate(base.ohlcv_by_timeframe["15m"])
     )
     low_price = MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="low-price-snapshot",
         created_at=base.created_at,
         exchange=base.exchange,
@@ -1311,6 +1317,7 @@ def test_opportunity_radar_helper_paths_cover_ordering_and_serialization() -> No
         for index in range(21)
     )
     neutral_snapshot = MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="neutral-direction",
         created_at=neutral_rows[-1].timestamp,
         exchange="Binance",
@@ -1407,6 +1414,7 @@ def _multi_timeframe_snapshot() -> MarketSnapshot:
 
     rows_15m = rows(15)
     return MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="canonical-mtf-snapshot",
         created_at=base.created_at,
         exchange="Binance",

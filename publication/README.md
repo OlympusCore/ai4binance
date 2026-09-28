@@ -18,6 +18,30 @@ retryable Windows contention and a deterministic timeout. These implementation
 surfaces remain `CLOSED` and cannot grant publication, promotion, deployment,
 or trading authority.
 
+Internal snapshot serialization is owned by
+`src/ai4binance/wire_contracts.py`. Its version `1.1.0` contract requires an
+explicit data-provenance classification; legacy `1.0.0` snapshots remain
+readable with `UNKNOWN` provenance and cannot acquire a real-source identity
+through deserialization. Offline schema resolution and contract-to-schema
+bindings are owned by `src/ai4binance/schema_validation.py`. Consumers must
+validate the selected schema version and retain the provenance classification.
+Verify version compatibility, missing or invalid provenance, closed payload
+shapes, and decimal precision with
+`tests/contract/schema/test_market_snapshot_wire_contract.py`. These internal
+implementations remain `CLOSED`; schema and interface disclosure remains subject
+to the separately curated `PARTIAL` policy below.
+
+The local governed-lesson lifecycle is coordinated by
+`src/ai4binance/learning/lifecycle.py` using the transition rules in
+`src/ai4binance/learning/governance.py`. Approval requests require an actual
+boolean, inherited blockers remain attached to transitions, and unresolved
+blockers prevent approval or activation. The worker cannot originate human
+approval, execution, risk-limit, parameter, promotion, or live-order authority.
+Verify rejected approval types, blocker retention, and disabled consequential
+authority with `tests/test_lowest_coverage_learning_lifecycle.py`. This internal
+implementation remains `CLOSED` and its advisory state is not publication or
+trading authorization.
+
 `src/ai4binance/ops/public_showcase.py` enforces the local staging boundary and
 invokes the repository-pinned Gitleaks binary with a fixed argument vector,
 `shell=False`, bounded timeout handling, and redacted output. This scanner

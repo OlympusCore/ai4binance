@@ -56,6 +56,8 @@ datasets/
 market_data/
 historical_data/
 snapshots/
+!/schemas/snapshots/
+!/schemas/snapshots/*.schema.json
 feature_store/
 
 *.parquet

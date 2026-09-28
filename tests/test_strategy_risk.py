@@ -15,6 +15,7 @@ from ai4binance.domain import (
     TradeCandidate,
     ValidationStatus,
 )
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.domain.risk_geometry import structural_margin_loss_per_unit
 from ai4binance.exchange.filters import SymbolFilters
 from ai4binance.exchange.models import SymbolInfo
@@ -136,6 +137,7 @@ def snapshot(
         for index in range(60)
     )
     return MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="strategy-snapshot",
         created_at=NOW,
         exchange="Binance",

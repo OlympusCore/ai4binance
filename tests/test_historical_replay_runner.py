@@ -22,6 +22,7 @@ from ai4binance.domain import (
     TradeCandidate,
     ValidationStatus,
 )
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.reporting import to_primitive
 from ai4binance.research import (
     HistoricalMarketReplayRequest,
@@ -285,6 +286,7 @@ def _snapshot(
         if timestamp <= created_at
     )
     snapshot = MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id=snapshot_id,
         created_at=created_at,
         exchange="Binance",

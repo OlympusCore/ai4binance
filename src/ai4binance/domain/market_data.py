@@ -6,6 +6,19 @@ from decimal import Decimal
 from enum import StrEnum
 
 
+class MarketDataProvenance(StrEnum):
+    """Data origin identity; classification grants no execution authority."""
+
+    LIVE_SOURCE = "LIVE_SOURCE"
+    HISTORICAL_REAL = "HISTORICAL_REAL"
+    RECORDED_REPLAY = "RECORDED_REPLAY"
+    TEST_FIXTURE = "TEST_FIXTURE"
+    SYNTHETIC = "SYNTHETIC"
+    MOCK = "MOCK"
+    SIMULATED = "SIMULATED"
+    UNKNOWN = "UNKNOWN"
+
+
 class OOSValidationStatus(StrEnum):
     """Out-of-sample evidence state used for hard-gate governance."""
 

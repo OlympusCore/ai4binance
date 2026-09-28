@@ -42,6 +42,7 @@ from ai4binance.agents.telemetry import (
 from ai4binance.agents.trend_events import build_trend_events_agent
 from ai4binance.agents.universe_liquidity_gate import UniverseLiquidityGate
 from ai4binance.agents.validation_gate import ValidationGate
+from ai4binance.core.contracts.execution_surface import ExecutionSurface
 from ai4binance.core.contracts.memory import CompiledCycleContext
 from ai4binance.domain import TradeCandidate
 from ai4binance.intelligence.contracts import TradingIntelligenceState
@@ -76,6 +77,7 @@ class EnterpriseOrchestrator:
     )
     telemetry_sink: AgentTelemetrySink | None = None
     agent_latency_budget_ms: float = 1_000.0
+    execution_surface: ExecutionSurface = ExecutionSurface.VIRTUAL_MARKET
 
     def __post_init__(self) -> None:
         """Bound concurrency and minimum-history configuration."""
@@ -113,6 +115,7 @@ class EnterpriseOrchestrator:
         data_quality_gate = DataQualityGate(
             self.registry.get("data_quality"),
             minimum_candles=self.minimum_candles,
+            execution_surface=self.execution_surface,
         )
         results[data_quality_gate.definition.name] = self._run_data_quality_gate(
             data_quality_gate,
@@ -235,7 +238,11 @@ class EnterpriseOrchestrator:
         )
         selection = self.candidate_arbitrator.select(candidates)
         risk_candidates = selection.ranked[:5] if selection.selected is not None else ()
-        risk_gate = RiskGate(self.registry.get("risk"), candidates=risk_candidates)
+        risk_gate = RiskGate(
+            self.registry.get("risk"),
+            candidates=risk_candidates,
+            execution_surface=self.execution_surface,
+        )
         results[risk_gate.definition.name] = self._run_risk_gate(
             risk_gate, snapshot, MappingProxyType(results)
         )

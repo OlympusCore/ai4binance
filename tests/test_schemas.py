@@ -7,6 +7,7 @@ from typing import Literal, TypedDict
 
 import pytest
 
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.schemas import (
     AgentResult,
     AgentStatus,
@@ -71,6 +72,7 @@ def build_snapshot(snapshot_id: str = "snapshot-1") -> MarketSnapshot:
         volume=Decimal("100"),
     )
     return MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id=snapshot_id,
         created_at=NOW,
         exchange="Binance",
@@ -108,6 +110,7 @@ def build_agent_result(snapshot_id: str = "snapshot-1") -> AgentResult:
 def test_snapshot_defensively_freezes_nested_input() -> None:
     freshness: dict[str, object] = {"1h": {"stale": False}}
     snapshot = MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="snapshot-1",
         created_at=NOW,
         exchange="Binance",
@@ -127,6 +130,7 @@ def test_snapshot_defensively_freezes_nested_input() -> None:
 
 def test_snapshot_normalizes_market_type() -> None:
     snapshot = MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="snapshot-1",
         created_at=NOW,
         exchange="Binance",
@@ -146,6 +150,7 @@ def test_snapshot_normalizes_market_type() -> None:
 def test_snapshot_rejects_crossed_market() -> None:
     with pytest.raises(ValueError, match="bid cannot exceed ask"):
         MarketSnapshot(
+            provenance_class=MarketDataProvenance.TEST_FIXTURE,
             snapshot_id="snapshot-1",
             created_at=NOW,
             exchange="Binance",
@@ -163,6 +168,7 @@ def test_snapshot_rejects_crossed_market() -> None:
 def test_snapshot_rejects_unsupported_market_type() -> None:
     with pytest.raises(ValueError, match="market_type must be SPOT or USD_M_FUTURES"):
         MarketSnapshot(
+            provenance_class=MarketDataProvenance.TEST_FIXTURE,
             snapshot_id="snapshot-1",
             created_at=NOW,
             exchange="Binance",

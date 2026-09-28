@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from typing import Any
 
 import pytest
@@ -1129,13 +1130,15 @@ def test_agent_evidence_adapter_requires_content_hash() -> None:
 
 
 def test_agent_evidence_adapter_builds_handoff_reference() -> None:
+    content = b"Test-only snapshot freshness evidence."
     reference = AgentEvidenceReference(
         evidence_id="agent-evidence-1",
         source_id="source-1",
         claim="Shared snapshot is stale.",
         status=AgentEvidenceStatus.VERIFIED,
         observed_at=NOW,
-        content_hash=HASH,
+        content_hash=sha256(content).hexdigest(),
+        content=content,
     )
 
     handoff_ref = build_handoff_evidence_ref(
@@ -1147,4 +1150,4 @@ def test_agent_evidence_adapter_builds_handoff_reference() -> None:
 
     assert handoff_ref.evidence_id == reference.evidence_id
     assert handoff_ref.snapshot_id == "snapshot-1"
-    assert handoff_ref.content_hash == HASH
+    assert handoff_ref.content_hash == sha256(content).hexdigest()

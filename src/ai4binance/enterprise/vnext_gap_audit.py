@@ -197,8 +197,11 @@ def build_vnext_gap_audit(
     if now.tzinfo is None:
         raise ValueError("vNext gap audit observation time must be timezone-aware")
     now = now.astimezone(UTC)
+    test_execution_verified = load_current_quality_gate_evidence(root) is not None
     capabilities = tuple(
-        _capability_from_definition(root, item, observed_at=now)
+        _capability_from_definition(
+            root, item, observed_at=now, test_execution_verified=test_execution_verified
+        )
         for item in _CAPABILITY_MATRIX
     )
     requirement_traceability = _audit_requirement_traceability(root)
@@ -368,6 +371,7 @@ def _capability(
     research_only: bool = False,
     claim_verifier: str = "FILE_PRESENCE",
     observed_at: datetime,
+    test_execution_verified: bool | None = None,
 ) -> VnextCapabilityGap:
     existing = tuple(path for path in evidence_files if (root / path).exists())
     required_existing = tuple(path for path in complete_when if (root / path).exists())
@@ -396,16 +400,34 @@ def _capability(
         and len(production_existing) != len(production_evidence_files)
         else ()
     )
+    tests_verified = any(path.startswith("tests/") for path in existing) and (
+        load_current_quality_gate_evidence(root) is not None
+        if test_execution_verified is None
+        else test_execution_verified
+    )
+    verification_gaps = (
+        *(("CURRENT_TEST_EXECUTION_NOT_VERIFIED",) if not tests_verified else ()),
+        *(
+            ("RUNTIME_WIRING_NOT_VERIFIED",)
+            if runtime_wiring_files
+            and not (runtime_complete and production_required and production_complete)
+            else ()
+        ),
+    )
     evidence_depth = _evidence_depth(
         code_complete=code_complete,
-        has_tests=any(path.startswith("tests/") for path in existing),
-        runtime_complete=runtime_complete,
+        has_tests=tests_verified,
+        runtime_complete=runtime_complete
+        and production_required
+        and production_complete,
         production_complete=production_complete and production_required,
     )
     runtime_wiring = (
         "NOT_REQUIRED"
         if not runtime_wiring_files
         else "VERIFIED"
+        if runtime_complete and production_required and production_complete
+        else "NOT_VERIFIED"
         if runtime_complete
         else "MISSING"
     )
@@ -416,7 +438,12 @@ def _capability(
         if production_complete
         else "MISSING"
     )
-    if code_complete and (not production_required or production_complete):
+    if (
+        code_complete
+        and (not production_required or production_complete)
+        and not verification_gaps
+        and not missing_controls
+    ):
         status = (
             VnextGapStatus.RESEARCH_ONLY if research_only else VnextGapStatus.COMPLETE
         )
@@ -426,17 +453,38 @@ def _capability(
             VnextGapStatus.RESEARCH_ONLY if research_only else VnextGapStatus.PARTIAL
         )
         remaining = tuple(
-            dict.fromkeys((*missing_controls, *production_gap, *artifact_blockers))
+            dict.fromkeys(
+                (
+                    *missing_controls,
+                    *production_gap,
+                    *artifact_blockers,
+                    *verification_gaps,
+                )
+            )
         )
     elif existing:
         status = VnextGapStatus.PARTIAL
         remaining = tuple(
-            dict.fromkeys((*missing_controls, *production_gap, *artifact_blockers))
+            dict.fromkeys(
+                (
+                    *missing_controls,
+                    *production_gap,
+                    *artifact_blockers,
+                    *verification_gaps,
+                )
+            )
         )
     else:
         status = VnextGapStatus.MISSING
         remaining = tuple(
-            dict.fromkeys((*missing_controls, *production_gap, *artifact_blockers))
+            dict.fromkeys(
+                (
+                    *missing_controls,
+                    *production_gap,
+                    *artifact_blockers,
+                    *verification_gaps,
+                )
+            )
         )
     claim_status = (
         VnextClaimStatus.VERIFIED
@@ -477,6 +525,7 @@ def _capability_from_definition(
     definition: Mapping[str, object],
     *,
     observed_at: datetime,
+    test_execution_verified: bool | None = None,
 ) -> VnextCapabilityGap:
     verifier = str(definition.get("claim_verifier", "FILE_PRESENCE"))
     if verifier == "QUALITY_BASELINE":
@@ -503,6 +552,7 @@ def _capability_from_definition(
         research_only=bool(definition.get("research_only", False)),
         claim_verifier=verifier,
         observed_at=observed_at,
+        test_execution_verified=test_execution_verified,
     )
 
 
@@ -635,6 +685,7 @@ def _enforcement_closure_capability(
                     else ("UNREGISTERED_MUTATION_ENTRYPOINTS_PRESENT",)
                 ),
                 *(() if not bypassable else ("BYPASS_POSSIBLE_ON_ROUTED_PATHS",)),
+                "ENFORCEMENT_RUNTIME_NOT_VERIFIED",
             )
         )
     )
@@ -655,12 +706,12 @@ def _enforcement_closure_capability(
             cast(tuple[str, ...], definition["proposed_diff"]) if not complete else ()
         ),
         risk=str(definition["risk"]),
-        evidence_depth=VnextEvidenceDepth.TESTED_CONTRACT,
+        evidence_depth=VnextEvidenceDepth.CODE_ONLY,
         claim_status=(
             VnextClaimStatus.VERIFIED if complete else VnextClaimStatus.PARTIAL
         ),
         claim_verifier="ENFORCEMENT_CLOSURE",
-        runtime_wiring="VERIFIED",
+        runtime_wiring="NOT_VERIFIED",
         production_artifact_status="NOT_REQUIRED",
         eval_status=(
             "ENFORCEMENT_CLOSURE_VERIFIED"

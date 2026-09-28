@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 from ai4binance.data.archive import ParquetOHLCVArchive
 from ai4binance.data.revision import DatasetRevisionBuilder, DatasetRevisionManifest
 from ai4binance.data.timeframes import timeframe_duration
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.research.historical_replay import (
     HistoricalMarketReplayRequest,
     HistoricalReplayDatasetBinding,
@@ -581,6 +582,7 @@ class HistoricalReplaySnapshotMaterializer:
                 timeframe: len(prefix) for timeframe, prefix in prefixes.items()
             }
             snapshot = MarketSnapshot(
+                provenance_class=MarketDataProvenance.RECORDED_REPLAY,
                 snapshot_id=self._snapshot_id(
                     market=market,
                     symbol=symbol,

@@ -14,6 +14,7 @@ from typing import cast
 from ai4binance.core.errors import ExchangePayloadError
 from ai4binance.data.archive import ParquetOHLCVArchive
 from ai4binance.data.timeframes import timeframe_duration
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.exchange.client import BinancePublicClient, PublicMarketDataClient
 from ai4binance.exchange.filters import SymbolFilters
 from ai4binance.exchange.models import MarketKline
@@ -314,6 +315,7 @@ class DataAcquisitionAgent:
             last_close_times,
         )
         return MarketSnapshot(
+            provenance_class=MarketDataProvenance.LIVE_SOURCE,
             snapshot_id=snapshot_id,
             created_at=observed_at,
             exchange="Binance",

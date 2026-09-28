@@ -24,6 +24,7 @@ from ai4binance.core.contracts.risk import RiskConfig
 from ai4binance.core.errors import ExchangeError
 from ai4binance.data.archive import ParquetOHLCVArchive
 from ai4binance.data.market_history_sync import read_cached_market_universe
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.domain.opportunity_observation import (
     OpportunityLifecycleState,
     diagnose_opportunity_generation,
@@ -221,6 +222,7 @@ def _snapshot(
 ) -> MarketSnapshot:
     prices = [rows[-1].close for rows in candles.values() if rows]
     return MarketSnapshot(
+        provenance_class=MarketDataProvenance.HISTORICAL_REAL,
         snapshot_id=identity,
         created_at=now,
         exchange="Binance",

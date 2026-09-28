@@ -1,6 +1,23 @@
 {
   "approval_records": [
     {
+      "approval_id": "AI4B-GOV-DOCLOCK-UNIVERSE-LIQUIDITY-SOURCE-BINDING-20260928-001",
+      "approval_scope": "EXPLICIT_USER_APPROVAL_OF_DISCLOSED_UNIVERSE_LIQUIDITY_SOURCE_BINDING_DIFF_DOCUMENT_VERSION_HASH_AND_LOCK_MANIFEST_ALIGNMENT_ONLY_NO_INDEPENDENT_C3_APPROVAL",
+      "approval_status": "APPROVED",
+      "approved_at_utc": "2026-09-28T03:13:36Z",
+      "approved_by": "Huseyin",
+      "written_owner_approval": true,
+      "approved_sha256": {
+        "docs/architecture/framework_architecture_overview.md": "d3727d8a726a84e482e4dfeb676d1daaa77b3e6d89dc61a9b26fbb02e0ae2fec"
+      },
+      "approval_source": "EXPLICIT_USER_MESSAGE_IN_CURRENT_CODEX_CHAT",
+      "approval_instruction_en_us": "Apply the disclosed diff plan.",
+      "approval_timestamp_basis": "TIME_USER_AUTHORIZATION_WAS_RECORDED_BY_CODEX",
+      "proposal_path": "runtime/artifacts/reality_enforcement/protected-document-change-proposal.json",
+      "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_universe_liquidity_source_binding_20260928_001.json",
+      "approval_evidence_sha256": "828a45981ec068419055cbd5cf125ef2df71837dd90c18ba3715496ca24833ef"
+    },
+    {
       "approval_id": "AI4B-GOV-DOCLOCK-LANGUAGE-IMPLEMENTATION-BINDINGS-20260927-001",
       "approval_scope": "EXPLICIT_USER_APPROVAL_OF_DISCLOSED_LANGUAGE_IMPLEMENTATION_BINDINGS_PREVIEW_STANDARD_FABRIC_AND_LOCK_MANIFEST_ALIGNMENT_ONLY_NO_INDEPENDENT_C3_APPROVAL",
       "approval_status": "APPROVED",
@@ -2007,13 +2024,13 @@
       "authority_scope": "architecture_overview",
       "canonical_path": "docs/architecture/framework_architecture_overview.md",
       "document_status": "ACTIVE",
-      "expected_hash": "4ba24d3dbcb586020cd2a7dd714be23e381c1715186e7303950aaf13819cbb7d",
+      "expected_hash": "d3727d8a726a84e482e4dfeb676d1daaa77b3e6d89dc61a9b26fbb02e0ae2fec",
       "lock_state": "LOCKED",
       "path": "docs/architecture/framework_architecture_overview.md",
-      "sha256": "4ba24d3dbcb586020cd2a7dd714be23e381c1715186e7303950aaf13819cbb7d",
+      "sha256": "d3727d8a726a84e482e4dfeb676d1daaa77b3e6d89dc61a9b26fbb02e0ae2fec",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "1.11.2"
+      "version": "1.11.3"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -3544,6 +3561,23 @@
   "status": "ACTIVE",
   "written_owner_approval_required": true,
   "written_owner_approvals": [
+    {
+      "approval_id": "AI4B-GOV-DOCLOCK-UNIVERSE-LIQUIDITY-SOURCE-BINDING-20260928-001",
+      "approval_scope": "EXPLICIT_USER_APPROVAL_OF_DISCLOSED_UNIVERSE_LIQUIDITY_SOURCE_BINDING_DIFF_DOCUMENT_VERSION_HASH_AND_LOCK_MANIFEST_ALIGNMENT_ONLY_NO_INDEPENDENT_C3_APPROVAL",
+      "approval_status": "APPROVED",
+      "approved_at_utc": "2026-09-28T03:13:36Z",
+      "approved_by": "Huseyin",
+      "written_owner_approval": true,
+      "approved_sha256": {
+        "docs/architecture/framework_architecture_overview.md": "d3727d8a726a84e482e4dfeb676d1daaa77b3e6d89dc61a9b26fbb02e0ae2fec"
+      },
+      "approval_source": "EXPLICIT_USER_MESSAGE_IN_CURRENT_CODEX_CHAT",
+      "approval_instruction_en_us": "Apply the disclosed diff plan.",
+      "approval_timestamp_basis": "TIME_USER_AUTHORIZATION_WAS_RECORDED_BY_CODEX",
+      "proposal_path": "runtime/artifacts/reality_enforcement/protected-document-change-proposal.json",
+      "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_universe_liquidity_source_binding_20260928_001.json",
+      "approval_evidence_sha256": "828a45981ec068419055cbd5cf125ef2df71837dd90c18ba3715496ca24833ef"
+    },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-LANGUAGE-IMPLEMENTATION-BINDINGS-20260927-001",
       "approval_scope": "EXPLICIT_USER_APPROVAL_OF_DISCLOSED_LANGUAGE_IMPLEMENTATION_BINDINGS_PREVIEW_STANDARD_FABRIC_AND_LOCK_MANIFEST_ALIGNMENT_ONLY_NO_INDEPENDENT_C3_APPROVAL",

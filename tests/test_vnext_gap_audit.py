@@ -97,9 +97,9 @@ def test_vnext_gap_audit_maps_local_evidence_without_execution() -> None:
 
     assert payload["command"] == "vnext-gap-audit"
     assert payload["source_profile"] == "AI4BINANCE_ENTERPRISEAI_VNEXT_V1_2"
-    assert report.summary_counts[VnextGapStatus.COMPLETE.value] >= 1
+    assert report.summary_counts[VnextGapStatus.PARTIAL.value] >= 1
     assert report.status in {"READY", "RUNNING_WITH_BLOCKERS"}
-    assert "VNEXT-00B-UNIVERSAL-ENFORCEMENT" not in report.top_gaps
+    assert "VNEXT-00B-UNIVERSAL-ENFORCEMENT" in report.top_gaps
     assert any(
         item.capability_id == "VNEXT-02-RECOVERY-RADAR" for item in report.capabilities
     )
@@ -116,16 +116,18 @@ def test_vnext_gap_audit_maps_local_evidence_without_execution() -> None:
         if item.capability_id == "VNEXT-00B-UNIVERSAL-ENFORCEMENT"
     )
     assert enforcement_closure.claim_verifier == "ENFORCEMENT_CLOSURE"
-    assert enforcement_closure.claim_status is VnextClaimStatus.VERIFIED
-    assert enforcement_closure.status is VnextGapStatus.COMPLETE
-    assert enforcement_closure.missing_controls == ()
-    assert enforcement_closure.proposed_diff == ()
+    assert enforcement_closure.claim_status is VnextClaimStatus.PARTIAL
+    assert enforcement_closure.status is VnextGapStatus.PARTIAL
+    assert enforcement_closure.missing_controls == ("ENFORCEMENT_RUNTIME_NOT_VERIFIED",)
+    assert enforcement_closure.evidence_depth is VnextEvidenceDepth.CODE_ONLY
+    assert enforcement_closure.runtime_wiring == "NOT_VERIFIED"
     recovery = next(
         item
         for item in report.capabilities
         if item.capability_id == "VNEXT-02-RECOVERY-RADAR"
     )
     assert recovery.evidence_depth in {
+        VnextEvidenceDepth.CODE_ONLY,
         VnextEvidenceDepth.TESTED_CONTRACT,
         VnextEvidenceDepth.RUNTIME_WIRED,
         VnextEvidenceDepth.PRODUCTION_EVIDENCE,
@@ -154,8 +156,9 @@ def test_vnext_gap_audit_maps_local_evidence_without_execution() -> None:
         for item in report.capabilities
         if item.capability_id == "VNEXT-09-MULTIOPS-RUNNER-ADMISSION"
     )
-    assert runner_admission.status is VnextGapStatus.COMPLETE
-    assert runner_admission.runtime_wiring == "VERIFIED"
+    assert runner_admission.status is VnextGapStatus.PARTIAL
+    assert runner_admission.runtime_wiring == "NOT_VERIFIED"
+    assert "RUNTIME_WIRING_NOT_VERIFIED" in runner_admission.missing_controls
     assert report.summary_counts[VnextGapStatus.RESEARCH_ONLY.value] == 0
     assert report.execution_allowed is False
     assert report.promotion_status == "RESEARCH_ONLY"
@@ -201,7 +204,7 @@ def test_vnext_gap_audit_maps_local_evidence_without_execution() -> None:
             blocker.startswith("VNEXT-00A-QUALITY-BASELINE:")
             for blocker in report.blockers
         )
-    assert not any(
+    assert any(
         blocker.startswith("VNEXT-00B-UNIVERSAL-ENFORCEMENT:")
         for blocker in report.blockers
     )

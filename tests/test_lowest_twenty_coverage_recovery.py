@@ -41,6 +41,7 @@ from ai4binance.domain import (
     TradeCandidate,
     ValidationStatus,
 )
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.enterprise.contracts import DepartmentId, WorkflowIdentity
 from ai4binance.enterprise.departments import build_default_department_registry
 from ai4binance.enterprise.prompt_intake import (
@@ -146,6 +147,7 @@ def _snapshot(
         for index in range(30)
     )
     return MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="snapshot-coverage",
         created_at=NOW,
         exchange="Binance",

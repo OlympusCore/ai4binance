@@ -2,7 +2,7 @@
 document_id: AI4B-ARCH-FRM-001
 title: AI4BINANCE Architecture Overview
 document_type: FRAMEWORK
-version: 1.11.2
+version: 1.11.3
 status: ACTIVE
 owner: Enterprise Knowledge Governance
 authority_level: NORMATIVE
@@ -209,7 +209,10 @@ Its output is always `VALIDATION_REJECTED`, `NO_TRADE_CAPITAL_PROTECTION`, and
 `execution_allowed=false`; it cannot promote a strategy or execute an order.
 `ValidationAgent` remains only as a compatibility facade.
 
-`UniverseLiquidityGate` runs immediately after `DataQualityGate` and before
+`UniverseLiquidityGate` is implemented in
+`src/ai4binance/agents/universe_liquidity_gate.py`
+(`ai4binance.agents.universe_liquidity_gate`). It runs immediately after
+`DataQualityGate` and before
 preflight or analytical scheduling. It requires usable data-quality evidence,
 then performs deterministic Spot trading-status, exchange-filter, pricing,
 bid/ask, and spread checks. A blocked result preserves `EARLY_EXIT_NO_TRADE`;

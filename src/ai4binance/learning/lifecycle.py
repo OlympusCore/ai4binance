@@ -29,6 +29,10 @@ class LessonTransitionRequest:
     blockers: tuple[str, ...] = ()
     human_approved: bool = False
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.human_approved, bool):
+            raise ValueError("human_approved must be a boolean")
+
 
 @dataclass(frozen=True, slots=True)
 class GovernedLessonLifecycleStore:

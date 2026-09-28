@@ -11,6 +11,7 @@ from typing import ClassVar, cast
 
 from ai4binance.core.contracts.memory import CompiledCycleContext
 from ai4binance.domain import Signal, TradeCandidate
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.domain.market_data import (
     OHLCVCandle as OHLCVCandle,
 )
@@ -149,6 +150,7 @@ class MarketSnapshot:
     sentiment_snapshot: Mapping[str, object] = field(default_factory=dict)
     derivatives_snapshot: Mapping[str, object] = field(default_factory=dict)
     onchain_snapshot: Mapping[str, object] = field(default_factory=dict)
+    provenance_class: MarketDataProvenance = MarketDataProvenance.UNKNOWN
 
     _MAPPING_FIELDS: ClassVar[tuple[str, ...]] = (
         "ohlcv_by_timeframe",
@@ -168,6 +170,8 @@ class MarketSnapshot:
         """Normalize identity and defensively freeze nested snapshot values."""
         if not self.snapshot_id.strip():
             raise ValueError("snapshot_id cannot be empty")
+        if not isinstance(self.provenance_class, MarketDataProvenance):
+            raise ValueError("provenance_class must be a MarketDataProvenance")
         _require_aware_timestamp("created_at", self.created_at)
         if self.server_time is not None:
             _require_aware_timestamp("server_time", self.server_time)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import UTC, datetime
+from hashlib import sha256
 from typing import Literal, cast
 
 import pytest
@@ -27,7 +28,8 @@ from ai4binance.agents import (
 )
 
 NOW = datetime(2026, 8, 13, 19, 0, tzinfo=UTC)
-HASH = "a" * 64
+CONTENT = b"Deterministic test-only evidence payload."
+HASH = sha256(CONTENT).hexdigest()
 
 
 @pytest.mark.parametrize("digest", ["g" * 64, " " * 64, "0" * 63 + "\n"])
@@ -37,7 +39,7 @@ def test_agent_evidence_rejects_non_hex_content_hash(digest: str) -> None:
 
 
 def test_evidence_label_without_content_binding_cannot_complete_layer() -> None:
-    unbound = replace(evidence("ev-1"), content_hash=None)
+    unbound = replace(evidence("ev-1"), content_hash=None, content=None)
     layer = AgentEvidenceLayer("layer", "agent", "cycle", "snapshot", (unbound,))
     assert layer.verified_count == 0
     assert layer.evidence_complete is False
@@ -67,7 +69,20 @@ def evidence(
         status=status,
         observed_at=NOW,
         content_hash=HASH,
+        content=CONTENT,
     )
+
+
+def test_digest_without_observed_content_cannot_complete_evidence() -> None:
+    reference = replace(evidence("ev-1"), content=None)
+    layer = AgentEvidenceLayer("layer", "agent", "cycle", "snapshot", (reference,))
+    assert layer.verified_count == 0
+    assert layer.blockers == ("AGENT_EVIDENCE_INCOMPLETE",)
+
+
+def test_changed_content_is_rejected_even_with_verified_label() -> None:
+    with pytest.raises(ValueError, match="does not match"):
+        replace(evidence("ev-1"), content=b"tampered test-only payload")
 
 
 def check(

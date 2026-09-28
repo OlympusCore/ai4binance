@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 import ai4binance.opportunity_intelligence as opportunity_intelligence
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.domain.opportunity_observation import OpportunityLifecycleState
 from ai4binance.intelligence.contracts import (
     ConfirmedSwing,
@@ -100,6 +101,7 @@ def multi_timeframe_snapshot(
         rows.pop(missing)
     freshness = {timeframe: {"stale": timeframe == stale} for timeframe in rows}
     return MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="mtf-boundary",
         created_at=DECISION_TIME,
         exchange="Binance",

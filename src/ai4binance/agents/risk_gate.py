@@ -9,6 +9,7 @@ from decimal import Decimal, InvalidOperation
 from ai4binance.agents.registry import AgentDefinition, AgentStage
 from ai4binance.core.errors import ExchangePayloadError
 from ai4binance.domain import TradeCandidate
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.exchange.filters import SymbolFilters
 from ai4binance.exchange.models import FilterValue, SymbolInfo
 from ai4binance.governance.execution_authority import ExecutionSurface
@@ -82,6 +83,18 @@ class RiskGate:
             )
 
     def _evaluate_candidates(self, snapshot: MarketSnapshot) -> AgentResult:
+        if snapshot.provenance_class is MarketDataProvenance.UNKNOWN or (
+            self.execution_surface is not ExecutionSurface.VIRTUAL_MARKET
+            and snapshot.provenance_class is not MarketDataProvenance.LIVE_SOURCE
+        ):
+            return self._result(
+                snapshot,
+                status=AgentStatus.BLOCKED,
+                data_quality=DataQuality.DATA_INVALID,
+                applicable=False,
+                blockers=("MARKET_DATA_PROVENANCE_REJECTED",),
+                reason_codes=("RISK_REJECTED_DATA_PROVENANCE",),
+            )
         if snapshot.market_metadata.get("virtual_managed_position_active") is True:
             return self._result(
                 snapshot,

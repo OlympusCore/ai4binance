@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.governance.evidence_contracts import GovernedArtifactEvidence
 from ai4binance.governance.execution_authority import ExecutionSurface
 from ai4binance.governance.execution_envelope import execution_envelope_for_surface
@@ -25,7 +26,7 @@ from ai4binance.wire_contracts import (
     market_snapshot_to_wire,
 )
 
-MARKET_SNAPSHOT_SCHEMA_ID = "urn:ai4binance:schema:snapshots:market-snapshot:1.0.0"
+MARKET_SNAPSHOT_SCHEMA_ID = "urn:ai4binance:schema:snapshots:market-snapshot:1.1.0"
 SCHEMA_ROOT = Path(__file__).parents[3] / "schemas"
 
 
@@ -39,6 +40,7 @@ def _snapshot() -> MarketSnapshot:
         volume=Decimal("42.10000000"),
     )
     return MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="snapshot-1",
         created_at=datetime(2026, 9, 2, tzinfo=UTC),
         exchange="Binance",
@@ -79,9 +81,50 @@ def test_market_snapshot_wire_contract_round_trips_with_decimal_precision() -> N
 
     registry.validate(MARKET_SNAPSHOT_SCHEMA_ID, payload)
     restored = market_snapshot_from_wire(payload)
+    assert restored.provenance_class is MarketDataProvenance.TEST_FIXTURE
 
     assert restored == snapshot
     assert payload["latest_price"] == "65500.12500000"
+
+
+def test_legacy_wire_snapshot_does_not_invent_real_origin() -> None:
+    payload = market_snapshot_to_wire(_snapshot())
+    payload.pop("provenance_class")
+    payload["schema_version"] = "1.0.0"
+    assert (
+        market_snapshot_from_wire(payload).provenance_class
+        is MarketDataProvenance.UNKNOWN
+    )
+
+
+def test_wire_snapshot_rejects_unrecognized_origin() -> None:
+    payload = market_snapshot_to_wire(_snapshot())
+    payload["provenance_class"] = "CONFIDENT_REAL"
+    with pytest.raises(ValueError, match="is not a valid MarketDataProvenance"):
+        market_snapshot_from_wire(payload)
+
+
+def test_new_wire_version_requires_origin_and_legacy_identity_stays_readable() -> None:
+    registry = OfflineSchemaRegistry.from_directory(SCHEMA_ROOT)
+    payload = market_snapshot_to_wire(_snapshot())
+    payload.pop("provenance_class")
+    with pytest.raises(SchemaValidationError, match="instance validation failed"):
+        registry.validate(MARKET_SNAPSHOT_SCHEMA_ID, payload)
+    with pytest.raises(ValueError, match="requires provenance_class"):
+        market_snapshot_from_wire(payload)
+    payload["schema_version"] = "1.0.0"
+    registry.validate("urn:ai4binance:schema:snapshots:market-snapshot:1.0.0", payload)
+    assert (
+        market_snapshot_from_wire(payload).provenance_class
+        is MarketDataProvenance.UNKNOWN
+    )
+
+
+def test_future_wire_version_is_rejected_before_deserialization() -> None:
+    payload = market_snapshot_to_wire(_snapshot())
+    payload["schema_version"] = "2.0.0"
+    with pytest.raises(ValueError, match="unsupported MarketSnapshot"):
+        market_snapshot_from_wire(payload)
 
 
 def test_market_snapshot_wire_contract_enforces_timestamp_format_and_closed_shape() -> (

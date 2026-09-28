@@ -20,6 +20,7 @@ from ai4binance.domain import (
     TradeCandidate,
     ValidationStatus,
 )
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.events import DeterministicEventBus, DomainEvent
 from ai4binance.exchange.filters import (
     LotSizeFilter,
@@ -220,6 +221,7 @@ def _approved_candidate(entry: Decimal, stop: Decimal) -> TradeCandidate:
 
 def _snapshot(price: Decimal) -> MarketSnapshot:
     return MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="property-risk-snapshot",
         created_at=NOW,
         exchange="Binance",

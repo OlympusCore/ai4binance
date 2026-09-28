@@ -78,7 +78,7 @@ class SchemaCompatibilityResult:
 CONTRACT_SCHEMA_MAPPINGS = (
     ContractSchemaMapping(
         "ai4binance.schemas.MarketSnapshot",
-        "urn:ai4binance:schema:snapshots:market-snapshot:1.0.0",
+        "urn:ai4binance:schema:snapshots:market-snapshot:1.1.0",
         "snapshots",
     ),
     ContractSchemaMapping(

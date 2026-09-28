@@ -31,6 +31,7 @@ from ai4binance.cli.commands import (
 from ai4binance.cli.dge import dge_replay_payload, dge_shadow_rules_payload
 from ai4binance.cli.output import render_payload
 from ai4binance.config import Settings
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.enterprise import GpuResourceGovernor, GpuTelemetrySnapshot
 from ai4binance.exchange.errors import ExchangeTransportError
 from ai4binance.governance.replay import DgeReplayResult
@@ -1032,6 +1033,7 @@ def public_snapshot() -> MarketSnapshot:
         for offset in (2, 1)
     )
     return MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="public-snapshot-1",
         created_at=now,
         exchange="Binance",

@@ -456,9 +456,11 @@ def test_write_json_object_verified_stops_on_failed_read_back(
         )
 
 
+@pytest.mark.parametrize("canonical_writer", [False, True])
 def test_write_json_object_verified_retries_transient_replace_denial(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    canonical_writer: bool,
 ) -> None:
     path = tmp_path / "state" / "latest.json"
     original_replace = os.replace
@@ -475,22 +477,34 @@ def test_write_json_object_verified_retries_transient_replace_denial(
     monkeypatch.setattr(os, "replace", flaky_replace)
     monkeypatch.setattr(time, "sleep", delays.append)
 
-    result = write_json_object_verified(
+    writer = (
+        safe_json.write_json_object_verified
+        if canonical_writer
+        else write_json_object_verified
+    )
+    result = writer(
         path,
         {"status": "ok"},
         blocker="STATE_VERIFY_FAILED",
     )
 
-    assert result.status is VerificationStatus.VERIFIED
+    assert result.status == "VERIFIED"
+    assert result.expected_sha256 == result.observed_sha256
+    assert json.loads(path.read_text(encoding="utf-8")) == {"status": "ok"}
     assert attempts == 3
     assert delays == [0.01, 0.02]
 
 
+@pytest.mark.parametrize("canonical_writer", [False, True])
 def test_write_json_object_verified_preserves_persistent_replace_denial(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    canonical_writer: bool,
 ) -> None:
     path = tmp_path / "state" / "latest.json"
+    path.parent.mkdir()
+    original = '{"status":"original"}\n'
+    path.write_text(original, encoding="utf-8")
     attempts = 0
 
     def denied_replace(_source: Path, _destination: Path) -> None:
@@ -501,14 +515,51 @@ def test_write_json_object_verified_preserves_persistent_replace_denial(
     monkeypatch.setattr(os, "replace", denied_replace)
     monkeypatch.setattr(time, "sleep", lambda _delay: None)
 
+    writer = (
+        safe_json.write_json_object_verified
+        if canonical_writer
+        else write_json_object_verified
+    )
     with pytest.raises(PermissionError, match="persistent sharing violation"):
-        write_json_object_verified(
+        writer(
             path,
             {"status": "ok"},
             blocker="STATE_VERIFY_FAILED",
         )
 
     assert attempts == 8
+    assert path.read_text(encoding="utf-8") == original
+    assert tuple(path.parent.glob(".*.tmp")) == ()
+
+
+@pytest.mark.parametrize("canonical_writer", [False, True])
+def test_verified_json_write_propagates_other_replace_errors_without_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, canonical_writer: bool
+) -> None:
+    path = tmp_path / "state.json"
+    path.write_text('{"status":"original"}\n', encoding="utf-8")
+    attempts = 0
+
+    def failed_replace(_source: Path, _destination: Path) -> None:
+        nonlocal attempts
+        attempts += 1
+        raise OSError("replacement failed")
+
+    def unexpected_sleep(_delay: float) -> None:
+        pytest.fail("non-permission errors must not be retried")
+
+    monkeypatch.setattr(os, "replace", failed_replace)
+    monkeypatch.setattr(time, "sleep", unexpected_sleep)
+    writer = (
+        safe_json.write_json_object_verified
+        if canonical_writer
+        else write_json_object_verified
+    )
+    with pytest.raises(OSError, match="replacement failed"):
+        writer(path, {"status": "changed"}, blocker="STATE_VERIFY_FAILED")
+    assert attempts == 1
+    assert json.loads(path.read_text(encoding="utf-8")) == {"status": "original"}
+    assert tuple(tmp_path.glob(".*.tmp")) == ()
 
 
 def test_jsonl_store_optional_durable_flush(

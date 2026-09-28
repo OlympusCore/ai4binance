@@ -17,6 +17,7 @@ from ai4binance.agents.advisory import (
     InMemoryAdvisoryCheckpointStore,
 )
 from ai4binance.decision import build_no_trade_signal
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.schemas import (
     AgentResult,
     AgentStatus,
@@ -63,6 +64,7 @@ def analysis_state() -> AnalysisState:
         Decimal("0.99"),
         Decimal("1.01"),
         Decimal("0.02"),
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         data_quality=DataQuality.DATA_VALID,
     )
     result = AgentResult(

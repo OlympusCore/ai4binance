@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
+from hashlib import sha256
 from math import isfinite
 from typing import Literal
 
@@ -206,6 +207,7 @@ class AgentEvidenceReference:
     status: AgentEvidenceStatus
     observed_at: datetime
     content_hash: str | None = None
+    content: bytes | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         for field_name in ("evidence_id", "source_id", "claim"):
@@ -221,6 +223,19 @@ class AgentEvidenceReference:
             )
         ):
             raise ValueError("content_hash must be a SHA-256 hex digest")
+        if self.content is not None:
+            if not isinstance(self.content, bytes):
+                raise ValueError("evidence content must be immutable bytes")
+            if (
+                self.content_hash is None
+                or sha256(self.content).hexdigest() != self.content_hash.lower()
+            ):
+                raise ValueError("evidence content does not match content_hash")
+
+    @property
+    def content_verified(self) -> bool:
+        """Require observed content rather than a caller-provided digest label."""
+        return self.content is not None and self.content_hash is not None
 
 
 def build_handoff_evidence_ref(
@@ -235,6 +250,11 @@ def build_handoff_evidence_ref(
     """Convert agent evidence into a handoff-safe provenance reference."""
     if reference.content_hash is None:
         raise ValueError("handoff evidence requires a content_hash")
+    if (
+        not reference.content_verified
+        or reference.status is not AgentEvidenceStatus.VERIFIED
+    ):
+        raise ValueError("handoff evidence requires verified content")
     return HandoffEvidenceRef(
         evidence_id=reference.evidence_id,
         evidence_type=evidence_type,
@@ -277,8 +297,7 @@ class AgentEvidenceLayer:
     @property
     def verified_count(self) -> int:
         return sum(
-            item.status is AgentEvidenceStatus.VERIFIED
-            and item.content_hash is not None
+            item.status is AgentEvidenceStatus.VERIFIED and item.content_verified
             for item in self.evidence
         )
 

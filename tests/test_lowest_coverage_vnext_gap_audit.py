@@ -1,5 +1,6 @@
 """Targeted failure-mode coverage for vNext gap evidence validators."""
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
@@ -7,6 +8,40 @@ import pytest
 
 from ai4binance.enterprise import vnext_gap_audit as audit
 from ai4binance.governance.enforcement.inventory import RequirementTraceabilityRegistry
+
+
+def test_file_presence_cannot_claim_tests_runtime_or_control_closure(
+    tmp_path: Path,
+) -> None:
+    paths = ("src/owner.py", "tests/test_owner.py", "src/consumer.py")
+    for name in paths:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# Test-only source-presence fixture.\n", encoding="utf-8")
+    result = audit._capability(
+        tmp_path,
+        capability_id="fixture",
+        title="fixture",
+        phase="phase",
+        priority="P1",
+        evidence_files=paths,
+        complete_when=paths,
+        runtime_wiring_files=(paths[-1],),
+        production_evidence_files=(),
+        missing_controls=("CONTROL_NOT_PROVEN",),
+        proposed_diff=(),
+        risk="LOW",
+        observed_at=datetime.now(UTC),
+    )
+    assert result.status is audit.VnextGapStatus.PARTIAL
+    assert result.claim_status is audit.VnextClaimStatus.PARTIAL
+    assert result.evidence_depth is audit.VnextEvidenceDepth.CODE_ONLY
+    assert result.runtime_wiring == "NOT_VERIFIED"
+    assert result.missing_controls == (
+        "CONTROL_NOT_PROVEN",
+        "CURRENT_TEST_EXECUTION_NOT_VERIFIED",
+        "RUNTIME_WIRING_NOT_VERIFIED",
+    )
 
 
 def test_evidence_validators_reject_missing_or_invalid_inputs() -> None:

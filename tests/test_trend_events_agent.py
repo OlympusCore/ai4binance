@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from ai4binance.agents.catalog import build_default_registry
 from ai4binance.agents.trend_events import TrendEventsAgent
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.schemas import AgentStatus, DataQuality, MarketSnapshot, OHLCVCandle
 
 NOW = datetime(2026, 7, 12, tzinfo=UTC)
@@ -24,6 +25,7 @@ def _snapshot(direction: int, count: int = 220) -> MarketSnapshot:
         for index in range(count)
     )
     return MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id=f"trend-events-{direction}-{count}",
         created_at=NOW,
         exchange="Binance",

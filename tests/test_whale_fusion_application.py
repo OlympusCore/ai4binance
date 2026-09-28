@@ -13,6 +13,7 @@ from ai4binance.application import (
     WhaleFusionResearchService,
     WhaleFusionWorkflowResult,
 )
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.schemas import AgentStatus, DataQuality, MarketSnapshot, OHLCVCandle
 from ai4binance.whale_fusion import (
     FusionAuditWriter,
@@ -45,6 +46,7 @@ def snapshot() -> MarketSnapshot:
         for offset in (2, 1)
     )
     return MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="application-fusion-1",
         created_at=NOW,
         exchange="Binance",

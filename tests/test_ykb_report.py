@@ -15,6 +15,7 @@ from ai4binance.cli.opportunity_radar_persistence import (
     write_opportunity_radar_snapshot,
 )
 from ai4binance.config import Settings
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.enterprise import ykb_report as ykb_module
 from ai4binance.enterprise.ykb_report import (
     SemiAutoControlManagement,
@@ -3762,6 +3763,7 @@ def _canonical_radar_market_snapshot() -> MarketSnapshot:
         return tuple(rows)
 
     return MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="ykb-canonical-mtf-snapshot",
         created_at=NOW,
         exchange="Binance",

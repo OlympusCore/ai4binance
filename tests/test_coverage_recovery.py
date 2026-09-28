@@ -52,6 +52,7 @@ from ai4binance.domain import (
     TradeCandidate,
     ValidationStatus,
 )
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.enterprise import (
     GpuResourceGovernor,
     GpuTelemetryAssessment,
@@ -224,6 +225,7 @@ def test_cli_status_helpers_are_fail_closed(
     (tmp_path / "runtime" / "tmp" / "pytest" / "vscode-pytest").mkdir(parents=True)
     settings = Settings(manual_approval_queue_path=tmp_path / "approvals.jsonl")
     snapshot = MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="snap-1",
         created_at=NOW,
         exchange="Binance",
@@ -241,6 +243,7 @@ def test_cli_status_helpers_are_fail_closed(
         market_metadata={"base_asset": " eth "},
     )
     fallback = MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="snap-2",
         created_at=NOW,
         exchange="Binance",
@@ -1776,6 +1779,7 @@ def test_universe_filters_and_scanner_orchestrator_cover_rejections() -> None:
 
 def risk_snapshot() -> MarketSnapshot:
     return MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="risk-snapshot",
         created_at=NOW,
         exchange="Binance",

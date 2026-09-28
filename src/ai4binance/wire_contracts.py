@@ -7,6 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import cast
 
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.governance.evidence_contracts import GovernedArtifactEvidence
 from ai4binance.governance.execution_envelope import ExecutionEnvelope
 from ai4binance.schemas import DataQuality, MarketSnapshot, OHLCVCandle
@@ -41,7 +42,7 @@ def market_snapshot_to_wire(snapshot: MarketSnapshot) -> dict[str, object]:
             for candle in candles
         ]
     return {
-        "schema_version": "1.0.0",
+        "schema_version": "1.1.0",
         "snapshot_id": snapshot.snapshot_id,
         "created_at": _wire_value(snapshot.created_at),
         "exchange": snapshot.exchange,
@@ -56,6 +57,7 @@ def market_snapshot_to_wire(snapshot: MarketSnapshot) -> dict[str, object]:
         "server_time": _wire_value(snapshot.server_time),
         "data_quality": snapshot.data_quality.value,
         "data_freshness": _wire_value(snapshot.data_freshness),
+        "provenance_class": snapshot.provenance_class.value,
     }
 
 
@@ -78,6 +80,11 @@ def _optional_decimal(value: object, field_name: str) -> Decimal | None:
 
 def market_snapshot_from_wire(payload: Mapping[str, object]) -> MarketSnapshot:
     """Deserialize a schema-validated MarketSnapshot wire payload."""
+    version = payload.get("schema_version")
+    if version not in {"1.0.0", "1.1.0"}:
+        raise ValueError("unsupported MarketSnapshot schema_version")
+    if version == "1.1.0" and "provenance_class" not in payload:
+        raise ValueError("MarketSnapshot 1.1.0 requires provenance_class")
 
     raw_candles = cast(
         Mapping[str, Sequence[Mapping[str, object]]], payload["ohlcv_by_timeframe"]
@@ -115,6 +122,9 @@ def market_snapshot_from_wire(payload: Mapping[str, object]) -> MarketSnapshot:
         ),
         data_quality=DataQuality(cast(str, payload["data_quality"])),
         data_freshness=cast(Mapping[str, object], payload["data_freshness"]),
+        provenance_class=MarketDataProvenance(
+            cast(str, payload["provenance_class"] if version == "1.1.0" else "UNKNOWN")
+        ),
     )
 
 

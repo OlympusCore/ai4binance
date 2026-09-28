@@ -13,6 +13,7 @@ from ai4binance.agents.technical import (
 )
 from ai4binance.data.timeframes import timeframe_duration
 from ai4binance.domain import Decision
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.schemas import AgentStatus, DataQuality, MarketSnapshot, OHLCVCandle
 
 NOW = datetime(2026, 7, 11, 12, tzinfo=UTC)
@@ -50,6 +51,7 @@ def technical_snapshot(*, direction: int = 1) -> MarketSnapshot:
     }
     latest = data["5m"][-1].close
     return MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id=f"technical-{direction}",
         created_at=NOW,
         exchange="Binance",
@@ -156,6 +158,7 @@ def test_price_action_agent_detects_contextual_engulfing() -> None:
         Decimal("150"),
     )
     snapshot = MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="engulfing",
         created_at=base.created_at,
         exchange=base.exchange,

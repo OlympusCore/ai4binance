@@ -53,6 +53,7 @@ from ai4binance.core.contracts.memory import (
     memory_producer_role_contract,
 )
 from ai4binance.domain import Decision
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.domain.memory import (
     GovernedMemoryFabric,
     compile_analysis_observer_memory_candidate,
@@ -113,6 +114,7 @@ def _candle(index: int) -> OHLCVCandle:
 
 def _market_snapshot() -> MarketSnapshot:
     return MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="market-snapshot-gmf",
         created_at=NOW + timedelta(hours=2, minutes=10),
         exchange="Binance",

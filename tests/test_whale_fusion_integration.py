@@ -12,6 +12,7 @@ import pytest
 
 from ai4binance.agents.catalog import build_default_registry
 from ai4binance.agents.orchestrator import EnterpriseOrchestrator
+from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.schemas import AgentStatus, DataQuality, MarketSnapshot, OHLCVCandle
 from ai4binance.whale_fusion import (
     FusionAuditWriter,
@@ -38,6 +39,7 @@ def candle(hours_ago: int) -> OHLCVCandle:
 
 def snapshot() -> MarketSnapshot:
     return MarketSnapshot(
+        provenance_class=MarketDataProvenance.TEST_FIXTURE,
         snapshot_id="fusion-snapshot-1",
         created_at=NOW,
         exchange="Binance",

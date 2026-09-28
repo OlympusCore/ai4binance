@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import time
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field, fields, is_dataclass
@@ -24,6 +25,7 @@ from ai4binance.core import (
 _EVENT_TYPE_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]{1,63}$")
 _TAIL_READ_CHUNK_BYTES = 64 * 1024
 _DEFAULT_MAX_EVENT_BYTES = 8 * 1024 * 1024
+_REPLACE_RETRY_DELAYS_SECONDS = (0.01, 0.02, 0.04, 0.08, 0.16, 0.25, 0.25)
 _GENESIS_RECORD_HASH = "GENESIS"
 _SENSITIVE_KEY_FRAGMENTS = (
     "api_key",
@@ -384,7 +386,7 @@ def write_json_object_verified(
             stream.flush()
             if durable:
                 os.fsync(stream.fileno())
-        os.replace(temporary, path)
+        _replace_with_retry(temporary, path)
         observed = _read_json_object(path, blocker=blocker)
     finally:
         temporary.unlink(missing_ok=True)
@@ -403,6 +405,17 @@ def write_json_object_verified(
         expected_sha256=expected_hash,
         observed_sha256=observed_hash,
     )
+
+
+def _replace_with_retry(source: Path, destination: Path) -> None:
+    """Bound transient sharing denials; propagate persistent permission failures."""
+    for delay in _REPLACE_RETRY_DELAYS_SECONDS:
+        try:
+            os.replace(source, destination)
+            return
+        except PermissionError:
+            time.sleep(delay)
+    os.replace(source, destination)
 
 
 def to_primitive(value: object) -> object:
