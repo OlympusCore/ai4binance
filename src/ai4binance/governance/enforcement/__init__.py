@@ -6,6 +6,7 @@ from ai4binance.governance.enforcement.adapters import (
     envelope_from_policy_document,
     envelope_from_repository_artifact,
     envelope_from_tool_policy_document,
+    evaluate_registered_entrypoint,
 )
 from ai4binance.governance.enforcement.contracts import (
     EnforcementControlResult,
@@ -84,6 +85,7 @@ __all__ = [
     "envelope_from_policy_document",
     "envelope_from_repository_artifact",
     "envelope_from_tool_policy_document",
+    "evaluate_registered_entrypoint",
     "expected_governed_object_types",
     "inventory_actions_for_object_type",
     "inventory_entrypoint_ids",

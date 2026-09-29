@@ -18,6 +18,13 @@ from pathlib import Path
 from typing import Protocol, cast
 from uuid import uuid4
 
+from ai4binance.ops.jobs import (
+    JobRequest,
+    RunnerAdmissionReport,
+    RunnerAdmissionStatus,
+    assess_runner_admission,
+    nightly_quality_runner_manifest,
+)
 from ai4binance.reporting import to_primitive
 from ai4binance.storage import AuditEvent, JsonlAuditStore, write_json_object_verified
 
@@ -72,6 +79,7 @@ class QualityTriageReport:
     execution_allowed: bool = False
     live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
     schema_version: str = "1.0"
+    runner_admission_ref: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,6 +119,14 @@ class QualityTriageAlreadyRunningError(RuntimeError):
     """Raised when an overlapping run is rejected fail-closed."""
 
 
+class QualityTriageAdmissionError(ValueError):
+    """Raised before commands when the governed runner rejects admission."""
+
+    def __init__(self, blockers: tuple[str, ...]) -> None:
+        self.blockers = blockers
+        super().__init__(", ".join(blockers))
+
+
 def default_quality_checks(python: str = sys.executable) -> tuple[QualityCheck, ...]:
     """Return the immutable, shell-free quality command set."""
     return (
@@ -136,16 +152,54 @@ def run_quality_triage(
     root = config.repository_root.resolve()
     if not root.is_dir():
         raise ValueError("repository_root must be an existing directory")
-    config.output_directory.mkdir(parents=True, exist_ok=True)
+    output = config.output_directory.resolve()
+    if not output.is_relative_to(root / "runtime"):
+        raise QualityTriageAdmissionError(("JOB_OUTPUT_OUTSIDE_RUNTIME",))
+    manifest = nightly_quality_runner_manifest(root, output)
+    fixed_checks = default_quality_checks()
+    selected_checks = fixed_checks if checks is None else checks
+    commands_allowed = (
+        bool(selected_checks)
+        and len(set(selected_checks)) == len(selected_checks)
+        and all(check in fixed_checks for check in selected_checks)
+    )
+    output.mkdir(parents=True, exist_ok=True)
     command_runner = runner or _run_command
-    lock_path = config.output_directory / "quality_triage.lock"
+    lock_path = manifest.job_manifest.lock_path
     lock_descriptor = _acquire_lock(lock_path)
     try:
         started_at = now()
         run_id = f"quality-{started_at:%Y%m%dT%H%M%SZ}-{uuid4().hex[:12]}"
+        admission = assess_runner_admission(
+            manifest,
+            JobRequest(
+                job_id=manifest.job_manifest.job_id,
+                idempotency_key=run_id,
+                requested_capabilities=manifest.capability_manifest.allowed_capabilities,
+                requested_side_effects=manifest.capability_manifest.side_effect_allowlist,
+                target_paths=(root, output),
+                lock_acquired=True,
+                timeout_enforced_by_runner=(
+                    config.command_timeout_seconds
+                    <= manifest.job_manifest.timeout_seconds
+                    and config.max_output_characters
+                    <= manifest.job_manifest.maximum_output_bytes
+                ),
+                runner_id=manifest.runner_id,
+                command_ref=(
+                    "python -m ai4binance.ops.quality_triage"
+                    if commands_allowed
+                    else "UNREGISTERED_QUALITY_COMMAND"
+                ),
+            ),
+            observed_at=started_at,
+        )
+        _persist_admission(admission)
+        if admission.status is not RunnerAdmissionStatus.ADMITTED_REPORT_ONLY:
+            raise QualityTriageAdmissionError(admission.blockers)
         results = tuple(
             _run_check(check, config, root, command_runner, monotonic)
-            for check in (checks or default_quality_checks())
+            for check in selected_checks
         )
         blockers = tuple(
             f"QUALITY_{result.name.upper()}_{result.status.value}"
@@ -161,8 +215,9 @@ def run_quality_triage(
             checks=results,
             status="PASSED" if not blockers else "FAILED",
             blockers=blockers,
+            runner_admission_ref=str(admission.persistent_evidence.artifact_path),
         )
-        _persist_report(config.output_directory, report)
+        _persist_report(output, report)
         return report
     finally:
         os.close(lock_descriptor)
@@ -176,6 +231,28 @@ def _acquire_lock(path: Path) -> int:
         raise QualityTriageAlreadyRunningError(
             "quality triage is already running"
         ) from error
+
+
+def _persist_admission(report: RunnerAdmissionReport) -> None:
+    evidence = report.persistent_evidence
+    payload = report.to_payload()
+    write_json_object_verified(
+        evidence.artifact_path,
+        payload,
+        blocker="RUNNER_ADMISSION_DESTINATION_VERIFY_FAILED",
+        subject_id=report.run_card.run_card_id,
+        indent=2,
+    )
+    JsonlAuditStore(
+        evidence.audit_path, durable=True, tamper_evident=True
+    ).append_verified(
+        AuditEvent(
+            event_type=report.audit_record.event_type,
+            timestamp=report.audit_record.created_at,
+            snapshot_id=report.run_card.run_card_id,
+            payload={"admission": payload},
+        )
+    )
 
 
 def _run_command(
@@ -301,6 +378,9 @@ def main(arguments: Sequence[str] | None = None) -> int:
         report = run_quality_triage(config, revision=parsed.revision)
     except QualityTriageAlreadyRunningError as error:
         print(json.dumps({"status": "BLOCKED", "blocker": str(error)}))
+        return 3
+    except QualityTriageAdmissionError as error:
+        print(json.dumps({"status": "BLOCKED", "blockers": error.blockers}))
         return 3
     print(json.dumps(to_primitive(report), ensure_ascii=False, sort_keys=True))
     return 0 if report.status == "PASSED" else 1

@@ -1,6 +1,23 @@
 {
   "approval_records": [
     {
+      "approval_id": "AI4B-GOV-DOCLOCK-VIRTUAL-MARKET-UNIVERSE-OWNER-20260929-001",
+      "approval_evidence_path": "runtime/artifacts/repository_validation/governance/virtual-market-universe-owner-approval.json",
+      "approval_evidence_sha256": "d93562cdb14333cc00576e613e80dfedc2ad96025c565e66b6c2b67e5a547012",
+      "approval_scope": "EXPLICIT_USER_APPROVAL_OF_DISCLOSED_RESEARCH_UNIVERSE_OWNER_DOCUMENT_VERSION_HASH_AND_LOCK_MANIFEST_ALIGNMENT_NO_LIVE_AUTHORITY",
+      "approval_status": "APPROVED",
+      "approved_at_utc": "2026-09-29T14:00:45.115718+00:00",
+      "approved_by": "Huseyin",
+      "written_owner_approval": true,
+      "approved_sha256": {
+        "docs/architecture/framework_architecture_overview.md": "fb7b64a3b302996bc459204b2a34fb42254dbdba935577c7944d7525da4d2aa3"
+      },
+      "approval_source": "EXPLICIT_USER_MESSAGE_IN_CURRENT_CODEX_CHAT",
+      "approval_instruction_en_us": "I separately grant GovernanceOwner approval for huseyin-governance-owner-principal and ConstitutionOwner approval for huseyin-constitution-owner-principal.",
+      "approval_timestamp_basis": "TIME_USER_AUTHORIZATION_WAS_RECORDED_BY_CODEX",
+      "proposal_path": "runtime/reports/audit/virtual-market-governance-alignment-proposal.md"
+    },
+    {
       "approval_id": "AI4B-GOV-DOCLOCK-UNIVERSE-LIQUIDITY-SOURCE-BINDING-20260928-001",
       "approval_scope": "EXPLICIT_USER_APPROVAL_OF_DISCLOSED_UNIVERSE_LIQUIDITY_SOURCE_BINDING_DIFF_DOCUMENT_VERSION_HASH_AND_LOCK_MANIFEST_ALIGNMENT_ONLY_NO_INDEPENDENT_C3_APPROVAL",
       "approval_status": "APPROVED",
@@ -2024,13 +2041,13 @@
       "authority_scope": "architecture_overview",
       "canonical_path": "docs/architecture/framework_architecture_overview.md",
       "document_status": "ACTIVE",
-      "expected_hash": "d3727d8a726a84e482e4dfeb676d1daaa77b3e6d89dc61a9b26fbb02e0ae2fec",
+      "expected_hash": "fb7b64a3b302996bc459204b2a34fb42254dbdba935577c7944d7525da4d2aa3",
       "lock_state": "LOCKED",
       "path": "docs/architecture/framework_architecture_overview.md",
-      "sha256": "d3727d8a726a84e482e4dfeb676d1daaa77b3e6d89dc61a9b26fbb02e0ae2fec",
+      "sha256": "fb7b64a3b302996bc459204b2a34fb42254dbdba935577c7944d7525da4d2aa3",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "1.11.3"
+      "version": "1.11.4"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -3561,6 +3578,23 @@
   "status": "ACTIVE",
   "written_owner_approval_required": true,
   "written_owner_approvals": [
+    {
+      "approval_id": "AI4B-GOV-DOCLOCK-VIRTUAL-MARKET-UNIVERSE-OWNER-20260929-001",
+      "approval_evidence_path": "runtime/artifacts/repository_validation/governance/virtual-market-universe-owner-approval.json",
+      "approval_evidence_sha256": "d93562cdb14333cc00576e613e80dfedc2ad96025c565e66b6c2b67e5a547012",
+      "approval_scope": "EXPLICIT_USER_APPROVAL_OF_DISCLOSED_RESEARCH_UNIVERSE_OWNER_DOCUMENT_VERSION_HASH_AND_LOCK_MANIFEST_ALIGNMENT_NO_LIVE_AUTHORITY",
+      "approval_status": "APPROVED",
+      "approved_at_utc": "2026-09-29T14:00:45.115718+00:00",
+      "approved_by": "Huseyin",
+      "written_owner_approval": true,
+      "approved_sha256": {
+        "docs/architecture/framework_architecture_overview.md": "fb7b64a3b302996bc459204b2a34fb42254dbdba935577c7944d7525da4d2aa3"
+      },
+      "approval_source": "EXPLICIT_USER_MESSAGE_IN_CURRENT_CODEX_CHAT",
+      "approval_instruction_en_us": "I separately grant GovernanceOwner approval for huseyin-governance-owner-principal and ConstitutionOwner approval for huseyin-constitution-owner-principal.",
+      "approval_timestamp_basis": "TIME_USER_AUTHORIZATION_WAS_RECORDED_BY_CODEX",
+      "proposal_path": "runtime/reports/audit/virtual-market-governance-alignment-proposal.md"
+    },
     {
       "approval_id": "AI4B-GOV-DOCLOCK-UNIVERSE-LIQUIDITY-SOURCE-BINDING-20260928-001",
       "approval_scope": "EXPLICIT_USER_APPROVAL_OF_DISCLOSED_UNIVERSE_LIQUIDITY_SOURCE_BINDING_DIFF_DOCUMENT_VERSION_HASH_AND_LOCK_MANIFEST_ALIGNMENT_ONLY_NO_INDEPENDENT_C3_APPROVAL",

@@ -27,6 +27,34 @@ SERVER = runpy.run_path(str(ROOT / "src/ai4binance/local_dashboard/server.py.in"
 NOW = datetime(2026, 9, 27, 12, tzinfo=UTC)
 
 
+def test_virtual_simulation_projection_keeps_market_observations_independent() -> None:
+    source = {
+        "dashboard_simulation_projection": {
+            "symbol_observations": [
+                {
+                    "symbol": "BTCUSDT",
+                    "state": "FAILED",
+                    "blockers": ["PUBLIC_MARKET_CAP_HTTP_403"],
+                }
+            ]
+        },
+        "dashboard_futures_simulation_projection": {
+            "symbol_observations": [
+                {
+                    "symbol": "ETHUSDT",
+                    "state": "COMPLETED",
+                    "blockers": ["OOS_APPROVAL_MISSING"],
+                }
+            ]
+        },
+    }
+    spot = SERVER["virtual_simulation_projection"](source)
+    futures = SERVER["virtual_simulation_projection"](source, "USD_M_FUTURES")
+    assert spot["symbol_observations"][0]["symbol"] == "BTCUSDT"
+    assert futures["symbol_observations"][0]["symbol"] == "ETHUSDT"
+    assert futures["symbol_observations"][0]["blockers"] == ["OOS_APPROVAL_MISSING"]
+
+
 def receipt() -> dict[str, Any]:
     def ref(kind: CycleArtifactKind) -> CycleArtifactRef:
         return CycleArtifactRef(

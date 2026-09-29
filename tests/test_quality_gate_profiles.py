@@ -28,6 +28,46 @@ pytestmark = [
 
 ROOT = Path(__file__).resolve().parents[1]
 POLICY_PATH = ROOT / "config" / "quality" / "gates.yaml"
+
+
+@pytest.mark.parametrize("coverage", ["PASS", "BASELINE_DEBT"])
+def test_quality_assurance_projection_keeps_debt_and_authority_separate(
+    coverage: str,
+) -> None:
+    from ai4binance.ops.quality_gate.telemetry import quality_assurance_summary
+
+    result = quality_assurance_summary(
+        {
+            "governance_gate_summary": {"status": "PASS"},
+            "coverage_policy_summary": {"policy_result": coverage},
+        }
+    )
+    assert result["consequential_change_allowed"] is False
+    assert result["full_assurance_status"] == (
+        "FULL_ASSURANCE_GREEN" if coverage == "PASS" else "RUNNING_WITH_BLOCKERS"
+    )
+
+
+@pytest.mark.parametrize("gate", ["approval", "traceability", "required_approval"])
+def test_quality_assurance_projection_preserves_gate_veto(gate: str) -> None:
+    from ai4binance.ops.quality_gate.telemetry import quality_assurance_summary
+
+    governance = {"status": "PASS", f"{gate}_hard_veto": True}
+    if gate in {"approval", "required_approval"}:
+        governance["approval_verification_status"] = "BLOCKED"
+        governance["approval_required"] = True
+    else:
+        governance["traceability_audit_status"] = "BLOCKED"
+    result = quality_assurance_summary(
+        {
+            "governance_gate_summary": governance,
+            "coverage_policy_summary": {"policy_result": "PASS"},
+        }
+    )
+    assert result["full_assurance_status"] == "RUNNING_WITH_BLOCKERS"
+    assert result["full_assurance_blockers"]
+
+
 REQUIRED_TESTS = (
     "tests/test_artifact_hygiene_scripts.py",
     "tests/test_maintainability_ratchet.py",

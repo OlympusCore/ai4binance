@@ -11,6 +11,7 @@ from ai4binance.events.traceability import (
     CanonicalTraceRecord,
     ConsequentialTraceKind,
     canonical_trace_journal_path,
+    canonical_trace_root_for_artifact,
     canonical_trace_sha256,
 )
 from ai4binance.reporting import to_primitive
@@ -79,6 +80,7 @@ class PromotionBoard:
     store: JsonlAuditStore
     evidence_ledger: PromotionEvidenceLedger | None = None
     trace_journal: CanonicalTraceJournal | None = None
+    repository_root: Path | None = None
 
     def __post_init__(self) -> None:
         if self.trace_journal is None:
@@ -86,7 +88,10 @@ class PromotionBoard:
                 self,
                 "trace_journal",
                 CanonicalTraceJournal(
-                    canonical_trace_journal_path(self.store.path.resolve().parent)
+                    canonical_trace_journal_path(
+                        self.repository_root
+                        or canonical_trace_root_for_artifact(self.store.path)
+                    )
                 ),
             )
 
@@ -279,6 +284,7 @@ class GovernedParameterStore:
 
     path: Path
     trace_journal: CanonicalTraceJournal | None = None
+    repository_root: Path | None = None
 
     def __post_init__(self) -> None:
         if self.trace_journal is None:
@@ -286,7 +292,10 @@ class GovernedParameterStore:
                 self,
                 "trace_journal",
                 CanonicalTraceJournal(
-                    canonical_trace_journal_path(self.path.resolve().parent)
+                    canonical_trace_journal_path(
+                        self.repository_root
+                        or canonical_trace_root_for_artifact(self.path)
+                    )
                 ),
             )
 

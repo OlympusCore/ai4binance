@@ -1165,7 +1165,6 @@ _SUBJECT_DIGEST_IGNORED_PARTS = frozenset(
     {
         ".git",
         ".venv",
-        ".codex",
         "runtime",
         "secrets",
         "__pycache__",

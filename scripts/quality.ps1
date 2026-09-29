@@ -1410,10 +1410,10 @@ function Invoke-RepositoryGovernanceValidator {
     $env:PYTHONDONTWRITEBYTECODE = "1"
     try {
         New-Item -ItemType Directory -Path $repositoryValidatorRunDirectory -Force | Out-Null
-        if (Restore-RepositoryValidatorCache) {
-            Write-RepositoryValidatorRunArtifacts -CacheMode "CACHE_HIT"
-            return
-        }
+        # The validator observes mutable runtime content and filesystem controls.
+        # Git-only cache receipts cannot establish a current validation result.
+        $script:repositoryValidatorCacheStatus = "DISABLED"
+        $script:repositoryValidatorCacheReason = "mutable validator inputs require fresh validation"
         Invoke-QualityStep "Repository governance validator" @(
             "-m",
             "ai4binance.governance.repository_validator",
@@ -1435,8 +1435,7 @@ function Invoke-RepositoryGovernanceValidator {
             $mirrorManifestPath,
             "--quiet"
         )
-        Write-RepositoryValidatorRunArtifacts -CacheMode "CACHE_MISS"
-        Save-RepositoryValidatorCache
+        Write-RepositoryValidatorRunArtifacts -CacheMode "FRESH_VALIDATION"
     }
     finally {
         if ($null -eq $previousPythonDontWriteBytecode) {
@@ -2561,26 +2560,8 @@ function Write-QualityGateGreenEvidence {
     if ($governanceGateSummary.status -ne "PASS") {
         throw "Quality gate evidence requires governance gate PASS"
     }
-    $approvalVerificationStatus = [string]$governanceGateSummary.approval_verification_status
     $approvalHardVeto = [bool]$governanceGateSummary.approval_hard_veto
-    $traceabilityAuditStatus = [string]$governanceGateSummary.traceability_audit_status
     $traceabilityHardVeto = [bool]$governanceGateSummary.traceability_hard_veto
-    $fullAssuranceBlockers = @()
-    if ($approvalHardVeto -and $approvalVerificationStatus -ne "PASS") {
-        $fullAssuranceBlockers += "APPROVAL_VERIFICATION_VETO"
-    }
-    if ($traceabilityHardVeto -and $traceabilityAuditStatus -ne "PASS") {
-        $fullAssuranceBlockers += "CANONICAL_TRACE_VERIFICATION_VETO"
-    }
-    if ($governanceGateSummary.status -ne "PASS") {
-        $fullAssuranceBlockers += "DETERMINISTIC_GOVERNANCE_GATE_NOT_PASSING"
-    }
-    $fullAssuranceStatus = if (($fullAssuranceBlockers | Measure-Object).Count -eq 0) {
-        "FULL_ASSURANCE_GREEN"
-    }
-    else {
-        "RUNNING_WITH_BLOCKERS"
-    }
     if ([math]::Abs([double]$coveragePolicySummary.total_coverage_percent - [double]$coveragePercent) -gt 0.01) {
         throw "Quality gate coverage_percent does not match governed markdown proof source"
     }
@@ -2594,8 +2575,6 @@ function Write-QualityGateGreenEvidence {
         profile = $script:qualityGateProfile
         verification_status = "FULL_VERIFIED"
         canonical_quality_authority = $true
-        full_assurance_status = $fullAssuranceStatus
-        full_assurance_blockers = @($fullAssuranceBlockers)
         command = (Get-QualityCommandText)
         generated_at_utc = (Get-Date).ToUniversalTime().ToString("o")
         run_started_at_utc = $script:qualityRunStartedAtUtc.ToString("o")
@@ -2619,7 +2598,6 @@ function Write-QualityGateGreenEvidence {
         governance_gate_summary = $governanceGateSummary
         approval_verification_hard_veto = $approvalHardVeto
         traceability_hard_veto = $traceabilityHardVeto
-        consequential_change_allowed = ($fullAssuranceStatus -eq "FULL_ASSURANCE_GREEN")
         mirror_remote_check = $mirrorRemoteCheck
         mirror_manifest_path = "runtime\artifacts\repository_validation\mirror\latest_inventory.json"
         mirror_hygiene_report_path = "runtime\artifacts\repository_validation\mirror_hygiene_report.json"

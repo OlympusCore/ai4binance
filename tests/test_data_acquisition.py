@@ -10,6 +10,7 @@ import pytest
 from ai4binance.core.errors import ExchangePayloadError
 from ai4binance.data.acquisition import (
     DataAcquisitionAgent,
+    LocalMarketSnapshotError,
     LocalMarketSnapshotTransport,
 )
 from ai4binance.data.archive import ParquetOHLCVArchive
@@ -20,6 +21,17 @@ from ai4binance.infrastructure.persistence.safe_json import write_json_object_ve
 from ai4binance.schemas import DataQuality
 
 NOW = datetime(2026, 7, 11, 12, tzinfo=UTC)
+
+
+def test_local_snapshot_missing_has_structured_secret_safe_reason(
+    tmp_path: Path,
+) -> None:
+    source = LocalMarketSnapshotTransport(tmp_path, clock=lambda: NOW)
+    with pytest.raises(LocalMarketSnapshotError) as caught:
+        source.get_json("/api/v3/ticker/price", {"symbol": "BTCUSDT"})
+    assert caught.value.blocker_code == "LOCAL_MARKET_SNAPSHOT_MISSING"
+    assert caught.value.source_filename == "ticker-24hr.json"
+    assert str(tmp_path) not in str(caught.value)
 
 
 def test_local_public_snapshot_reads_and_rejects_stale_data(tmp_path: Path) -> None:

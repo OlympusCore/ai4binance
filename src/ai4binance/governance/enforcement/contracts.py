@@ -221,6 +221,8 @@ class BlockerSnapshot:
 
 @dataclass(frozen=True, slots=True)
 class AuditReceipt:
+    """Exact persisted pre-action event binding, never execution authorization."""
+
     receipt_id: str
     subject_hash: str
     audit_log_ref: str

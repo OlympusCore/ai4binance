@@ -790,7 +790,9 @@ class ContinuousMarketHistory:
                 opportunities = list(
                     cast(list[dict[str, object]], value["opportunities"])
                 )
-                if opportunities:
+                if universe.blockers:
+                    status = "DATA_UNAVAILABLE"
+                elif opportunities:
                     status = (
                         "CANDIDATES_AVAILABLE_WITH_DATA_GAPS"
                         if data_blocked
@@ -811,6 +813,7 @@ class ContinuousMarketHistory:
                 projection[market] = {
                     **value,
                     "status": status,
+                    "blockers": list(universe.blockers),
                     "opportunities": opportunities,
                     **_SAFE_STATE,
                 }
@@ -1784,7 +1787,7 @@ class ContinuousMarketHistory:
     @staticmethod
     def _completion_ratio(completed: int, total: int) -> str:
         if total <= 0:
-            return "1.000000"
+            return "0.000000"
         return f"{Decimal(completed) / Decimal(total):.6f}"
 
     def _collect_symbol(

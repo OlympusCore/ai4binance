@@ -377,11 +377,13 @@
         },
         "audit_log_ref": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "description": "Audit journal reference resolved within the repository runtime boundary. The journal and exact event must be verified before accepting the receipt."
         },
         "commit_hash": {
           "type": "string",
-          "pattern": "^[a-f0-9]{64}$"
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 of the canonical JSON for the exact committed, tamper-evident audit event; later journal appends do not invalidate this binding."
         },
         "recorded_at": {
           "type": "string",
@@ -1120,7 +1122,7 @@
       ],
       "properties": {
         "version": {
-          "const": "1.4.3"
+          "const": "1.4.4"
         },
         "non_consequential_examples": {
           "type": "array",

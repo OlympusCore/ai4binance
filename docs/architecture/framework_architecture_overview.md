@@ -2,7 +2,7 @@
 document_id: AI4B-ARCH-FRM-001
 title: AI4BINANCE Architecture Overview
 document_type: FRAMEWORK
-version: 1.11.3
+version: 1.11.4
 status: ACTIVE
 owner: Enterprise Knowledge Governance
 authority_level: NORMATIVE
@@ -106,6 +106,20 @@ The default bootstrap is 30 days; original per-stream progress boundaries
 survive shutdowns. COIN-M contract quantities remain distinct from Spot units.
 Shared pair-index series have one collector owner. Delivery contracts have no
 perpetual funding. Missing or invalid provider history remains explicit.
+
+`src/ai4binance/integrations/research_market_universe.py` owns the research-only
+wallet-plus-public-market-cap universe for Spot and USD-M Futures. It reuses
+canonical Binance eligibility metadata and a bounded, credential-free CoinGecko
+HTTPS GET transport. Missing, stale, invalid, incomplete, or rejected provider
+observations must return explicit blockers without an accepted research universe.
+HTTP failure evidence preserves sanitized status codes; it does not grant
+eligibility or execution authority. VirtualMarket consumers require a fresh
+verified canonical universe and must not substitute configured symbols or stale
+local snapshots. Spot and Futures remain distinct projections of the same
+provider observation. Proof contracts include
+`tests/test_research_market_universe.py`,
+`tests/test_market_history_continuous.py`, and `tests/test_cli.py`.
+These capabilities remain `RESEARCH_ONLY` and `LIVE_ORDER_BLOCKED`.
 
 `src/ai4binance/data/market_depth.py` owns public L2 diff-depth transport,
 durable compressed event recording, periodic checkpoints, and local-only replay.

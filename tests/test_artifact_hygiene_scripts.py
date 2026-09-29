@@ -1914,6 +1914,32 @@ $policySnapshot = Get-Content `
     )
 
 
+def test_canonical_validator_runs_fresh_without_restoring_git_only_cache(
+    tmp_path: Path,
+) -> None:
+    payload = _run_quality_function_harness(
+        tmp_path,
+        r"""
+function Restore-RepositoryValidatorCache { throw "unsafe cache shortcut called" }
+function Save-RepositoryValidatorCache { throw "unsafe cache publication called" }
+function Invoke-QualityStep { param($Name, $Arguments) $script:observedStep = $Name }
+function Write-RepositoryValidatorRunArtifacts {
+    param($CacheMode)
+    $script:observedCacheMode = $CacheMode
+}
+Invoke-RepositoryGovernanceValidator
+[ordered]@{
+    step = $script:observedStep
+    cache_mode = $script:observedCacheMode
+    cache_status = $script:repositoryValidatorCacheStatus
+} | ConvertTo-Json
+""",
+    )
+    assert payload["step"] == "Repository governance validator"
+    assert payload["cache_mode"] == "FRESH_VALIDATION"
+    assert payload["cache_status"] == "DISABLED"
+
+
 def test_quality_script_restores_repository_validator_cache_hit(
     tmp_path: Path,
 ) -> None:

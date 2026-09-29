@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TypedDict
 
@@ -227,13 +228,15 @@ def _blocker_snapshot(subject_id: str, *active_blockers: str) -> BlockerSnapshot
     )
 
 
-def _audit_receipt(subject_hash: str) -> AuditReceipt:
-    return AuditReceipt(
+def _audit_receipt(subject_hash: str, root: Path) -> AuditReceipt:
+    engine = DeterministicEnforcementEngine(
+        registry=load_enforcement_profile_registry(), evidence_root=root
+    )
+    return engine.commit_audit_receipt(
         receipt_id="audit-receipt-1",
         subject_hash=subject_hash,
         audit_log_ref="runtime/artifacts/audit/test.jsonl",
-        commit_hash="d" * 64,
-        recorded_at="2026-08-31T09:00:00Z",
+        recorded_at=datetime(2026, 8, 31, 9, tzinfo=UTC),
     )
 
 
@@ -260,6 +263,90 @@ def _approval_set(
         expires_at="2099-01-01T00:00:00Z",
         verification_policy_hash="f" * 64,
     )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["missing", "hash", "timestamp", "traversal", "tampered_chain", "appended"],
+)
+def test_audit_receipt_requires_exact_persisted_commit(
+    tmp_path: Path, mutation: str
+) -> None:
+    envelope = envelope_from_repository_artifact(_repository_artifact())
+    receipt = _audit_receipt(envelope.object_hash, tmp_path)
+    engine = DeterministicEnforcementEngine(
+        load_enforcement_profile_registry(), evidence_root=tmp_path
+    )
+    path = tmp_path / receipt.audit_log_ref
+    if mutation == "missing":
+        receipt = replace(receipt, audit_log_ref="runtime/missing.jsonl")
+    elif mutation == "hash":
+        receipt = replace(receipt, commit_hash="a" * 64)
+    elif mutation == "timestamp":
+        receipt = replace(receipt, recorded_at="2026-08-31T10:00:00Z")
+    elif mutation == "traversal":
+        receipt = replace(receipt, audit_log_ref="../../outside.jsonl")
+    elif mutation == "tampered_chain":
+        path.write_text(
+            path.read_text().replace(
+                "GOVERNED_ACTION_PREPARED", "GOVERNED_ACTION_TAMPERED"
+            )
+        )
+    else:
+        from ai4binance.storage import AuditEvent, JsonlAuditStore
+
+        JsonlAuditStore(path, tamper_evident=True).append_verified(
+            AuditEvent(
+                event_type="TEST_ONLY_LATER_EVENT",
+                timestamp=datetime(2026, 8, 31, 10, tzinfo=UTC),
+                payload={},
+            )
+        )
+    result = engine._validate_audit_receipt(receipt, envelope)
+    assert result.outcome is (
+        EnforcementOutcome.ALLOW if mutation == "appended" else EnforcementOutcome.DENY
+    )
+
+
+@pytest.mark.parametrize(
+    "entrypoint",
+    [
+        "policy_document_update",
+        "tool_permission_grant",
+        "execution_profile_evaluate",
+        "strategy_definition_profile_contract",
+        "unknown",
+    ],
+)
+def test_registered_entrypoint_denies_unadmitted_or_mismatched_routes(
+    entrypoint: str,
+) -> None:
+    from ai4binance.governance.enforcement.adapters import (
+        evaluate_registered_entrypoint,
+    )
+
+    inventory = load_enforcement_inventory()
+    entry = inventory.entry_for_entrypoint(entrypoint)
+    envelope = envelope_from_governed_knowledge(_knowledge_object())
+    if entry is not None:
+        envelope = replace(envelope, object_type=entry.object_type)
+    request = EnforcementRequest(
+        request_id="test-only-registered",
+        actor="test-only",
+        action=entry.action if entry else "UPDATE",
+        environment="test",
+        execution_mode="RESEARCH_ONLY",
+    )
+    result = evaluate_registered_entrypoint(
+        Path(__file__).parents[1], entrypoint, envelope, request
+    )
+    assert result.outcome is EnforcementOutcome.DENY
+    assert (
+        "ENFORCEMENT_ENTRYPOINT_BLOCKED" in result.blockers
+        if entry
+        else "ENFORCEMENT_ENTRYPOINT_UNKNOWN" in result.blockers
+    )
+    assert result.execution_allowed is False
 
 
 def test_enforcement_profile_registry_covers_all_governed_object_types() -> None:
@@ -422,14 +509,14 @@ def test_enforcement_inventory_tracks_current_enforcers_and_bypass_surfaces() ->
     assert repository_entry.bypass_possible is False
     assert tool_entry is not None
     assert tool_entry.current_enforcer.endswith("ToolGateway")
-    assert tool_entry.coverage_state is EnforcementCoverageState.ROUTED
+    assert tool_entry.coverage_state is EnforcementCoverageState.BLOCKED
     assert tool_entry.bypass_possible is False
     assert execution_entry is not None
     assert execution_entry.policy_source.endswith("execution_authority.py")
-    assert execution_entry.coverage_state is EnforcementCoverageState.ROUTED
+    assert execution_entry.coverage_state is EnforcementCoverageState.BLOCKED
     assert execution_entry.bypass_possible is False
     assert routed_strategy is not None
-    assert routed_strategy.coverage_state is EnforcementCoverageState.ROUTED
+    assert routed_strategy.coverage_state is EnforcementCoverageState.BLOCKED
     assert pending_strategy is not None
     assert pending_strategy.coverage_state is EnforcementCoverageState.BLOCKED
     assert governance_change_entry is not None
@@ -536,10 +623,14 @@ def test_enforcement_inventory_distinguishes_profile_vs_entrypoint_gaps() -> Non
     assert "provider_model_selection_decision" in {
         entry.entrypoint_id for entry in routed
     }
-    assert "strategy_definition_profile_contract" in {
+    assert "strategy_definition_profile_contract" not in {
         entry.entrypoint_id for entry in routed
     }
     assert {entry.entrypoint_id for entry in blocked} == {
+        "policy_document_update",
+        "tool_permission_grant",
+        "execution_profile_evaluate",
+        "strategy_definition_profile_contract",
         "tuning_strategy_promotion_board",
         "governed_parameter_activation",
         "governed_lesson_activation",
@@ -754,7 +845,7 @@ def test_enforcement_engine_requires_evidence_and_approval_for_policy_change(
             EnforcementGate.LINEAGE,
         ),
         blocker_snapshot=_blocker_snapshot(envelope.object_id),
-        audit_receipt=_audit_receipt(envelope.object_hash),
+        audit_receipt=_audit_receipt(envelope.object_hash, tmp_path),
     )
 
     decision = engine.evaluate(envelope, request)
@@ -786,7 +877,7 @@ def test_enforcement_engine_denies_missing_required_evidence(tmp_path: Path) -> 
             EnforcementGate.LIFECYCLE,
         ),
         blocker_snapshot=_blocker_snapshot(envelope.object_id),
-        audit_receipt=_audit_receipt(envelope.object_hash),
+        audit_receipt=_audit_receipt(envelope.object_hash, tmp_path),
     )
 
     decision = engine.evaluate(envelope, request)
@@ -837,7 +928,7 @@ def test_enforcement_engine_denies_active_blockers_before_consequence(
         blocker_snapshot=_blocker_snapshot(
             envelope.object_id, "GOV.AUTHORITY_CONFLICT"
         ),
-        audit_receipt=_audit_receipt(envelope.object_hash),
+        audit_receipt=_audit_receipt(envelope.object_hash, tmp_path),
     )
 
     decision = engine.evaluate(envelope, request)
@@ -875,7 +966,7 @@ def test_enforcement_engine_denies_invalid_lifecycle_transition(tmp_path: Path) 
             EnforcementGate.LINEAGE,
         ),
         blocker_snapshot=_blocker_snapshot(envelope.object_id),
-        audit_receipt=_audit_receipt(envelope.object_hash),
+        audit_receipt=_audit_receipt(envelope.object_hash, tmp_path),
     )
 
     decision = engine.evaluate(envelope, request)
@@ -929,7 +1020,7 @@ def test_enforcement_replay_fingerprint_is_deterministic(tmp_path: Path) -> None
             EnforcementGate.LINEAGE,
         ),
         blocker_snapshot=_blocker_snapshot(envelope.object_id),
-        audit_receipt=_audit_receipt(envelope.object_hash),
+        audit_receipt=_audit_receipt(envelope.object_hash, tmp_path),
     )
 
     first = engine.evaluate(envelope, request)
@@ -985,7 +1076,7 @@ def test_enforcement_engine_requires_approval_for_tool_permission_grant(
             EnforcementGate.LINEAGE,
         ),
         blocker_snapshot=_blocker_snapshot(envelope.object_id),
-        audit_receipt=_audit_receipt(envelope.object_hash),
+        audit_receipt=_audit_receipt(envelope.object_hash, tmp_path),
     )
 
     decision = engine.evaluate(envelope, request)
@@ -1008,7 +1099,7 @@ def test_enforcement_engine_requires_approval_for_tool_permission_grant(
             EnforcementGate.LINEAGE,
         ),
         blocker_snapshot=_blocker_snapshot(envelope.object_id),
-        audit_receipt=_audit_receipt(envelope.object_hash),
+        audit_receipt=_audit_receipt(envelope.object_hash, tmp_path),
     )
     approved_request = replace(
         approved_request,
@@ -1071,7 +1162,7 @@ def test_enforcement_engine_evaluates_execution_profile_via_universal_contract(
             EnforcementGate.LINEAGE,
         ),
         blocker_snapshot=_blocker_snapshot(envelope.object_id),
-        audit_receipt=_audit_receipt(envelope.object_hash),
+        audit_receipt=_audit_receipt(envelope.object_hash, tmp_path),
     )
     request = replace(
         request,
@@ -1119,7 +1210,7 @@ def test_enforcement_engine_denies_stale_identity_attestation(tmp_path: Path) ->
             )
         },
         blocker_snapshot=_blocker_snapshot(envelope.object_id),
-        audit_receipt=_audit_receipt(envelope.object_hash),
+        audit_receipt=_audit_receipt(envelope.object_hash, tmp_path),
     )
 
     decision = engine.evaluate(envelope, request)
@@ -1147,7 +1238,7 @@ def test_enforcement_engine_denies_missing_blocker_snapshot(tmp_path: Path) -> N
             EnforcementGate.LIFECYCLE,
             EnforcementGate.LINEAGE,
         ),
-        audit_receipt=_audit_receipt(envelope.object_hash),
+        audit_receipt=_audit_receipt(envelope.object_hash, tmp_path),
     )
 
     decision = engine.evaluate(envelope, request)
@@ -1252,7 +1343,7 @@ def test_enforcement_internal_guards_reject_mismatched_evidence(tmp_path: Path) 
     assert stale_result.reason_codes == ("APPROVAL_STALE",)
 
     audit_result = engine._validate_audit_receipt(
-        replace(_audit_receipt(envelope.object_hash), subject_hash="a" * 64),
+        replace(_audit_receipt(envelope.object_hash, tmp_path), subject_hash="a" * 64),
         envelope,
     )
     assert audit_result.reason_codes == ("AUDIT_RECEIPT_SUBJECT_MISMATCH",)

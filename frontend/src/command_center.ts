@@ -13,6 +13,20 @@ interface BackgroundObservation {
   risk_approved?: boolean | null;
   last_success_at?: string | null;
   blockers?: string[];
+  dashboard_simulation_projection?: Record<string, unknown>;
+  dashboard_futures_simulation_projection?: Record<string, unknown>;
+}
+
+function commandVirtualMarketState(market: string): BackgroundObservation {
+  const daemon = localData?.virtual || {};
+  const projection = market === 'USD_M_FUTURES'
+    ? daemon.dashboard_futures_simulation_projection
+    : daemon.dashboard_simulation_projection;
+  return {
+    ...daemon,
+    symbol: daemon.market === market ? daemon.symbol : null,
+    dashboard_simulation_projection: projection,
+  };
 }
 interface HealthFinding {
   finding_id?: string;

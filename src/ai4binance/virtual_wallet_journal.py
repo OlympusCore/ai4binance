@@ -307,12 +307,14 @@ class VirtualWalletJournal:
         ) as error:
             raise VirtualWalletJournalError(str(error)) from error
 
-    def open_position_symbols(self) -> tuple[str, ...]:
-        """Recover held Spot symbols from the verified journal for scheduling."""
+    def open_position_symbols(self, *, market: str = "SPOT") -> tuple[str, ...]:
+        """Recover held symbols for one independent, verified virtual wallet."""
+        if market not in _MARKETS:
+            raise ValueError("virtual wallet scheduling market is unsupported")
         return tuple(
             position.symbol
             for position, _ in self._latest_positions(self._read_movements()).values()
-            if position.market == "SPOT"
+            if position.market == market
         )
 
     def dashboard_snapshot(self, observed_at: datetime) -> dict[str, object]:

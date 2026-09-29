@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
+from typing import cast
+
+from ai4binance.reporting import to_primitive
 
 
 class JobCapability(StrEnum):
@@ -394,6 +397,20 @@ class RunnerAdmissionReport:
     promotion_status: str = "RESEARCH_ONLY"
     live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
 
+    def to_payload(self) -> dict[str, object]:
+        """Project the runner's declared path fields for durable JSON evidence."""
+        payload = asdict(self)
+        payload["run_card"]["target_paths"] = [
+            str(path) for path in self.run_card.target_paths
+        ]
+        payload["persistent_evidence"]["artifact_path"] = str(
+            self.persistent_evidence.artifact_path
+        )
+        payload["persistent_evidence"]["audit_path"] = str(
+            self.persistent_evidence.audit_path
+        )
+        return cast(dict[str, object], to_primitive(payload))
+
     def __post_init__(self) -> None:
         if not self.runner_id.strip() or not self.job_id.strip():
             raise ValueError("runner admission report identity is required")
@@ -592,7 +609,7 @@ def nightly_quality_job_manifest(
         timeout_seconds=600,
         maximum_output_bytes=1_000_000,
         maximum_concurrency=1,
-        lock_path=output_directory / ".quality-triage.lock",
+        lock_path=output_directory / "quality_triage.lock",
     )
 
 
@@ -615,6 +632,7 @@ def nightly_quality_runner_manifest(
         ),
         allowed_roots=job_manifest.allowed_roots,
         fixed_command_refs=(
+            "python -m ai4binance.ops.quality_triage",
             "powershell.exe -NoProfile -ExecutionPolicy Bypass "
             "-File .\\scripts\\quality.ps1",
         ),

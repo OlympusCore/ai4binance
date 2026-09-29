@@ -1119,6 +1119,65 @@ def test_analyze_public_fails_closed_without_error_detail(
     assert "private transport detail" not in output
 
 
+def test_research_cycle_reports_local_source_failure_without_private_detail(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from ai4binance.cli.research import run_public_research_command
+    from ai4binance.data.acquisition import LocalMarketSnapshotError
+
+    class StaleAcquisition:
+        def acquire(self, *_args: object) -> MarketSnapshot:
+            raise LocalMarketSnapshotError(
+                "LOCAL_MARKET_SNAPSHOT_STALE", "ticker-24hr.json"
+            )
+
+    report: dict[str, object] = {}
+    result = run_public_research_command(
+        "research-public",
+        Settings(),
+        public_acquisition=StaleAcquisition(),
+        whale_fusion_cycle=None,
+        cycle_report=report,
+    )
+    assert result == 2
+    assert report["failed_stage"] == "ACQUISITION"
+    assert report["failed_source_filename"] == "ticker-24hr.json"
+    assert report["research_blockers"] == (
+        "PUBLIC_DATA_ACQUISITION_FAILED",
+        "LOCAL_MARKET_SNAPSHOT_STALE",
+    )
+    assert report["virtual_order_ready"] is False
+    capsys.readouterr()
+
+
+def test_research_workflow_failure_is_not_mislabeled_as_acquisition(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from ai4binance.cli import research
+
+    def fail(*_args: object, **_kwargs: object) -> int:
+        raise ValueError("private workflow detail")
+
+    monkeypatch.setattr(research, "_run_research_or_analysis", fail)
+    report: dict[str, object] = {}
+    assert (
+        research.run_public_research_command(
+            "research-public",
+            Settings(timeframes=("1h",)),
+            public_acquisition=StubAcquisition(),
+            whale_fusion_cycle=None,
+            cycle_report=report,
+        )
+        == 2
+    )
+    assert report["snapshot_id"] == "public-snapshot-1"
+    assert report["failed_stage"] == "RESEARCH_WORKFLOW"
+    assert report["research_blockers"] == ("RESEARCH_WORKFLOW_FAILED",)
+    output = capsys.readouterr().out
+    assert json.loads(output)["blockers"] == ["RESEARCH_WORKFLOW_FAILED"]
+    assert "private workflow detail" not in output
+
+
 def test_research_public_reports_stages_and_writes_workflow_audit(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -1828,7 +1887,79 @@ def test_virtual_market_daemon_recovers_without_process_restart(tmp_path: Path) 
     assert state["execution_allowed"] is False
 
 
-def test_virtual_market_scan_cursor_persists_and_reports_business_blockers(
+def test_virtual_market_routes_both_markets_through_the_same_research_cycle(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from ai4binance.data import market_history_sync
+    from ai4binance.integrations.binance import BinanceEligibleMarketSnapshot
+
+    monkeypatch.setattr(
+        market_history_sync,
+        "read_cached_market_universe",
+        lambda *_args, **_kwargs: BinanceEligibleMarketSnapshot(
+            spot_symbols=("BTCUSDT",),
+            futures_symbols=("ETHUSDT",),
+        ),
+    )
+    settings = Settings(
+        symbol="BTCUSDT",
+        runtime_state_path=tmp_path / "runtime.json",
+        virtual_wallet_ledger_path=tmp_path / "wallet-movements.jsonl",
+        virtual_wallet_state_path=tmp_path / "wallets.json",
+        dataset_directory=tmp_path / "market",
+    )
+    seen: list[tuple[str, str]] = []
+
+    def cycle(
+        s: Settings,
+        _source: SnapshotAcquirer,
+        *,
+        observed_at: datetime,
+        cycle_report: dict[str, object] | None = None,
+    ) -> int:
+        assert cycle_report is not None
+        seen.append((s.market_type, s.symbol))
+        cycle_report.update(
+            snapshot_id="test-only:" + s.market_type,
+            candidate_count=0,
+            virtual_order_ready=False,
+            research_blockers=("OOS_APPROVAL_MISSING",),
+        )
+        return 0
+
+    monkeypatch.setattr(runtime_cli, "_run_virtual_market_research_cycle", cycle)
+    for count in (3, 1):
+        assert (
+            runtime_cli.run_virtual_market_daemon(
+                settings,
+                max_cycles=count,
+                public_acquisition=cast(SnapshotAcquirer, object()),
+                sleeper=lambda _seconds: None,
+                clock=lambda: datetime(2026, 9, 29, tzinfo=UTC),
+            )
+            == 0
+        )
+    assert seen == [("Spot", "BTCUSDT"), ("USD_M_FUTURES", "ETHUSDT")] * 2
+    payload = json.loads((tmp_path / "virtual-market.json").read_text())
+    assert payload["discovery_symbol"] == "BTCUSDT"
+    assert payload["futures_discovery_symbol"] == "ETHUSDT"
+    assert (
+        payload["dashboard_simulation_projection"]["symbol_observations"][0]["symbol"]
+        == "BTCUSDT"
+    )
+    assert (
+        payload["dashboard_futures_simulation_projection"]["symbol_observations"][0][
+            "symbol"
+        ]
+        == "ETHUSDT"
+    )
+    assert payload["execution_allowed"] is False
+    assert payload["virtual_order_ready"] is False
+    assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+    assert payload["spot_scan_sequence"] == payload["futures_scan_sequence"] == 2
+
+
+def test_virtual_market_missing_universe_cannot_use_configured_fallback(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from ai4binance.data import market_history_sync
@@ -1837,6 +1968,94 @@ def test_virtual_market_scan_cursor_persists_and_reports_business_blockers(
         market_history_sync,
         "read_cached_market_universe",
         lambda *_args, **_kwargs: None,
+    )
+    collector_path = tmp_path / "market-history.json"
+    collector_path.write_text(
+        json.dumps({"blockers": ["PUBLIC_MARKET_CAP_HTTP_403"]}), encoding="utf-8"
+    )
+    settings = Settings(
+        runtime_state_path=tmp_path / "runtime.json",
+        market_history_state_path=collector_path,
+    )
+    calls: list[str] = []
+
+    def forbidden_cycle(*_args: object, **_kwargs: object) -> int:
+        calls.append("forbidden")
+        return 0
+
+    monkeypatch.setattr(
+        runtime_cli, "_run_virtual_market_research_cycle", forbidden_cycle
+    )
+    assert (
+        runtime_cli.run_virtual_market_daemon(
+            settings,
+            max_cycles=1,
+            public_acquisition=cast(SnapshotAcquirer, object()),
+            clock=lambda: datetime(2026, 9, 29, tzinfo=UTC),
+        )
+        == 2
+    )
+    payload = json.loads((tmp_path / "virtual-market.json").read_text())
+    assert not calls
+    assert payload["failed_stage"] == "UNIVERSE_VALIDATION"
+    assert "VIRTUAL_MARKET_UNIVERSE_UNAVAILABLE_OR_STALE" in payload["cycle_blockers"]
+    assert "PUBLIC_MARKET_CAP_HTTP_403" in payload["cycle_blockers"]
+    assert payload["virtual_order_ready"] is False
+    assert payload["execution_allowed"] is False
+
+
+@pytest.mark.parametrize(
+    "quality_status", ["CURRENT", "STALE", "INVALID", "UNAVAILABLE"]
+)
+def test_virtual_futures_reuses_canonical_readers_and_preserves_data_veto(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, quality_status: str
+) -> None:
+    from dataclasses import replace
+
+    from ai4binance.application import opportunity_monitor
+    from ai4binance.data.acquisition import LocalMarketSnapshotTransport
+    from ai4binance.schemas import DataQuality
+
+    now = datetime(2026, 9, 29, tzinfo=UTC)
+    source = replace(public_snapshot(), market_type="USD_M_FUTURES", created_at=now)
+    monkeypatch.setattr(
+        opportunity_monitor,
+        "inspect_market_data",
+        lambda *_args, **_kwargs: (source, [{"status": quality_status}]),
+    )
+    attached: list[str] = []
+
+    def attach(
+        _self: LocalMarketSnapshotTransport, snapshot: MarketSnapshot
+    ) -> MarketSnapshot:
+        attached.append(snapshot.market_type)
+        return snapshot
+
+    monkeypatch.setattr(LocalMarketSnapshotTransport, "attach_futures_context", attach)
+    result = runtime_cli._LocalFuturesAcquisition(
+        Settings(dataset_directory=tmp_path), clock=lambda: now
+    ).acquire("HOTUSDT", ("1h",))
+    assert result.data_quality is (
+        DataQuality.DATA_VALID
+        if quality_status == "CURRENT"
+        else DataQuality.DATA_INVALID
+    )
+    assert attached == ["USD_M_FUTURES"]
+    assert result.snapshot_id.startswith("virtual:")
+
+
+def test_virtual_market_scan_cursor_persists_and_reports_business_blockers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from ai4binance.data import market_history_sync
+    from ai4binance.integrations.binance import BinanceEligibleMarketSnapshot
+
+    monkeypatch.setattr(
+        market_history_sync,
+        "read_cached_market_universe",
+        lambda *_args, **_kwargs: BinanceEligibleMarketSnapshot(
+            spot_symbols=("BTCUSDT", "ETHUSDT"), futures_symbols=()
+        ),
     )
     settings = Settings(
         symbol="BTCUSDT",
@@ -1889,11 +2108,14 @@ def test_virtual_market_daemon_prioritizes_and_acknowledges_manual_refresh(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from ai4binance.data import market_history_sync
+    from ai4binance.integrations.binance import BinanceEligibleMarketSnapshot
 
     monkeypatch.setattr(
         market_history_sync,
         "read_cached_market_universe",
-        lambda *_args, **_kwargs: None,
+        lambda *_args, **_kwargs: BinanceEligibleMarketSnapshot(
+            spot_symbols=("BTCUSDT", "HOTUSDT"), futures_symbols=()
+        ),
     )
     settings = Settings(
         symbol="BTCUSDT",
@@ -1969,11 +2191,14 @@ def test_virtual_market_daemon_requests_canonical_refresh_for_stale_data(
     from ai4binance.data.market_history_continuous import (
         VIRTUAL_MARKET_COLLECTION_TIMEFRAMES,
     )
+    from ai4binance.integrations.binance import BinanceEligibleMarketSnapshot
 
     monkeypatch.setattr(
         market_history_sync,
         "read_cached_market_universe",
-        lambda *_args, **_kwargs: None,
+        lambda *_args, **_kwargs: BinanceEligibleMarketSnapshot(
+            spot_symbols=("BTCUSDT",), futures_symbols=()
+        ),
     )
     settings = Settings(
         symbol="BTCUSDT",
@@ -2069,7 +2294,7 @@ def test_virtual_market_priority_revisits_preserve_discovery_and_restart_cursor(
     monkeypatch.setattr(sys, "stdout", stream)
     universe = BinanceEligibleMarketSnapshot(
         spot_symbols=("AUSDT", "BTCUSDT", "ETHUSDT", "\u725b\u6765USDT"),
-        futures_symbols=("BTCUSDT",),
+        futures_symbols=(),
         excluded_assets=(),
     )
     monkeypatch.setattr(

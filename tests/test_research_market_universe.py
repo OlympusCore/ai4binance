@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from email.message import Message
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.error import HTTPError
 
 import pytest
 
@@ -15,6 +17,7 @@ from ai4binance.domain.universe import (
 from ai4binance.integrations.binance import BinanceEligibleMarketSnapshot
 from ai4binance.integrations.research_market_universe import (
     RESEARCH_MARKET_UNIVERSE_SOURCE,
+    ReadOnlyCoinGeckoJsonTransport,
     ResearchMarketUniverseProvider,
     read_wallet_assets_above_value,
 )
@@ -346,6 +349,43 @@ def test_retention_removes_only_out_of_scope_symbol_directories(
     assert not monitor_drop.exists()
     assert not replay_drop.exists()
     assert not validation_drop.exists()
+
+
+@pytest.mark.parametrize("status_code", [403, 429, 503])
+def test_public_market_cap_http_failure_reaches_universe_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status_code: int
+) -> None:
+    from ai4binance.integrations import research_market_universe
+
+    calls: list[str] = []
+
+    def blocked(request: object, **_kwargs: object) -> object:
+        calls.append("request")
+        raise HTTPError(
+            "https://api.coingecko.com", status_code, "test-only", Message(), None
+        )
+
+    monkeypatch.setattr(research_market_universe, "urlopen", blocked)
+    wallet_path = tmp_path / "wallet.jsonl"
+    _write_wallet(
+        wallet_path,
+        [_wallet_record(asset="ATOM", value="2", run_id="test-only", observed_at=NOW)],
+    )
+    provider = ResearchMarketUniverseProvider(
+        binance=SimpleNamespace(eligible_market_snapshot=_metadata),  # type: ignore[arg-type]
+        market_cap_transport=ReadOnlyCoinGeckoJsonTransport(max_attempts=2),
+        wallet_balance_path=wallet_path,
+        clock=lambda: NOW,
+    )
+
+    result = provider.priority_eligible_market_snapshot()
+
+    assert result.spot_symbols == result.futures_symbols == ()
+    assert result.blockers == (
+        "PUBLIC_MARKET_CAP_UNIVERSE_UNAVAILABLE",
+        f"PUBLIC_MARKET_CAP_HTTP_{status_code}",
+    )
+    assert len(calls) == (2 if status_code == 503 else 1)
 
 
 @pytest.mark.parametrize("invalid_value", [Decimal("0"), Decimal("NaN")])

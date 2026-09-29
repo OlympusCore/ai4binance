@@ -1,4 +1,4 @@
-version: 1.4.3
+version: 1.4.4
 non_consequential_examples:
   - calculate_rsi
   - calculate_atr
@@ -373,8 +373,8 @@ entries:
     action: UPDATE
     integration_surface: policy_as_code
     current_enforcer: DeterministicEnforcementEngine+PolicyAsCodeEngine
-    coverage_state: ROUTED
-    status_rationale: Governed policy mutations already have a canonical universal enforcement envelope and policy engine path.
+    coverage_state: BLOCKED
+    status_rationale: Registered evaluation denies policy mutation until trusted attestations, exact approval, and persisted audit evidence are supplied; envelope presence is not runtime authority.
     authority_source: docs/standards/standard_governed_object_enforcement.md
     policy_source: src/ai4binance/governance/policy_as_code.py
     blocker_source: config/governance/blocker_registry.yaml
@@ -389,8 +389,8 @@ entries:
     action: GRANT_PERMISSION
     integration_surface: mcp_tool_gateway
     current_enforcer: DeterministicEnforcementEngine+ToolPolicyEngine+ToolGateway
-    coverage_state: ROUTED
-    status_rationale: Tool permission grants already route through the shared tool policy and gateway chain.
+    coverage_state: BLOCKED
+    status_rationale: Tool execution uses its existing capability gate; a permission grant is a separate blocked mutation through registered enforcement evaluation.
     authority_source: docs/standards/standard_governed_object_enforcement.md
     policy_source: src/ai4binance/governance/tool_policy.py
     blocker_source: config/governance/blocker_registry.yaml
@@ -405,8 +405,8 @@ entries:
     action: EXECUTE
     integration_surface: execution_authority
     current_enforcer: DeterministicEnforcementEngine+ExecutionAuthorityProfile
-    coverage_state: ROUTED
-    status_rationale: Execution profile evaluation already reuses the canonical execution authority boundary through the universal contract.
+    coverage_state: BLOCKED
+    status_rationale: Registered consequential execution requests are denied; immutable execution profiles do not establish universal runtime enforcement or live authority.
     authority_source: docs/standards/standard_governed_object_enforcement.md
     policy_source: src/ai4binance/governance/execution_authority.py
     blocker_source: config/governance/blocker_registry.yaml
@@ -421,8 +421,8 @@ entries:
     action: PROMOTE
     integration_surface: enforcement_profile_contract
     current_enforcer: DeterministicEnforcementEngine
-    coverage_state: ROUTED
-    status_rationale: The strategy promotion object family has a routed universal enforcement profile at the contract layer.
+    coverage_state: BLOCKED
+    status_rationale: A schema-valid strategy promotion profile is not an admitted runtime route; registered promotion remains denied pending independent evidence.
     authority_source: docs/standards/standard_governed_object_enforcement.md
     policy_source: config/governance/enforcement_profiles.yaml
     blocker_source: config/governance/blocker_registry.yaml

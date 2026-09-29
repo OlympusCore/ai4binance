@@ -759,7 +759,6 @@ _QUALITY_GATE_ATTESTATION_IGNORED_PARTS = frozenset(
     {
         ".git",
         ".venv",
-        ".codex",
         "runtime",
         "secrets",
         "__pycache__",

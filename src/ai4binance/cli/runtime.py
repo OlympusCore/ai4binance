@@ -11,7 +11,7 @@ import re
 import sys
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -166,6 +166,49 @@ class _LocalFirstPublicAcquisition:
 
     def acquire(self, symbol: str, timeframes: tuple[str, ...]) -> MarketSnapshot:
         return self.primary.acquire(symbol, timeframes)
+
+
+@dataclass(frozen=True, slots=True)
+class _LocalFuturesAcquisition:
+    """Compose existing archive and derivatives readers for virtual research."""
+
+    settings: Settings
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC)
+
+    def acquire(self, symbol: str, timeframes: tuple[str, ...]) -> MarketSnapshot:
+        from ai4binance.application.opportunity_monitor import inspect_market_data
+        from ai4binance.data.acquisition import LocalMarketSnapshotTransport
+        from ai4binance.data.archive import ParquetOHLCVArchive
+        from ai4binance.schemas import DataQuality
+
+        observed_at = self.clock()
+        snapshot, quality = inspect_market_data(
+            ParquetOHLCVArchive(self.settings.dataset_directory / "usd_m_futures"),
+            market="USD_M_FUTURES",
+            symbol=symbol,
+            now=observed_at,
+            minimum_candles=self.settings.minimum_closed_candles,
+            candle_limit=self.settings.candle_limit,
+            timeframes=timeframes,
+        )
+        snapshot = replace(
+            snapshot,
+            snapshot_id=f"virtual:{snapshot.snapshot_id}:{observed_at.isoformat()}",
+            data_quality=(
+                DataQuality.DATA_VALID
+                if len(quality) == len(timeframes)
+                and all(row["status"] == "CURRENT" for row in quality)
+                else DataQuality.DATA_INVALID
+            ),
+        )
+        transport = LocalMarketSnapshotTransport(
+            self.settings.dataset_directory / "usd_m_futures" / "metadata",
+            maximum_age_seconds=max(
+                900, self.settings.market_history_live_interval_seconds * 3
+            ),
+            clock=lambda: observed_at,
+        )
+        return transport.attach_futures_context(snapshot)
 
 
 _WebFeedItem = FeedEntry
@@ -566,6 +609,8 @@ def run_virtual_market_daemon(
     last_symbol = str(previous.get("symbol", ""))
     discovery_symbol = str(previous.get("discovery_symbol", last_symbol))
     priority_symbol = str(previous.get("priority_symbol", ""))
+    futures_discovery_symbol = str(previous.get("futures_discovery_symbol", ""))
+    futures_priority_symbol = str(previous.get("futures_priority_symbol", ""))
     scan_sequence = previous.get("scan_sequence", 0)
     if (
         not isinstance(scan_sequence, int)
@@ -573,9 +618,24 @@ def run_virtual_market_daemon(
         or scan_sequence < 0
     ):
         scan_sequence = 0
+    market_scan_sequences = {}
+    for market_key in ("spot", "futures"):
+        counter = previous.get(
+            f"{market_key}_scan_sequence", scan_sequence if market_key == "spot" else 0
+        )
+        market_scan_sequences[market_key] = (
+            counter
+            if isinstance(counter, int)
+            and not isinstance(counter, bool)
+            and counter >= 0
+            else 0
+        )
     last_order_ready_at = previous.get("last_order_ready_at")
     dashboard_simulation_projection = previous.get(
         "dashboard_simulation_projection", {}
+    )
+    dashboard_futures_simulation_projection = previous.get(
+        "dashboard_futures_simulation_projection", {}
     )
     consecutive_failures = 0
     cycle_count = 0
@@ -602,6 +662,30 @@ def run_virtual_market_daemon(
                         clock(),
                         expected_source=RESEARCH_MARKET_UNIVERSE_SOURCE,
                     )
+                    if universe is None:
+                        collector = (
+                            _load_json_mapping(settings.market_history_state_path) or {}
+                        )
+                        upstream = collector.get("blockers", ())
+                        upstream_blockers = (
+                            tuple(
+                                item
+                                for item in upstream
+                                if isinstance(item, str)
+                                and re.fullmatch(r"[A-Z0-9_]+", item)
+                            )
+                            if isinstance(upstream, (list, tuple))
+                            else ()
+                        )
+                        cycle_report.update(
+                            failed_stage="UNIVERSE_VALIDATION",
+                            universe_source="UNAVAILABLE",
+                            research_blockers=(
+                                "VIRTUAL_MARKET_UNIVERSE_UNAVAILABLE_OR_STALE",
+                                *upstream_blockers,
+                            ),
+                        )
+                        raise ValueError("VIRTUAL_MARKET_UNIVERSE_UNAVAILABLE_OR_STALE")
                     configured = tuple(
                         dict.fromkeys(
                             (
@@ -611,24 +695,21 @@ def run_virtual_market_daemon(
                             )
                         )
                     )
-                    symbols = (
-                        tuple(
-                            name for name in configured if name in universe.spot_symbols
-                        )
-                        + tuple(
-                            name
-                            for name in universe.spot_symbols
-                            if name not in configured
-                        )
-                        if universe is not None
-                        else (
-                            _virtual_market_ranked_symbols(
-                                settings,
-                                configured,
-                                clock(),
-                            )
-                            or configured
-                        )
+                    market = (
+                        "USD_M_FUTURES"
+                        if universe.futures_symbols
+                        and (not universe.spot_symbols or (scan_sequence + 1) % 2 == 0)
+                        else "SPOT"
+                    )
+                    universe_symbols = (
+                        universe.futures_symbols
+                        if market == "USD_M_FUTURES"
+                        else universe.spot_symbols
+                    )
+                    symbols = tuple(
+                        name for name in configured if name in universe_symbols
+                    ) + tuple(
+                        name for name in universe_symbols if name not in configured
                     )
                     from ai4binance.exchange.client import BinancePublicClient
 
@@ -642,6 +723,7 @@ def run_virtual_market_daemon(
                         else:
                             supported_symbols.append(name)
                     cycle_report.update(
+                        market=market,
                         universe_symbol_count=len(symbols),
                         supported_symbol_count=len(supported_symbols),
                         unsupported_symbols=tuple(unsupported_symbols),
@@ -655,8 +737,12 @@ def run_virtual_market_daemon(
                     eligible_symbols = symbols
                     if not symbols:
                         raise ValueError("VIRTUAL_MARKET_UNIVERSE_EMPTY")
-                    manual_request = _pending_virtual_market_refresh_request(
-                        refresh_request_path, symbols, clock()
+                    manual_request = (
+                        _pending_virtual_market_refresh_request(
+                            refresh_request_path, symbols, clock()
+                        )
+                        if market == "SPOT"
+                        else None
                     )
                     if manual_request is not None:
                         last_symbol = str(manual_request["symbol"])
@@ -667,19 +753,36 @@ def run_virtual_market_daemon(
                             _virtual_market_priority_symbols(
                                 settings, configured, symbols, clock()
                             )
-                            if universe is not None
+                            if market == "SPOT"
                             else ()
                         )
                         held_symbols = _virtual_wallet_journal(
                             settings
-                        ).open_position_symbols()
+                        ).open_position_symbols(market=market)
                         priority_symbols = tuple(
-                            dict.fromkeys((*held_symbols, *priority_symbols))
+                            name
+                            for name in dict.fromkeys(
+                                (*held_symbols, *priority_symbols)
+                            )
+                            if name in symbols
                         )[: settings.virtual_market_priority_symbol_count]
                         scan_sequence += 1
-                        use_priority = bool(priority_symbols) and scan_sequence % 5 == 0
+                        market_key = "futures" if market == "USD_M_FUTURES" else "spot"
+                        market_scan_sequences[market_key] += 1
+                        use_priority = (
+                            bool(priority_symbols)
+                            and market_scan_sequences[market_key] % 5 == 0
+                        )
                         active_symbols = priority_symbols if use_priority else symbols
-                        cursor = priority_symbol if use_priority else discovery_symbol
+                        cursor = (
+                            (
+                                futures_priority_symbol
+                                if use_priority
+                                else futures_discovery_symbol
+                            )
+                            if market == "USD_M_FUTURES"
+                            else (priority_symbol if use_priority else discovery_symbol)
+                        )
                         index = (
                             (active_symbols.index(cursor) + 1) % len(active_symbols)
                             if cursor in active_symbols
@@ -687,11 +790,22 @@ def run_virtual_market_daemon(
                         )
                         last_symbol = active_symbols[index]
                         scan_lane = "PRIORITY" if use_priority else "DISCOVERY"
-                        if use_priority:
+                        if market == "USD_M_FUTURES" and use_priority:
+                            futures_priority_symbol = last_symbol
+                        elif market == "USD_M_FUTURES":
+                            futures_discovery_symbol = last_symbol
+                        elif use_priority:
                             priority_symbol = last_symbol
                         else:
                             discovery_symbol = last_symbol
-                    cycle_settings = settings.model_copy(update={"symbol": last_symbol})
+                    cycle_settings = settings.model_copy(
+                        update={
+                            "symbol": last_symbol,
+                            "market_type": "USD_M_FUTURES"
+                            if market == "USD_M_FUTURES"
+                            else "Spot",
+                        }
+                    )
                     from ai4binance.data.market_history_continuous import (
                         VIRTUAL_MARKET_COLLECTION_TIMEFRAMES,
                     )
@@ -703,23 +817,23 @@ def run_virtual_market_daemon(
                         {
                             "symbol": last_symbol,
                             "scan_sequence": scan_sequence,
+                            "spot_scan_sequence": market_scan_sequences["spot"],
+                            "futures_scan_sequence": market_scan_sequences["futures"],
                             "scan_lane": scan_lane,
                             "priority_symbol": priority_symbol,
                             "discovery_symbol": discovery_symbol,
+                            "futures_discovery_symbol": futures_discovery_symbol,
+                            "futures_priority_symbol": futures_priority_symbol,
                             "priority_symbol_count": len(priority_symbols),
-                            "universe_source": (
-                                "CANONICAL_CACHE"
-                                if universe is not None
-                                else "LOCAL_SNAPSHOT"
-                                if symbols != configured
-                                else "CONFIGURED_FALLBACK"
-                            ),
+                            "universe_source": "CANONICAL_CACHE",
                         }
                     )
                     cycle_observed_at = clock()
                     exit_code = _run_virtual_market_research_cycle(
                         cycle_settings,
-                        acquisition,
+                        acquisition
+                        if public_acquisition is not None or market == "SPOT"
+                        else _LocalFuturesAcquisition(cycle_settings),
                         observed_at=cycle_observed_at,
                         cycle_report=cycle_report,
                     )
@@ -730,8 +844,21 @@ def run_virtual_market_daemon(
                         observed_at=cycle_observed_at,
                         cycle_report=cycle_report,
                     )
-            except (ExchangeError, OSError, RuntimeError, TypeError, ValueError):
+            except (
+                ExchangeError,
+                OSError,
+                RuntimeError,
+                TypeError,
+                ValueError,
+            ) as error:
                 exit_code = 2
+                cycle_report.setdefault("failed_stage", "VIRTUAL_MARKET_CYCLE")
+                cycle_report.setdefault(
+                    "research_blockers", ("VIRTUAL_MARKET_CYCLE_FAILED",)
+                )
+                cycle_report.update(
+                    failure_type=type(error).__name__, virtual_order_ready=False
+                )
             observed_at = clock()
             if observed_at.tzinfo is None or observed_at.utcoffset() is None:
                 raise ValueError("virtual market daemon clock must be timezone-aware")
@@ -744,13 +871,19 @@ def run_virtual_market_daemon(
             if cycle_report.get("virtual_order_ready") is True and exit_code == 0:
                 last_order_ready_at = observed_at.isoformat()
             if eligible_symbols:
-                dashboard_simulation_projection = _dashboard_simulation_projection(
-                    dashboard_simulation_projection,
+                projection = _dashboard_simulation_projection(
+                    dashboard_futures_simulation_projection
+                    if cycle_report.get("market") == "USD_M_FUTURES"
+                    else dashboard_simulation_projection,
                     symbols=eligible_symbols,
                     observed_at=observed_at,
                     exit_code=exit_code,
                     cycle_report=cycle_report,
                 )
+                if cycle_report.get("market") == "USD_M_FUTURES":
+                    dashboard_futures_simulation_projection = projection
+                else:
+                    dashboard_simulation_projection = projection
             payload = _virtual_market_daemon_state(
                 observed_at=observed_at,
                 cycle_count=cycle_count,
@@ -758,10 +891,31 @@ def run_virtual_market_daemon(
                 last_success_at=last_success_at,
             )
             payload.update(cast(dict[str, object], to_primitive(cycle_report)))
+            if exit_code != 0:
+                raw_blockers = cycle_report.get("research_blockers", ())
+                payload["cycle_blockers"] = (
+                    list(
+                        dict.fromkeys(
+                            (
+                                "VIRTUAL_MARKET_CYCLE_FAILED",
+                                *(
+                                    item
+                                    for item in raw_blockers
+                                    if isinstance(item, str)
+                                ),
+                            )
+                        )
+                    )
+                    if isinstance(raw_blockers, (list, tuple))
+                    else ["VIRTUAL_MARKET_CYCLE_FAILED"]
+                )
             if isinstance(dashboard_simulation_projection, dict):
                 payload["dashboard_simulation_projection"] = (
                     dashboard_simulation_projection
                 )
+            payload["dashboard_futures_simulation_projection"] = (
+                dashboard_futures_simulation_projection
+            )
             payload["consecutive_failures"] = consecutive_failures
             payload["last_order_ready_at"] = last_order_ready_at
             payload["research_status"] = (
@@ -985,7 +1139,7 @@ def _request_market_history_refresh_if_stale(
     try:
         refresh = enqueue_market_history_refresh_request(
             path,
-            market="SPOT",
+            market=str(cycle_report.get("market", "SPOT")),
             symbol=symbol,
             eligible_symbols=eligible_symbols,
             requested_at=observed_at,

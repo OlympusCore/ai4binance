@@ -198,6 +198,66 @@ def test_current_receipt_rejects_tampering_and_missing_evidence(
     assert blockers
 
 
+@pytest.mark.parametrize("later_state", ["narrow", "skipped", "failed", "tampered"])
+def test_scope_selection_preserves_failure_and_integrity_barriers(
+    tmp_path: Path, later_state: str
+) -> None:
+    from ai4binance.ops.quality_gate.telemetry import (
+        archive_quality_evidence,
+        bind_quality_evidence,
+        bind_quality_failure_evidence,
+        resolve_requirement_quality_evidence,
+    )
+
+    subject, earlier = _quality_fixture(tmp_path)
+    archive_quality_evidence(tmp_path, earlier)
+    if later_state == "failed":
+        later = bind_quality_failure_evidence(
+            tmp_path,
+            {
+                **earlier,
+                "status": "QUALITY_GATE_FAILED",
+                "verification_status": "NOT_VERIFIED",
+            },
+            run_id="20260927T120002Z",
+            workspace_attestation=subject,
+        )
+    else:
+        junit = tmp_path / "test-only-later.xml"
+        filename = (
+            "tests/test_safety.py" if later_state == "skipped" else "tests/other.py"
+        )
+        child = "<skipped/>" if later_state == "skipped" else ""
+        junit.write_text(
+            f'<testsuites><testsuite><testcase file="{filename}" '
+            f'name="test_fixture">{child}</testcase></testsuite></testsuites>'
+        )
+        later = bind_quality_evidence(
+            tmp_path,
+            {**earlier, "selected_pytest_arguments": [filename]},
+            run_id="20260927T120002Z",
+            junit_path=junit,
+            workspace_attestation=subject,
+        )
+    archive_quality_evidence(tmp_path, later)
+    if later_state == "tampered":
+        proof = (
+            tmp_path
+            / "runtime/artifacts/quality/gate/runs/20260927T120002Z"
+            / "quality_evidence.json"
+        )
+        proof.write_text("{}")
+    resolved, blockers = resolve_requirement_quality_evidence(
+        tmp_path, subject, required_tests=("tests/test_safety.py",)
+    )
+    if later_state == "narrow":
+        assert not blockers
+        assert resolved == earlier
+    else:
+        assert blockers
+        assert resolved != earlier
+
+
 @pytest.mark.parametrize("same_run", [False, True])
 def test_failed_run_never_falls_back_to_a_passing_receipt(
     tmp_path: Path, same_run: bool
@@ -223,7 +283,7 @@ def test_failed_run_never_falls_back_to_a_passing_receipt(
     )
     archive_quality_evidence(tmp_path, failed)
     resolved, blockers = resolve_requirement_quality_evidence(tmp_path, subject)
-    assert not blockers
+    assert "QUALITY_RESULT_FAILED" in blockers
     assert verify_quality_evidence(
         tmp_path, resolved, workspace_attestation=subject
     ) == ("QUALITY_RESULT_FAILED",)

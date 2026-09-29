@@ -240,7 +240,9 @@ def test_collect_symbol_calls_callback_for_each_stream(
     )
     assert len(results) == len(instance._collection_kinds("spot"))
     assert callback.call_count == len(results)
-    assert instance._completion_ratio(0, 0) == "1.000000"
+    assert instance._completion_ratio(0, 0) == "0.000000"
+    assert instance._completion_ratio(1, 2) == "0.500000"
+    assert instance._completion_ratio(2, 2) == "1.000000"
 
 
 @pytest.mark.parametrize(

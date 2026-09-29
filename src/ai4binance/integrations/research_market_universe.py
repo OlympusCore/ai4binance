@@ -39,6 +39,16 @@ class _RetryableMarketCapError(Exception):
         self.final_error = final_error
 
 
+class _MarketCapHttpError(ExchangeHttpError):
+    """Keep the public HTTP status as structured, secret-safe failure evidence."""
+
+    def __init__(self, status_code: int) -> None:
+        super().__init__(
+            f"public market-cap HTTP {status_code} at /api/v3/coins/markets"
+        )
+        self.status_code = status_code
+
+
 def _read_market_cap_response(
     request: Request, *, timeout_seconds: float, maximum_bytes: int
 ) -> list[object]:
@@ -50,9 +60,7 @@ def _read_market_cap_response(
     except HTTPError as error:
         if error.code in {418, 429}:
             raise ExchangeRateLimitError(error.code, None, request.full_url) from None
-        failure = ExchangeHttpError(
-            f"public market-cap HTTP {error.code} at /api/v3/coins/markets"
-        )
+        failure = _MarketCapHttpError(error.code)
         if error.code < 500:
             raise failure from None
         raise _RetryableMarketCapError(failure) from None
@@ -302,10 +310,15 @@ class ResearchMarketUniverseProvider:
             spot_ranked = self._ranked_assets(rows, metadata, market="SPOT")
             futures_ranked = self._ranked_assets(rows, metadata, market="USD_M_FUTURES")
             ranked_assets = tuple(dict.fromkeys((*spot_ranked, *futures_ranked)))
+        except (_MarketCapHttpError, ExchangeRateLimitError) as error:
+            return self._blocked(
+                metadata,
+                "PUBLIC_MARKET_CAP_UNIVERSE_UNAVAILABLE",
+                f"PUBLIC_MARKET_CAP_HTTP_{error.status_code}",
+            )
         except (
             ExchangeHttpError,
             ExchangePayloadError,
-            ExchangeRateLimitError,
             ExchangeTransportError,
             TypeError,
             ValueError,
@@ -428,13 +441,13 @@ class ResearchMarketUniverseProvider:
         return symbols[0] if symbols else None
 
     def _blocked(
-        self, metadata: BinanceEligibleMarketSnapshot, blocker: str
+        self, metadata: BinanceEligibleMarketSnapshot, *blockers: str
     ) -> BinanceEligibleMarketSnapshot:
         return BinanceEligibleMarketSnapshot(
             spot_symbols=(),
             futures_symbols=(),
             excluded_assets=metadata.excluded_assets,
-            blockers=(blocker,),
+            blockers=blockers,
             source=RESEARCH_MARKET_UNIVERSE_SOURCE,
         )
 

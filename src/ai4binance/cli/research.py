@@ -476,8 +476,14 @@ def run_public_research_command(
     cycle_report: dict[str, object] | None = None,
 ) -> int:
     acquisition = public_acquisition or build_public_acquisition(settings)
+    failure_stage = "ACQUISITION"
     try:
         snapshot = acquisition.acquire(settings.symbol, settings.timeframes)
+        failure_stage = "RESEARCH_WORKFLOW"
+        if cycle_report is not None:
+            cycle_report.update(
+                snapshot_id=snapshot.snapshot_id, symbol=snapshot.symbol
+            )
         if command == "whale-fusion-research":
             return _run_whale_fusion_research(
                 settings,
@@ -494,6 +500,12 @@ def run_public_research_command(
             cycle_report=cycle_report,
         )
     except VirtualWalletJournalError:
+        if cycle_report is not None:
+            cycle_report.update(
+                failed_stage="VIRTUAL_WALLET_JOURNAL",
+                research_blockers=("VIRTUAL_WALLET_JOURNAL_FAILED",),
+                virtual_order_ready=False,
+            )
         signal = build_no_trade_signal(
             symbol=settings.symbol,
             timeframes=settings.timeframes,
@@ -502,12 +514,35 @@ def run_public_research_command(
         )
         print(json.dumps(to_primitive(signal), ensure_ascii=False, sort_keys=True))
         return 2
-    except (ExchangeError, ValueError, OSError):
+    except (ExchangeError, ValueError, OSError) as error:
+        from ai4binance.data.acquisition import LocalMarketSnapshotError
+
+        blocker = (
+            "PUBLIC_DATA_ACQUISITION_FAILED"
+            if failure_stage == "ACQUISITION"
+            else "RESEARCH_WORKFLOW_FAILED"
+        )
+        if cycle_report is not None:
+            cycle_report.update(
+                failed_stage=failure_stage,
+                failure_type=type(error).__name__,
+                research_blockers=(
+                    blocker,
+                    *(
+                        (error.blocker_code,)
+                        if isinstance(error, LocalMarketSnapshotError)
+                        else ()
+                    ),
+                ),
+                virtual_order_ready=False,
+            )
+            if isinstance(error, LocalMarketSnapshotError):
+                cycle_report["failed_source_filename"] = error.source_filename
         signal = build_no_trade_signal(
             symbol=settings.symbol,
             timeframes=settings.timeframes,
             market_type=settings.market_type,
-            blocker="PUBLIC_DATA_ACQUISITION_FAILED",
+            blocker=blocker,
         )
         print(json.dumps(to_primitive(signal), ensure_ascii=False, sort_keys=True))
         return 2

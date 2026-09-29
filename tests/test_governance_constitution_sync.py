@@ -88,6 +88,28 @@ def test_quality_attestation_ignores_source_generated_build_artifacts(
     assert generated.repository_tree_sha256 == baseline.repository_tree_sha256
 
 
+@pytest.mark.parametrize("filename", ["hooks.json", "config.toml"])
+def test_quality_attestation_binds_codex_controls(
+    tmp_path: Path, filename: str
+) -> None:
+    control = tmp_path / ".codex" / filename
+    control.parent.mkdir()
+    control.write_text("initial", encoding="utf-8")
+    from ai4binance.governance.gate import _subject_digest_entries
+
+    governance_baseline = tuple(_subject_digest_entries(tmp_path))
+    baseline = constitution_sync_module.build_quality_gate_workspace_attestation(
+        tmp_path
+    )
+    control.write_text("changed", encoding="utf-8")
+    changed = constitution_sync_module.build_quality_gate_workspace_attestation(
+        tmp_path
+    )
+    assert changed.repository_tree_sha256 != baseline.repository_tree_sha256
+    assert tuple(_subject_digest_entries(tmp_path)) != governance_baseline
+    assert constitution_sync_module._is_quality_gate_subject_path(f".codex/{filename}")
+
+
 def write_core_documents(root: Path, *, compliance_extra: str = "") -> None:
     (root / "AGENTS.md").write_text(
         "\n".join(

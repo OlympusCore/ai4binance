@@ -412,6 +412,24 @@ class JsonlAuditStore:
             last_record_hash, _ = self._chain_state_or_fail(subject_id=str(self.path))
         return last_record_hash
 
+    def read_verified_event(
+        self, *, event_type: str, snapshot_id: str, expected_sha256: str | None = None
+    ) -> dict[str, object]:
+        """Verify the chain and exact committed event under the writer lock."""
+        if not self.tamper_evident or not self.path.is_file():
+            raise ValueError("JSONL_AUDIT_COMMIT_UNAVAILABLE")
+        with self._synchronized():
+            self._chain_state_or_fail(subject_id=snapshot_id)
+            event = self._event_by_identity_unlocked(
+                event_type=event_type, snapshot_id=snapshot_id
+            )
+            if event is None or (
+                expected_sha256 is not None
+                and _canonical_json_sha256(event) != expected_sha256
+            ):
+                raise ValueError("JSONL_AUDIT_COMMIT_MISMATCH")
+            return event
+
     def _render(
         self,
         event: AuditEvent,

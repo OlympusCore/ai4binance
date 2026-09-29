@@ -379,6 +379,13 @@ def _useful_cycle_timestamp(
     if not isinstance(loaded, dict):
         blockers.append(f"{spec.label}_USEFUL_CYCLE_STATE_INVALID")
         return None
+    if (
+        loaded.get("status") in {"DEGRADED", "BLOCKED", "FAILED"}
+        or loaded.get("research_status") == "CYCLE_FAILED"
+    ):
+        blockers.append(f"{spec.label}_USEFUL_CYCLE_FAILED")
+        for field in ("cycle_blockers", "blockers", "research_blockers"):
+            blockers.extend(_blocker_tuple(loaded.get(field, ())))
     return _parse_datetime(loaded.get(spec.useful_timestamp_field))
 
 

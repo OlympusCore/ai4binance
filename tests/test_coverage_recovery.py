@@ -90,6 +90,7 @@ from ai4binance.ops.quality_triage import (
     QualityCheck,
     QualityTriageConfig,
     _run_check,
+    default_quality_checks,
     run_quality_triage,
 )
 from ai4binance.ops.quality_triage import (
@@ -290,6 +291,7 @@ def test_quality_triage_runs_redacts_persists_and_blocks_overlap(
 ) -> None:
     calls: list[str] = []
     ticks = iter((0.0, 0.2, 0.2, 0.5, 0.5, 0.7))
+    checks = default_quality_checks()[:2]
 
     def runner(
         arguments: Sequence[str],
@@ -303,41 +305,39 @@ def test_quality_triage_runs_redacts_persists_and_blocks_overlap(
         check: bool,
     ) -> subprocess.CompletedProcess[str]:
         del cwd, stdout, stderr, text, errors, timeout, check
-        name = arguments[-1]
+        name = next(item.name for item in checks if item.arguments == tuple(arguments))
         calls.append(name)
         return subprocess.CompletedProcess(
             list(arguments),
-            0 if name == "pass" else 1,
+            0 if name == checks[0].name else 1,
             stdout=f"{'x' * 40}\napi_key=value\n{name}",
         )
 
     config = QualityTriageConfig(
         repository_root=tmp_path,
-        output_directory=tmp_path / "quality",
+        output_directory=tmp_path / "runtime" / "quality",
         command_timeout_seconds=1,
         max_output_characters=30,
     )
     report = run_quality_triage(
         config,
         revision="abc123",
-        checks=(
-            QualityCheck("pass", ("python", "pass")),
-            QualityCheck("fail", ("python", "fail")),
-        ),
+        checks=checks,
         runner=runner,
         clock=lambda: NOW,
         monotonic=lambda: next(ticks),
     )
 
-    assert calls == ["pass", "fail"]
+    assert calls == [item.name for item in checks]
     assert report.status == "FAILED"
     assert report.checks[0].status is CheckStatus.PASSED
     assert report.checks[1].status is CheckStatus.FAILED
     assert report.checks[1].output_truncated is True
-    assert "[REDACTED]" in (tmp_path / "quality" / "state.json").read_text(
+    assert "[REDACTED]" in (config.output_directory / "state.json").read_text(
         encoding="utf-8"
     )
-    assert (tmp_path / "quality" / "runs.jsonl").exists()
+    assert (config.output_directory / "runs.jsonl").exists()
+    assert Path(report.runner_admission_ref).is_file()
 
     timeout = _run_check(
         QualityCheck("timeout", ("python", "timeout")),
@@ -367,7 +367,7 @@ def test_quality_triage_runs_redacts_persists_and_blocks_overlap(
             revision="x",
         )
 
-    blocked_dir = tmp_path / "blocked"
+    blocked_dir = tmp_path / "runtime" / "blocked"
     blocked_dir.mkdir()
     (blocked_dir / "quality_triage.lock").write_text("", encoding="utf-8")
     assert (
@@ -1472,6 +1472,24 @@ def test_portfolio_user_report_includes_gpu_telemetry_assessment(
         "ai4binance.whale_fusion.derivatives.binance_client.urlopen",
     ):
         monkeypatch.setattr(target, _offline_urlopen)
+
+    # Keep the report test independent of mutable resident audit/research stores.
+    # Runtime construction and failure handling have separate integration tests.
+    class RuntimeStub:
+        def run(self, now: datetime) -> SimpleNamespace:
+            return SimpleNamespace(
+                cycle_id="telemetry-report-unit-test",
+                created_at=now,
+                portfolio_analytics=None,
+                spot_wallet=None,
+                futures_account=None,
+                state="BLOCKED",
+                blockers=("SPOT_WALLET_UNAVAILABLE", "FUTURES_ACCOUNT_UNAVAILABLE"),
+            )
+
+    monkeypatch.setattr(
+        cli_runtime, "build_read_only_runtime", lambda _settings: RuntimeStub()
+    )
     monkeypatch.setattr(
         GpuResourceGovernor,
         "collect_telemetry",
@@ -1486,6 +1504,10 @@ def test_portfolio_user_report_includes_gpu_telemetry_assessment(
     payload = cli_status.portfolio_command_payload(settings)
     report_paths = payload["user_report_paths"]
     assert isinstance(report_paths, dict)
+    assert Path(report_paths["latest_json_path"]).is_relative_to(tmp_path)
+    assert Path(report_paths["latest_markdown_path"]).is_relative_to(tmp_path)
+    assert payload["execution_allowed"] is False
+    assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
     report_json = json.loads(
         Path(report_paths["latest_json_path"]).read_text(encoding="utf-8")
     )

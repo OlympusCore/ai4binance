@@ -4,10 +4,21 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 
-from ai4binance.governance.enforcement.contracts import GovernedObjectEnvelope
+from ai4binance.governance.enforcement.contracts import (
+    EnforcementDecision,
+    EnforcementRequest,
+    GovernedObjectEnvelope,
+)
+from ai4binance.governance.enforcement.engine import DeterministicEnforcementEngine
+from ai4binance.governance.enforcement.registry import load_enforcement_profile_registry
 from ai4binance.governance.execution_authority import ExecutionAuthorityProfile
-from ai4binance.governance.policy_as_code import PolicyAsCodeDocument
+from ai4binance.governance.policy_as_code import (
+    PolicyAsCodeDocument,
+    PolicyAsCodeEngine,
+    deny_all_policy_as_code,
+)
 from ai4binance.governance.repository_validator import (
     GovernedKnowledgeObject,
     RepositoryArtifact,
@@ -20,6 +31,29 @@ def _sha256(payload: object) -> str:
         payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True
     )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def evaluate_registered_entrypoint(
+    repository_root: Path,
+    entrypoint_id: str,
+    envelope: GovernedObjectEnvelope,
+    request: EnforcementRequest,
+    *,
+    policy_document: PolicyAsCodeDocument | None = None,
+    execution_profile: ExecutionAuthorityProfile | None = None,
+) -> EnforcementDecision:
+    """Use canonical registries; absent trusted attestations keep operations denied."""
+    root = repository_root.resolve()
+    engine = DeterministicEnforcementEngine(
+        registry=load_enforcement_profile_registry(
+            root / "config/governance/enforcement_profiles.yaml"
+        ),
+        policy_engine=PolicyAsCodeEngine(policy_document or deny_all_policy_as_code()),
+        evidence_root=root,
+    )
+    return engine.evaluate_entrypoint(
+        entrypoint_id, envelope, request, execution_profile=execution_profile
+    )
 
 
 def envelope_from_governed_knowledge(

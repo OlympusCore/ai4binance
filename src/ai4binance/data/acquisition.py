@@ -26,6 +26,15 @@ from ai4binance.schemas import (
 )
 
 
+class LocalMarketSnapshotError(ExchangePayloadError):
+    """Expose a sanitized collector failure without disclosing payload contents."""
+
+    def __init__(self, blocker_code: str, source_filename: str) -> None:
+        super().__init__("canonical local market snapshot is unavailable")
+        self.blocker_code = blocker_code
+        self.source_filename = source_filename
+
+
 class LocalMarketPublicClient(BinancePublicClient):
     """Reuse public parsers with the archive's exchange-listed Unicode identities."""
 
@@ -74,19 +83,19 @@ class LocalMarketSnapshotTransport:
             filenames[path] = "premium-index.json"
         try:
             if (self.directory / filenames[path]).stat().st_size > 8_000_000:
-                raise ValueError("shared snapshot exceeds its size limit")
+                raise ValueError("LOCAL_MARKET_SNAPSHOT_OVERSIZED")
             payload = json.loads(
                 (self.directory / filenames[path]).read_text(encoding="utf-8")
             )
             observed = datetime.fromisoformat(payload["observed_at"])
             if observed.utcoffset() is None:
-                raise ValueError("shared snapshot timestamp is naive")
+                raise ValueError("LOCAL_MARKET_SNAPSHOT_TIMESTAMP_INVALID")
             age = (self.clock() - observed).total_seconds()
             maximum_age = (
                 86400 if path.endswith("exchangeInfo") else self.maximum_age_seconds
             )
             if not 0 <= age <= maximum_age:
-                raise ValueError("shared snapshot is stale")
+                raise ValueError("LOCAL_MARKET_SNAPSHOT_STALE")
             symbol = str((params or {}).get("symbol", ""))
             rows = (
                 payload["payload"]["symbols"]
@@ -97,7 +106,7 @@ class LocalMarketSnapshotTransport:
                 return {"symbols": rows} if path.endswith("exchangeInfo") else rows
             matching = [item for item in rows if item.get("symbol") == symbol]
             if len(matching) != 1:
-                raise ValueError("shared snapshot symbol is missing or duplicated")
+                raise ValueError("LOCAL_MARKET_SNAPSHOT_SYMBOL_INVALID")
             item = matching[0]
             if path.endswith("exchangeInfo"):
                 return {"symbols": [item]}
@@ -105,9 +114,20 @@ class LocalMarketSnapshotTransport:
                 return {"symbol": symbol, "price": item["lastPrice"]}
             return item
         except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
-            raise ExchangePayloadError(
-                "canonical local market snapshot is unavailable"
-            ) from error
+            safe_codes = {
+                "LOCAL_MARKET_SNAPSHOT_OVERSIZED",
+                "LOCAL_MARKET_SNAPSHOT_TIMESTAMP_INVALID",
+                "LOCAL_MARKET_SNAPSHOT_STALE",
+                "LOCAL_MARKET_SNAPSHOT_SYMBOL_INVALID",
+            }
+            code = (
+                "LOCAL_MARKET_SNAPSHOT_MISSING"
+                if isinstance(error, FileNotFoundError)
+                else str(error)
+                if str(error) in safe_codes
+                else "LOCAL_MARKET_SNAPSHOT_INVALID"
+            )
+            raise LocalMarketSnapshotError(code, filenames[path]) from error
 
     def attach_futures_context(self, snapshot: MarketSnapshot) -> MarketSnapshot:
         """Attach collector-owned public evidence without network acquisition.

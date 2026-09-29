@@ -50,6 +50,24 @@ def canonical_trace_journal_path(repository_root: Path) -> Path:
     )
 
 
+def canonical_trace_root_for_artifact(artifact_path: Path) -> Path:
+    """Resolve nested runtime artifacts without creating a second runtime tree."""
+    parent = artifact_path.resolve().parent
+    for candidate in (parent, *parent.parents):
+        if candidate.name.lower() == "runtime":
+            relative = parent.relative_to(candidate).parts
+            if relative[:2] in {
+                ("tmp", "process"),
+                ("tmp", "pytest"),
+                ("tmp", "test_temp"),
+            }:
+                return parent
+            return candidate.parent
+        if (candidate / "pyproject.toml").is_file() or (candidate / ".git").exists():
+            return candidate
+    return parent
+
+
 def canonical_trace_sha256(value: object) -> str:
     encoded = json.dumps(
         value,

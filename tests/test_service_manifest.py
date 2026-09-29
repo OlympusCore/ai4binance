@@ -21,6 +21,47 @@ from ai4binance.ops.service_health import (
 NOW = datetime(2026, 8, 8, 18, 0, tzinfo=UTC)
 
 
+def test_fresh_heartbeat_cannot_hide_failed_useful_cycle(tmp_path: Path) -> None:
+    spec = next(
+        item for item in load_service_manifest() if item.service == "virtual-market"
+    )
+    assert spec.useful_state_file is not None
+    (tmp_path / spec.health_file).write_text(
+        json.dumps(
+            {
+                "status": "RUNNING",
+                "updated_at": NOW.isoformat(),
+                "pid": 4242,
+                "execution_allowed": False,
+                "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / spec.lock_file).write_text("4242", encoding="ascii")
+    (tmp_path / spec.useful_state_file).write_text(
+        json.dumps(
+            {
+                "status": "DEGRADED",
+                "last_success_at": NOW.isoformat(),
+                "cycle_blockers": [
+                    "VIRTUAL_MARKET_CYCLE_FAILED",
+                    "LOCAL_MARKET_SNAPSHOT_STALE",
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = service_health_from_spec(
+        spec, tmp_path, NOW, pid_is_alive=lambda pid: pid == 4242
+    )
+    assert result["status"] == "DEGRADED"
+    blockers = cast(tuple[str, ...], result["blockers"])
+    assert "VIRTUAL_MARKET_USEFUL_CYCLE_FAILED" in blockers
+    assert "LOCAL_MARKET_SNAPSHOT_STALE" in blockers
+    assert "VIRTUAL_MARKET_USEFUL_CYCLE_STALE" not in blockers
+
+
 def test_service_manifest_is_shared_safe_and_complete() -> None:
     specs = load_service_manifest()
     required = {spec.service: spec for spec in specs if spec.required}

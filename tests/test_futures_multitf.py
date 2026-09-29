@@ -39,6 +39,31 @@ _DURATIONS = {
 }
 
 
+def test_futures_universe_failure_is_persisted_without_crashing_daemon(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from ai4binance.cli import futures_multitf
+    from ai4binance.config import Settings
+
+    monkeypatch.chdir(tmp_path)
+
+    def invalid(_root: Path) -> tuple[str, ...]:
+        raise ValueError("FUTURES_MULTITF_UNIVERSE_INVALID")
+
+    monkeypatch.setattr(futures_multitf, "_eligible_symbols", invalid)
+    state = futures_multitf.run_cycle(Settings(), observed_at=NOW)
+    assert state["status"] == "BLOCKED"
+    assert state["eligible_symbol_count"] is None
+    assert state["phase"] == "UNIVERSE_VALIDATION_FAILED"
+    assert state["blockers"] == ["FUTURES_MULTITF_UNIVERSE_INVALID"]
+    monitor = cast(Mapping[str, object], state["opportunity_monitor"])
+    assert monitor["status"] == "DATA_UNAVAILABLE"
+    assert state["execution_allowed"] is False
+    assert state["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+    path = tmp_path / "runtime/state/futures-multitf-latest.json"
+    assert json.loads(path.read_text(encoding="utf-8")) == state
+
+
 def test_failed_futures_ingest_is_retried_and_never_becomes_current(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

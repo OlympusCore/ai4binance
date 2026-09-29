@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -21,6 +21,10 @@ from ai4binance.governance.enforcement.contracts import (
     VerificationAttestation,
     VerifiedApprovalSet,
 )
+from ai4binance.governance.enforcement.inventory import (
+    EnforcementCoverageState,
+    load_enforcement_inventory,
+)
 from ai4binance.governance.enforcement.registry import EnforcementProfileRegistry
 from ai4binance.governance.execution_authority import (
     VIRTUAL_MARKET_AUTO_PROFILE,
@@ -31,6 +35,7 @@ from ai4binance.governance.policy_as_code import (
     PolicyEffect,
     PolicyRequest,
 )
+from ai4binance.storage import AuditEvent, JsonlAuditStore
 
 CONSEQUENTIAL_ACTIONS = frozenset(
     {
@@ -70,6 +75,51 @@ class DeterministicEnforcementEngine:
     registry: EnforcementProfileRegistry
     policy_engine: PolicyAsCodeEngine | None = None
     evidence_root: Path | None = None
+
+    def evaluate_entrypoint(
+        self,
+        entrypoint_id: str,
+        envelope: GovernedObjectEnvelope,
+        request: EnforcementRequest,
+        *,
+        execution_profile: ExecutionAuthorityProfile | None = None,
+    ) -> EnforcementDecision:
+        """Bind a runtime request to its registered route before evaluating gates."""
+        root = self.evidence_root or Path(__file__).resolve().parents[4]
+        inventory = load_enforcement_inventory(
+            root / "config/governance/enforcement_inventory.yaml"
+        )
+        entry = inventory.entry_for_entrypoint(entrypoint_id)
+        reason = (
+            "ENFORCEMENT_ENTRYPOINT_UNKNOWN"
+            if entry is None
+            else "ENFORCEMENT_ENTRYPOINT_SCOPE_MISMATCH"
+            if (entry.object_type, entry.action)
+            != (envelope.object_type, request.action)
+            else "ENFORCEMENT_ENTRYPOINT_BLOCKED"
+            if entry.coverage_state is not EnforcementCoverageState.ROUTED
+            else None
+        )
+        if reason is None:
+            return self.evaluate(envelope, request, execution_profile=execution_profile)
+        profile = self.registry.profile_for_object_type(envelope.object_type)
+        if profile is None:
+            return self._deny_without_profile(envelope, request)
+        return self._decision(
+            envelope,
+            request,
+            profile,
+            (
+                EnforcementControlResult(
+                    gate=EnforcementGate.AUTHORITY,
+                    outcome=EnforcementOutcome.DENY,
+                    reason_codes=(reason,),
+                    blockers=(reason,),
+                ),
+            ),
+            EnforcementOutcome.DENY,
+            consequence=self._consequence(request.action, profile),
+        )
 
     def evaluate(
         self,
@@ -708,11 +758,93 @@ class DeterministicEnforcementEngine:
                 reason_codes=("AUDIT_RECEIPT_SUBJECT_MISMATCH",),
                 blockers=("AUDIT_RECEIPT_SUBJECT_MISMATCH",),
             )
+        error = self._audit_commit_error(audit_receipt)
+        if error is not None:
+            return EnforcementControlResult(
+                gate=EnforcementGate.AUDIT,
+                outcome=EnforcementOutcome.DENY,
+                reason_codes=(error,),
+                blockers=(error,),
+            )
         return EnforcementControlResult(
             gate=EnforcementGate.AUDIT,
             outcome=EnforcementOutcome.ALLOW,
             reason_codes=("AUDIT_COMMIT_RECEIPT_VERIFIED",),
             details={"audit_log_ref": audit_receipt.audit_log_ref},
+        )
+
+    def _audit_commit_error(self, receipt: AuditReceipt) -> str | None:
+        try:
+            path = self._audit_log_path(receipt.audit_log_ref)
+            if not path.is_file() or path.stat().st_size > 20_000_000:
+                return "AUDIT_COMMIT_UNAVAILABLE"
+            event = JsonlAuditStore(path, tamper_evident=True).read_verified_event(
+                event_type="GOVERNED_ACTION_PREPARED",
+                snapshot_id=receipt.receipt_id,
+                expected_sha256=receipt.commit_hash,
+            )
+            payload = event.get("payload")
+            if (
+                not isinstance(payload, dict)
+                or payload.get("subject_hash") != receipt.subject_hash
+            ):
+                return "AUDIT_COMMIT_SUBJECT_MISMATCH"
+            if (
+                event.get("timestamp")
+                != _parse_timestamp(receipt.recorded_at).isoformat()
+            ):
+                return "AUDIT_COMMIT_TIMESTAMP_MISMATCH"
+            if _parse_timestamp(receipt.recorded_at) > _utcnow():
+                return "AUDIT_COMMIT_FUTURE"
+        except (OSError, ValueError):
+            return "AUDIT_COMMIT_UNVERIFIED"
+        return None
+
+    def _audit_log_path(self, reference: str) -> Path:
+        if self.evidence_root is None:
+            raise ValueError("AUDIT_EVIDENCE_ROOT_MISSING")
+        root = self.evidence_root.resolve()
+        path = (root / reference).resolve()
+        if not path.is_relative_to(root / "runtime"):
+            raise ValueError("AUDIT_LOG_OUTSIDE_RUNTIME")
+        return path
+
+    def commit_audit_receipt(
+        self,
+        *,
+        subject_hash: str,
+        receipt_id: str,
+        audit_log_ref: str,
+        recorded_at: datetime,
+    ) -> AuditReceipt:
+        """Commit pre-action intent; this receipt grants no operation authority."""
+        receipt = AuditReceipt(
+            receipt_id=receipt_id,
+            subject_hash=subject_hash,
+            audit_log_ref=audit_log_ref,
+            commit_hash="0" * 64,
+            recorded_at=recorded_at.isoformat(),
+        )
+        if _parse_timestamp(receipt.recorded_at) > _utcnow():
+            raise ValueError("AUDIT_COMMIT_FUTURE")
+        recorded_at = _parse_timestamp(receipt.recorded_at)
+        path = self._audit_log_path(audit_log_ref)
+        store = JsonlAuditStore(path, durable=True, tamper_evident=True)
+        result = store.append_verified_idempotent(
+            AuditEvent(
+                event_type="GOVERNED_ACTION_PREPARED",
+                timestamp=recorded_at,
+                snapshot_id=receipt_id,
+                payload={"subject_hash": subject_hash},
+            )
+        )
+        event = store.read_verified_event(
+            event_type="GOVERNED_ACTION_PREPARED",
+            snapshot_id=receipt_id,
+            expected_sha256=result.observed_sha256 if result is not None else None,
+        )
+        return replace(
+            receipt, commit_hash=_sha256(event), recorded_at=recorded_at.isoformat()
         )
 
     def _requires_audit_receipt(

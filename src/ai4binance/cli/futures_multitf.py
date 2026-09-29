@@ -623,7 +623,30 @@ def run_cycle(settings: Settings, *, observed_at: datetime) -> dict[str, object]
     start_day = end_day - timedelta(days=27)
     window = f"{start_day.isoformat()}_to_{end_day.isoformat()}"
     state = _load_mapping(state_path)
-    symbols = _eligible_symbols(cache_root)
+    try:
+        symbols = _eligible_symbols(cache_root)
+    except (OSError, TypeError, ValueError) as error:
+        universe_failure_code = _failure_code(error)
+        payload = {
+            **state,
+            "schema_version": "1.0",
+            "status": "BLOCKED",
+            "observed_at": now.isoformat(),
+            "phase": "UNIVERSE_VALIDATION_FAILED",
+            "eligible_symbol_count": None,
+            "eligible_symbols": [],
+            "universe_source": RESEARCH_MARKET_UNIVERSE_SOURCE,
+            "blockers": [universe_failure_code],
+            "failure_code": universe_failure_code,
+            "opportunity_monitor": {
+                "status": "DATA_UNAVAILABLE",
+                "blockers": [universe_failure_code],
+                **_SAFE_STATE,
+            },
+            **_SAFE_STATE,
+        }
+        _save(state_path, payload)
+        return payload
     state = _retain_current_universe_state(state, symbols)
     raw_attempted = state.get("attempted_windows", {})
     attempted = (

@@ -304,8 +304,16 @@ class RequirementTraceabilityRegistry:
                 resolve_requirement_quality_evidence,
             )
 
-            current_quality = resolve_requirement_quality_evidence(
-                repository_root, subject
+            return tuple(
+                _requirement_assurance_chain(
+                    repository_root,
+                    entry,
+                    subject,
+                    resolve_requirement_quality_evidence(
+                        repository_root, subject, required_tests=entry.test_refs
+                    ),
+                )
+                for entry in self.entries
             )
         return tuple(
             _requirement_assurance_chain(

@@ -312,6 +312,26 @@ def test_human_board_and_revision_store_activates_parameters(
     }
 
 
+def test_nested_runtime_defaults_share_the_repository_trace_journal(
+    tmp_path: Path,
+) -> None:
+    report = tuning_report()
+    approval = approval_for(report.report_id, report.selected_parameters)
+    board = PromotionBoard(
+        JsonlAuditStore(tmp_path / "runtime/audit/tuning/approvals.jsonl")
+    )
+    store = GovernedParameterStore(tmp_path / "runtime/state/tuning/parameters.json")
+    board.record(report, approval)
+    store.activate(report, approval, expected_revision=0)
+    journal = CanonicalTraceJournal(canonical_trace_journal_path(tmp_path))
+    assert {record.event_name for record in journal.records()} == {
+        "PARAMETER_PROMOTION_APPROVED",
+        "GOVERNED_PARAMETER_ACTIVATED",
+    }
+    assert not (tmp_path / "runtime/state/tuning/runtime").exists()
+    assert not (tmp_path / "runtime/audit/tuning/runtime").exists()
+
+
 def test_parameter_promotion_and_activation_emit_canonical_trace_records(
     tmp_path: Path,
 ) -> None:

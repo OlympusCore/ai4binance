@@ -45,7 +45,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: nightly-quality-triage-${{ github.run_id }}
-          path: runtime/artifacts/quality/triage/
+          path: |
+            runtime/artifacts/quality/triage/
+            runtime/logs/nightly-quality-triage-*.jsonl
           if-no-files-found: error
           retention-days: 30
 

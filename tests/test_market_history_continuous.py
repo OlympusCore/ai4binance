@@ -129,6 +129,38 @@ def collector(
     )
 
 
+def test_blocked_universe_is_not_no_trade_or_complete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    instance = collector(tmp_path, Transport())
+    monkeypatch.setattr(
+        MarketHistorySynchronizer,
+        "_eligible_universe",
+        lambda *_args, **_kwargs: BinanceEligibleMarketSnapshot(
+            spot_symbols=(),
+            futures_symbols=(),
+            blockers=(
+                "PUBLIC_MARKET_CAP_UNIVERSE_UNAVAILABLE",
+                "PUBLIC_MARKET_CAP_HTTP_403",
+            ),
+        ),
+    )
+    report = instance.sync_cycle(observed_at=NOW)
+    assert report["status"] == "DEGRADED"
+    assert report["total_streams"] == 0
+    assert report["completion_ratio"] == "0.000000"
+    projection = cast(
+        Mapping[str, Mapping[str, object]], report["dashboard_opportunity_projection"]
+    )
+    for market in ("SPOT", "USD_M_FUTURES"):
+        assert projection[market]["status"] == "DATA_UNAVAILABLE"
+        assert (
+            sorted(cast(list[str], projection[market]["blockers"]))
+            == report["blockers"]
+        )
+        assert projection[market]["execution_allowed"] is False
+
+
 def test_collection_worker_limit_supports_bounded_archive_parallelism(
     tmp_path: Path,
 ) -> None:

@@ -42,7 +42,7 @@ def test_canonical_dashboard_source_builds_deterministic_offline_assets(
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "DASHBOARD_PACKAGE_BUILT"
     assert _sha256(stage / "app.js") == (
-        "f20d4df3f00f71e1f87bcaca465fde4ffe808196824b5efb0bdebf5e7697d9ef"
+        "454edddde6b663b5c6ea96397f9d9f4632b931b50bedbd9616a7331ac610b18c"
     )
     assert _sha256(stage / "app.css") == (
         "d457b4b0bce41e50a9eece8a3dcc0356e90ade6797d7ddaa05ce7fe7d1dc07d1"

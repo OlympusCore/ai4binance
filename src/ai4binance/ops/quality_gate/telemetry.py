@@ -117,6 +117,8 @@ def bind_quality_evidence(
             {"node_id": filename + "::" + qualifier + name, "result": result}
         )
     bound = dict(payload)
+    if bound.get("profile") == "full":
+        bound.update(quality_assurance_summary(bound))
     bound.update(
         {
             "evidence_contract_version": 1,
@@ -133,6 +135,35 @@ def bind_quality_evidence(
     bound["evidence_sha256"] = _evidence_digest(bound)
     _validate_quality_binding(bound)
     return bound
+
+
+def quality_assurance_summary(payload: Mapping[str, object]) -> dict[str, object]:
+    """Project verified gate states without granting consequential authority."""
+    raw_governance = payload.get("governance_gate_summary")
+    governance = raw_governance if isinstance(raw_governance, dict) else {}
+    raw_coverage = payload.get("coverage_policy_summary")
+    coverage = raw_coverage if isinstance(raw_coverage, dict) else {}
+    blockers: list[str] = []
+    if governance.get("status") != "PASS":
+        blockers.append("DETERMINISTIC_GOVERNANCE_GATE_NOT_PASSING")
+    if (
+        governance.get("approval_hard_veto") or governance.get("approval_required")
+    ) and governance.get("approval_verification_status") != "PASS":
+        blockers.append("APPROVAL_VERIFICATION_VETO")
+    if (
+        governance.get("traceability_hard_veto")
+        and governance.get("traceability_audit_status") != "PASS"
+    ):
+        blockers.append("CANONICAL_TRACE_VERIFICATION_VETO")
+    if coverage.get("policy_result") != "PASS":
+        blockers.append("COVERAGE_POLICY_NOT_PASS")
+    return {
+        "full_assurance_status": (
+            "RUNNING_WITH_BLOCKERS" if blockers else "FULL_ASSURANCE_GREEN"
+        ),
+        "full_assurance_blockers": blockers,
+        "consequential_change_allowed": False,
+    }
 
 
 def _failed_quality_evidence_blockers(
@@ -405,16 +436,81 @@ def archive_quality_evidence(root: Path, payload: dict[str, object]) -> None:
 
 
 def resolve_requirement_quality_evidence(
-    root: Path, subject: Mapping[str, object]
+    root: Path,
+    subject: Mapping[str, object],
+    *,
+    required_tests: Iterable[str] = (),
 ) -> tuple[object, tuple[str, ...]]:
-    """Resolve the newest immutable receipt; never fall back after a failure."""
+    """Select sufficient same-subject scope without crossing a failure barrier."""
+    directory = (
+        root / "runtime/artifacts/quality/gate/subjects" / _subject_digest(subject)
+    )
+    tests = tuple(required_tests)
+    newest: object = None
+    for path in sorted(directory.glob("*.json"), reverse=True):
+        payload, blockers = _load_requirement_quality_receipt(root, subject, path)
+        if blockers:
+            return None, blockers
+        if not isinstance(payload, dict):
+            return None, ("REQUIREMENT_QUALITY_RECEIPT_INVALID",)
+        if newest is None:
+            newest = payload
+        base_blockers = verify_quality_evidence(
+            root, payload, workspace_attestation=subject, required_profile="fast"
+        )
+        if base_blockers:
+            return payload, base_blockers
+        scope_blockers = verify_quality_evidence(
+            root, payload, workspace_attestation=subject, required_tests=tests
+        )
+        if not scope_blockers:
+            return payload, ()
+        # An explicitly selected or skipped required test invalidates its older
+        # result. Only tests outside a successful run's scope may use older proof.
+        selections = payload.get("selected_pytest_arguments", [])
+        results = payload.get("test_results", [])
+        observed = [item["node_id"] for item in results if isinstance(item, dict)]
+        missing = [
+            test
+            for test in tests
+            if not any(
+                node == test or node.startswith((test + "::", test + "["))
+                for node in observed
+            )
+        ]
+        if any(
+            isinstance(selection, str)
+            and (
+                selection == "."
+                or selection == test
+                or test.startswith((selection + "::", selection.rstrip("/") + "/"))
+            )
+            for selection in selections
+            for test in missing
+        ) or any(
+            blocker.startswith("QUALITY_REQUIRED_TEST_NOT_EXECUTED:")
+            and blocker.removeprefix("QUALITY_REQUIRED_TEST_NOT_EXECUTED:")
+            not in missing
+            for blocker in scope_blockers
+        ):
+            return payload, scope_blockers
+        if any(
+            blocker != "QUALITY_PROFILE_INSUFFICIENT"
+            and not blocker.startswith("QUALITY_REQUIRED_TEST_NOT_EXECUTED:")
+            for blocker in scope_blockers
+        ):
+            return payload, scope_blockers
+    if newest is not None:
+        return newest, ()
+    return None, ("REQUIREMENT_QUALITY_RECEIPT_MISSING",)
+
+
+def _load_requirement_quality_receipt(
+    root: Path, subject: Mapping[str, object], receipt_path: Path
+) -> tuple[object, tuple[str, ...]]:
     subject_hash = _subject_digest(subject)
-    directory = root / "runtime/artifacts/quality/gate/subjects" / subject_hash
     try:
-        receipts = sorted(directory.glob("*.json"))
-        if not receipts:
-            return None, ("REQUIREMENT_QUALITY_RECEIPT_MISSING",)
-        path = _evidence_file(root, str(receipts[-1]))
+        path = _evidence_file(root, str(receipt_path))
         receipt = json.loads(path.read_text(encoding="utf-8"))
         schema = (
             Path(__file__).resolve().parents[4]

@@ -891,10 +891,13 @@ def futures_research_readiness_status(projection: object) -> str:
     return "DEGRADED"
 
 
-def virtual_simulation_projection(data):
+def virtual_simulation_projection(data, market="SPOT"):
     """Expose bounded all-symbol virtual-simulation coverage to the dashboard."""
     projection = (
-        data.get("dashboard_simulation_projection") if isinstance(data, dict) else {}
+        data.get(
+            "dashboard_futures_simulation_projection"
+            if market == "USD_M_FUTURES" else "dashboard_simulation_projection"
+        ) if isinstance(data, dict) else {}
     )
     result = fields(
         projection,
@@ -929,6 +932,9 @@ def virtual_simulation_projection(data):
                         "virtual_simulation_outcome",
                         "risk_approved",
                         "virtual_order_ready",
+                        "failed_stage",
+                        "failure_type",
+                        "failed_source_filename",
                         "candidate_count",
                     ),
                 ),
@@ -1502,11 +1508,15 @@ def snapshot(config):
                         "risk_approved",
                         "last_success_at",
                         "virtual_order_ready",
+                        "failed_stage",
+                        "failure_type",
+                        "failed_source_filename",
                     ),
                 ),
                 "blockers": reasons(data.get("cycle_blockers"))
                 + reasons(data.get("research_blockers")),
                 "dashboard_simulation_projection": virtual_simulation_projection(data),
+                "dashboard_futures_simulation_projection": virtual_simulation_projection(data, "USD_M_FUTURES"),
             }
         elif name == "market_history":
             result[name] = market_history_projection(data, root)
