@@ -10,7 +10,11 @@ from urllib.error import HTTPError
 
 import pytest
 
+from ai4binance.data.market_history_sync import read_cached_market_universe
 from ai4binance.data.market_universe_retention import MarketUniverseRetention
+from ai4binance.domain.universe import (
+    RESEARCH_MANUAL_UNIVERSE_SOURCE,
+)
 from ai4binance.domain.universe import (
     RESEARCH_MARKET_UNIVERSE_SOURCE as CANONICAL_SOURCE,
 )
@@ -19,6 +23,7 @@ from ai4binance.integrations.research_market_universe import (
     RESEARCH_MARKET_UNIVERSE_SOURCE,
     ReadOnlyCoinGeckoJsonTransport,
     ResearchMarketUniverseProvider,
+    manual_selection_digest,
     read_wallet_assets_above_value,
 )
 
@@ -94,6 +99,204 @@ def _metadata() -> BinanceEligibleMarketSnapshot:
             sorted(f"{asset}USDT" for asset in assets if asset not in {"USDT", "WBTC"})
         ),
     )
+
+
+def test_manual_research_selection_uses_current_binance_metadata_without_coingecko(
+    tmp_path: Path,
+) -> None:
+    wallet_path = tmp_path / "balance_snapshots.jsonl"
+    _write_wallet(
+        wallet_path,
+        [_wallet_record(asset="ATOM", value="2", run_id="now", observed_at=NOW)],
+    )
+    selection_path = tmp_path / "manual_universe.yaml"
+    selection_path.write_text(
+        'schema_version: "1.0"\n'
+        "selection_mode: MANUAL_RESEARCH_SELECTION\n"
+        "spot_assets: [BTC, ETH]\n"
+        "usd_m_futures_assets: [BTC, SOL]\n",
+        encoding="utf-8",
+    )
+    metadata = _metadata()
+    transport = _MarketCapTransport([])
+    provider = ResearchMarketUniverseProvider(
+        binance=SimpleNamespace(
+            quote_assets=("USDT",),
+            spot_transport=object(),
+            futures_transport=object(),
+            eligible_market_snapshot=lambda: metadata,
+        ),  # type: ignore[arg-type]
+        market_cap_transport=transport,
+        wallet_balance_path=wallet_path,
+        manual_selection_path=selection_path,
+        clock=lambda: NOW,
+    )
+
+    result = provider.priority_eligible_market_snapshot()
+
+    assert result.blockers == ()
+    assert result.source == RESEARCH_MANUAL_UNIVERSE_SOURCE
+    assert result.spot_symbols == ("ATOMUSDT", "BTCUSDT", "ETHUSDT")
+    assert result.futures_symbols == ("ATOMUSDT", "BTCUSDT", "SOLUSDT")
+    assert result.market_cap_assets == ()
+    assert result.manual_selection_sha256 == manual_selection_digest(selection_path)
+    assert transport.calls == []
+    assert result.execution_allowed is False
+    assert result.live_eligibility_status == "LIVE_ORDER_BLOCKED"
+
+    cache_path = tmp_path / "universe-v3.json"
+    cache_path.write_text(
+        json.dumps(
+            {
+                "observed_at": NOW.isoformat(),
+                "spot_symbols": result.spot_symbols,
+                "futures_symbols": result.futures_symbols,
+                "excluded_assets": result.excluded_assets,
+                "source": result.source,
+                "manual_selection_sha256": result.manual_selection_sha256,
+                "execution_allowed": False,
+                "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert (
+        read_cached_market_universe(
+            cache_path,
+            NOW,
+            expected_source=RESEARCH_MANUAL_UNIVERSE_SOURCE,
+            expected_manual_selection_sha256=manual_selection_digest(selection_path),
+        )
+        is not None
+    )
+    selection_path.write_text(
+        selection_path.read_text(encoding="utf-8").replace("ETH", "ADA"),
+        encoding="utf-8",
+    )
+    assert (
+        read_cached_market_universe(
+            cache_path,
+            NOW,
+            expected_source=RESEARCH_MANUAL_UNIVERSE_SOURCE,
+            expected_manual_selection_sha256=manual_selection_digest(selection_path),
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    ("spot_assets", "futures_assets"),
+    [
+        ("BTC, BTC", "SOL"),
+        ("USDT", "SOL"),
+        ("WBTC", "SOL"),
+        ("NOTLISTED", "SOL"),
+        ("BTC", ""),
+    ],
+)
+def test_manual_research_selection_fails_closed_for_invalid_entries(
+    tmp_path: Path, spot_assets: str, futures_assets: str
+) -> None:
+    wallet_path = tmp_path / "balance_snapshots.jsonl"
+    _write_wallet(
+        wallet_path,
+        [_wallet_record(asset="ATOM", value="2", run_id="now", observed_at=NOW)],
+    )
+    selection_path = tmp_path / "manual_universe.yaml"
+    selection_path.write_text(
+        'schema_version: "1.0"\n'
+        "selection_mode: MANUAL_RESEARCH_SELECTION\n"
+        f"spot_assets: [{spot_assets}]\n"
+        f"usd_m_futures_assets: [{futures_assets}]\n",
+        encoding="utf-8",
+    )
+    metadata = _metadata()
+    transport = _MarketCapTransport([])
+    provider = ResearchMarketUniverseProvider(
+        binance=SimpleNamespace(
+            quote_assets=("USDT",),
+            eligible_market_snapshot=lambda: metadata,
+        ),  # type: ignore[arg-type]
+        market_cap_transport=transport,
+        wallet_balance_path=wallet_path,
+        manual_selection_path=selection_path,
+        clock=lambda: NOW,
+    )
+
+    result = provider.priority_eligible_market_snapshot()
+
+    assert result.spot_symbols == ()
+    assert result.futures_symbols == ()
+    assert result.blockers == ("MANUAL_RESEARCH_SELECTION_INVALID",)
+    assert result.execution_allowed is False
+    assert transport.calls == []
+
+
+def test_public_market_cap_proposal_is_explicit_and_does_not_edit_manual_selection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from ai4binance.cli import market_data
+    from ai4binance.config import Settings
+
+    wallet_path = tmp_path / "balance_snapshots.jsonl"
+    _write_wallet(
+        wallet_path,
+        [_wallet_record(asset="ATOM", value="2", run_id="now", observed_at=NOW)],
+    )
+    selection_path = tmp_path / "manual_universe.yaml"
+    selection_path.write_text(
+        'schema_version: "1.0"\n'
+        "selection_mode: MANUAL_RESEARCH_SELECTION\n"
+        "spot_assets: [BTC]\n"
+        "usd_m_futures_assets: [ETH]\n",
+        encoding="utf-8",
+    )
+    original = selection_path.read_bytes()
+    rows = [
+        {
+            "symbol": asset.lower(),
+            "name": asset,
+            "market_cap_rank": index,
+            "market_cap": 1_000_000 - index,
+            "last_updated": NOW.isoformat(),
+        }
+        for index, asset in enumerate(MARKET_CAP_ASSETS, start=1)
+    ]
+    transport = _MarketCapTransport(rows)
+    provider = ResearchMarketUniverseProvider(
+        binance=SimpleNamespace(
+            quote_assets=("USDT",),
+            eligible_market_snapshot=_metadata,
+        ),  # type: ignore[arg-type]
+        market_cap_transport=transport,
+        wallet_balance_path=wallet_path,
+        manual_selection_path=selection_path,
+        clock=lambda: NOW,
+    )
+    monkeypatch.setattr(
+        market_data,
+        "build_market_history_synchronizer",
+        lambda _settings: SimpleNamespace(universe_provider=provider),
+    )
+    settings = Settings(market_history_manual_universe_path=selection_path)
+
+    assert (
+        market_data.run_market_history_command(
+            "market-history-rank-proposal", settings, as_of=None, max_cycles=None
+        )
+        == 0
+    )
+    result = json.loads(capsys.readouterr().out)
+
+    assert result["status"] == "REVIEW_ONLY"
+    assert result["manual_selection_modified"] is False
+    assert len(result["spot_assets"]) == 20
+    assert len(result["usd_m_futures_assets"]) == 20
+    assert result["execution_allowed"] is False
+    assert selection_path.read_bytes() == original
+    assert len(transport.calls) == 1
 
 
 def test_wallet_reader_uses_only_latest_complete_run_and_strict_value_floor(

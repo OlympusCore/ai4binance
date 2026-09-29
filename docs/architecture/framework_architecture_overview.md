@@ -2,7 +2,7 @@
 document_id: AI4B-ARCH-FRM-001
 title: AI4BINANCE Architecture Overview
 document_type: FRAMEWORK
-version: 1.11.4
+version: 1.11.5
 status: ACTIVE
 owner: Enterprise Knowledge Governance
 authority_level: NORMATIVE
@@ -108,15 +108,21 @@ Shared pair-index series have one collector owner. Delivery contracts have no
 perpetual funding. Missing or invalid provider history remains explicit.
 
 `src/ai4binance/integrations/research_market_universe.py` owns the research-only
-wallet-plus-public-market-cap universe for Spot and USD-M Futures. It reuses
-canonical Binance eligibility metadata and a bounded, credential-free CoinGecko
-HTTPS GET transport. Missing, stale, invalid, incomplete, or rejected provider
-observations must return explicit blockers without an accepted research universe.
-HTTP failure evidence preserves sanitized status codes; it does not grant
-eligibility or execution authority. VirtualMarket consumers require a fresh
-verified canonical universe and must not substitute configured symbols or stale
-local snapshots. Spot and Futures remain distinct projections of the same
-provider observation. Proof contracts include
+wallet-plus-manual-selection universe for Spot and USD-M Futures. The editable
+selection is `config/research/manual_universe.yaml`; its historical baseline
+is not an assertion of current market-cap rank. Normal cycles do not request
+CoinGecko data. An explicit `rank-proposal` command may request a bounded,
+credential-free CoinGecko observation for human review but cannot edit the
+manual selection or authorize trades. Every accepted cycle reuses current
+canonical Binance eligibility metadata, a fresh wallet observation, and asset
+classification. Invalid, missing, excluded, or delisted manual entries block
+the complete research selection. Generated universe snapshots retain a short
+freshness bound and bind to the exact manual file hash; a changed selection
+invalidates the old snapshot. VirtualMarket and Futures consumers must not
+substitute configured symbols or stale generated snapshots when validation
+fails. Spot and Futures remain distinct projections of one canonical verified
+selection. Data quality, OOS, risk, and governance vetoes remain independent.
+Proof contracts include
 `tests/test_research_market_universe.py`,
 `tests/test_market_history_continuous.py`, and `tests/test_cli.py`.
 These capabilities remain `RESEARCH_ONLY` and `LIVE_ORDER_BLOCKED`.

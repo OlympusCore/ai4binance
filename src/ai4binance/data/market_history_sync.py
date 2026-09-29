@@ -59,6 +59,7 @@ def read_cached_market_universe(
     *,
     max_age: timedelta = _UNIVERSE_CACHE_MAX_AGE,
     expected_source: str | None = None,
+    expected_manual_selection_sha256: str | None = None,
 ) -> BinanceEligibleMarketSnapshot | None:
     """Read a bounded, safety-constrained cached market universe.
 
@@ -89,6 +90,11 @@ def read_cached_market_universe(
             or (
                 expected_source is not None and payload.get("source") != expected_source
             )
+            or (
+                expected_manual_selection_sha256 is not None
+                and payload.get("manual_selection_sha256")
+                != expected_manual_selection_sha256
+            )
         ):
             return None
         return BinanceEligibleMarketSnapshot(
@@ -104,6 +110,7 @@ def read_cached_market_universe(
             selected_assets=tuple(payload.get("selected_assets", ())),
             wallet_assets=tuple(payload.get("wallet_assets", ())),
             market_cap_assets=tuple(payload.get("market_cap_assets", ())),
+            manual_selection_sha256=payload.get("manual_selection_sha256"),
             source=str(payload.get("source", "BINANCE_PUBLIC_EXCHANGE_INFO")),
         )
     except (AttributeError, KeyError, OSError, TypeError, ValueError):
@@ -411,6 +418,24 @@ class MarketHistorySynchronizer:
         """
         cache_filename = getattr(self.universe_provider, "cache_filename", None)
         cache_source = getattr(self.universe_provider, "cache_source", None)
+        manual_selection_path = getattr(
+            self.universe_provider, "manual_selection_path", None
+        )
+        manual_selection_sha256 = None
+        if manual_selection_path is not None:
+            from ai4binance.integrations.research_market_universe import (
+                manual_selection_digest,
+            )
+
+            try:
+                manual_selection_sha256 = manual_selection_digest(manual_selection_path)
+            except (OSError, ValueError):
+                return BinanceEligibleMarketSnapshot(
+                    spot_symbols=(),
+                    futures_symbols=(),
+                    blockers=("MANUAL_RESEARCH_SELECTION_UNAVAILABLE",),
+                    source=cache_source or "MANUAL_RESEARCH_SELECTION",
+                )
         cache_path = self.source_cache.root / (
             str(cache_filename)
             if cache_filename
@@ -420,7 +445,10 @@ class MarketHistorySynchronizer:
         )
         if not force_refresh:
             cached = read_cached_market_universe(
-                cache_path, observed_at, expected_source=cache_source
+                cache_path,
+                observed_at,
+                expected_source=cache_source,
+                expected_manual_selection_sha256=manual_selection_sha256,
             )
             if cached is not None:
                 return cached
@@ -441,7 +469,10 @@ class MarketHistorySynchronizer:
         snapshot = cast(BinanceEligibleMarketSnapshot, snapshot)
         if snapshot.blockers:
             cached = read_cached_market_universe(
-                cache_path, observed_at, expected_source=cache_source
+                cache_path,
+                observed_at,
+                expected_source=cache_source,
+                expected_manual_selection_sha256=manual_selection_sha256,
             )
             if cached is not None:
                 return cached
@@ -460,6 +491,7 @@ class MarketHistorySynchronizer:
                     "selected_assets": snapshot.selected_assets,
                     "wallet_assets": snapshot.wallet_assets,
                     "market_cap_assets": snapshot.market_cap_assets,
+                    "manual_selection_sha256": snapshot.manual_selection_sha256,
                     "source": snapshot.source,
                     "execution_allowed": False,
                     "live_eligibility_status": "LIVE_ORDER_BLOCKED",

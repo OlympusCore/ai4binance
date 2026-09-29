@@ -1,6 +1,23 @@
 {
   "approval_records": [
     {
+      "approval_id": "AI4B-GOV-DOCLOCK-MANUAL-RESEARCH-UNIVERSE-20260929-001",
+      "approval_evidence_path": "runtime/artifacts/repository_validation/manual-universe-protected-document-owner-approval.json",
+      "approval_evidence_sha256": "ea1bf4db8b8e1f6296c5368696ed8e540f2c145e2a87caf8157732a0c0dfc3ed",
+      "approval_scope": "PROTECTED_ARCHITECTURE_MANUAL_RESEARCH_SELECTION_AND_EXACT_LOCK_MANIFEST_ALIGNMENT_WITH_TEMPORARY_PROTECTION_REMOVAL_AND_RESTORATION_NO_LIVE_AUTHORITY",
+      "approval_status": "APPROVED",
+      "approved_at_utc": "2026-09-29T17:41:31.158Z",
+      "approved_by": "Huseyin",
+      "written_owner_approval": true,
+      "approved_sha256": {
+        "docs/architecture/framework_architecture_overview.md": "48c8b2d71d269698896555fb17e42f9c7bbaf33604f4e18c729be6170352ae64"
+      },
+      "approval_source": "EXPLICIT_USER_MESSAGE_IN_CURRENT_CODEX_CHAT",
+      "approval_instruction_en_us": "Yes, I approve the specified scope.",
+      "approval_timestamp_basis": "TIME_USER_AUTHORIZATION_WAS_RECORDED_BY_CODEX",
+      "proposal_path": "runtime/reports/audit/manual-research-universe-change-proposal.md"
+    },
+    {
       "approval_id": "AI4B-GOV-DOCLOCK-VIRTUAL-MARKET-UNIVERSE-OWNER-20260929-001",
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/virtual-market-universe-owner-approval.json",
       "approval_evidence_sha256": "d93562cdb14333cc00576e613e80dfedc2ad96025c565e66b6c2b67e5a547012",
@@ -2041,13 +2058,13 @@
       "authority_scope": "architecture_overview",
       "canonical_path": "docs/architecture/framework_architecture_overview.md",
       "document_status": "ACTIVE",
-      "expected_hash": "fb7b64a3b302996bc459204b2a34fb42254dbdba935577c7944d7525da4d2aa3",
+      "expected_hash": "48c8b2d71d269698896555fb17e42f9c7bbaf33604f4e18c729be6170352ae64",
       "lock_state": "LOCKED",
       "path": "docs/architecture/framework_architecture_overview.md",
-      "sha256": "fb7b64a3b302996bc459204b2a34fb42254dbdba935577c7944d7525da4d2aa3",
+      "sha256": "48c8b2d71d269698896555fb17e42f9c7bbaf33604f4e18c729be6170352ae64",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "1.11.4"
+      "version": "1.11.5"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",

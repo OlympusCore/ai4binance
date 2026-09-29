@@ -75,6 +75,7 @@ class BinanceEligibleMarketSnapshot:
     selected_assets: tuple[str, ...] = ()
     wallet_assets: tuple[str, ...] = ()
     market_cap_assets: tuple[str, ...] = ()
+    manual_selection_sha256: str | None = None
 
     @property
     def coin_m_symbols(self) -> tuple[str, ...]:
@@ -101,6 +102,13 @@ class BinanceEligibleMarketSnapshot:
             self.wallet_assets,
             self.market_cap_assets,
         )
+        if self.manual_selection_sha256 is not None and (
+            len(self.manual_selection_sha256) != 64
+            or any(
+                char not in "0123456789abcdef" for char in self.manual_selection_sha256
+            )
+        ):
+            raise ValueError("manual selection checksum is invalid")
         if (
             self.execution_allowed
             or self.live_eligibility_status != "LIVE_ORDER_BLOCKED"

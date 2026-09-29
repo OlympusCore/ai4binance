@@ -30,9 +30,8 @@ from ai4binance.data.binance_vision_futures import (
     BinanceVisionFuturesReplayIngestor,
 )
 from ai4binance.data.market_history_sync import MarketHistorySourceUnavailableError
-from ai4binance.integrations.research_market_universe import (
-    RESEARCH_MARKET_UNIVERSE_SOURCE,
-)
+from ai4binance.domain.universe import RESEARCH_MANUAL_UNIVERSE_SOURCE
+from ai4binance.integrations.research_market_universe import manual_selection_digest
 from ai4binance.learning.storage import LearningStore
 from ai4binance.ops import SingleInstanceLease
 from ai4binance.reporting import to_primitive
@@ -136,7 +135,11 @@ def _save_progress(
     _save(path, payload)
 
 
-def _eligible_symbols(cache_root: Path) -> tuple[str, ...]:
+def _eligible_symbols(cache_root: Path, selection_path: Path) -> tuple[str, ...]:
+    try:
+        selection_sha256 = manual_selection_digest(selection_path)
+    except (OSError, ValueError):
+        raise ValueError("FUTURES_MULTITF_UNIVERSE_INVALID") from None
     path = cache_root / "universe-v3.json"
     if path.is_symlink() or not path.is_file() or path.stat().st_size > 2_000_000:
         raise ValueError("FUTURES_MULTITF_UNIVERSE_UNAVAILABLE")
@@ -150,7 +153,8 @@ def _eligible_symbols(cache_root: Path) -> tuple[str, ...]:
     age = datetime.now(UTC) - observed_at
     if (
         not timedelta(0) <= age <= _UNIVERSE_MAX_AGE
-        or payload.get("source") != RESEARCH_MARKET_UNIVERSE_SOURCE
+        or payload.get("source") != RESEARCH_MANUAL_UNIVERSE_SOURCE
+        or payload.get("manual_selection_sha256") != selection_sha256
         or payload.get("execution_allowed") is not False
         or payload.get("live_eligibility_status") != "LIVE_ORDER_BLOCKED"
     ):
@@ -203,7 +207,7 @@ def _retain_current_universe_state(
         if retained.get(field) not in allowed:
             retained.pop(field, None)
     retained["eligible_symbols"] = list(symbols)
-    retained["universe_source"] = RESEARCH_MARKET_UNIVERSE_SOURCE
+    retained["universe_source"] = RESEARCH_MANUAL_UNIVERSE_SOURCE
     if not same_universe:
         retained["completed_tuning_triggers"] = []
     retained.update(_SAFE_STATE)
@@ -624,7 +628,9 @@ def run_cycle(settings: Settings, *, observed_at: datetime) -> dict[str, object]
     window = f"{start_day.isoformat()}_to_{end_day.isoformat()}"
     state = _load_mapping(state_path)
     try:
-        symbols = _eligible_symbols(cache_root)
+        symbols = _eligible_symbols(
+            cache_root, _absolute(settings.market_history_manual_universe_path)
+        )
     except (OSError, TypeError, ValueError) as error:
         universe_failure_code = _failure_code(error)
         payload = {
@@ -635,7 +641,7 @@ def run_cycle(settings: Settings, *, observed_at: datetime) -> dict[str, object]
             "phase": "UNIVERSE_VALIDATION_FAILED",
             "eligible_symbol_count": None,
             "eligible_symbols": [],
-            "universe_source": RESEARCH_MARKET_UNIVERSE_SOURCE,
+            "universe_source": RESEARCH_MANUAL_UNIVERSE_SOURCE,
             "blockers": [universe_failure_code],
             "failure_code": universe_failure_code,
             "opportunity_monitor": {
@@ -744,7 +750,7 @@ def run_cycle(settings: Settings, *, observed_at: datetime) -> dict[str, object]
             "window": window,
             "eligible_symbol_count": len(symbols),
             "eligible_symbols": list(symbols),
-            "universe_source": RESEARCH_MARKET_UNIVERSE_SOURCE,
+            "universe_source": RESEARCH_MANUAL_UNIVERSE_SOURCE,
             "attempted_symbol_count": sum(
                 attempted.get(item) == window for item in symbols
             ),
@@ -900,7 +906,7 @@ def run_cycle(settings: Settings, *, observed_at: datetime) -> dict[str, object]
         "phase": phase,
         "eligible_symbol_count": len(symbols),
         "eligible_symbols": list(symbols),
-        "universe_source": RESEARCH_MARKET_UNIVERSE_SOURCE,
+        "universe_source": RESEARCH_MANUAL_UNIVERSE_SOURCE,
         "attempted_symbol_count": sum(
             attempted.get(item) == window for item in symbols
         ),

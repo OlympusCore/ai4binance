@@ -652,15 +652,30 @@ def run_virtual_market_daemon(
                     from ai4binance.data.market_history_sync import (
                         read_cached_market_universe,
                     )
+                    from ai4binance.domain.universe import (
+                        RESEARCH_MANUAL_UNIVERSE_SOURCE,
+                    )
                     from ai4binance.integrations.research_market_universe import (
-                        RESEARCH_MARKET_UNIVERSE_SOURCE,
+                        manual_selection_digest,
                     )
 
-                    universe = read_cached_market_universe(
-                        settings.market_history_source_cache_directory
-                        / "universe-v3.json",
-                        clock(),
-                        expected_source=RESEARCH_MARKET_UNIVERSE_SOURCE,
+                    try:
+                        selection_sha256 = manual_selection_digest(
+                            settings.market_history_manual_universe_path
+                        )
+                    except (OSError, ValueError):
+                        selection_sha256 = None
+
+                    universe = (
+                        read_cached_market_universe(
+                            settings.market_history_source_cache_directory
+                            / "universe-v3.json",
+                            clock(),
+                            expected_source=RESEARCH_MANUAL_UNIVERSE_SOURCE,
+                            expected_manual_selection_sha256=selection_sha256,
+                        )
+                        if selection_sha256 is not None
+                        else None
                     )
                     if universe is None:
                         collector = (

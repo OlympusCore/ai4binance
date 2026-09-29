@@ -47,7 +47,7 @@ def test_futures_universe_failure_is_persisted_without_crashing_daemon(
 
     monkeypatch.chdir(tmp_path)
 
-    def invalid(_root: Path) -> tuple[str, ...]:
+    def invalid(_root: Path, _selection: Path) -> tuple[str, ...]:
         raise ValueError("FUTURES_MULTITF_UNIVERSE_INVALID")
 
     monkeypatch.setattr(futures_multitf, "_eligible_symbols", invalid)
@@ -72,7 +72,7 @@ def test_failed_futures_ingest_is_retried_and_never_becomes_current(
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        futures_multitf, "_eligible_symbols", lambda _root: ("BTCUSDT",)
+        futures_multitf, "_eligible_symbols", lambda _root, _selection: ("BTCUSDT",)
     )
     calls: list[str] = []
 
@@ -123,7 +123,7 @@ def test_unpublished_futures_archive_is_deferred_until_the_window_advances(
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        futures_multitf, "_eligible_symbols", lambda _root: ("NEWUSDT",)
+        futures_multitf, "_eligible_symbols", lambda _root, _selection: ("NEWUSDT",)
     )
     monkeypatch.setattr(
         BinanceVisionFuturesReplayIngestor,
@@ -156,7 +156,9 @@ def test_current_cycle_keeps_the_local_futures_opportunity_monitor_running(
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        futures_multitf, "_eligible_symbols", lambda _root: ("BTCUSDT", "ETHUSDT")
+        futures_multitf,
+        "_eligible_symbols",
+        lambda _root, _selection: ("BTCUSDT", "ETHUSDT"),
     )
     current_window = "2026-08-12_to_2026-09-08"
     state_path = tmp_path / "runtime/state/futures-multitf-latest.json"
@@ -307,7 +309,7 @@ def test_current_cycle_runs_one_new_failure_tuning_trigger(
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        futures_multitf, "_eligible_symbols", lambda _root: ("BTCUSDT",)
+        futures_multitf, "_eligible_symbols", lambda _root, _selection: ("BTCUSDT",)
     )
     current_window = "2026-08-12_to_2026-09-08"
     state_path = tmp_path / "runtime/state/futures-multitf-latest.json"
@@ -469,26 +471,31 @@ def test_eligible_symbols_validates_and_normalizes_cached_universe(
         _eligible_symbols,
         _retain_current_universe_state,
     )
+    from ai4binance.domain.universe import RESEARCH_MANUAL_UNIVERSE_SOURCE
     from ai4binance.integrations.research_market_universe import (
-        RESEARCH_MARKET_UNIVERSE_SOURCE,
+        manual_selection_digest,
     )
+
+    selection_path = tmp_path / "manual_universe.yaml"
+    selection_path.write_text("spot_assets: [BTC]\n", encoding="utf-8")
 
     base = {
         "observed_at": datetime.now(UTC).isoformat(),
-        "source": RESEARCH_MARKET_UNIVERSE_SOURCE,
+        "source": RESEARCH_MANUAL_UNIVERSE_SOURCE,
+        "manual_selection_sha256": manual_selection_digest(selection_path),
         "execution_allowed": False,
         "live_eligibility_status": "LIVE_ORDER_BLOCKED",
     }
 
     with pytest.raises(ValueError, match="UNIVERSE_UNAVAILABLE"):
-        _eligible_symbols(tmp_path)
+        _eligible_symbols(tmp_path, selection_path)
 
     path = tmp_path / "universe-v3.json"
     path.write_text(
         json.dumps({**base, "futures_symbols": "BTCUSDT"}), encoding="utf-8"
     )
     with pytest.raises(ValueError, match="UNIVERSE_INVALID"):
-        _eligible_symbols(tmp_path)
+        _eligible_symbols(tmp_path, selection_path)
 
     path.write_text(
         json.dumps(
@@ -501,14 +508,14 @@ def test_eligible_symbols_validates_and_normalizes_cached_universe(
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="UNIVERSE_INVALID"):
-        _eligible_symbols(tmp_path)
+        _eligible_symbols(tmp_path, selection_path)
 
     path.write_text(
         json.dumps({**base, "futures_symbols": ["../bad", 7]}),
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="UNIVERSE_EMPTY"):
-        _eligible_symbols(tmp_path)
+        _eligible_symbols(tmp_path, selection_path)
 
     path.write_text(
         json.dumps(
@@ -525,7 +532,11 @@ def test_eligible_symbols_validates_and_normalizes_cached_universe(
         ),
         encoding="utf-8",
     )
-    assert _eligible_symbols(tmp_path) == ("BTCUSDT", "ETHUSDT")
+    assert _eligible_symbols(tmp_path, selection_path) == ("BTCUSDT", "ETHUSDT")
+
+    selection_path.write_text("spot_assets: [ETH]\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="UNIVERSE_INVALID"):
+        _eligible_symbols(tmp_path, selection_path)
 
     retained = _retain_current_universe_state(
         {
@@ -836,7 +847,7 @@ def test_successful_cycle_persists_datasets_learning_and_safe_tuning_failure(
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        futures_multitf, "_eligible_symbols", lambda _root: ("BTCUSDT",)
+        futures_multitf, "_eligible_symbols", lambda _root, _selection: ("BTCUSDT",)
     )
 
     class Ingestor:
@@ -901,7 +912,7 @@ def test_waiting_cycle_maps_monitor_and_tuning_failures(
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        futures_multitf, "_eligible_symbols", lambda _root: ("BTCUSDT",)
+        futures_multitf, "_eligible_symbols", lambda _root, _selection: ("BTCUSDT",)
     )
     state_path = tmp_path / "runtime/state/futures-multitf-latest.json"
     state_path.parent.mkdir(parents=True)

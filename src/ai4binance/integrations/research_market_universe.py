@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from collections.abc import Callable, Mapping, Sequence
@@ -14,6 +15,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+import yaml
+
 from ai4binance.core import read_bounded_jsonl_tail
 from ai4binance.core.errors import (
     ExchangeHttpError,
@@ -22,6 +25,7 @@ from ai4binance.core.errors import (
     ExchangeTransportError,
 )
 from ai4binance.domain.universe import (
+    RESEARCH_MANUAL_UNIVERSE_SOURCE,
     RESEARCH_MARKET_UNIVERSE_SOURCE,
     classify_asset_eligibility,
 )
@@ -31,6 +35,56 @@ from ai4binance.integrations.binance.market_universe_provider import (
 )
 
 _ZERO = Decimal("0")
+
+
+def manual_selection_digest(path: Path) -> str:
+    """Bind generated universe snapshots to the current manual selection file."""
+
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 32_768:
+        raise ValueError("MANUAL_RESEARCH_SELECTION_UNAVAILABLE")
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _manual_selection(
+    path: Path,
+) -> tuple[tuple[str, ...], tuple[str, ...], str]:
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 32_768:
+        raise ValueError("MANUAL_RESEARCH_SELECTION_UNAVAILABLE")
+    source = path.read_bytes()
+    checksum = hashlib.sha256(source).hexdigest()
+    payload = yaml.safe_load(source.decode("utf-8"))
+    if (
+        not isinstance(payload, Mapping)
+        or set(payload)
+        != {
+            "schema_version",
+            "selection_mode",
+            "spot_assets",
+            "usd_m_futures_assets",
+        }
+        or payload.get("schema_version") != "1.0"
+        or payload.get("selection_mode") != "MANUAL_RESEARCH_SELECTION"
+    ):
+        raise ValueError("MANUAL_RESEARCH_SELECTION_INVALID")
+    selections: list[tuple[str, ...]] = []
+    for key in ("spot_assets", "usd_m_futures_assets"):
+        raw = payload[key]
+        if (
+            not isinstance(raw, list)
+            or not 1 <= len(raw) <= 50
+            or any(
+                not isinstance(item, str)
+                or not item.isascii()
+                or not item.isalnum()
+                or item != item.upper()
+                or not 2 <= len(item) <= 12
+                for item in raw
+            )
+            or len(raw) != len(set(raw))
+        ):
+            raise ValueError("MANUAL_RESEARCH_SELECTION_INVALID")
+        selections.append(tuple(raw))
+    return selections[0], selections[1], checksum
 
 
 class _RetryableMarketCapError(Exception):
@@ -248,6 +302,7 @@ class ResearchMarketUniverseProvider:
     binance: BinanceMarketUniverseProvider
     market_cap_transport: PublicMarketCapTransport
     wallet_balance_path: Path
+    manual_selection_path: Path | None = None
     wallet_minimum_value_usdt: Decimal = Decimal("1")
     wallet_maximum_age: timedelta = timedelta(minutes=30)
     market_cap_asset_limit: int = 20
@@ -263,6 +318,8 @@ class ResearchMarketUniverseProvider:
             raise ValueError("market-cap asset limit must be between 1 and 50")
         if not self.market_cap_asset_limit <= self.market_cap_page_size <= 250:
             raise ValueError("market-cap page size is invalid")
+        if self.manual_selection_path is not None:
+            object.__setattr__(self, "cache_source", RESEARCH_MANUAL_UNIVERSE_SOURCE)
 
     @property
     def spot_transport(self) -> object:
@@ -295,6 +352,8 @@ class ResearchMarketUniverseProvider:
             )
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             return self._blocked(metadata, "WALLET_UNIVERSE_UNAVAILABLE_OR_STALE")
+        if self.manual_selection_path is not None:
+            return self._manual_priority_snapshot(metadata, wallet)
         try:
             rows = self.market_cap_transport.get_json(
                 "/api/v3/coins/markets",
@@ -309,7 +368,6 @@ class ResearchMarketUniverseProvider:
             )
             spot_ranked = self._ranked_assets(rows, metadata, market="SPOT")
             futures_ranked = self._ranked_assets(rows, metadata, market="USD_M_FUTURES")
-            ranked_assets = tuple(dict.fromkeys((*spot_ranked, *futures_ranked)))
         except (_MarketCapHttpError, ExchangeRateLimitError) as error:
             return self._blocked(
                 metadata,
@@ -326,6 +384,53 @@ class ResearchMarketUniverseProvider:
             return self._blocked(metadata, "PUBLIC_MARKET_CAP_UNIVERSE_UNAVAILABLE")
         if min(len(spot_ranked), len(futures_ranked)) < self.market_cap_asset_limit:
             return self._blocked(metadata, "PUBLIC_MARKET_CAP_UNIVERSE_INCOMPLETE")
+
+        return self._assemble(metadata, wallet, spot_ranked, futures_ranked)
+
+    def _manual_priority_snapshot(
+        self,
+        metadata: BinanceEligibleMarketSnapshot,
+        wallet: WalletAssetSnapshot,
+    ) -> BinanceEligibleMarketSnapshot:
+        selection_path = self.manual_selection_path
+        if selection_path is None:
+            return self._blocked(metadata, "MANUAL_RESEARCH_SELECTION_UNAVAILABLE")
+        try:
+            spot_assets, futures_assets, checksum = _manual_selection(selection_path)
+            spot_by_asset = self._symbols_by_asset(metadata.spot_symbols)
+            futures_by_asset = self._symbols_by_asset(metadata.futures_symbols)
+            for market, assets, listed in (
+                ("SPOT", spot_assets, spot_by_asset),
+                ("USD_M_FUTURES", futures_assets, futures_by_asset),
+            ):
+                for asset in assets:
+                    classification = classify_asset_eligibility(
+                        asset,
+                        spot_symbols=spot_by_asset.get(asset, ()),
+                        futures_symbols=futures_by_asset.get(asset, ()),
+                    )
+                    if not classification.eligible or asset not in listed:
+                        raise ValueError(f"MANUAL_RESEARCH_SELECTION_INVALID_{market}")
+        except (OSError, ValueError, TypeError, yaml.YAMLError):
+            return self._blocked(metadata, "MANUAL_RESEARCH_SELECTION_INVALID")
+        return self._assemble(
+            metadata,
+            wallet,
+            spot_assets,
+            futures_assets,
+            manual_selection_sha256=checksum,
+        )
+
+    def _assemble(
+        self,
+        metadata: BinanceEligibleMarketSnapshot,
+        wallet: WalletAssetSnapshot,
+        spot_ranked: tuple[str, ...],
+        futures_ranked: tuple[str, ...],
+        *,
+        manual_selection_sha256: str | None = None,
+    ) -> BinanceEligibleMarketSnapshot:
+        ranked_assets = tuple(dict.fromkeys((*spot_ranked, *futures_ranked)))
 
         spot_by_asset = self._symbols_by_asset(metadata.spot_symbols)
         futures_by_asset = self._symbols_by_asset(metadata.futures_symbols)
@@ -364,14 +469,17 @@ class ResearchMarketUniverseProvider:
             spot_symbols=spot,
             futures_symbols=futures,
             excluded_assets=tuple(sorted(set(excluded))),
-            source=RESEARCH_MARKET_UNIVERSE_SOURCE,
+            source=self.cache_source,
             selected_assets=selected,
             wallet_assets=tuple(
                 asset for asset in wallet.assets if asset in frozenset(selected)
             ),
-            market_cap_assets=tuple(
-                asset for asset in ranked_assets if asset in frozenset(selected)
+            market_cap_assets=(
+                tuple(asset for asset in ranked_assets if asset in frozenset(selected))
+                if manual_selection_sha256 is None
+                else ()
             ),
+            manual_selection_sha256=manual_selection_sha256,
         )
 
     def _ranked_assets(
@@ -448,7 +556,7 @@ class ResearchMarketUniverseProvider:
             futures_symbols=(),
             excluded_assets=metadata.excluded_assets,
             blockers=blockers,
-            source=RESEARCH_MARKET_UNIVERSE_SOURCE,
+            source=self.cache_source,
         )
 
     def _now(self) -> datetime:

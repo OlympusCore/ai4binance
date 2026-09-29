@@ -5,10 +5,11 @@ from __future__ import annotations
 import argparse
 import json
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from threading import BoundedSemaphore
+from typing import cast
 
 from ai4binance.application.opportunity_monitor import (
     monitor_directory,
@@ -35,6 +36,7 @@ from ai4binance.data.market_universe_retention import MarketUniverseRetention
 from ai4binance.domain.opportunity_observation import (
     has_complete_measurable_opportunity,
 )
+from ai4binance.domain.universe import RESEARCH_MARKET_UNIVERSE_SOURCE
 from ai4binance.exchange.rate_limit import RateLimitBands, WeightedRateLimitGovernor
 from ai4binance.integrations.binance import (
     BinanceMarketUniverseProvider,
@@ -392,6 +394,31 @@ def run_market_history_command(
     """Run or inspect the research-only historical market-data collector."""
 
     synchronizer = build_market_history_synchronizer(settings)
+    if command == "market-history-rank-proposal":
+        public_provider = replace(
+            cast(ResearchMarketUniverseProvider, synchronizer.universe_provider),
+            manual_selection_path=None,
+            cache_source=RESEARCH_MARKET_UNIVERSE_SOURCE,
+        )
+        proposal = public_provider.priority_eligible_market_snapshot()
+        assets = proposal.market_cap_assets
+        spot_by_asset = public_provider._symbols_by_asset(proposal.spot_symbols)
+        futures_by_asset = public_provider._symbols_by_asset(proposal.futures_symbols)
+        payload = {
+            "command": command,
+            "status": "BLOCKED" if proposal.blockers else "REVIEW_ONLY",
+            "source": proposal.source,
+            "spot_assets": [asset for asset in assets if asset in spot_by_asset],
+            "usd_m_futures_assets": [
+                asset for asset in assets if asset in futures_by_asset
+            ],
+            "blockers": proposal.blockers,
+            "manual_selection_path": str(settings.market_history_manual_universe_path),
+            "manual_selection_modified": False,
+            **_SAFE_STATE,
+        }
+        print(json.dumps(payload, ensure_ascii=True, sort_keys=True))
+        return 2 if proposal.blockers else 0
     if command == "market-history-cleanup-legacy-1m":
         payload = LegacyOneMinuteCleanup(synchronizer.archive_root).run(
             apply=cleanup_apply
@@ -592,6 +619,7 @@ def build_market_history_synchronizer(settings: Settings) -> MarketHistorySynchr
     )
     universe_provider = ResearchMarketUniverseProvider(
         binance=binance_provider,
+        manual_selection_path=_absolute(settings.market_history_manual_universe_path),
         market_cap_transport=ReadOnlyCoinGeckoJsonTransport(
             timeout_seconds=settings.request_timeout_seconds,
             max_attempts=min(settings.request_max_attempts, 3),
@@ -633,7 +661,10 @@ def main(arguments: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="AI4BINANCE checksum-verified public market-history collector."
     )
-    parser.add_argument("command", choices=("sync", "status", "daemon", "cleanup-1m"))
+    parser.add_argument(
+        "command",
+        choices=("sync", "status", "daemon", "cleanup-1m", "rank-proposal"),
+    )
     parser.add_argument(
         "--as-of",
         default=None,
@@ -651,6 +682,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
         "status": "market-history-status",
         "daemon": "market-history-daemon",
         "cleanup-1m": "market-history-cleanup-legacy-1m",
+        "rank-proposal": "market-history-rank-proposal",
     }[parsed.command]
     return run_market_history_command(
         command,

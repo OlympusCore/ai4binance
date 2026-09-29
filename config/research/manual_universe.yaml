@@ -1,0 +1,50 @@
+# Edit these base-asset symbols to curate the research collection universe.
+# The initial entries reflect the historical Spot and USD-M Futures selections
+# in universe-v3.json. They are not a current market-cap ranking.
+# Add a new asset to the relevant market list; keep entries unique and uppercase.
+# Each market accepts up to 50 assets. A missing or invalid list blocks research.
+# Current Binance listing, wallet, market-data, risk, and OOS checks still apply.
+schema_version: "1.0"
+selection_mode: MANUAL_RESEARCH_SELECTION
+spot_assets:
+  - ADA
+  - AVAX
+  - BCH
+  - BNB
+  - BTC
+  - DOGE
+  - ETH
+  - GRAM
+  - HBAR
+  - HYPE
+  - LINK
+  - LTC
+  - NEAR
+  - SOL
+  - SUI
+  - TRX
+  - UNI
+  - XLM
+  - XRP
+  - ZEC
+usd_m_futures_assets:
+  - ADA
+  - AVAX
+  - BCH
+  - BNB
+  - BTC
+  - CC
+  - DOGE
+  - ETH
+  - HBAR
+  - HYPE
+  - LINK
+  - LTC
+  - NEAR
+  - SOL
+  - TRX
+  - UNI
+  - XLM
+  - XMR
+  - XRP
+  - ZEC

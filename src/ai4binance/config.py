@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     audit_directory: Path = Path("runtime/logs")
     dataset_directory: Path = Path("runtime/data/market")
     market_history_source_cache_directory: Path = Path("runtime/data/market_sources")
+    market_history_manual_universe_path: Path = Path(
+        "config/research/manual_universe.yaml"
+    )
     market_history_state_path: Path = Path("runtime/state/market-history-latest.json")
     market_history_interval_seconds: float = 21_600.0
     market_history_live_interval_seconds: float = 300.0
