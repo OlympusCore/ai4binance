@@ -7,7 +7,12 @@ import re
 import time
 from collections import Counter, deque
 from collections.abc import Callable, Mapping
-from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from concurrent.futures import (
+    FIRST_COMPLETED,
+    Future,
+    ThreadPoolExecutor,
+    wait,
+)
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -64,6 +69,7 @@ VIRTUAL_MARKET_COLLECTION_TIMEFRAMES: Final = (
 )
 _DASHBOARD_REFRESH_TIMEFRAMES = VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
 _MARKET_SNAPSHOT_REFRESH_SECONDS = 240
+_TAIL_REFRESH_PROGRESS_WAIT_SECONDS = 15
 # The canonical live path persists native decision timeframes directly. REST
 # remains bounded to bootstrap and gap recovery.
 _PROGRESS_HEARTBEAT_SECONDS = 5
@@ -621,6 +627,9 @@ class ContinuousMarketHistory:
             active_tail_refresh = self._refresh_active_tails(
                 market_work,
                 now,
+                on_stream_complete=lambda: refresh_snapshots(
+                    self.clock().astimezone(UTC)
+                ),
                 on_timeframe_complete=lambda _timeframe: refresh_snapshots(
                     self.clock().astimezone(UTC)
                 ),
@@ -629,7 +638,12 @@ class ContinuousMarketHistory:
             # Revisit them before historical work starts, then use separate
             # short and broad cadences during the long backfill.
             active_tail_refresh = self._refresh_active_tails(
-                market_work, self.clock().astimezone(UTC), timeframes=("5m",)
+                market_work,
+                self.clock().astimezone(UTC),
+                timeframes=("5m",),
+                on_stream_complete=lambda: refresh_snapshots(
+                    self.clock().astimezone(UTC)
+                ),
             )
             active_tail_refresh_due = (
                 time.monotonic() + _TIMEFRAME_REFRESH_SECONDS["5m"]
@@ -1335,6 +1349,9 @@ class ContinuousMarketHistory:
                         timeframes=_DASHBOARD_REFRESH_TIMEFRAMES
                         if broad_due
                         else ("5m",),
+                        on_stream_complete=lambda: refresh_snapshots(
+                            self.clock().astimezone(UTC)
+                        ),
                         on_timeframe_complete=lambda _timeframe: refresh_snapshots(
                             self.clock().astimezone(UTC)
                         ),
@@ -1345,6 +1362,9 @@ class ContinuousMarketHistory:
                             market_work,
                             datetime.now(UTC),
                             timeframes=("5m",),
+                            on_stream_complete=lambda: refresh_snapshots(
+                                self.clock().astimezone(UTC)
+                            ),
                         )
                         broad_tail_refresh_due = (
                             time.monotonic() + _TIMEFRAME_REFRESH_SECONDS["15m"]
@@ -1768,6 +1788,7 @@ class ContinuousMarketHistory:
         now: datetime,
         *,
         timeframes: tuple[str, ...] = _DASHBOARD_REFRESH_TIMEFRAMES,
+        on_stream_complete: Callable[[], None] | None = None,
         on_timeframe_complete: Callable[[str], None] | None = None,
     ) -> dict[str, object]:
         """Refresh native active bars across the universe before long backfills."""
@@ -1792,9 +1813,19 @@ class ContinuousMarketHistory:
                     for symbol in symbols
                 ]
                 total_streams += len(pending)
-                statuses.update(
-                    str(future.result().get("status")) for future in pending
-                )
+                remaining = set(pending)
+                while remaining:
+                    completed, remaining = wait(
+                        remaining,
+                        timeout=_TAIL_REFRESH_PROGRESS_WAIT_SECONDS,
+                        return_when=FIRST_COMPLETED,
+                    )
+                    for future in completed:
+                        statuses.update((str(future.result().get("status")),))
+                    # Check even when no stream finishes: a stalled batch must
+                    # not hold the verified universe cache past its TTL.
+                    if on_stream_complete is not None:
+                        on_stream_complete()
                 if on_timeframe_complete is not None:
                     on_timeframe_complete(timeframe)
         return {

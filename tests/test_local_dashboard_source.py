@@ -389,6 +389,51 @@ def test_dashboard_rejects_auto_audit_artifact_with_execution_authority(
     assert data == {}
 
 
+def test_market_selection_uses_current_manual_universe(tmp_path: Path) -> None:
+    module = runpy.run_path(str(SOURCE / "market_views.py.in"))
+    select = module["selection"]
+    select.__globals__["Settings"] = lambda **_kwargs: SimpleNamespace(
+        market_history_source_cache_directory=Path("runtime/data/market_sources"),
+        market_history_manual_universe_path=Path(
+            "config/research/manual_universe.yaml"
+        ),
+        symbol="BTCUSDT",
+    )
+    selection_path = tmp_path / "config/research/manual_universe.yaml"
+    selection_path.parent.mkdir(parents=True)
+    selection_path.write_text("spot_assets: [BTC]\n", encoding="utf-8")
+    cache_path = tmp_path / "runtime/data/market_sources/universe-v3.json"
+    cache_path.parent.mkdir(parents=True)
+    cache_path.write_text(
+        json.dumps(
+            {
+                "observed_at": datetime.now(UTC).isoformat(),
+                "spot_symbols": ["BTCUSDT"],
+                "futures_symbols": ["ETHUSDT"],
+                "excluded_assets": [],
+                "source": "BINANCE_WALLET_AND_MANUAL_RESEARCH_SELECTION",
+                "manual_selection_sha256": _sha256(selection_path),
+                "execution_allowed": False,
+                "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert select({"repository_root": str(tmp_path)}, "SPOT", "") == (
+        tmp_path,
+        ("BTCUSDT",),
+        "BTCUSDT",
+    )
+    assert select({"repository_root": str(tmp_path)}, "USD_M_FUTURES", "") == (
+        tmp_path,
+        ("ETHUSDT",),
+        "ETHUSDT",
+    )
+    selection_path.write_text("spot_assets: [SOL]\n", encoding="utf-8")
+    assert select({"repository_root": str(tmp_path)}, "SPOT", "")[1:] == ((), "")
+
+
 def test_market_quality_projection_validates_collector_age_and_counts(
     tmp_path: Path,
 ) -> None:

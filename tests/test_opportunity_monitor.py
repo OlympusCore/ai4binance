@@ -34,9 +34,10 @@ from ai4binance.config import Settings
 from ai4binance.data.archive import ParquetOHLCVArchive
 from ai4binance.data.market_history_sync import read_cached_market_universe
 from ai4binance.domain.opportunity_observation import estimate_measurable_trade_plan
-from ai4binance.domain.universe import RESEARCH_MARKET_UNIVERSE_SOURCE
+from ai4binance.domain.universe import RESEARCH_MANUAL_UNIVERSE_SOURCE
 from ai4binance.exchange.client import BinancePublicClient
 from ai4binance.exchange.models import MarketKline
+from ai4binance.integrations.research_market_universe import manual_selection_digest
 from ai4binance.opportunity_intelligence import TIMEFRAME_DURATIONS
 from ai4binance.opportunity_radar import build_opportunity_radar_snapshot
 from ai4binance.schemas import MarketSnapshot, OHLCVCandle
@@ -54,7 +55,12 @@ def test_monitor_artifact_boundaries_fail_closed(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="market or symbol"):
         monitor_directory(tmp_path, "INVALID", "BTCUSDT")
     with pytest.raises(ValueError, match="monitor market"):
-        market_symbols(tmp_path, "INVALID", NOW)
+        market_symbols(
+            tmp_path,
+            "INVALID",
+            NOW,
+            manual_selection_sha256="0" * 64,
+        )
     assert read_monitor(tmp_path, "SPOT", "BTCUSDT")["status"] == "NOT_SCANNED"
     path = monitor_directory(tmp_path, "SPOT", "BTCUSDT")
     path.mkdir(parents=True)
@@ -85,15 +91,29 @@ def test_monitor_helper_boundaries_and_research_estimates(
     universe = type(
         "Universe", (), {"spot_symbols": ("BTCUSDT",), "futures_symbols": ("ETHUSDT",)}
     )()
-    observed_sources: list[str] = []
+    selection_path = tmp_path / "manual_universe.yaml"
+    selection_path.write_text("spot_assets: [BTC]\n", encoding="utf-8")
+    observed_sources: list[tuple[str, str]] = []
 
     def _read_cached(*_args: object, **kwargs: object) -> object:
-        observed_sources.append(str(kwargs["expected_source"]))
+        observed_sources.append(
+            (
+                str(kwargs["expected_source"]),
+                str(kwargs["expected_manual_selection_sha256"]),
+            )
+        )
         return universe
 
     monkeypatch.setattr(monitor_module, "read_cached_market_universe", _read_cached)
-    assert monitor_module.market_symbols(tmp_path, "USD_M_FUTURES", NOW) == ("ETHUSDT",)
-    assert observed_sources == [RESEARCH_MARKET_UNIVERSE_SOURCE]
+    assert monitor_module.market_symbols(
+        tmp_path,
+        "USD_M_FUTURES",
+        NOW,
+        manual_selection_sha256=manual_selection_digest(selection_path),
+    ) == ("ETHUSDT",)
+    assert observed_sources == [
+        (RESEARCH_MANUAL_UNIVERSE_SOURCE, manual_selection_digest(selection_path))
+    ]
 
     monitor_path = monitor_directory(tmp_path, "SPOT", "BTCUSDT")
     monitor_path.mkdir(parents=True)
@@ -529,6 +549,8 @@ def test_screening_uses_only_baseline_candles_without_relaxing_full_radar(
 def test_dashboard_rejects_stale_universe_metadata(
     tmp_path: Path,
 ) -> None:
+    selection_path = tmp_path / "manual_universe.yaml"
+    selection_path.write_text("spot_assets: [BTC]\n", encoding="utf-8")
     cache = tmp_path / "universe-v3.json"
     cache.write_text(
         """{
@@ -545,7 +567,60 @@ def test_dashboard_rejects_stale_universe_metadata(
     )
 
     assert read_cached_market_universe(cache, NOW) is None
-    assert market_symbols(tmp_path, "SPOT", NOW) == ()
+    assert (
+        market_symbols(
+            tmp_path,
+            "SPOT",
+            NOW,
+            manual_selection_sha256=manual_selection_digest(selection_path),
+        )
+        == ()
+    )
+
+
+def test_monitor_uses_verified_manual_universe_and_rejects_selection_drift(
+    tmp_path: Path,
+) -> None:
+    selection_path = tmp_path / "manual_universe.yaml"
+    selection_path.write_text("spot_assets: [BTC]\n", encoding="utf-8")
+    cache = tmp_path / "universe-v3.json"
+    cache.write_text(
+        json.dumps(
+            {
+                "observed_at": NOW.isoformat(),
+                "spot_symbols": ["BTCUSDT"],
+                "futures_symbols": ["ETHUSDT"],
+                "excluded_assets": [],
+                "source": RESEARCH_MANUAL_UNIVERSE_SOURCE,
+                "manual_selection_sha256": manual_selection_digest(selection_path),
+                **SAFE_STATE,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert market_symbols(
+        tmp_path,
+        "SPOT",
+        NOW,
+        manual_selection_sha256=manual_selection_digest(selection_path),
+    ) == ("BTCUSDT",)
+    assert market_symbols(
+        tmp_path,
+        "USD_M_FUTURES",
+        NOW,
+        manual_selection_sha256=manual_selection_digest(selection_path),
+    ) == ("ETHUSDT",)
+    selection_path.write_text("spot_assets: [SOL]\n", encoding="utf-8")
+    assert (
+        market_symbols(
+            tmp_path,
+            "SPOT",
+            NOW,
+            manual_selection_sha256=manual_selection_digest(selection_path),
+        )
+        == ()
+    )
 
 
 def seed(archive: ParquetOHLCVArchive, market: str, *, future: bool = False) -> None:
@@ -1122,6 +1197,7 @@ def test_opportunity_monitor_cli_uses_canonical_local_dependencies(
 
     settings = SimpleNamespace(
         market_history_source_cache_directory=tmp_path / "cache",
+        market_history_manual_universe_path=tmp_path / "manual_universe.yaml",
         dataset_directory=tmp_path / "market",
         minimum_closed_candles=21,
         candle_limit=30,
@@ -1129,7 +1205,8 @@ def test_opportunity_monitor_cli_uses_canonical_local_dependencies(
     observed: dict[str, object] = {}
 
     monkeypatch.setattr(cli, "Settings", lambda: settings)
-    monkeypatch.setattr(cli, "market_symbols", lambda *_args: ("BTCUSDT",))
+    monkeypatch.setattr(cli, "manual_selection_digest", lambda _path: "0" * 64)
+    monkeypatch.setattr(cli, "market_symbols", lambda *_args, **_kwargs: ("BTCUSDT",))
     monkeypatch.setattr(cli, "monitor_directory", lambda *_args: tmp_path / "monitor")
     monkeypatch.setattr(cli, "SingleInstanceLease", lambda *_args: nullcontext())
     monkeypatch.setattr(
@@ -1169,10 +1246,12 @@ def test_opportunity_monitor_cli_rejects_symbol_outside_current_universe(
         cli,
         "Settings",
         lambda: SimpleNamespace(
-            market_history_source_cache_directory=tmp_path / "cache"
+            market_history_source_cache_directory=tmp_path / "cache",
+            market_history_manual_universe_path=tmp_path / "manual_universe.yaml",
         ),
     )
-    monkeypatch.setattr(cli, "market_symbols", lambda *_args: ())
+    monkeypatch.setattr(cli, "manual_selection_digest", lambda _path: "0" * 64)
+    monkeypatch.setattr(cli, "market_symbols", lambda *_args, **_kwargs: ())
     monkeypatch.setattr(
         sys,
         "argv",

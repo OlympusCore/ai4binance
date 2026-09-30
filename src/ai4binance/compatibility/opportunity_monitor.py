@@ -31,7 +31,7 @@ from ai4binance.domain.opportunity_observation import (
     has_complete_measurable_opportunity,
     has_complete_measurable_trade_plan,
 )
-from ai4binance.domain.universe import RESEARCH_MARKET_UNIVERSE_SOURCE
+from ai4binance.domain.universe import RESEARCH_MANUAL_UNIVERSE_SOURCE
 from ai4binance.opportunity_intelligence import (
     TIMEFRAME_DURATIONS,
     ChartPatternLifecycleState,
@@ -70,14 +70,19 @@ def monitor_directory(root: Path, market: str, symbol: str) -> Path:
     return root / "runtime/artifacts/opportunity-radar/monitor" / market / symbol
 
 
-def market_symbols(cache: Path, market: str, now: datetime) -> tuple[str, ...]:
+def market_symbols(
+    cache: Path, market: str, now: datetime, *, manual_selection_sha256: str
+) -> tuple[str, ...]:
     """Return only the currently verified Binance market universe for the UI."""
     if market not in MARKET_TIMEFRAMES:
         raise ValueError("monitor market is invalid")
+    if not re.fullmatch(r"[0-9a-f]{64}", manual_selection_sha256):
+        return ()
     universe = read_cached_market_universe(
         cache / "universe-v3.json",
         now,
-        expected_source=RESEARCH_MARKET_UNIVERSE_SOURCE,
+        expected_source=RESEARCH_MANUAL_UNIVERSE_SOURCE,
+        expected_manual_selection_sha256=manual_selection_sha256,
     )
     if universe is None:
         return ()

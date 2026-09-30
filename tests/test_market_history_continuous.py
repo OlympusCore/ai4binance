@@ -5,6 +5,7 @@ import io
 import json
 import zipfile
 from collections.abc import Callable, Mapping
+from concurrent.futures import Future, wait as future_wait
 from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -1687,8 +1688,10 @@ def test_live_full_history_refreshes_all_active_tails_before_backfill(
         _now: datetime,
         *,
         timeframes: tuple[str, ...] = VIRTUAL_MARKET_COLLECTION_TIMEFRAMES,
+        on_stream_complete: Callable[[], None] | None = None,
         on_timeframe_complete: Callable[[str], None] | None = None,
     ) -> dict[str, object]:
+        del on_stream_complete
         events.append("TAIL_REFRESH:" + ",".join(timeframes))
         if on_timeframe_complete is not None:
             for timeframe in timeframes:
@@ -1779,8 +1782,10 @@ def test_due_tail_refresh_runs_with_busy_history_workers(
         _now: datetime,
         *,
         timeframes: tuple[str, ...] = VIRTUAL_MARKET_COLLECTION_TIMEFRAMES,
+        on_stream_complete: Callable[[], None] | None = None,
         on_timeframe_complete: Callable[[str], None] | None = None,
     ) -> dict[str, object]:
+        del on_stream_complete
         events.append("TAIL_REFRESH:" + ",".join(timeframes))
         if on_timeframe_complete is not None:
             for timeframe in timeframes:
@@ -1898,12 +1903,14 @@ def test_live_prepass_refreshes_universe_between_timeframe_groups(
         _now: datetime,
         *,
         timeframes: tuple[str, ...] = VIRTUAL_MARKET_COLLECTION_TIMEFRAMES,
+        on_stream_complete: Callable[[], None] | None = None,
         on_timeframe_complete: Callable[[str], None] | None = None,
     ) -> dict[str, object]:
+        if on_stream_complete is not None:
+            monotonic[0] = 241.0
+            on_stream_complete()
         if on_timeframe_complete is not None:
-            for index, timeframe in enumerate(timeframes):
-                if index == 0:
-                    monotonic[0] = 241.0
+            for timeframe in timeframes:
                 on_timeframe_complete(timeframe)
         return {
             "status": "COMPLETE",
@@ -1925,6 +1932,108 @@ def test_live_prepass_refreshes_universe_between_timeframe_groups(
     instance.sync_cycle(observed_at=NOW)
 
     assert universe_refreshes[:2] == [0.0, 241.0]
+
+
+def test_active_tail_refresh_checks_cache_before_slowest_stream_finishes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    transport = Transport()
+    instance = collector(tmp_path, transport)
+    instance.max_workers = 2
+    first_started = Event()
+    release_first = Event()
+    first_finished = Event()
+    refresh_checks = [0]
+
+    def collect(
+        _market: str,
+        symbol: str,
+        _transport: object,
+        _now: datetime,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        if symbol == "BTCUSDT":
+            first_started.set()
+            assert release_first.wait(timeout=3)
+            first_finished.set()
+        else:
+            assert first_started.wait(timeout=3)
+        return {"status": "TAIL_CURRENT"}
+
+    def check_refresh() -> None:
+        refresh_checks[0] += 1
+        if refresh_checks[0] == 1:
+            assert not first_finished.is_set()
+            release_first.set()
+
+    monkeypatch.setattr(instance, "_collect_stream", collect)
+    result = instance._refresh_active_tails(
+        (("spot", ("BTCUSDT", "ETHUSDT"), transport),),
+        NOW,
+        timeframes=("5m",),
+        on_stream_complete=check_refresh,
+    )
+
+    assert result["status"] == "COMPLETE"
+    assert result["current_streams"] == 2
+    assert refresh_checks == [2]
+
+
+def test_active_tail_refresh_checks_cache_when_no_stream_finishes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    transport = Transport()
+    instance = collector(tmp_path, transport)
+    worker_started = Event()
+    release_worker = Event()
+    worker_finished = Event()
+    waits: list[float | None] = []
+    refresh_checks = [0]
+
+    def collect(
+        _market: str,
+        _symbol: str,
+        _transport: object,
+        _now: datetime,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        worker_started.set()
+        assert release_worker.wait(timeout=3)
+        worker_finished.set()
+        return {"status": "TAIL_CURRENT"}
+
+    def controlled_wait(
+        futures: set[Future[object]], *, timeout: float, return_when: str
+    ) -> tuple[set[Future[object]], set[Future[object]]]:
+        waits.append(timeout)
+        if len(waits) == 1:
+            assert worker_started.wait(timeout=3)
+            return set(), futures
+        completed, remaining = future_wait(
+            futures, timeout=timeout, return_when=return_when
+        )
+        return completed, remaining
+
+    def check_refresh() -> None:
+        refresh_checks[0] += 1
+        if refresh_checks[0] == 1:
+            assert not worker_finished.is_set()
+            release_worker.set()
+
+    monkeypatch.setattr(instance, "_collect_stream", collect)
+    monkeypatch.setattr(
+        "ai4binance.data.market_history_continuous.wait", controlled_wait
+    )
+    result = instance._refresh_active_tails(
+        (("spot", ("BTCUSDT",), transport),),
+        NOW,
+        timeframes=("5m",),
+        on_stream_complete=check_refresh,
+    )
+
+    assert result["status"] == "COMPLETE"
+    assert waits[0] == 15
+    assert refresh_checks == [2]
 
 
 def test_vision_history_skips_missing_archives_before_known_listing(

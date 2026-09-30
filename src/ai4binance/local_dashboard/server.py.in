@@ -19,6 +19,8 @@ from uuid import uuid4
 APP = Path(__file__).resolve().parent
 MAX_BYTES = 2_000_000
 MAX_AUTO_AUDIT_BYTES = 4_000_000
+MAX_DASHBOARD_DECISIONS = 32
+MAX_DASHBOARD_DECISION_BYTES = 512_000
 PUBLIC_FILES = {
     "/": "index.html",
     "/index.html": "index.html",
@@ -1383,11 +1385,22 @@ def decision_history(root, now):
                     result["findings"].append(
                         {"source": name, "status": "INVALID_CYCLE_RECEIPT"}
                     )
-        result["records"] = sorted(
+        recent_records = sorted(
             (value for key, value in identities.items() if key not in conflicts),
             key=lambda item: item["observed_at"],
             reverse=True,
-        )[:100]
+        )
+        projected_bytes = 0
+        for record in recent_records[:MAX_DASHBOARD_DECISIONS]:
+            record_bytes = len(json.dumps(record, allow_nan=False).encode("utf-8"))
+            if projected_bytes + record_bytes > MAX_DASHBOARD_DECISION_BYTES:
+                if not result["records"]:
+                    result["findings"].append(
+                        {"source": "audit", "status": "DASHBOARD_RECEIPT_TOO_LARGE"}
+                    )
+                break
+            result["records"].append(record)
+            projected_bytes += record_bytes
         if conflicts:
             result["findings"].append(
                 {"source": "audit", "status": "CONFLICTING_DECISION_ID"}

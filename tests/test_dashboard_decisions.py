@@ -258,6 +258,66 @@ def test_missing_history_is_not_a_zero_or_success(tmp_path: Path) -> None:
     assert result["records"] == []
 
 
+@pytest.mark.parametrize(
+    ("projected_body_bytes", "expected_count", "expected_status"),
+    [
+        (0, 32, "PARTIALLY_VERIFIED"),
+        (40_000, 12, "PARTIALLY_VERIFIED"),
+        (600_000, 0, "DEGRADED"),
+    ],
+)
+def test_history_projection_bounds_recent_receipts_without_changing_journal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    projected_body_bytes: int,
+    expected_count: int,
+    expected_status: str,
+) -> None:
+    monkeypatch.delenv("AI4BINANCE_AUDIT_DIRECTORY", raising=False)
+    directory = tmp_path / "runtime/logs"
+    directory.mkdir(parents=True)
+    path = directory / "research_events.jsonl"
+    path.write_text(
+        "\n".join(
+            json.dumps({"event_type": "RESEARCH_WORKFLOW_COMPLETED", "index": index})
+            for index in range(40)
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    def project(event: dict[str, Any], source: str, _now: datetime) -> dict[str, Any]:
+        index = event["index"]
+        return {
+            "decision_id": f"TEST_ONLY_{index:02}",
+            "observed_at": (NOW + timedelta(seconds=index)).isoformat(),
+            "source": source,
+            "test_only_body": "x" * projected_body_bytes,
+        }
+
+    monkeypatch.setitem(
+        SERVER["decision_history"].__globals__, "decision_record", project
+    )
+    result = SERVER["decision_history"](tmp_path, NOW)
+
+    assert result["status"] == expected_status
+    assert len(result["records"]) == expected_count
+    assert (
+        sum(
+            len(json.dumps(row, allow_nan=False).encode("utf-8"))
+            for row in result["records"]
+        )
+        <= 512_000
+    )
+    if result["records"]:
+        assert result["records"][0]["decision_id"] == "TEST_ONLY_39"
+    else:
+        assert result["findings"] == [
+            {"source": "audit", "status": "DASHBOARD_RECEIPT_TOO_LARGE"}
+        ]
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 40
+
+
 def test_oversized_history_fails_closed(tmp_path: Path) -> None:
     directory = tmp_path / "runtime/logs"
     directory.mkdir(parents=True)

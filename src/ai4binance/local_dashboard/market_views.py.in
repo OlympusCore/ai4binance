@@ -25,6 +25,7 @@ from ai4binance.data.market_history_continuous import (
 from ai4binance.domain.opportunity_observation import (
     has_complete_measurable_opportunity,
 )
+from ai4binance.integrations.research_market_universe import manual_selection_digest
 from ai4binance.storage import write_json_object_verified
 from ai4binance.virtual_wallet_journal import (
     VirtualWalletJournal,
@@ -118,9 +119,19 @@ def selection(config, market, symbol):
     root = Path(config["repository_root"])
     settings = Settings(_env_file=root / ".env")
     now = datetime.now(UTC)
-    symbols = market_symbols(
-        root / settings.market_history_source_cache_directory, market, now
-    )
+    try:
+        selection_sha256 = manual_selection_digest(
+            _rooted(root, settings.market_history_manual_universe_path)
+        )
+    except (OSError, ValueError):
+        symbols = ()
+    else:
+        symbols = market_symbols(
+            root / settings.market_history_source_cache_directory,
+            market,
+            now,
+            manual_selection_sha256=selection_sha256,
+        )
     default_symbol = (
         settings.symbol if settings.symbol in symbols else next(iter(symbols), "")
     )

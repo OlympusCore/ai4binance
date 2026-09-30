@@ -17,6 +17,7 @@ from ai4binance.application.opportunity_monitor import (
 from ai4binance.cli.futures_multitf import _refresh_futures_monitor
 from ai4binance.config import Settings
 from ai4binance.data.archive import ParquetOHLCVArchive
+from ai4binance.integrations.research_market_universe import manual_selection_digest
 from ai4binance.opportunity_intelligence import TIMEFRAME_DURATIONS
 from ai4binance.ops.runtime import SingleInstanceLease
 from ai4binance.schemas import OHLCVCandle
@@ -73,8 +74,14 @@ def main() -> int:
     args = parser.parse_args()
     settings = Settings()
     now = datetime.now(UTC)
+    selection_sha256 = manual_selection_digest(
+        settings.market_history_manual_universe_path
+    )
     if args.symbol not in market_symbols(
-        settings.market_history_source_cache_directory, args.market, now
+        settings.market_history_source_cache_directory,
+        args.market,
+        now,
+        manual_selection_sha256=selection_sha256,
     ):
         raise ValueError("symbol is not in the current eligible market universe")
     root = Path.cwd()

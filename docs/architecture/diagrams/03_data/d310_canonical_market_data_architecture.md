@@ -2,7 +2,7 @@
 document_id: AI4B-ARCH-DIAG-310
 title: Canonical Market Data Architecture
 document_type: REFERENCE
-version: 1.0.0
+version: 1.0.1
 status: ACTIVE
 owner: Enterprise Architecture
 authority_level: INFORMATIONAL
@@ -34,7 +34,7 @@ Diagram ID: `D310`
 | Status | `CURRENT_PARTIAL` |
 | Authority | `INFORMATIONAL_PROJECTION` |
 | Designation | Canonical editable Mermaid source; supporting projection |
-| Last verified | `2026-09-17` |
+| Last verified | `2026-09-30` |
 
 ## 1. Purpose
 
@@ -59,6 +59,7 @@ This document is `source_of_truth: false`. `docs/governance/framework_core_vnext
 - `src/ai4binance/agents/data_quality_gate.py` — deterministic freshness evidence and closed-candle age validation.
 - `src/ai4binance/data/market_history_continuous.py`
 - `src/ai4binance/compatibility/opportunity_monitor.py` — per-timeframe quality, warning, and archive provenance projection.
+- `src/ai4binance/cli/opportunity_monitor.py` — bounded monitor entrypoint consuming the current manual-selection-digest-bound Binance universe cache.
 - `schemas/snapshots/market_snapshot.schema.json`
 
 ## 6. Diagram
@@ -83,6 +84,7 @@ The nodes are bounded architectural roles derived from the evidence above. Label
 - Preserve one canonical owner per concept.
 - Separate deterministic controls from advisory analysis.
 - Keep missing evidence and blockers visible.
+- Project the current manual research selection into dashboard and monitor symbol lists only when the Binance universe cache source, selection digest, and freshness verify; otherwise expose no eligible symbols.
 
 ## 9. Inputs
 

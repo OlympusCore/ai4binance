@@ -64,7 +64,10 @@ Resident deployment and restart are separate from source validation.
 
 `/api/state.decision_history` projects the existing configured audit directory's
 `research_events.jsonl` and `runtime_research_events.chained.jsonl`. Reads are
-limited to 100 recent lines and 4 MB per journal, and 100 projected decisions.
+limited to 100 recent lines and 4 MB per journal. The dashboard projects the
+newest 32 decisions that fit a 512 KB response budget; the complete journals
+remain available as audit evidence. An individual newest receipt above this
+budget is reported as `DASHBOARD_RECEIPT_TOO_LARGE` rather than silently omitted.
 Paths must resolve inside repository `runtime/`. The adapter never repairs,
 creates or appends journals. A changing journal is reported as `SOURCE_CHANGED`.
 CanonicalCycleEnvelope validates reference kinds, unique identities, cycle and
