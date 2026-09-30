@@ -186,6 +186,14 @@ class ContextAssembly:
             raise ValueError("context assembly cannot authorize trading")
 
 
+def _context_assembly_as_of(as_of: datetime | None) -> datetime:
+    if as_of is None:
+        return datetime.now(UTC)
+    if as_of.utcoffset() is None:
+        raise ValueError("context assembly as_of must be timezone-aware")
+    return as_of
+
+
 class BoundedContextAssembler:
     def __init__(self, guard: TokenBudgetGuard | None = None) -> None:
         self._guard = guard or TokenBudgetGuard()
@@ -198,8 +206,9 @@ class BoundedContextAssembler:
         fragments: Iterable[ContextFragment],
         history: str = "",
         tool_schemas: str = "",
+        as_of: datetime | None = None,
     ) -> ContextAssembly:
-        now = datetime.now(UTC)
+        now = _context_assembly_as_of(as_of)
         active: list[ContextFragment] = []
         dropped: list[str] = []
         for fragment in fragments:

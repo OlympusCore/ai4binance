@@ -150,6 +150,7 @@ class GovernedMemoryContextCompiler:
             system=system,
             current_input=current_input,
             fragments=fragments,
+            as_of=snapshot.created_at,
         )
         evidence_refs = tuple(
             dict.fromkeys(

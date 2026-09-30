@@ -42,6 +42,18 @@ def test_settings_normalize_market_type() -> None:
         Settings(market_type="options")  # type: ignore[arg-type]
 
 
+def test_market_history_live_interval_renews_before_universe_cache_expiry() -> None:
+    assert Settings().market_history_live_interval_seconds == 180
+    assert (
+        Settings(
+            market_history_live_interval_seconds=240
+        ).market_history_live_interval_seconds
+        == 240
+    )
+    with pytest.raises(ValidationError, match="between 60 and 240"):
+        Settings(market_history_live_interval_seconds=300)
+
+
 def test_settings_route_futures_oos_to_the_cli_contract_artifact_root() -> None:
     assert Settings().futures_oos_artifact_directory == Path(
         "runtime/artifacts/validation/futures_oos"
@@ -153,6 +165,19 @@ def test_settings_defaults_to_bounded_research_history_horizons() -> None:
     assert settings.max_data_workers == 4
     assert settings.market_history_max_workers == 8
     assert settings.market_history_opportunity_workers == 2
+    assert settings.virtual_market_period_lengths == {
+        "5m": 2016,
+        "15m": 2016,
+        "1h": 2160,
+        "4h": 2190,
+        "1d": 1460,
+    }
+
+
+def test_virtual_market_period_lengths_cannot_lower_verified_windows() -> None:
+    lengths = Settings().virtual_market_period_lengths
+    with pytest.raises(ValidationError, match="period lengths are invalid"):
+        Settings(virtual_market_period_lengths={**lengths, "1d": 1459})
 
 
 def test_no_trade_factory_is_blocked_and_serializable() -> None:

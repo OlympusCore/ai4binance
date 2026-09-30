@@ -21,6 +21,7 @@ MAX_BYTES = 2_000_000
 MAX_AUTO_AUDIT_BYTES = 4_000_000
 MAX_DASHBOARD_DECISIONS = 32
 MAX_DASHBOARD_DECISION_BYTES = 512_000
+MAX_DASHBOARD_RESPONSE_CHUNK_BYTES = 32_768
 PUBLIC_FILES = {
     "/": "index.html",
     "/index.html": "index.html",
@@ -1652,7 +1653,12 @@ def create_server(config, port=None):
             )
             self.end_headers()
             if self.command != "HEAD":
-                self.wfile.write(body)
+                # Large single writes can stall on Windows loopback after the
+                # headers have reached a client with a bounded read timeout.
+                for offset in range(0, len(body), MAX_DASHBOARD_RESPONSE_CHUNK_BYTES):
+                    self.wfile.write(
+                        body[offset : offset + MAX_DASHBOARD_RESPONSE_CHUNK_BYTES]
+                    )
 
         def authorized(self) -> bool:
             authority = self.headers.get("Host", "")

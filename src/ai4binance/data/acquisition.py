@@ -252,6 +252,7 @@ class DataAcquisitionAgent:
     market_type: str = "Spot"
     candle_limit: int = 250
     minimum_closed_candles: int = 200
+    local_candle_limits: Mapping[str, int] | None = None
     max_workers: int = 4
     archive: ParquetOHLCVArchive | None = None
     depth_path: Path | None = None
@@ -266,6 +267,15 @@ class DataAcquisitionAgent:
             raise ValueError(
                 "minimum_closed_candles must be between 2 and candle_limit"
             )
+        if self.local_candle_limits is not None:
+            if self.archive is None:
+                raise ValueError("per-timeframe candle limits require a local archive")
+            for timeframe, limit in self.local_candle_limits.items():
+                timeframe_duration(timeframe)
+                if isinstance(limit, bool) or not (
+                    self.minimum_closed_candles <= limit <= 10_000
+                ):
+                    raise ValueError("local candle limit is invalid")
         if not 1 <= self.max_workers <= 8:
             raise ValueError("max_workers must be between 1 and 8")
 
@@ -324,7 +334,12 @@ class DataAcquisitionAgent:
                 last_close_times[timeframe] = last_close
 
         data_valid = all(
-            len(candles_by_timeframe[timeframe]) >= self.minimum_closed_candles
+            len(candles_by_timeframe[timeframe])
+            >= (
+                self.local_candle_limits.get(timeframe, self.minimum_closed_candles)
+                if self.local_candle_limits is not None
+                else self.minimum_closed_candles
+            )
             and not bool(freshness[timeframe]["stale"])
             for timeframe in timeframes
         )
@@ -417,10 +432,15 @@ class DataAcquisitionAgent:
                         raise ValueError("local market dataset has gaps")
                     last = datetime.fromisoformat(manifest.last_timestamp)
                     duration = timeframe_duration(timeframe)
+                    limit = (
+                        self.local_candle_limits.get(timeframe, self.candle_limit)
+                        if self.local_candle_limits is not None
+                        else self.candle_limit
+                    )
                     candles = self.archive.read_window(
                         symbol,
                         timeframe,
-                        start_at=last - duration * (self.candle_limit - 1),
+                        start_at=last - duration * (limit - 1),
                         end_at=last,
                     )
                     local[timeframe] = tuple(

@@ -187,6 +187,7 @@ def build_continuous_market_history(
         max_workers=settings.market_history_max_workers,
         follow_wall_clock=True,
         minimum_candles=settings.minimum_closed_candles,
+        required_candles_by_timeframe=settings.virtual_market_period_lengths,
         coin_m=(
             synchronizer.universe_provider.coin_m_transport if include_coin_m else None
         ),

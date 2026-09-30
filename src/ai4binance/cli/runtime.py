@@ -190,6 +190,7 @@ class _LocalFuturesAcquisition:
             minimum_candles=self.settings.minimum_closed_candles,
             candle_limit=self.settings.candle_limit,
             timeframes=timeframes,
+            period_lengths=self.settings.virtual_market_period_lengths,
         )
         snapshot = replace(
             snapshot,
@@ -197,7 +198,12 @@ class _LocalFuturesAcquisition:
             data_quality=(
                 DataQuality.DATA_VALID
                 if len(quality) == len(timeframes)
-                and all(row["status"] == "CURRENT" for row in quality)
+                and all(
+                    row["status"] == "CURRENT"
+                    and row.get("data_quality") == "DATA_VALID"
+                    and row.get("checksum_verified") is True
+                    for row in quality
+                )
                 else DataQuality.DATA_INVALID
             ),
         )
@@ -642,7 +648,9 @@ def run_virtual_market_daemon(
     with SingleInstanceLease(lock_path):
         while max_cycles is None or cycle_count < max_cycles:
             cycle_count += 1
-            cycle_report: dict[str, object] = {}
+            cycle_report: dict[str, object] = {
+                "required_period_lengths": dict(settings.virtual_market_period_lengths)
+            }
             manual_request: dict[str, object] | None = None
             eligible_symbols: tuple[str, ...] = ()
             try:
@@ -1099,7 +1107,12 @@ def _virtual_market_ranked_symbols(
 
 def _build_virtual_market_acquisition(settings: Settings) -> SnapshotAcquirer:
     primary = build_public_acquisition(settings)
-    return _LocalFirstPublicAcquisition(primary=primary)
+    return _LocalFirstPublicAcquisition(
+        primary=replace(
+            primary,
+            local_candle_limits=settings.virtual_market_period_lengths,
+        )
+    )
 
 
 def _run_virtual_market_research_cycle(

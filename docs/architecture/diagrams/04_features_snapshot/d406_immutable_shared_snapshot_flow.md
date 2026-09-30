@@ -56,6 +56,8 @@ This document is `source_of_truth: false`. `docs/governance/framework_core_vnext
 
 - `src/ai4binance/data/acquisition.py`
 - `src/ai4binance/agents/orchestrator.py`
+- `src/ai4binance/application/context/budget.py`
+- `src/ai4binance/application/context/memory.py`
 - `schemas/snapshots/market_snapshot.schema.json`
 
 ## 6. Diagram
@@ -83,6 +85,8 @@ The nodes are bounded architectural roles derived from the evidence above. Label
 - Preserve one canonical owner per concept.
 - Separate deterministic controls from advisory analysis.
 - Keep missing evidence and blockers visible.
+- Evaluate expiring advisory memory against the immutable snapshot timestamp for historical replay. The memory context compiler supplies that timestamp to the bounded context assembler; live assembly without an explicit timestamp uses the current UTC time.
+- Reject naive replay timestamps and keep fragment expiration, context budgets, and trading authority fail closed.
 
 ## 9. Inputs
 

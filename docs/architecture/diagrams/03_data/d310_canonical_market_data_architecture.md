@@ -85,6 +85,8 @@ The nodes are bounded architectural roles derived from the evidence above. Label
 - Separate deterministic controls from advisory analysis.
 - Keep missing evidence and blockers visible.
 - Project the current manual research selection into dashboard and monitor symbol lists only when the Binance universe cache source, selection digest, and freshness verify; otherwise expose no eligible symbols.
+- Refresh verified universe metadata independently of ticker snapshots and check its cadence on bounded waits even when no candle stream finishes; preserve the five-minute cache expiry and fail closed on refresh failure.
+- Start short Market History cycles every three minutes by default, and reject configured intervals above four minutes, so the next verified-universe refresh has a margin before the five-minute cache expiry.
 
 ## 9. Inputs
 

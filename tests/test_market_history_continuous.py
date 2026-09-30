@@ -5,7 +5,8 @@ import io
 import json
 import zipfile
 from collections.abc import Callable, Mapping
-from concurrent.futures import Future, wait as future_wait
+from concurrent.futures import Future
+from concurrent.futures import wait as future_wait
 from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -260,7 +261,7 @@ def test_staged_universe_downloads_baseline_then_enriches_candidates_before_anal
     result = instance.sync_cycle(observed_at=NOW)
     assert universe_refreshes == [True]
     assert result["observed_at"] == completed_at.isoformat()
-    assert len(calls) == 14
+    assert len(calls) == 18
     assert {tf for _, _, tf in calls} == set(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES)
     assert sum(tf == "5m" for _, _, tf in calls) == 2
     assert {(market, symbol) for market, symbol, tf in calls if tf == "5m"} == {
@@ -272,9 +273,9 @@ def test_staged_universe_downloads_baseline_then_enriches_candidates_before_anal
         ("SPOT", "ETHUSDT"),
         ("USD_M_FUTURES", "ETHUSDT"),
     ]
-    assert result["total_streams"] == result["completed_streams"] == 14
+    assert result["total_streams"] == result["completed_streams"] == 18
     assert result["completed_symbols"] == 4
-    assert result["timeframes"] == ["15m", "1h", "4h", "5m"]
+    assert result["timeframes"] == ["15m", "1h", "4h", "1d", "5m"]
     coverage = cast(dict[str, list[dict[str, object]]], result["collector_coverage"])
     for market in ("SPOT", "USD_M_FUTURES"):
         expected = {row["timeframe"]: row for row in coverage[market]}
@@ -1549,8 +1550,11 @@ def test_tail_only_refresh_preserves_historical_cursor(
     )
 
 
+@pytest.mark.parametrize(
+    "vision_reason", ["BINANCE_VISION_ARCHIVE_UNAVAILABLE", "KLINE_GAP"]
+)
 def test_missing_vision_archive_recovers_exact_gap_from_native_rest(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, vision_reason: str
 ) -> None:
     transport = Transport()
     instance = collector(tmp_path, transport)
@@ -1583,7 +1587,7 @@ def test_missing_vision_archive_recovers_exact_gap_from_native_rest(
         return cursor, {
             "status": "UNAVAILABLE",
             "next_at": cursor.isoformat(),
-            "reason": "BINANCE_VISION_ARCHIVE_UNAVAILABLE",
+            "reason": vision_reason,
         }
 
     monkeypatch.setattr(instance, "_vision_history", unavailable)
@@ -1598,8 +1602,11 @@ def test_missing_vision_archive_recovers_exact_gap_from_native_rest(
     )
 
 
+@pytest.mark.parametrize(
+    "vision_reason", ["BINANCE_VISION_ARCHIVE_UNAVAILABLE", "KLINE_GAP"]
+)
 def test_missing_vision_and_rest_keeps_gap_blocked(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, vision_reason: str
 ) -> None:
     transport = Transport()
     instance = collector(tmp_path, transport)
@@ -1632,7 +1639,7 @@ def test_missing_vision_and_rest_keeps_gap_blocked(
         return cursor, {
             "status": "UNAVAILABLE",
             "next_at": cursor.isoformat(),
-            "reason": "BINANCE_VISION_ARCHIVE_UNAVAILABLE",
+            "reason": vision_reason,
         }
 
     original_get_json = transport.get_json
@@ -1934,6 +1941,64 @@ def test_live_prepass_refreshes_universe_between_timeframe_groups(
     assert universe_refreshes[:2] == [0.0, 241.0]
 
 
+def test_universe_refresh_deadline_is_independent_of_slow_snapshots(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    instance = collector(tmp_path, Transport())
+    instance.follow_wall_clock = True
+    instance.max_workers = 1
+    instance.clock = lambda: NOW
+    monotonic = [0.0]
+    universe_refreshes: list[float] = []
+    snapshot_calls: list[float] = []
+    monkeypatch.setattr(
+        "ai4binance.data.market_history_continuous.time.monotonic",
+        lambda: monotonic[0],
+    )
+
+    def eligible_universe(
+        *_args: object, **_kwargs: object
+    ) -> BinanceEligibleMarketSnapshot:
+        universe_refreshes.append(monotonic[0])
+        return BinanceEligibleMarketSnapshot(
+            spot_symbols=("BTCUSDT",), futures_symbols=()
+        )
+
+    def snapshots(*_args: object) -> None:
+        snapshot_calls.append(monotonic[0])
+        monotonic[0] = 120.0
+
+    def refresh(
+        _market_work: object,
+        _now: datetime,
+        *,
+        timeframes: tuple[str, ...] = VIRTUAL_MARKET_COLLECTION_TIMEFRAMES,
+        on_stream_complete: Callable[[], None] | None = None,
+        on_timeframe_complete: Callable[[str], None] | None = None,
+    ) -> dict[str, object]:
+        if on_stream_complete is not None:
+            monotonic[0] = 181.0
+            on_stream_complete()
+        if on_timeframe_complete is not None:
+            for timeframe in timeframes:
+                on_timeframe_complete(timeframe)
+        return {"status": "COMPLETE", "total_streams": 1, "current_streams": 1}
+
+    monkeypatch.setattr(
+        MarketHistorySynchronizer, "_eligible_universe", eligible_universe
+    )
+    monkeypatch.setattr(instance, "_snapshots", snapshots)
+    monkeypatch.setattr(instance, "_refresh_active_tails", refresh)
+    monkeypatch.setattr(
+        instance, "_collect_stream", lambda *_args, **_kwargs: {"status": "CURRENT"}
+    )
+
+    instance.sync_cycle(observed_at=NOW)
+
+    assert universe_refreshes == [0.0, 181.0]
+    assert snapshot_calls == [0.0]
+
+
 def test_active_tail_refresh_checks_cache_before_slowest_stream_finishes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2123,6 +2188,35 @@ def test_vision_history_retains_missing_archive_after_known_listing(
         "next_at": start.isoformat(),
         "reason": "BINANCE_VISION_ARCHIVE_UNAVAILABLE",
     }
+
+
+def test_verified_older_archive_moves_rest_seed_boundary_backwards(
+    tmp_path: Path,
+) -> None:
+    instance = collector(tmp_path, Transport())
+    cursor = datetime(2026, 1, 1, tzinfo=UTC)
+    older_verified = datetime(2026, 1, 15, tzinfo=UTC)
+    seeded = datetime(2026, 6, 1, tzinfo=UTC)
+    state: dict[str, object] = {"first_available_at": seeded.isoformat()}
+    progress = tmp_path / "collection-progress.json"
+
+    next_at, gap = instance._validate_vision_chunk_start(
+        archive=cast(ParquetOHLCVArchive, object()),
+        dataset_symbol="NEWUSDT",
+        timeframe="1d",
+        pending_candles=[],
+        pending_source_hashes=[],
+        generated_at=NOW,
+        state=state,
+        progress_path=progress,
+        cursor=cursor,
+        first_timestamp=older_verified,
+        replace_conflicts_from_sources=(),
+    )
+
+    assert gap is None
+    assert next_at == older_verified
+    assert _load(progress)["first_available_at"] == older_verified.isoformat()
 
 
 def test_vision_history_accepts_known_midmonth_listing_boundary(
@@ -2737,6 +2831,23 @@ def test_direct_timeframe_bootstrap_uses_its_own_closed_candle_window(
     )
 
 
+def test_daily_virtual_window_extends_only_daily_history(tmp_path: Path) -> None:
+    instance = ContinuousMarketHistory(
+        collector(tmp_path, Transport()).history,
+        Transport(),
+        Transport(),
+        initial_days=730,
+        minimum_candles=200,
+        required_candles_by_timeframe={"1d": 1460, "5m": 2016},
+    )
+    assert instance._candle_initial_start(
+        NOW, timedelta(days=1), timeframe="1d"
+    ) == NOW.replace(hour=0, minute=0) - timedelta(days=1461)
+    assert instance._candle_initial_start(
+        NOW, timedelta(minutes=5), timeframe="5m"
+    ) == NOW.replace(hour=0, minute=0) - timedelta(days=730)
+
+
 def test_partial_first_month_reuses_one_complete_monthly_archive() -> None:
     start = datetime(2026, 6, 16, tzinfo=UTC)
     key, archive_end = ContinuousMarketHistory._vision_kline_key(
@@ -3191,6 +3302,13 @@ def _market_data_cli_settings(tmp_path: Path) -> Settings:
             fixed_symbols=("ETHUSDT",),
             priority_watchlist=("BTCUSDT",),
             candle_limit=30,
+            virtual_market_period_lengths={
+                "5m": 2016,
+                "15m": 2016,
+                "1h": 2160,
+                "4h": 2190,
+                "1d": 1460,
+            },
         ),
     )
 

@@ -186,6 +186,35 @@ def test_local_archive_supplies_candles_to_shared_snapshot(tmp_path: Path) -> No
     assert not any(name.startswith("klines") for name, _ in client.calls)
 
 
+def test_local_virtual_period_window_requires_all_closed_bars(tmp_path: Path) -> None:
+    client = FakePublicClient(candle_count=300)
+    archive = ParquetOHLCVArchive(tmp_path)
+    candles = tuple(
+        row.to_candle()
+        for row in client.klines("HOTUSDT", "1m", 300)
+        if row.close_time <= NOW
+    )
+    archive.update("HOTUSDT", "1m", candles, source="FIXTURE", generated_at=NOW)
+    client.calls.clear()
+
+    ready = DataAcquisitionAgent(
+        client=client,
+        archive=archive,
+        local_candle_limits={"1m": 260},
+    ).acquire("HOTUSDT", ("1m",))
+    assert len(ready.ohlcv_by_timeframe["1m"]) == 260
+    assert ready.data_quality == DataQuality.DATA_VALID
+
+    short = DataAcquisitionAgent(
+        client=client,
+        archive=archive,
+        local_candle_limits={"1m": 301},
+    ).acquire("HOTUSDT", ("1m",))
+    assert len(short.ohlcv_by_timeframe["1m"]) == 300
+    assert short.data_quality == DataQuality.DATA_INVALID
+    assert not any(name.startswith("klines") for name, _ in client.calls)
+
+
 def test_local_archive_reads_only_the_verified_snapshot_tail(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -546,6 +546,52 @@ def test_screening_uses_only_baseline_candles_without_relaxing_full_radar(
         assert full["discarded_unmeasurable_candidate_count"] == 5
 
 
+def test_inspection_blocks_a_short_virtual_period_then_accepts_verified_append(
+    tmp_path: Path,
+) -> None:
+    archive = ParquetOHLCVArchive(tmp_path)
+    duration = TIMEFRAME_DURATIONS["1h"]
+    rows = tuple(
+        OHLCVCandle(
+            timestamp=NOW - duration * offset,
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("99"),
+            close=Decimal("100"),
+            volume=Decimal("10"),
+        )
+        for offset in range(6, 0, -1)
+    )
+    archive.update("BTCUSDT", "1h", rows[:5], source="FIXTURE", generated_at=NOW)
+    _, short = inspect_market_data(
+        archive,
+        market="USD_M_FUTURES",
+        symbol="BTCUSDT",
+        now=NOW,
+        minimum_candles=2,
+        candle_limit=3,
+        timeframes=("1h",),
+        period_lengths={"1h": 6},
+    )
+    assert short[0]["required_candles"] == 6
+    assert short[0]["status"] == "INVALID"
+
+    archive.update("BTCUSDT", "1h", rows[5:], source="FIXTURE", generated_at=NOW)
+    _, ready = inspect_market_data(
+        archive,
+        market="USD_M_FUTURES",
+        symbol="BTCUSDT",
+        now=NOW,
+        minimum_candles=2,
+        candle_limit=3,
+        timeframes=("1h",),
+        period_lengths={"1h": 6},
+    )
+    assert ready[0]["status"] == "CURRENT"
+    assert ready[0]["candle_count"] == 6
+    assert ready[0]["checksum_verified"] is True
+
+
 def test_dashboard_rejects_stale_universe_metadata(
     tmp_path: Path,
 ) -> None:

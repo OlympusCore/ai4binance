@@ -2005,10 +2005,22 @@ def test_virtual_market_missing_universe_cannot_use_configured_fallback(
 
 
 @pytest.mark.parametrize(
-    "quality_status", ["CURRENT", "STALE", "INVALID", "UNAVAILABLE"]
+    ("quality_status", "quality_grade", "checksum_verified"),
+    [
+        ("CURRENT", "DATA_VALID", True),
+        ("CURRENT", "DATA_DEGRADED", True),
+        ("CURRENT", "DATA_VALID", False),
+        ("STALE", "DATA_VALID", True),
+        ("INVALID", "DATA_VALID", True),
+        ("UNAVAILABLE", "DATA_VALID", True),
+    ],
 )
 def test_virtual_futures_reuses_canonical_readers_and_preserves_data_veto(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, quality_status: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    quality_status: str,
+    quality_grade: str,
+    checksum_verified: bool,
 ) -> None:
     from dataclasses import replace
 
@@ -2021,7 +2033,16 @@ def test_virtual_futures_reuses_canonical_readers_and_preserves_data_veto(
     monkeypatch.setattr(
         opportunity_monitor,
         "inspect_market_data",
-        lambda *_args, **_kwargs: (source, [{"status": quality_status}]),
+        lambda *_args, **_kwargs: (
+            source,
+            [
+                {
+                    "status": quality_status,
+                    "data_quality": quality_grade,
+                    "checksum_verified": checksum_verified,
+                }
+            ],
+        ),
     )
     attached: list[str] = []
 
@@ -2038,6 +2059,8 @@ def test_virtual_futures_reuses_canonical_readers_and_preserves_data_veto(
     assert result.data_quality is (
         DataQuality.DATA_VALID
         if quality_status == "CURRENT"
+        and quality_grade == "DATA_VALID"
+        and checksum_verified
         else DataQuality.DATA_INVALID
     )
     assert attached == ["USD_M_FUTURES"]

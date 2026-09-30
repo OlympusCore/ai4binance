@@ -56,6 +56,32 @@ def test_bounded_context_blocks_when_window_cannot_fit() -> None:
         )
 
 
+def test_bounded_context_uses_explicit_historical_time_for_expiry() -> None:
+    expiry = datetime(2020, 1, 2, tzinfo=UTC)
+    fragment = ContextFragment("historical", "advisory", expires_at=expiry)
+    assembler = BoundedContextAssembler()
+
+    historical = assembler.assemble(
+        system="system",
+        current_input="input",
+        fragments=(fragment,),
+        as_of=datetime(2020, 1, 1, tzinfo=UTC),
+    )
+    current = assembler.assemble(
+        system="system", current_input="input", fragments=(fragment,)
+    )
+
+    assert historical.kept_sources == ("historical",)
+    assert current.dropped_sources == ("historical",)
+    with pytest.raises(ValueError, match="timezone-aware"):
+        assembler.assemble(
+            system="system",
+            current_input="input",
+            fragments=(fragment,),
+            as_of=datetime(2020, 1, 1),
+        )
+
+
 def test_context_budget_contract_edges() -> None:
     with pytest.raises(ValueError, match="non-negative"):
         TokenBudget(max_context=-1)

@@ -4,8 +4,16 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Literal, Self
 
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_VIRTUAL_MARKET_PERIOD_FLOORS = {
+    "5m": 2016,
+    "15m": 2016,
+    "1h": 2160,
+    "4h": 2190,
+    "1d": 1460,
+}
 
 
 class Settings(BaseSettings):
@@ -53,7 +61,7 @@ class Settings(BaseSettings):
     )
     market_history_state_path: Path = Path("runtime/state/market-history-latest.json")
     market_history_interval_seconds: float = 21_600.0
-    market_history_live_interval_seconds: float = 300.0
+    market_history_live_interval_seconds: float = 180.0
     # Include daily feature warm-up before the governed 365-day OOS floor.
     # Actual listing availability and acceptance remain independently verified.
     market_history_initial_days: int = 730
@@ -122,6 +130,9 @@ class Settings(BaseSettings):
     runtime_cycle_interval_seconds: float = 60.0
     virtual_market_cycle_interval_seconds: float = 5.0
     virtual_market_priority_symbol_count: int = 10
+    virtual_market_period_lengths: dict[str, int] = Field(
+        default_factory=lambda: dict(_VIRTUAL_MARKET_PERIOD_FLOORS)
+    )
     runtime_news_feed_path: Path = Path(
         "runtime/state/runtime_research/news-events.jsonl"
     )
@@ -373,6 +384,19 @@ class Settings(BaseSettings):
             raise ValueError("virtual market priority count must be between 1 and 10")
         return value
 
+    @field_validator("virtual_market_period_lengths")
+    @classmethod
+    def validate_virtual_market_period_lengths(
+        cls, value: dict[str, int]
+    ) -> dict[str, int]:
+        floors = _VIRTUAL_MARKET_PERIOD_FLOORS
+        if set(value) != set(floors) or any(
+            isinstance(length, bool) or not floors[timeframe] <= length <= 10_000
+            for timeframe, length in value.items()
+        ):
+            raise ValueError("virtual market period lengths are invalid")
+        return value
+
     @field_validator("runtime_context_max_file_bytes")
     @classmethod
     def validate_runtime_context_max_file_bytes(cls, value: int) -> int:
@@ -417,10 +441,10 @@ class Settings(BaseSettings):
     @field_validator("market_history_live_interval_seconds")
     @classmethod
     def validate_market_history_live_interval(cls, value: float) -> float:
-        if not 60 <= value <= 86_400:
-            raise ValueError(
-                "market history live interval must be between 60 and 86400"
-            )
+        # The eligible-universe cache expires after five minutes. Keep a
+        # minimum one-minute renewal margin between short collection cycles.
+        if not 60 <= value <= 240:
+            raise ValueError("market history live interval must be between 60 and 240")
         return value
 
     @field_validator("market_history_initial_days")

@@ -254,6 +254,7 @@ def inspect_market_data(
     minimum_candles: int,
     candle_limit: int,
     timeframes: tuple[str, ...] | None = None,
+    period_lengths: Mapping[str, int] | None = None,
 ) -> tuple[MarketSnapshot, list[dict[str, object]]]:
     """Verify checksums and expose per-timeframe gate results, including gaps."""
     timeframes = timeframes or MARKET_TIMEFRAMES[market]
@@ -261,6 +262,14 @@ def inspect_market_data(
         tf not in MARKET_TIMEFRAMES[market] for tf in timeframes
     ):
         raise ValueError("monitor timeframes are invalid")
+    if period_lengths is not None and (
+        not set(period_lengths) <= set(MARKET_TIMEFRAMES[market])
+        or any(
+            isinstance(length, bool) or not 2 <= length <= 10_000
+            for length in period_lengths.values()
+        )
+    ):
+        raise ValueError("monitor period lengths are invalid")
     candles: dict[str, tuple[OHLCVCandle, ...]] = {}
     freshness: dict[str, object] = {}
     quality: list[dict[str, object]] = []
@@ -270,12 +279,22 @@ def inspect_market_data(
     )
     for tf in timeframes:
         duration = TIMEFRAME_DURATIONS[tf]
+        required = (
+            period_lengths.get(tf, minimum_candles)
+            if period_lengths is not None
+            else minimum_candles
+        )
+        limit = (
+            period_lengths.get(tf, candle_limit)
+            if period_lengths is not None
+            else candle_limit
+        )
         row: dict[str, object] = {
             "market": market,
             "symbol": symbol,
             "timeframe": tf,
             "status": "UNAVAILABLE",
-            "required_candles": minimum_candles,
+            "required_candles": required,
             "candle_count": None,
             "last_close": None,
             "gap_count": None,
@@ -288,14 +307,12 @@ def inspect_market_data(
             rows = archive.read_window(
                 symbol,
                 tf,
-                start_at=now - duration * (candle_limit + 2),
+                start_at=now - duration * (limit + 2),
                 end_at=now,
             )
             if archive.manifest(symbol, tf).sha256 != manifest.sha256:
                 raise ValueError("dataset changed during inspection")
-            rows = tuple(c for c in rows if c.timestamp + duration <= now)[
-                -candle_limit:
-            ]
+            rows = tuple(c for c in rows if c.timestamp + duration <= now)[-limit:]
             last_close = rows[-1].timestamp + duration if rows else None
             stale = last_close is None or now - last_close > duration * 2
             gap_count = sum(
@@ -305,7 +322,13 @@ def inspect_market_data(
             sample = _snapshot(
                 market, symbol, now, {tf: rows}, freshness, manifest.sha256
             )
-            result = gate.evaluate(sample)
+            result = (
+                gate
+                if required == minimum_candles
+                else DataQualityGate(
+                    build_default_registry().get("data_quality"), required
+                )
+            ).evaluate(sample)
             blockers = list(result.blockers)
             if gap_count or manifest.gap_count:
                 blockers.append("DATASET_GAPS")

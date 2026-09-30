@@ -68,6 +68,8 @@ limited to 100 recent lines and 4 MB per journal. The dashboard projects the
 newest 32 decisions that fit a 512 KB response budget; the complete journals
 remain available as audit evidence. An individual newest receipt above this
 budget is reported as `DASHBOARD_RECEIPT_TOO_LARGE` rather than silently omitted.
+The loopback server sends response bodies in bounded 32 KB writes so large
+read-only snapshots complete within the client's finite read timeout.
 Paths must resolve inside repository `runtime/`. The adapter never repairs,
 creates or appends journals. A changing journal is reported as `SOURCE_CHANGED`.
 CanonicalCycleEnvelope validates reference kinds, unique identities, cycle and

@@ -61,7 +61,7 @@ _SAFE_STATE: dict[str, object] = {
     "promotion_status": "RESEARCH_ONLY",
     "live_eligibility_status": "LIVE_ORDER_BLOCKED",
 }
-_SCREEN_TIMEFRAMES: Final = ("15m", "1h", "4h")
+_SCREEN_TIMEFRAMES: Final = ("15m", "1h", "4h", "1d")
 _ENRICHMENT_TIMEFRAMES: Final = ("5m",)
 VIRTUAL_MARKET_COLLECTION_TIMEFRAMES: Final = (
     *_SCREEN_TIMEFRAMES,
@@ -69,6 +69,8 @@ VIRTUAL_MARKET_COLLECTION_TIMEFRAMES: Final = (
 )
 _DASHBOARD_REFRESH_TIMEFRAMES = VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
 _MARKET_SNAPSHOT_REFRESH_SECONDS = 240
+_MARKET_UNIVERSE_REFRESH_SECONDS = 180
+_MARKET_UNIVERSE_RETRY_SECONDS = 30
 _TAIL_REFRESH_PROGRESS_WAIT_SECONDS = 15
 # The canonical live path persists native decision timeframes directly. REST
 # remains bounded to bootstrap and gap recovery.
@@ -491,6 +493,7 @@ class ContinuousMarketHistory:
     archive_request_count: int = 0
     max_workers: int = 4
     minimum_candles: int | None = None
+    required_candles_by_timeframe: Mapping[str, int] | None = None
     _metrics_lock: Lock = field(default_factory=Lock, repr=False)
     _dataset_locks_guard: Lock = field(default_factory=Lock, repr=False)
     _dataset_locks: dict[tuple[str, str, str, str], Lock] = field(
@@ -522,6 +525,15 @@ class ContinuousMarketHistory:
             and not 1 <= self.minimum_candles <= 200_000
         ):
             raise ValueError("minimum_candles must be between 1 and 200000")
+        if self.required_candles_by_timeframe is not None and (
+            not set(self.required_candles_by_timeframe)
+            <= set(MARKET_HISTORY_TIMEFRAMES)
+            or any(
+                isinstance(count, bool) or not 2 <= count <= 10_000
+                for count in self.required_candles_by_timeframe.values()
+            )
+        ):
+            raise ValueError("required timeframe candle counts are invalid")
         self.priority_symbols = tuple(
             dict.fromkeys(
                 symbol.strip().upper()
@@ -568,30 +580,37 @@ class ContinuousMarketHistory:
         # VirtualMarket depends on these bounded bulk snapshots. Refresh once
         # at cycle start so a service restart cannot leave an already-old
         # ticker cache to expire during a long candle collection cycle.
-        # ``universe`` was force-refreshed immediately above. Start with only
-        # the required market snapshots; metadata becomes due on the regular
-        # cadence after this pass instead of repeating the expensive top-volume
-        # universe request during the same cycle startup.
+        # ``universe`` was force-refreshed immediately above. Its next refresh
+        # is timed from that fetch, independently of slower ticker snapshots.
         snapshot_refresh_due = 0.0
+        universe_refresh_due = time.monotonic() + _MARKET_UNIVERSE_REFRESH_SECONDS
+
+        def refresh_universe_metadata(snapshot_time: datetime) -> None:
+            nonlocal universe_refresh_due
+            if time.monotonic() < universe_refresh_due:
+                return
+            try:
+                refreshed_universe = self.history._eligible_universe(
+                    snapshot_time, force_refresh=True
+                )
+            except (OSError, ValueError, ExchangeError):
+                refreshed_universe = None
+            if refreshed_universe is None or refreshed_universe.blockers:
+                if "MARKET_UNIVERSE_METADATA_UNAVAILABLE" not in blockers:
+                    blockers.append("MARKET_UNIVERSE_METADATA_UNAVAILABLE")
+                universe_refresh_due = time.monotonic() + _MARKET_UNIVERSE_RETRY_SECONDS
+                return
+            while "MARKET_UNIVERSE_METADATA_UNAVAILABLE" in blockers:
+                blockers.remove("MARKET_UNIVERSE_METADATA_UNAVAILABLE")
+            universe_refresh_due = time.monotonic() + _MARKET_UNIVERSE_REFRESH_SECONDS
 
         def refresh_snapshots(snapshot_time: datetime) -> None:
             nonlocal snapshot_refresh_due
-            if time.monotonic() < snapshot_refresh_due or universe.blockers:
+            if universe.blockers:
                 return
-            if snapshot_refresh_due:
-                try:
-                    refreshed_universe = self.history._eligible_universe(
-                        snapshot_time, force_refresh=True
-                    )
-                except (OSError, ValueError, ExchangeError):
-                    refreshed_universe = None
-                if (
-                    refreshed_universe is None or refreshed_universe.blockers
-                ) and "MARKET_UNIVERSE_METADATA_UNAVAILABLE" not in blockers:
-                    blockers.append("MARKET_UNIVERSE_METADATA_UNAVAILABLE")
-                elif refreshed_universe is not None and not refreshed_universe.blockers:
-                    while "MARKET_UNIVERSE_METADATA_UNAVAILABLE" in blockers:
-                        blockers.remove("MARKET_UNIVERSE_METADATA_UNAVAILABLE")
+            refresh_universe_metadata(snapshot_time)
+            if time.monotonic() < snapshot_refresh_due:
+                return
             snapshot_failed = False
             for snapshot_market, snapshot_symbols, snapshot_transport in market_work:
                 if snapshot_transport is None or not snapshot_symbols:
@@ -610,9 +629,8 @@ class ContinuousMarketHistory:
             if not snapshot_failed:
                 while "MARKET_SNAPSHOT_UNAVAILABLE" in blockers:
                     blockers.remove("MARKET_SNAPSHOT_UNAVAILABLE")
-            # The canonical universe cache expires after five minutes. Refresh
-            # early so independent Futures/Virtual readers do not encounter a
-            # predictable expiry window during a long collection cycle.
+            # Ticker snapshots have their own cadence; their runtime must not
+            # shift the earlier metadata refresh deadline.
             snapshot_refresh_due = time.monotonic() + _MARKET_SNAPSHOT_REFRESH_SECONDS
 
         refresh_snapshots(now)
@@ -2294,7 +2312,12 @@ class ContinuousMarketHistory:
             self.archive_downloaded_bytes += int(getattr(source, "downloaded_bytes", 0))
 
     def _candle_initial_start(
-        self, now: datetime, interval: timedelta, *, history_days: int | None = None
+        self,
+        now: datetime,
+        interval: timedelta,
+        *,
+        history_days: int | None = None,
+        timeframe: str | None = None,
     ) -> datetime | None:
         """Keep the configured history horizon and deterministic candle floor."""
 
@@ -2309,6 +2332,10 @@ class ContinuousMarketHistory:
             # 200-closed-candle hard gate even when the requested horizon is
             # three months.
             start = min(start, anchor - interval * (self.minimum_candles + 1))
+        if timeframe is not None and self.required_candles_by_timeframe is not None:
+            required = self.required_candles_by_timeframe.get(timeframe)
+            if required is not None:
+                start = min(start, anchor - interval * (required + 1))
         aligned_epoch = int(start.timestamp()) // interval_seconds * interval_seconds
         return datetime.fromtimestamp(aligned_epoch, tz=UTC)
 
@@ -2422,6 +2449,16 @@ class ContinuousMarketHistory:
             return cursor, None
         known_first_available = self._vision_first_available(state)
         if first_timestamp == known_first_available:
+            return first_timestamp, None
+        if (
+            known_first_available is not None
+            and cursor < first_timestamp < known_first_available
+        ):
+            # A recent REST seed is only the earliest verified *local* bar.
+            # An older checksum-verified native archive moves that boundary
+            # backwards without asserting that pre-listing bars existed.
+            state["first_available_at"] = first_timestamp.isoformat()
+            _save(progress_path, state)
             return first_timestamp, None
         self._flush_vision_pending(
             archive=archive,
@@ -2675,7 +2712,7 @@ class ContinuousMarketHistory:
             now,
             extend_history=True,
             initial_start=self._candle_initial_start(
-                now, interval, history_days=history_days
+                now, interval, history_days=history_days, timeframe=timeframe
             ),
             maximum_cursor=end,
             cursor_tolerance=interval,
@@ -2862,9 +2899,10 @@ class ContinuousMarketHistory:
                 now=now,
                 replace_conflicts_from_sources=replace_conflicts_from_sources,
             )
-            if unavailable is not None and unavailable.get("reason") != (
-                "BINANCE_VISION_ARCHIVE_UNAVAILABLE"
-            ):
+            if unavailable is not None and unavailable.get("reason") not in {
+                "BINANCE_VISION_ARCHIVE_UNAVAILABLE",
+                "KLINE_GAP",
+            }:
                 return unavailable
         source = f"BINANCE_PUBLIC_REST_{timeframe.upper()}"
         pending_candles: list[OHLCVCandle] = []

@@ -295,21 +295,32 @@ def test_research_refresh_fails_closed(
 
 
 def test_local_only_acquisition_builds_one_canonical_source(
-    settings: Settings, monkeypatch: pytest.MonkeyPatch
+    settings: Settings, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    local, second = Mock(), Mock()
+    from ai4binance.data.acquisition import DataAcquisitionAgent
+    from ai4binance.data.archive import ParquetOHLCVArchive
+
+    local = DataAcquisitionAgent(Mock(), archive=ParquetOHLCVArchive(tmp_path / "one"))
+    second = DataAcquisitionAgent(Mock(), archive=ParquetOHLCVArchive(tmp_path / "two"))
     builder = Mock(side_effect=[local, second])
     monkeypatch.setattr(r, "build_public_acquisition", builder)
     result = r._build_virtual_market_acquisition(
         settings.model_copy(update={"market_history_local_candles": True})
     )
     assert isinstance(result, r._LocalFirstPublicAcquisition)
-    assert result.primary is local
+    assert isinstance(result.primary, DataAcquisitionAgent)
+    assert result.primary.archive is local.archive
+    assert result.primary.local_candle_limits == settings.virtual_market_period_lengths
     second_result = r._build_virtual_market_acquisition(
         settings.model_copy(update={"market_history_local_candles": False})
     )
     assert isinstance(second_result, r._LocalFirstPublicAcquisition)
-    assert second_result.primary is second
+    assert isinstance(second_result.primary, DataAcquisitionAgent)
+    assert second_result.primary.archive is second.archive
+    assert (
+        second_result.primary.local_candle_limits
+        == settings.virtual_market_period_lengths
+    )
     assert builder.call_count == 2
 
 

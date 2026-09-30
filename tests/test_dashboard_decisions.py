@@ -10,6 +10,7 @@ import runpy
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Thread
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -379,4 +380,37 @@ def test_listener_reports_loaded_server_hash_not_replaced_file(
     finally:
         server.shutdown()
         thread.join(timeout=5)
+        server.server_close()
+
+
+def test_loopback_response_preserves_complete_body_with_bounded_writes() -> None:
+    server = SERVER["create_server"]({"port": 0, "installation_id": "TEST_ONLY"})
+    try:
+        body = b"x" * 600_000
+        chunks: list[bytes] = []
+        headers: dict[str, str] = {}
+
+        class Writer:
+            def write(self, chunk: bytes) -> int:
+                assert len(chunk) <= 32_768
+                chunks.append(chunk)
+                return len(chunk)
+
+        capture = SimpleNamespace(
+            command="GET",
+            wfile=Writer(),
+            send_response=lambda _status: None,
+            send_header=lambda name, value: headers.__setitem__(name, value),
+            end_headers=lambda: None,
+        )
+        server.RequestHandlerClass.send_body(capture, 200, body)
+        assert headers["Content-Length"] == str(len(body))
+        assert b"".join(chunks) == body
+        assert len(chunks) > 1
+
+        capture.command = "HEAD"
+        chunks.clear()
+        server.RequestHandlerClass.send_body(capture, 200, body)
+        assert chunks == []
+    finally:
         server.server_close()
