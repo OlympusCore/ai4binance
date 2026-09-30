@@ -415,12 +415,19 @@ class DataAcquisitionAgent:
                     manifest = self.archive.manifest(symbol, timeframe)
                     if manifest.gap_count:
                         raise ValueError("local market dataset has gaps")
-                    candles = self.archive.read(symbol, timeframe)[-self.candle_limit :]
+                    last = datetime.fromisoformat(manifest.last_timestamp)
+                    duration = timeframe_duration(timeframe)
+                    candles = self.archive.read_window(
+                        symbol,
+                        timeframe,
+                        start_at=last - duration * (self.candle_limit - 1),
+                        end_at=last,
+                    )
                     local[timeframe] = tuple(
                         MarketKline(
                             open_time=candle.timestamp,
                             close_time=candle.timestamp
-                            + timeframe_duration(timeframe)
+                            + duration
                             - timedelta(milliseconds=1),
                             open=candle.open,
                             high=candle.high,

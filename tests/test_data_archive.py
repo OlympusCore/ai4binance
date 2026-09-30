@@ -42,6 +42,79 @@ def test_archive_incrementally_merges_and_deduplicates(tmp_path: Path) -> None:
     assert len(manifest.sha256) == 64
 
 
+def test_archive_appends_verified_tail_without_materializing_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    archive = ParquetOHLCVArchive(tmp_path)
+    start = datetime(2026, 7, 1, tzinfo=UTC)
+    existing = tuple(candle(start + timedelta(hours=index)) for index in range(3))
+    archive.update("HOTUSDT", "1h", existing, source="BINANCE_VISION_DIRECT")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            ParquetOHLCVArchive,
+            "read",
+            lambda *_args, **_kwargs: pytest.fail("historical rows were materialized"),
+        )
+        manifest = archive.append_verified_tail(
+            "HOTUSDT",
+            "1h",
+            (candle(start + timedelta(hours=3)),),
+            source="BINANCE_PUBLIC_REST",
+        )
+
+    assert manifest.row_count == 4
+    assert manifest.gap_count == 0
+    assert manifest.source == "BINANCE_PUBLIC_REST"
+    assert archive.read("HOTUSDT", "1h") == (
+        *existing,
+        candle(start + timedelta(hours=3)),
+    )
+
+
+def test_archive_append_preserves_verified_gaps(tmp_path: Path) -> None:
+    archive = ParquetOHLCVArchive(tmp_path)
+    start = datetime(2026, 7, 1, tzinfo=UTC)
+    first = archive.update(
+        "HOTUSDT",
+        "1h",
+        (candle(start), candle(start + timedelta(hours=2))),
+        source="BINANCE_PUBLIC_REST",
+    )
+
+    updated = archive.append_verified_tail(
+        "HOTUSDT",
+        "1h",
+        (candle(start + timedelta(hours=4)), candle(start + timedelta(hours=5))),
+        source="BINANCE_PUBLIC_REST",
+    )
+
+    assert updated.gap_count == 2
+    assert updated.gaps[0] == first.gaps[0]
+    assert archive.read("HOTUSDT", "1h") == (
+        candle(start),
+        candle(start + timedelta(hours=2)),
+        candle(start + timedelta(hours=4)),
+        candle(start + timedelta(hours=5)),
+    )
+
+
+def test_archive_append_rejects_tampered_history(tmp_path: Path) -> None:
+    archive = ParquetOHLCVArchive(tmp_path)
+    start = datetime(2026, 7, 1, tzinfo=UTC)
+    archive.update("HOTUSDT", "1h", (candle(start),), source="BINANCE_PUBLIC_REST")
+    parquet = tmp_path / "HOTUSDT" / "1h.parquet"
+    parquet.write_bytes(parquet.read_bytes() + b"tampered")
+
+    with pytest.raises(DatasetIntegrityError, match="checksum"):
+        archive.append_verified_tail(
+            "HOTUSDT",
+            "1h",
+            (candle(start + timedelta(hours=1)),),
+            source="BINANCE_PUBLIC_REST",
+        )
+
+
 def test_archive_skips_rewriting_an_unchanged_verified_dataset(tmp_path: Path) -> None:
     archive = ParquetOHLCVArchive(tmp_path)
     item = candle(datetime(2026, 7, 1, tzinfo=UTC))

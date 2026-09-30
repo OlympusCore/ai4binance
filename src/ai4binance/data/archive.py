@@ -10,6 +10,7 @@ from hashlib import sha256
 from itertools import pairwise
 from pathlib import Path
 
+import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -47,6 +48,99 @@ class ParquetOHLCVArchive:
     """Store market-only candles without wallet or inventory state."""
 
     root: Path
+
+    def append_verified_tail(
+        self,
+        symbol: str,
+        timeframe: str,
+        candles: tuple[OHLCVCandle, ...],
+        *,
+        source: str,
+        generated_at: datetime | None = None,
+        replace_conflicts_from_sources: tuple[str, ...] = (),
+    ) -> DatasetManifest:
+        """Append a disjoint tail without materializing the historical rows."""
+        normalized_symbol = self._validate_identity(symbol, timeframe, source)
+        if not candles:
+            raise ValueError("archive update requires at least one candle")
+        paths = self._paths(normalized_symbol, timeframe)
+        if not paths[0].exists():
+            return self.update(
+                normalized_symbol,
+                timeframe,
+                candles,
+                source=source,
+                generated_at=generated_at,
+                replace_conflicts_from_sources=replace_conflicts_from_sources,
+            )
+        manifest = self.manifest(normalized_symbol, timeframe)
+        incoming = self._merge((), candles)
+        last = datetime.fromisoformat(manifest.last_timestamp)
+        if incoming[0].timestamp <= last:
+            return self.update(
+                normalized_symbol,
+                timeframe,
+                candles,
+                source=source,
+                generated_at=generated_at,
+                replace_conflicts_from_sources=replace_conflicts_from_sources,
+            )
+
+        table = pq.read_table(paths[0])  # type: ignore[no-untyped-call]
+        timestamps = table.column("timestamp")
+        if (
+            table.num_rows != manifest.row_count
+            or timestamps[0].as_py() != datetime.fromisoformat(manifest.first_timestamp)
+            or timestamps[-1].as_py() != last
+        ):
+            raise DatasetIntegrityError("dataset bounds do not match manifest")
+        values = timestamps.to_numpy(zero_copy_only=False)
+        differences = np.diff(values)
+        if np.any(differences <= np.timedelta64(0, "us")):
+            raise DatasetIntegrityError("dataset sequence is invalid")
+        expected_step = np.timedelta64(timeframe_duration(timeframe))
+        gap_indices = np.flatnonzero(differences != expected_step)
+        stored_gaps: list[str] = []
+        for index in gap_indices:
+            left = timestamps[index].as_py()
+            right = timestamps[index + 1].as_py()
+            if right <= left:
+                raise DatasetIntegrityError("dataset sequence is invalid")
+            stored_gaps.append(f"{left.isoformat()}->{right.isoformat()}")
+        if (
+            tuple(stored_gaps) != manifest.gaps
+            or len(stored_gaps) != manifest.gap_count
+        ):
+            raise DatasetIntegrityError("dataset gaps do not match manifest")
+
+        new_table = self._candle_table(incoming)
+        new_table = new_table.cast(table.schema.remove_metadata())
+        merged_table = pa.concat_tables((table, new_table)).replace_schema_metadata(
+            self._metadata(normalized_symbol, timeframe, source)
+        )
+        gaps = list(manifest.gaps)
+        if incoming[0].timestamp - last != timeframe_duration(timeframe):
+            gaps.append(f"{last.isoformat()}->{incoming[0].timestamp.isoformat()}")
+        gaps.extend(self._find_gaps(incoming, timeframe))
+        timestamp = generated_at or datetime.now(UTC)
+        self._require_aware(timestamp)
+        self._write_table(paths[0], merged_table)
+        updated = DatasetManifest(
+            schema_version=_SCHEMA_VERSION,
+            symbol=normalized_symbol,
+            timeframe=timeframe,
+            source=source.strip(),
+            parquet_path=paths[0].name,
+            sha256=self._file_checksum(paths[0]),
+            row_count=merged_table.num_rows,
+            first_timestamp=manifest.first_timestamp,
+            last_timestamp=incoming[-1].timestamp.isoformat(),
+            gap_count=len(gaps),
+            gaps=tuple(gaps),
+            generated_at=timestamp.isoformat(),
+        )
+        self._write_manifest(paths[1], updated)
+        return updated
 
     def update(
         self,
@@ -266,6 +360,14 @@ class ParquetOHLCVArchive:
         source: str,
         candles: tuple[OHLCVCandle, ...],
     ) -> None:
+        table = ParquetOHLCVArchive._candle_table(candles)
+        table = table.replace_schema_metadata(
+            ParquetOHLCVArchive._metadata(symbol, timeframe, source)
+        )
+        ParquetOHLCVArchive._write_table(path, table)
+
+    @staticmethod
+    def _candle_table(candles: tuple[OHLCVCandle, ...]) -> pa.Table:
         columns: dict[str, list[object]] = {
             "timestamp": [candle.timestamp for candle in candles],
             "open": [str(candle.open) for candle in candles],
@@ -274,15 +376,20 @@ class ParquetOHLCVArchive:
             "close": [str(candle.close) for candle in candles],
             "volume": [str(candle.volume) for candle in candles],
         }
-        table = pa.table(columns).replace_schema_metadata(
-            {
-                b"schema_version": _SCHEMA_VERSION.encode(),
-                b"symbol": symbol.encode(),
-                b"timeframe": timeframe.encode(),
-                b"source": source.strip().encode(),
-                b"market_data_only": b"true",
-            }
-        )
+        return pa.table(columns)
+
+    @staticmethod
+    def _metadata(symbol: str, timeframe: str, source: str) -> dict[bytes, bytes]:
+        return {
+            b"schema_version": _SCHEMA_VERSION.encode(),
+            b"symbol": symbol.encode(),
+            b"timeframe": timeframe.encode(),
+            b"source": source.strip().encode(),
+            b"market_data_only": b"true",
+        }
+
+    @staticmethod
+    def _write_table(path: Path, table: pa.Table) -> None:
         temporary = path.with_suffix(".parquet.tmp")
         pq.write_table(  # type: ignore[no-untyped-call]
             table,

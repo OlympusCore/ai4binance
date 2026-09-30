@@ -9,7 +9,8 @@ from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-from threading import Event, Thread
+from threading import Event, Lock, Thread
+from time import sleep
 from types import SimpleNamespace
 from typing import cast
 
@@ -1479,7 +1480,7 @@ def test_unavailable_history_does_not_leave_verified_active_tail_stale(
 
     result = extended._candles("spot", "BTCUSDT", "klines", transport, NOW)
 
-    assert result["status"] == "UNAVAILABLE"
+    assert result["status"] == "BACKFILLING"
     assert transport.calls[0][1]["startTime"] == int(
         (stored_at + timedelta(minutes=5)).timestamp() * 1000
     )
@@ -1488,8 +1489,442 @@ def test_unavailable_history_does_not_leave_verified_active_tail_stale(
         manifest.last_timestamp
         == (NOW.replace(minute=0) - timedelta(minutes=5)).isoformat()
     )
-    assert _load(progress)["next_at"] == requested_start.isoformat()
+    assert datetime.fromisoformat(str(_load(progress)["next_at"])) > requested_start
     assert _load(progress)["first_available_at"] == stored_at.isoformat()
+
+
+@pytest.mark.parametrize("has_historical_gap", [False, True])
+def test_tail_only_refresh_preserves_historical_cursor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, has_historical_gap: bool
+) -> None:
+    transport = Transport()
+    instance = collector(tmp_path, transport)
+    archive = ParquetOHLCVArchive(tmp_path / "market/spot")
+    last = NOW.replace(minute=0) - timedelta(minutes=30)
+    one = Decimal("1")
+    existing: tuple[OHLCVCandle, ...] = (OHLCVCandle(last, one, one, one, one, one),)
+    if has_historical_gap:
+        existing = (
+            OHLCVCandle(last - timedelta(minutes=10), one, one, one, one, one),
+            *existing,
+        )
+    archive.update(
+        "BTCUSDT",
+        "5m",
+        existing,
+        source="BINANCE_PUBLIC_REST_5M",
+        generated_at=NOW,
+    )
+    progress = tmp_path / "market/spot/BTCUSDT/5m/collection-progress.json"
+    historical_start = NOW.replace(hour=0, minute=0) - timedelta(days=1)
+    _save(
+        progress,
+        {
+            "requested_start": historical_start.isoformat(),
+            "next_at": historical_start.isoformat(),
+            "first_available_at": last.isoformat(),
+        },
+    )
+
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            ParquetOHLCVArchive,
+            "read",
+            lambda *_args, **_kwargs: pytest.fail("historical rows were materialized"),
+        )
+        result = instance._candles(
+            "spot", "BTCUSDT", "klines", transport, NOW, tail_only=True
+        )
+
+    assert result["status"] == "TAIL_CURRENT"
+    assert archive.manifest("BTCUSDT", "5m").gap_count == int(has_historical_gap)
+    assert _load(progress)["next_at"] == historical_start.isoformat()
+    assert (
+        archive.manifest("BTCUSDT", "5m").last_timestamp
+        == (NOW.replace(minute=0) - timedelta(minutes=5)).isoformat()
+    )
+    assert transport.calls[0][1]["startTime"] == int(
+        (last + timedelta(minutes=5)).timestamp() * 1000
+    )
+
+
+def test_missing_vision_archive_recovers_exact_gap_from_native_rest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    transport = Transport()
+    instance = collector(tmp_path, transport)
+    instance.vision_history_enabled = True
+    archive = ParquetOHLCVArchive(tmp_path / "market/spot")
+    start = NOW.replace(hour=0, minute=0) - timedelta(days=1)
+    one = Decimal("1")
+    archive.update(
+        "BTCUSDT",
+        "5m",
+        tuple(
+            OHLCVCandle(stamp, one, one, one, one, one)
+            for stamp in (start, start + timedelta(minutes=10))
+        ),
+        source="BINANCE_PUBLIC_REST_5M",
+        generated_at=NOW,
+    )
+    progress = tmp_path / "market/spot/BTCUSDT/5m/collection-progress.json"
+    _save(
+        progress,
+        {
+            "requested_start": start.isoformat(),
+            "next_at": start.isoformat(),
+            "first_available_at": start.isoformat(),
+        },
+    )
+
+    def unavailable(**kwargs: object) -> tuple[datetime, dict[str, object]]:
+        cursor = cast(datetime, kwargs["cursor"])
+        return cursor, {
+            "status": "UNAVAILABLE",
+            "next_at": cursor.isoformat(),
+            "reason": "BINANCE_VISION_ARCHIVE_UNAVAILABLE",
+        }
+
+    monkeypatch.setattr(instance, "_vision_history", unavailable)
+
+    result = instance._candles("spot", "BTCUSDT", "klines", transport, NOW)
+
+    assert result["status"] == "CURRENT"
+    assert archive.manifest("BTCUSDT", "5m").gap_count == 0
+    assert any(
+        query["startTime"] == int((start + timedelta(minutes=5)).timestamp() * 1000)
+        for _, query in transport.calls
+    )
+
+
+def test_missing_vision_and_rest_keeps_gap_blocked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    transport = Transport()
+    instance = collector(tmp_path, transport)
+    instance.vision_history_enabled = True
+    archive = ParquetOHLCVArchive(tmp_path / "market/spot")
+    start = NOW.replace(hour=0, minute=0) - timedelta(days=1)
+    one = Decimal("1")
+    archive.update(
+        "BTCUSDT",
+        "5m",
+        tuple(
+            OHLCVCandle(stamp, one, one, one, one, one)
+            for stamp in (start, start + timedelta(minutes=10))
+        ),
+        source="BINANCE_PUBLIC_REST_5M",
+        generated_at=NOW,
+    )
+    progress = tmp_path / "market/spot/BTCUSDT/5m/collection-progress.json"
+    _save(
+        progress,
+        {
+            "requested_start": start.isoformat(),
+            "next_at": start.isoformat(),
+            "first_available_at": start.isoformat(),
+        },
+    )
+
+    def unavailable(**kwargs: object) -> tuple[datetime, dict[str, object]]:
+        cursor = cast(datetime, kwargs["cursor"])
+        return cursor, {
+            "status": "UNAVAILABLE",
+            "next_at": cursor.isoformat(),
+            "reason": "BINANCE_VISION_ARCHIVE_UNAVAILABLE",
+        }
+
+    original_get_json = transport.get_json
+
+    def without_gap(path: str, params: Mapping[str, str | int] | None = None) -> object:
+        if params is not None and params.get("startTime") == int(
+            (start + timedelta(minutes=5)).timestamp() * 1000
+        ):
+            return []
+        return original_get_json(path, params)
+
+    monkeypatch.setattr(instance, "_vision_history", unavailable)
+    monkeypatch.setattr(transport, "get_json", without_gap)
+
+    result = instance._candles("spot", "BTCUSDT", "klines", transport, NOW)
+
+    assert result["status"] == "UNAVAILABLE"
+    assert archive.manifest("BTCUSDT", "5m").gap_count == 1
+    assert _load(progress)["next_at"] == start.isoformat()
+
+
+@pytest.mark.parametrize("later", [301.0, 901.0])
+def test_live_full_history_refreshes_all_active_tails_before_backfill(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, later: float
+) -> None:
+    transport = Transport()
+    instance = collector(tmp_path, transport)
+    instance.follow_wall_clock = True
+    instance.max_workers = 1
+    instance.clock = lambda: NOW
+    events: list[str] = []
+    monotonic = [0.0]
+    universe_refreshes: list[float] = []
+    monkeypatch.setattr(
+        "ai4binance.data.market_history_continuous.time.monotonic",
+        lambda: monotonic[0],
+    )
+
+    def eligible_universe(
+        *_args: object, **_kwargs: object
+    ) -> BinanceEligibleMarketSnapshot:
+        universe_refreshes.append(monotonic[0])
+        return BinanceEligibleMarketSnapshot(
+            spot_symbols=("BTCUSDT",), futures_symbols=()
+        )
+
+    monkeypatch.setattr(
+        MarketHistorySynchronizer, "_eligible_universe", eligible_universe
+    )
+
+    def refresh(
+        _market_work: object,
+        _now: datetime,
+        *,
+        timeframes: tuple[str, ...] = VIRTUAL_MARKET_COLLECTION_TIMEFRAMES,
+        on_timeframe_complete: Callable[[str], None] | None = None,
+    ) -> dict[str, object]:
+        events.append("TAIL_REFRESH:" + ",".join(timeframes))
+        if on_timeframe_complete is not None:
+            for timeframe in timeframes:
+                on_timeframe_complete(timeframe)
+        return {"status": "COMPLETE", "total_streams": 4, "current_streams": 4}
+
+    def collect(
+        _market: str,
+        _symbol: str,
+        _transport: object,
+        _now: datetime,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        events.append("HISTORY_STREAM")
+        if events.count("HISTORY_STREAM") == 1:
+            monotonic[0] = 250.0
+        elif events.count("HISTORY_STREAM") == 2:
+            monotonic[0] = later
+        return {"market": "spot", "symbol": "BTCUSDT", "status": "CURRENT"}
+
+    monkeypatch.setattr(instance, "_refresh_active_tails", refresh)
+    monkeypatch.setattr(instance, "_collect_stream", collect)
+
+    result = instance.sync_cycle(observed_at=NOW)
+
+    expected_refreshes = (
+        [
+            "TAIL_REFRESH:" + ",".join(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES),
+            "TAIL_REFRESH:5m",
+        ]
+        if later == 901.0
+        else ["TAIL_REFRESH:5m"]
+    )
+    assert events[:4] == [
+        "TAIL_REFRESH:" + ",".join(VIRTUAL_MARKET_COLLECTION_TIMEFRAMES),
+        "TAIL_REFRESH:5m",
+        "HISTORY_STREAM",
+        "HISTORY_STREAM",
+    ]
+    assert events[4 : 4 + len(expected_refreshes)] == expected_refreshes
+    assert universe_refreshes == (
+        [0.0, 250.0, 901.0] if later == 901.0 else [0.0, 250.0]
+    )
+    assert result["active_tail_refresh"] == {
+        "status": "COMPLETE",
+        "total_streams": 4,
+        "current_streams": 4,
+    }
+
+
+@pytest.mark.parametrize("with_request", [False, True])
+def test_due_tail_refresh_runs_with_busy_history_workers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, with_request: bool
+) -> None:
+    instance = collector(tmp_path, Transport())
+    instance.follow_wall_clock = True
+    instance.max_workers = 2
+    instance.clock = lambda: NOW
+    if with_request:
+        instance.refresh_request_path = tmp_path / "refresh-request.json"
+        enqueue_market_history_refresh_request(
+            instance.refresh_request_path,
+            market="SPOT",
+            symbol="BTCUSDT",
+            eligible_symbols=("BTCUSDT",),
+            requested_at=NOW,
+        )
+    monotonic = [0.0]
+    events: list[str] = []
+    calls = [0]
+    call_lock = Lock()
+    second_started = Event()
+    first_done = Event()
+    monkeypatch.setattr(
+        "ai4binance.data.market_history_continuous.time.monotonic",
+        lambda: monotonic[0],
+    )
+    monkeypatch.setattr(
+        MarketHistorySynchronizer,
+        "_eligible_universe",
+        lambda *_args, **_kwargs: BinanceEligibleMarketSnapshot(
+            spot_symbols=("BTCUSDT",), futures_symbols=()
+        ),
+    )
+
+    def refresh(
+        _market_work: object,
+        _now: datetime,
+        *,
+        timeframes: tuple[str, ...] = VIRTUAL_MARKET_COLLECTION_TIMEFRAMES,
+        on_timeframe_complete: Callable[[str], None] | None = None,
+    ) -> dict[str, object]:
+        events.append("TAIL_REFRESH:" + ",".join(timeframes))
+        if on_timeframe_complete is not None:
+            for timeframe in timeframes:
+                on_timeframe_complete(timeframe)
+        return {"status": "COMPLETE", "total_streams": 1, "current_streams": 1}
+
+    def collect(
+        _market: str,
+        _symbol: str,
+        _transport: object,
+        _now: datetime,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        with call_lock:
+            calls[0] += 1
+            index = calls[0]
+            events.append(f"HISTORY_STREAM:{index}")
+        if index == 1:
+            assert second_started.wait(timeout=3)
+            monotonic[0] = 301.0
+            first_done.set()
+        elif index == 2:
+            second_started.set()
+            assert first_done.wait(timeout=3)
+            sleep(0.15)
+            events.append("HISTORY_DONE:2")
+        return {"market": "spot", "symbol": "BTCUSDT", "status": "CURRENT"}
+
+    monkeypatch.setattr(instance, "_refresh_active_tails", refresh)
+    monkeypatch.setattr(instance, "_collect_stream", collect)
+
+    instance.sync_cycle(observed_at=NOW)
+
+    due_refresh = events.index("TAIL_REFRESH:5m", 2)
+    assert events.index("HISTORY_STREAM:2") < due_refresh
+    assert due_refresh < events.index("HISTORY_DONE:2")
+    assert due_refresh < events.index("HISTORY_STREAM:3")
+
+
+def test_candle_collection_serializes_writes_to_one_dataset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    instance = collector(tmp_path, Transport())
+    transport = Transport()
+    started = Event()
+    release = Event()
+    second_attempted = Event()
+    calls = [0]
+    active = [0]
+    highest_active = [0]
+    guard = Lock()
+
+    def collect_unlocked(*_args: object, **_kwargs: object) -> dict[str, object]:
+        with guard:
+            calls[0] += 1
+            index = calls[0]
+            active[0] += 1
+            highest_active[0] = max(highest_active[0], active[0])
+        if index == 1:
+            started.set()
+            assert release.wait(timeout=3)
+        with guard:
+            active[0] -= 1
+        return {"status": "CURRENT"}
+
+    monkeypatch.setattr(instance, "_candles_unlocked", collect_unlocked)
+
+    def first() -> None:
+        instance._candles("spot", "BTCUSDT", "klines", transport, NOW)
+
+    def second() -> None:
+        second_attempted.set()
+        instance._candles("spot", "BTCUSDT", "klines", transport, NOW)
+
+    first_thread = Thread(target=first)
+    second_thread = Thread(target=second)
+    first_thread.start()
+    assert started.wait(timeout=3)
+    second_thread.start()
+    assert second_attempted.wait(timeout=3)
+    release.set()
+    first_thread.join(timeout=3)
+    second_thread.join(timeout=3)
+
+    assert not first_thread.is_alive()
+    assert not second_thread.is_alive()
+    assert calls[0] == 2
+    assert highest_active[0] == 1
+
+
+def test_live_prepass_refreshes_universe_between_timeframe_groups(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    instance = collector(tmp_path, Transport())
+    instance.follow_wall_clock = True
+    instance.max_workers = 1
+    instance.clock = lambda: NOW
+    monotonic = [0.0]
+    universe_refreshes: list[float] = []
+    monkeypatch.setattr(
+        "ai4binance.data.market_history_continuous.time.monotonic",
+        lambda: monotonic[0],
+    )
+
+    def eligible_universe(
+        *_args: object, **_kwargs: object
+    ) -> BinanceEligibleMarketSnapshot:
+        universe_refreshes.append(monotonic[0])
+        return BinanceEligibleMarketSnapshot(
+            spot_symbols=("BTCUSDT",), futures_symbols=()
+        )
+
+    def refresh(
+        _market_work: object,
+        _now: datetime,
+        *,
+        timeframes: tuple[str, ...] = VIRTUAL_MARKET_COLLECTION_TIMEFRAMES,
+        on_timeframe_complete: Callable[[str], None] | None = None,
+    ) -> dict[str, object]:
+        if on_timeframe_complete is not None:
+            for index, timeframe in enumerate(timeframes):
+                if index == 0:
+                    monotonic[0] = 241.0
+                on_timeframe_complete(timeframe)
+        return {
+            "status": "COMPLETE",
+            "total_streams": len(timeframes),
+            "current_streams": len(timeframes),
+        }
+
+    monkeypatch.setattr(
+        MarketHistorySynchronizer, "_eligible_universe", eligible_universe
+    )
+    monkeypatch.setattr(instance, "_refresh_active_tails", refresh)
+    monkeypatch.setattr(instance, "_snapshots", lambda *_args: None)
+    monkeypatch.setattr(
+        instance,
+        "_collect_stream",
+        lambda *_args, **_kwargs: {"status": "CURRENT"},
+    )
+
+    instance.sync_cycle(observed_at=NOW)
+
+    assert universe_refreshes[:2] == [0.0, 241.0]
 
 
 def test_vision_history_skips_missing_archives_before_known_listing(

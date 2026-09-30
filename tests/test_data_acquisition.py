@@ -186,6 +186,54 @@ def test_local_archive_supplies_candles_to_shared_snapshot(tmp_path: Path) -> No
     assert not any(name.startswith("klines") for name, _ in client.calls)
 
 
+def test_local_archive_reads_only_the_verified_snapshot_tail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client = FakePublicClient(candle_count=300)
+    archive = ParquetOHLCVArchive(tmp_path)
+    candles = tuple(
+        item.to_candle()
+        for item in client.klines("HOTUSDT", "1m", 300)
+        if item.close_time <= NOW
+    )
+    archive.update("HOTUSDT", "1m", candles, source="FIXTURE", generated_at=NOW)
+
+    def reject_full_history(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("snapshot acquisition must not materialize full history")
+
+    monkeypatch.setattr(ParquetOHLCVArchive, "read", reject_full_history)
+    client.calls.clear()
+    snapshot = DataAcquisitionAgent(
+        client=client, archive=archive, candle_limit=250
+    ).acquire("HOTUSDT", ("1m",))
+
+    assert snapshot.data_quality is DataQuality.DATA_VALID
+    assert snapshot.ohlcv_by_timeframe["1m"] == candles[-250:]
+    assert not any(name.startswith("klines") for name, _ in client.calls)
+
+
+def test_local_archive_keeps_historical_gap_veto_for_bounded_tail(
+    tmp_path: Path,
+) -> None:
+    client = FakePublicClient(candle_count=300)
+    archive = ParquetOHLCVArchive(tmp_path)
+    candles = tuple(
+        item.to_candle()
+        for item in client.klines("HOTUSDT", "1m", 300)
+        if item.close_time <= NOW
+    )
+    archive.update("HOTUSDT", "1m", candles[:10] + candles[11:], source="FIXTURE")
+    client.calls.clear()
+
+    snapshot = DataAcquisitionAgent(client=client, archive=archive).acquire(
+        "HOTUSDT", ("1m",)
+    )
+
+    assert snapshot.data_quality is DataQuality.DATA_INVALID
+    assert snapshot.ohlcv_by_timeframe["1m"] == ()
+    assert not any(name.startswith("klines") for name, _ in client.calls)
+
+
 def test_acquisition_consumes_verified_local_depth_and_rejects_stale_or_gapped(
     tmp_path: Path,
 ) -> None:

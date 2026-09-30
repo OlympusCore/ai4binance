@@ -63,6 +63,7 @@ VIRTUAL_MARKET_COLLECTION_TIMEFRAMES: Final = (
     *_ENRICHMENT_TIMEFRAMES,
 )
 _DASHBOARD_REFRESH_TIMEFRAMES = VIRTUAL_MARKET_COLLECTION_TIMEFRAMES
+_MARKET_SNAPSHOT_REFRESH_SECONDS = 240
 # The canonical live path persists native decision timeframes directly. REST
 # remains bounded to bootstrap and gap recovery.
 _PROGRESS_HEARTBEAT_SECONDS = 5
@@ -485,6 +486,10 @@ class ContinuousMarketHistory:
     max_workers: int = 4
     minimum_candles: int | None = None
     _metrics_lock: Lock = field(default_factory=Lock, repr=False)
+    _dataset_locks_guard: Lock = field(default_factory=Lock, repr=False)
+    _dataset_locks: dict[tuple[str, str, str, str], Lock] = field(
+        default_factory=dict, repr=False
+    )
     coin_m: JsonTransport | None = None
     coin_m_contracts: dict[str, tuple[str, str]] = field(default_factory=dict)
     priority_symbols: tuple[str, ...] = ()
@@ -599,9 +604,39 @@ class ContinuousMarketHistory:
             if not snapshot_failed:
                 while "MARKET_SNAPSHOT_UNAVAILABLE" in blockers:
                     blockers.remove("MARKET_SNAPSHOT_UNAVAILABLE")
-            snapshot_refresh_due = time.monotonic() + 300
+            # The canonical universe cache expires after five minutes. Refresh
+            # early so independent Futures/Virtual readers do not encounter a
+            # predictable expiry window during a long collection cycle.
+            snapshot_refresh_due = time.monotonic() + _MARKET_SNAPSHOT_REFRESH_SECONDS
 
         refresh_snapshots(now)
+
+        # A multi-year full-history pass can take longer than the live candle
+        # freshness budget. Refresh each active decision timeframe before the
+        # historical walk, without advancing its durable backfill cursor.
+        active_tail_refresh: dict[str, object] = {"status": "NOT_APPLICABLE"}
+        active_tail_refresh_due: float | None = None
+        broad_tail_refresh_due: float | None = None
+        if self.follow_wall_clock and self.on_symbol_screen is None and not blockers:
+            active_tail_refresh = self._refresh_active_tails(
+                market_work,
+                now,
+                on_timeframe_complete=lambda _timeframe: refresh_snapshots(
+                    self.clock().astimezone(UTC)
+                ),
+            )
+            # The first 5m symbols can age while the broader pass completes.
+            # Revisit them before historical work starts, then use separate
+            # short and broad cadences during the long backfill.
+            active_tail_refresh = self._refresh_active_tails(
+                market_work, self.clock().astimezone(UTC), timeframes=("5m",)
+            )
+            active_tail_refresh_due = (
+                time.monotonic() + _TIMEFRAME_REFRESH_SECONDS["5m"]
+            )
+            broad_tail_refresh_due = (
+                time.monotonic() + _TIMEFRAME_REFRESH_SECONDS["15m"]
+            )
 
         work_items = self._interleaved_market_work(market_work)
         requested_identity: tuple[str, str] | None = None
@@ -1064,6 +1099,7 @@ class ContinuousMarketHistory:
                     ),
                     dashboard_opportunity_projection=opportunity_projection_payload(),
                     stream_failure_summary=dict(sorted(stream_failure_summary.items())),
+                    active_tail_refresh=active_tail_refresh,
                 )
                 last_progress_write = monotonic_now
             return analysis_ready
@@ -1272,8 +1308,66 @@ class ContinuousMarketHistory:
                         else:
                             background.append(item)
 
+                def refresh_due_tails() -> None:
+                    nonlocal active_tail_refresh, active_tail_refresh_due
+                    nonlocal broad_tail_refresh_due
+                    if active_tail_refresh_due is None:
+                        return
+                    now_mono = time.monotonic()
+                    broad_due = (
+                        broad_tail_refresh_due is not None
+                        and now_mono >= broad_tail_refresh_due
+                    )
+                    if not broad_due and now_mono < active_tail_refresh_due:
+                        return
+                    # Active tails use dataset-scoped writer locks, so a slow
+                    # unrelated history stream cannot withhold fresh candles.
+                    active_tail_refresh = {
+                        "status": "REFRESHING",
+                        "timeframes": list(
+                            _DASHBOARD_REFRESH_TIMEFRAMES if broad_due else ("5m",)
+                        ),
+                    }
+                    publish_progress(None, force=True)
+                    active_tail_refresh = self._refresh_active_tails(
+                        market_work,
+                        datetime.now(UTC),
+                        timeframes=_DASHBOARD_REFRESH_TIMEFRAMES
+                        if broad_due
+                        else ("5m",),
+                        on_timeframe_complete=lambda _timeframe: refresh_snapshots(
+                            self.clock().astimezone(UTC)
+                        ),
+                    )
+                    if broad_due:
+                        # A broad pass can outlast the 5m freshness budget.
+                        active_tail_refresh = self._refresh_active_tails(
+                            market_work,
+                            datetime.now(UTC),
+                            timeframes=("5m",),
+                        )
+                        broad_tail_refresh_due = (
+                            time.monotonic() + _TIMEFRAME_REFRESH_SECONDS["15m"]
+                        )
+                    active_tail_refresh_due = (
+                        time.monotonic() + _TIMEFRAME_REFRESH_SECONDS["5m"]
+                    )
+                    publish_progress(None, force=True)
+
                 def submit_available() -> None:
                     activate_pending_request()
+                    refresh_due_tails()
+                    # Stop admitting history work once a tail refresh is due.
+                    # Otherwise the bounded pool stays full indefinitely and
+                    # refresh_due_tails never sees an empty pending set.
+                    if active_tail_refresh_due is not None and (
+                        time.monotonic() >= active_tail_refresh_due
+                        or (
+                            broad_tail_refresh_due is not None
+                            and time.monotonic() >= broad_tail_refresh_due
+                        )
+                    ):
+                        return
 
                     def take_runnable(
                         queue: deque[
@@ -1475,6 +1569,7 @@ class ContinuousMarketHistory:
             ),
             "dashboard_opportunity_projection": opportunity_projection_payload(),
             "stream_failure_summary": dict(sorted(stream_failure_summary.items())),
+            "active_tail_refresh": active_tail_refresh,
             # The state is a dashboard-facing projection, not an unbounded
             # event dump. Dataset manifests and collection-progress files keep
             # stream-level evidence; this bounded sample prevents the state
@@ -1667,6 +1762,52 @@ class ContinuousMarketHistory:
             symbol for symbol in symbols if symbol not in priority_set
         )
 
+    def _refresh_active_tails(
+        self,
+        market_work: tuple[tuple[str, tuple[str, ...], JsonTransport | None], ...],
+        now: datetime,
+        *,
+        timeframes: tuple[str, ...] = _DASHBOARD_REFRESH_TIMEFRAMES,
+        on_timeframe_complete: Callable[[str], None] | None = None,
+    ) -> dict[str, object]:
+        """Refresh native active bars across the universe before long backfills."""
+
+        statuses: Counter[str] = Counter()
+        total_streams = 0
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            for timeframe in timeframes:
+                pending = [
+                    executor.submit(
+                        self._collect_stream,
+                        market,
+                        symbol,
+                        transport,
+                        now,
+                        kind="klines",
+                        timeframe=timeframe,
+                        tail_only=True,
+                    )
+                    for market, symbols, transport in market_work
+                    if market in {"spot", "usd_m_futures"} and transport is not None
+                    for symbol in symbols
+                ]
+                total_streams += len(pending)
+                statuses.update(
+                    str(future.result().get("status")) for future in pending
+                )
+                if on_timeframe_complete is not None:
+                    on_timeframe_complete(timeframe)
+        return {
+            "status": "COMPLETE"
+            if statuses["TAIL_CURRENT"] == total_streams
+            else "DEGRADED",
+            "total_streams": total_streams,
+            "current_streams": statuses["TAIL_CURRENT"],
+            "stale_streams": statuses["TAIL_STALE"],
+            "unavailable_streams": statuses["UNAVAILABLE"],
+            "blocked_streams": statuses["BLOCKED"],
+        }
+
     def _collection_plan(self) -> dict[str, object]:
         staged = self.on_symbol_screen is not None
         return {
@@ -1704,6 +1845,7 @@ class ContinuousMarketHistory:
         opportunity_analysis_summary: Mapping[str, int],
         dashboard_opportunity_projection: Mapping[str, object],
         stream_failure_summary: Mapping[str, int],
+        active_tail_refresh: Mapping[str, object],
     ) -> None:
         _save(
             self.history.state_path,
@@ -1735,6 +1877,7 @@ class ContinuousMarketHistory:
                     dashboard_opportunity_projection
                 ),
                 "stream_failure_summary": dict(stream_failure_summary),
+                "active_tail_refresh": dict(active_tail_refresh),
                 **_SAFE_STATE,
             },
         )
@@ -1825,6 +1968,7 @@ class ContinuousMarketHistory:
         kind: str,
         timeframe: str | None,
         history_days: int | None = None,
+        tail_only: bool = False,
     ) -> dict[str, object]:
         """Collect exactly one market-data stream with fail-closed evidence."""
 
@@ -1855,6 +1999,7 @@ class ContinuousMarketHistory:
                         now,
                         timeframe=timeframe or "5m",
                         history_days=history_days,
+                        tail_only=tail_only,
                     )
             elif kind in {"funding", "open_interest"}:
                 result = self._details(symbol, kind, now, market=market)
@@ -1869,6 +2014,7 @@ class ContinuousMarketHistory:
                     now,
                     timeframe=timeframe,
                     history_days=history_days,
+                    tail_only=tail_only,
                 )
         except (OSError, ValueError, ArithmeticError, ExchangeError) as error:
             result = {
@@ -2438,6 +2584,39 @@ class ContinuousMarketHistory:
         *,
         timeframe: str = "5m",
         history_days: int | None = None,
+        tail_only: bool = False,
+    ) -> dict[str, object]:
+        dataset_symbol = (
+            self.coin_m_contracts[symbol][0]
+            if market == "coin_m_futures" and kind == "indexPriceKlines"
+            else symbol
+        )
+        key = (market, kind, dataset_symbol, timeframe)
+        with self._dataset_locks_guard:
+            dataset_lock = self._dataset_locks.setdefault(key, Lock())
+        with dataset_lock:
+            return self._candles_unlocked(
+                market,
+                symbol,
+                kind,
+                transport,
+                now,
+                timeframe=timeframe,
+                history_days=history_days,
+                tail_only=tail_only,
+            )
+
+    def _candles_unlocked(
+        self,
+        market: str,
+        symbol: str,
+        kind: str,
+        transport: JsonTransport,
+        now: datetime,
+        *,
+        timeframe: str = "5m",
+        history_days: int | None = None,
+        tail_only: bool = False,
     ) -> dict[str, object]:
         if timeframe not in MARKET_HISTORY_TIMEFRAMES:
             raise ValueError("candle timeframe is invalid")
@@ -2520,7 +2699,7 @@ class ContinuousMarketHistory:
             if known_first_available is None or manifest_first < known_first_available:
                 state["first_available_at"] = manifest.first_timestamp
                 _save(progress_path, state)
-            if manifest.gaps:
+            if manifest.gaps and not tail_only:
                 # Collapse identical legacy rows through the canonical merge;
                 # conflicting values remain an integrity failure.
                 manifest = archive.update(
@@ -2604,6 +2783,19 @@ class ContinuousMarketHistory:
         elif state.get("first_available_at"):
             raise ValueError("collection dataset is missing")
 
+        if tail_only:
+            if not parquet.exists():
+                return {"status": "UNAVAILABLE", "reason": "ACTIVE_TAIL_UNAVAILABLE"}
+            active_manifest = archive.manifest(dataset_symbol, timeframe)
+            active_last = datetime.fromisoformat(active_manifest.last_timestamp)
+            return {
+                "status": "TAIL_CURRENT"
+                if active_last + interval >= end
+                else "TAIL_STALE",
+                "last_timestamp": active_manifest.last_timestamp,
+                "next_at": state["next_at"],
+            }
+
         def missing_window(start: datetime) -> tuple[datetime, datetime]:
             for stored_start, stored_end in verified_ranges:
                 if start < stored_start:
@@ -2639,7 +2831,9 @@ class ContinuousMarketHistory:
                 now=now,
                 replace_conflicts_from_sources=replace_conflicts_from_sources,
             )
-            if unavailable is not None:
+            if unavailable is not None and unavailable.get("reason") != (
+                "BINANCE_VISION_ARCHIVE_UNAVAILABLE"
+            ):
                 return unavailable
         source = f"BINANCE_PUBLIC_REST_{timeframe.upper()}"
         pending_candles: list[OHLCVCandle] = []
@@ -2810,7 +3004,7 @@ class ContinuousMarketHistory:
             cursor = candles[-1].timestamp + interval
         if not pending:
             return manifest
-        return archive.update(
+        return archive.append_verified_tail(
             dataset_symbol,
             timeframe,
             tuple(pending),
