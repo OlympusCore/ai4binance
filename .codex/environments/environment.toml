@@ -4,3 +4,25 @@ name = "ai4binance"
 
 [setup]
 script = ""
+
+[setup.win32]
+script = '''
+git rev-parse --show-toplevel
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+python --version
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+Write-Output "Workspace checks completed."'''
+
+[[actions]]
+name = "Git Status"
+icon = "tool"
+command = "git status --short --branch"
+platform = "win32"
+
+[[actions]]
+name = "Python Version"
+icon = "tool"
+command = "python --version"
+platform = "win32"
