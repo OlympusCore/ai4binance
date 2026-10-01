@@ -1675,7 +1675,11 @@ class ContinuousMarketHistory:
                 last_close = datetime.fromisoformat(
                     manifest.last_timestamp
                 ) + timeframe_duration(timeframe)
-                if manifest.row_count < (self.minimum_candles or 1):
+                required = max(
+                    self.minimum_candles or 1,
+                    (self.required_candles_by_timeframe or {}).get(timeframe, 1),
+                )
+                if manifest.row_count < required:
                     blockers.append(
                         f"MARKET_HISTORY_REFRESH_INSUFFICIENT_CANDLES:{timeframe}"
                     )
@@ -2997,6 +3001,32 @@ class ContinuousMarketHistory:
         if state.get("next_at") != cursor.isoformat():
             state["next_at"] = cursor.isoformat()
             _save(progress_path, state)
+        if cursor >= end and self.required_candles_by_timeframe is not None:
+            # Recheck the persisted, checksum-verified dataset after fetching.
+            # A completed source walk is not proof of the requested window:
+            # recently listed symbols may have fewer real candles available.
+            verified = archive.manifest(dataset_symbol, timeframe)
+            required = self.required_candles_by_timeframe.get(timeframe)
+            if verified.gap_count:
+                return {
+                    "status": "UNAVAILABLE",
+                    "reason": "DATASET_GAP",
+                    "next_at": cursor.isoformat(),
+                }
+            if required is not None and verified.row_count < required:
+                return {
+                    "status": "UNAVAILABLE",
+                    "reason": "INSUFFICIENT_CANDLES",
+                    "next_at": cursor.isoformat(),
+                    "available_candles": verified.row_count,
+                    "required_candles": required,
+                }
+            if datetime.fromisoformat(verified.last_timestamp) + interval < end:
+                return {
+                    "status": "UNAVAILABLE",
+                    "reason": "STALE_CANDLES",
+                    "next_at": cursor.isoformat(),
+                }
         return {
             "status": "CURRENT" if cursor >= end else "BACKFILLING",
             "next_at": cursor.isoformat(),

@@ -268,12 +268,6 @@ function Get-QualityProfileVerificationStatus {
     return "FULL_VERIFIED"
 }
 
-function Remove-ApprovalRecordArtifact {
-    if (Test-Path -LiteralPath $approvalRecordPath -PathType Leaf) {
-        Remove-Item -LiteralPath $approvalRecordPath -Force
-    }
-}
-
 function Assert-NoInlineApprovalGenerationRequested {
     if ($script:qualityInvocationParameters.ContainsKey("ApprovalBy")) {
         throw (
@@ -2393,7 +2387,6 @@ function Invoke-DeterministicGovernanceGate {
     $docsHygieneEvidence = Invoke-DocsHygieneGateTests
     $artifactHygieneEvidence = Invoke-ArtifactHygieneGateTests
     $constitutionSyncEvidence = Invoke-ConstitutionSyncGateTests
-    Remove-ApprovalRecordArtifact
     $initialGovernanceExitCode = Invoke-DeterministicGovernanceGateStep `
         -DocsHygieneEvidence $docsHygieneEvidence `
         -ArtifactHygieneEvidence $artifactHygieneEvidence `

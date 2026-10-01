@@ -152,6 +152,10 @@
   "python.testing.pytestEnabled": true,
   "python.testing.unittestEnabled": false,
   "mypy-type-checker.importStrategy": "fromEnvironment",
+  "mypy-type-checker.interpreter": [
+    "${workspaceFolder}/.venv/Scripts/python.exe",
+    "-B"
+  ],
   "mypy-type-checker.reportingScope": "file",
   "ruff.configurationPreference": "filesystemFirst",
   "ruff.importStrategy": "fromEnvironment",

@@ -12,7 +12,6 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from threading import Event, Lock, Thread
-from time import sleep
 from types import SimpleNamespace
 from typing import cast
 
@@ -1772,6 +1771,7 @@ def test_due_tail_refresh_runs_with_busy_history_workers(
     call_lock = Lock()
     second_started = Event()
     first_done = Event()
+    due_refresh_started = Event()
     monkeypatch.setattr(
         "ai4binance.data.market_history_continuous.time.monotonic",
         lambda: monotonic[0],
@@ -1794,6 +1794,8 @@ def test_due_tail_refresh_runs_with_busy_history_workers(
     ) -> dict[str, object]:
         del on_stream_complete
         events.append("TAIL_REFRESH:" + ",".join(timeframes))
+        if timeframes == ("5m",) and second_started.is_set():
+            due_refresh_started.set()
         if on_timeframe_complete is not None:
             for timeframe in timeframes:
                 on_timeframe_complete(timeframe)
@@ -1817,7 +1819,7 @@ def test_due_tail_refresh_runs_with_busy_history_workers(
         elif index == 2:
             second_started.set()
             assert first_done.wait(timeout=3)
-            sleep(0.15)
+            assert due_refresh_started.wait(timeout=10)
             events.append("HISTORY_DONE:2")
         return {"market": "spot", "symbol": "BTCUSDT", "status": "CURRENT"}
 
@@ -2846,6 +2848,85 @@ def test_daily_virtual_window_extends_only_daily_history(tmp_path: Path) -> None
     assert instance._candle_initial_start(
         NOW, timedelta(minutes=5), timeframe="5m"
     ) == NOW.replace(hour=0, minute=0) - timedelta(days=730)
+
+
+@pytest.mark.parametrize(
+    ("available", "expected_status"),
+    [(2, "UNAVAILABLE"), (3, "CURRENT")],
+)
+def test_completed_candle_walk_rechecks_required_native_window(
+    tmp_path: Path, available: int, expected_status: str
+) -> None:
+    transport = Transport()
+    instance = collector(tmp_path, transport)
+    instance.required_candles_by_timeframe = {"5m": 3}
+    archive = ParquetOHLCVArchive(tmp_path / "market/spot")
+    end = NOW.replace(minute=0)
+    candles = tuple(
+        OHLCVCandle(
+            timestamp=end - timedelta(minutes=5 * offset),
+            open=Decimal("1"),
+            high=Decimal("1"),
+            low=Decimal("1"),
+            close=Decimal("1"),
+            volume=Decimal("1"),
+        )
+        for offset in range(available, 0, -1)
+    )
+    archive.update(
+        "BTCUSDT",
+        "5m",
+        candles,
+        source="BINANCE_PUBLIC_REST_5M",
+        generated_at=NOW,
+    )
+    _save(
+        tmp_path / "market/spot/BTCUSDT/5m/collection-progress.json",
+        {
+            "requested_start": (end - timedelta(days=1)).isoformat(),
+            "next_at": end.isoformat(),
+            "first_available_at": candles[0].timestamp.isoformat(),
+        },
+    )
+
+    result = instance._candles("spot", "BTCUSDT", "klines", transport, NOW)
+
+    assert result["status"] == expected_status
+    if available < 3:
+        assert result["reason"] == "INSUFFICIENT_CANDLES"
+        assert result["available_candles"] == available
+        assert result["required_candles"] == 3
+    assert archive.manifest("BTCUSDT", "5m").row_count == available
+    assert transport.calls == []
+
+
+def test_refresh_request_uses_required_period_length(tmp_path: Path) -> None:
+    instance = collector(tmp_path, Transport())
+    instance.minimum_candles = 1
+    instance.required_candles_by_timeframe = {"5m": 3}
+    archive = ParquetOHLCVArchive(tmp_path / "market/spot")
+    end = NOW.replace(minute=0)
+    archive.update(
+        "BTCUSDT",
+        "5m",
+        tuple(
+            OHLCVCandle(
+                timestamp=end - timedelta(minutes=5 * offset),
+                open=Decimal("1"),
+                high=Decimal("1"),
+                low=Decimal("1"),
+                close=Decimal("1"),
+                volume=Decimal("1"),
+            )
+            for offset in (2, 1)
+        ),
+        source="BINANCE_PUBLIC_REST_5M",
+        generated_at=NOW,
+    )
+
+    blockers = instance._refresh_request_data_blockers("spot", "BTCUSDT", NOW, [])
+
+    assert "MARKET_HISTORY_REFRESH_INSUFFICIENT_CANDLES:5m" in blockers
 
 
 def test_partial_first_month_reuses_one_complete_monthly_archive() -> None:

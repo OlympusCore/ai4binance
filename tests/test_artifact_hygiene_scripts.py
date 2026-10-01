@@ -2514,6 +2514,8 @@ def test_quality_script_retries_governance_gate_with_external_approval_artifact(
     payload = _run_quality_function_harness(
         tmp_path,
         rf"""
+$independentApproval = 'test-only-independent-approval'
+Set-Content -LiteralPath $approvalRecordPath -Value $independentApproval
 $script:governanceCalls = @()
 function Invoke-DocsHygieneGateTests {{
     return [ordered]@{{ passed = $true }}
@@ -2559,6 +2561,10 @@ Invoke-DeterministicGovernanceGate
     call_count = ($script:governanceCalls | Measure-Object).Count
     first_approval_path = $script:governanceCalls[0].approval_path
     second_approval_path = $script:governanceCalls[1].approval_path
+    independent_approval_preserved = (
+        (Get-Content -LiteralPath $approvalRecordPath -Raw).Trim() -eq
+        $independentApproval
+    )
 }} | ConvertTo-Json -Depth 4
 """,
     )
@@ -2566,6 +2572,7 @@ Invoke-DeterministicGovernanceGate
     assert payload["call_count"] == 2
     assert payload["first_approval_path"] in (None, "")
     assert payload["second_approval_path"] == str(approval_path.resolve())
+    assert payload["independent_approval_preserved"] is True
 
 
 def test_quality_script_replays_only_hash_bound_same_subject_full_evidence(
