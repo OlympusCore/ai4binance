@@ -1,0 +1,381 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/governance/document_lock_review.schema.json",
+  "title": "Document Lock Review v1 - no application or adoption authority",
+  "$ref": "#/$defs/decision",
+  "$defs": {
+    "artifact_inventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "repository_root",
+        "epoch_id",
+        "baseline_commit",
+        "patch_sha256",
+        "issued_at_utc",
+        "not_before_utc",
+        "expires_at_utc",
+        "artifacts"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "DocumentLockReviewArtifacts/v1"
+        },
+        "repository_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "epoch_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "baseline_commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "patch_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "issued_at_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "not_before_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expires_at_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reference"
+          }
+        }
+      }
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository_root",
+        "epoch_id",
+        "baseline_commit",
+        "expected_tree",
+        "patch",
+        "evidence",
+        "rollback",
+        "authority",
+        "registration_manifest",
+        "documents",
+        "issued_at_utc",
+        "not_before_utc",
+        "expires_at_utc",
+        "permitted_operations",
+        "phase"
+      ],
+      "properties": {
+        "repository_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "epoch_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "baseline_commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "expected_tree": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "patch": {
+          "$ref": "#/$defs/reference"
+        },
+        "evidence": {
+          "$ref": "#/$defs/reference"
+        },
+        "rollback": {
+          "$ref": "#/$defs/reference"
+        },
+        "authority": {
+          "$ref": "#/$defs/reference"
+        },
+        "registration_manifest": {
+          "$ref": "#/$defs/reference"
+        },
+        "documents": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "document_id",
+              "version",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "document_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "version": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        },
+        "candidate_payloads": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "source"],
+            "properties": {
+              "path": {"type": "string", "minLength": 1},
+              "source": {"$ref": "#/$defs/reference"}
+            }
+          }
+        },
+        "issued_at_utc": {
+          "type": "string",
+          "minLength": 20
+        },
+        "not_before_utc": {
+          "type": "string",
+          "minLength": 20
+        },
+        "expires_at_utc": {
+          "type": "string",
+          "minLength": 20
+        },
+        "permitted_operations": {
+          "const": [
+            "REVIEW_DOCUMENT_REGISTRATION"
+          ]
+        },
+        "phase": {
+          "const": "PRE_APPLICATION_REVIEW"
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "contract_version": {"const": "DocumentLockReview/v2"}
+        }
+      },
+      "then": {
+        "properties": {
+          "review_subject": {"required": ["candidate_payloads"]}
+        }
+      },
+      "else": {
+        "properties": {
+          "review_subject": {"not": {"required": ["candidate_payloads"]}}
+        }
+      },
+      "required": [
+        "contract_version",
+        "decision_id",
+        "owner_person_id",
+        "natural_person_count",
+        "independent_human_review",
+        "status",
+        "review_subject",
+        "subject_sha256",
+        "revoked_at_utc",
+        "application_allowed",
+        "adoption_allowed",
+        "execution_allowed",
+        "promotion_status",
+        "live_eligibility_status"
+      ],
+      "properties": {
+        "contract_version": {
+          "enum": ["DocumentLockReview/v1", "DocumentLockReview/v2"]
+        },
+        "decision_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_person_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "natural_person_count": {
+          "const": 1
+        },
+        "independent_human_review": {
+          "const": false
+        },
+        "status": {
+          "const": "REVIEW_ONLY"
+        },
+        "review_subject": {
+          "$ref": "#/$defs/subject"
+        },
+        "subject_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "revoked_at_utc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "application_allowed": {
+          "const": false
+        },
+        "adoption_allowed": {
+          "const": false
+        },
+        "execution_allowed": {
+          "const": false
+        },
+        "promotion_status": {
+          "const": "RESEARCH_ONLY"
+        },
+        "live_eligibility_status": {
+          "const": "LIVE_ORDER_BLOCKED"
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "owner_person_id",
+        "review_subject",
+        "decision",
+        "revocations"
+      ],
+      "properties": {
+        "contract_version": {
+          "enum": ["DocumentLockReviewContext/v1", "DocumentLockReviewContext/v2"]
+        },
+        "owner_person_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "review_subject": {
+          "$ref": "#/$defs/subject"
+        },
+        "decision": {
+          "$ref": "#/$defs/reference"
+        },
+        "revocations": {
+          "$ref": "#/$defs/reference"
+        }
+      }
+    },
+    "revocations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "repository_root",
+        "epoch_id",
+        "issued_at_utc",
+        "not_before_utc",
+        "expires_at_utc",
+        "revoked_decision_ids",
+        "revoked_owner_ids",
+        "revoked_subjects"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "DocumentLockReviewRevocations/v1"
+        },
+        "repository_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "epoch_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "issued_at_utc": {
+          "type": "string",
+          "minLength": 20
+        },
+        "not_before_utc": {
+          "type": "string",
+          "minLength": 20
+        },
+        "expires_at_utc": {
+          "type": "string",
+          "minLength": 20
+        },
+        "revoked_decision_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "revoked_owner_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "revoked_subjects": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    }
+  }
+}

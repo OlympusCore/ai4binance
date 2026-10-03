@@ -42,6 +42,12 @@ from ai4binance.governance.framework import (
     ChangeApprovalClass,
     ConstitutionalChangeControl,
 )
+from ai4binance.governance.personal_research import (
+    PersonalResearchPolicy,
+    load_personal_research_policy,
+    parse_confirmation,
+    personal_record_blockers,
+)
 from ai4binance.governance_primitives import TECHNICAL_QUALITY_PRIMARY_STATUS
 from ai4binance.ops.quality_gate.telemetry import (
     _quality_execution_blockers,
@@ -476,6 +482,9 @@ class GovernanceChangeSet:
     untracked_governed_paths: tuple[str, ...] = ()
     changed_paths: tuple[str, ...] = ()
     change_set_sha256: str = ""
+    review_base_commit: str = ""
+    review_head_commit: str = ""
+    review_patch_sha256: str = ""
 
     def __post_init__(self) -> None:
         if not self.repository_root.is_absolute():
@@ -498,17 +507,32 @@ class GovernanceChangeSet:
         object.__setattr__(self, "unstaged_paths", unstaged_paths)
         object.__setattr__(self, "untracked_governed_paths", untracked_paths)
         object.__setattr__(self, "changed_paths", changed_paths)
-        recorded_sha256 = self.change_set_sha256.lower()
-        calculated_sha256 = _canonical_sha256(
-            {
-                "repository_root": str(self.repository_root),
-                "git_commit": self.git_commit,
-                "staged_paths": list(staged_paths),
-                "unstaged_paths": list(unstaged_paths),
-                "untracked_governed_paths": list(untracked_paths),
-                "changed_paths": list(changed_paths),
-            }
+        review = _validate_committed_review(
+            self.git_commit,
+            staged_paths,
+            unstaged_paths,
+            untracked_paths,
+            changed_paths,
+            self.review_base_commit,
+            self.review_head_commit,
+            self.review_patch_sha256,
         )
+        hash_payload = {
+            "repository_root": str(self.repository_root),
+            "git_commit": self.git_commit,
+            "staged_paths": list(staged_paths),
+            "unstaged_paths": list(unstaged_paths),
+            "untracked_governed_paths": list(untracked_paths),
+            "changed_paths": list(changed_paths),
+        }
+        if all(review):
+            hash_payload.update(
+                review_base_commit=self.review_base_commit,
+                review_head_commit=self.review_head_commit,
+                review_patch_sha256=self.review_patch_sha256,
+            )
+        recorded_sha256 = self.change_set_sha256.lower()
+        calculated_sha256 = _canonical_sha256(hash_payload)
         if recorded_sha256:
             if not _SHA256_RE.fullmatch(recorded_sha256):
                 raise ValueError(
@@ -522,7 +546,7 @@ class GovernanceChangeSet:
         )
 
     def to_payload(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "repository_root": str(self.repository_root),
             "git_commit": self.git_commit,
             "staged_paths": list(self.staged_paths),
@@ -534,6 +558,41 @@ class GovernanceChangeSet:
                 GovernanceEvidenceLifecycleStage.CHANGESET_IDENTIFIED.value
             ),
         }
+        if self.review_base_commit:
+            payload.update(
+                review_base_commit=self.review_base_commit,
+                review_head_commit=self.review_head_commit,
+                review_patch_sha256=self.review_patch_sha256,
+            )
+        return payload
+
+
+def _validate_committed_review(
+    git_commit: str,
+    staged_paths: tuple[str, ...],
+    unstaged_paths: tuple[str, ...],
+    untracked_paths: tuple[str, ...],
+    changed_paths: tuple[str, ...],
+    base: str,
+    head: str,
+    patch_sha256: str,
+) -> tuple[str, str, str]:
+    review = (base, head, patch_sha256)
+    if not any(review):
+        return review
+    if (
+        not all(review)
+        or any(not re.fullmatch(r"[0-9a-f]{40}", value) for value in review[:2])
+        or not _SHA256_RE.fullmatch(patch_sha256)
+    ):
+        raise ValueError("committed review requires lowercase commit and patch hashes")
+    if git_commit != head or not changed_paths:
+        raise ValueError(
+            "committed review must bind the current head and changed paths"
+        )
+    if staged_paths or unstaged_paths or untracked_paths:
+        raise ValueError("committed review cannot contain working-tree paths")
+    return review
 
 
 @dataclass(frozen=True, slots=True)
@@ -620,6 +679,9 @@ class ApprovalVerificationEvidence:
     constitution_sync_required: bool = False
     enforced: bool = False
     hard_veto: bool = False
+    approval_profile: str = "LEGACY_C3"
+    independent_human_review: bool | None = None
+    human_person_count: int | None = None
 
     def __post_init__(self) -> None:
         _require_unique_nonblank(
@@ -733,6 +795,9 @@ class ApprovalVerificationEvidence:
             "approval_ids": list(self.approval_ids),
             "approver_ids": list(self.approver_ids),
             "principal_ids": list(self.principal_ids),
+            "approval_profile": self.approval_profile,
+            "independent_human_review": self.independent_human_review,
+            "human_person_count": self.human_person_count,
             "blockers": list(self.blockers),
             "high_assurance_required": self.high_assurance_required,
             "constitution_sync_required": self.constitution_sync_required,
@@ -1737,6 +1802,121 @@ def resolve_governance_change_set(
     )
 
 
+def _committed_review_changed_paths(raw: bytes) -> tuple[str, ...]:
+    fields = raw.decode("utf-8").rstrip("\0").split("\0") if raw else []
+    paths: list[str] = []
+    index = 0
+    while index < len(fields):
+        status = fields[index]
+        path_count = 2 if status.startswith(("R", "C")) else 1
+        if status[:1] not in {
+            "A",
+            "M",
+            "D",
+            "R",
+            "C",
+            "T",
+        } or index + path_count >= len(fields):
+            raise ValueError("COMMITTED_REVIEW_DIFF_FORMAT_INVALID")
+        paths.extend(fields[index + 1 : index + 1 + path_count])
+        index += path_count + 1
+    if not paths:
+        raise ValueError("COMMITTED_REVIEW_EMPTY_DIFF")
+    return tuple(dict.fromkeys(paths))
+
+
+def resolve_committed_governance_change_set(
+    repository_root: Path, base_ref: str, head_ref: str
+) -> GovernanceChangeSet:
+    """Bind an exact ancestor-to-HEAD Git diff without accepting local drift."""
+    root = repository_root.resolve()
+    git = _git_executable()
+    if _git_repository_root(root) != root or git is None:
+        raise ValueError("COMMITTED_REVIEW_REPOSITORY_UNAVAILABLE")
+
+    def run(*arguments: str) -> bytes:
+        completed = subprocess.run(  # noqa: S603  # nosec B603
+            [git, "-C", str(root), *arguments],
+            check=False,
+            capture_output=True,
+        )
+        if completed.returncode:
+            raise ValueError("COMMITTED_REVIEW_GIT_COMMAND_FAILED:" + arguments[0])
+        return completed.stdout
+
+    if (
+        not base_ref
+        or not head_ref
+        or base_ref.startswith("-")
+        or head_ref.startswith("-")
+    ):
+        raise ValueError("COMMITTED_REVIEW_REFS_REQUIRED")
+    base = (
+        run("rev-parse", "--verify", "--end-of-options", base_ref + "^{commit}")
+        .decode("ascii")
+        .strip()
+    )
+    head = (
+        run("rev-parse", "--verify", "--end-of-options", head_ref + "^{commit}")
+        .decode("ascii")
+        .strip()
+    )
+    if not re.fullmatch(r"[0-9a-f]{40}", base) or not re.fullmatch(
+        r"[0-9a-f]{40}", head
+    ):
+        raise ValueError("COMMITTED_REVIEW_INVALID_COMMIT")
+    if base == head or head != run("rev-parse", "HEAD").decode("ascii").strip():
+        raise ValueError("COMMITTED_REVIEW_HEAD_MISMATCH")
+    if run("merge-base", base, head).decode("ascii").strip() != base:
+        raise ValueError("COMMITTED_REVIEW_BASE_NOT_ANCESTOR")
+    if run("status", "--porcelain=v1", "-z", "--untracked-files=all"):
+        raise ValueError("COMMITTED_REVIEW_WORKSPACE_DIRTY")
+    raw = run(
+        "diff",
+        "--name-status",
+        "-z",
+        "--find-renames=50%",
+        "--no-ext-diff",
+        "--no-textconv",
+        base,
+        head,
+    )
+    changed_paths = _committed_review_changed_paths(raw)
+    patch = run(
+        "diff",
+        "--no-ext-diff",
+        "--no-color",
+        "--no-textconv",
+        "--find-renames=50%",
+        "--abbrev=8",
+        "--src-prefix=a/",
+        "--dst-prefix=b/",
+        "--diff-algorithm=default",
+        base,
+        head,
+    )
+    return GovernanceChangeSet(
+        repository_root=root,
+        git_commit=head,
+        changed_paths=changed_paths,
+        review_base_commit=base,
+        review_head_commit=head,
+        review_patch_sha256=hashlib.sha256(patch).hexdigest(),
+    )
+
+
+def verify_committed_review_change_set(change_set: GovernanceChangeSet) -> None:
+    if not change_set.review_base_commit:
+        return
+    current = resolve_committed_governance_change_set(
+        change_set.repository_root,
+        change_set.review_base_commit,
+        change_set.review_head_commit,
+    )
+    if current.change_set_sha256 != change_set.change_set_sha256:
+        raise ValueError("COMMITTED_REVIEW_SCOPE_DRIFT")
+
+
 def _build_approval_verification(
     *,
     change_set: GovernanceChangeSet | None,
@@ -1749,6 +1929,12 @@ def _build_approval_verification(
     required_count, constitution_sync_required, high_assurance_required = (
         _approval_requirements(change_class)
     )
+    research_policy = load_personal_research_policy(governance_gate.repository_root)
+    if research_policy is not None and required_count:
+        research_policy.check_scope(
+            () if change_set is None else change_set.changed_paths, change_class.value
+        )
+        required_count = 1
     subject_digest = governance_gate.subject_digest
     if subject_digest is None:
         raise ValueError("approval verification requires governance subject digest")
@@ -1794,6 +1980,10 @@ def _build_approval_verification(
     valid_count = 0
     now = datetime.now(UTC)
     for record in approval_records:
+        research_blockers = _personal_record_checks(research_policy, record)
+        if research_blockers:
+            blockers.extend(research_blockers)
+            continue
         if record.status not in {
             ApprovalStatus.APPROVED_FOR_RESEARCH,
             ApprovalStatus.APPROVED_FOR_IMPLEMENTATION,
@@ -1897,6 +2087,9 @@ def _build_approval_verification(
         approval_required=True,
         required_approval_count=required_count,
         observed_approval_count=valid_count,
+        approval_profile="PERSONAL_RESEARCH" if research_policy else "LEGACY_C3",
+        independent_human_review=False if research_policy else None,
+        human_person_count=min(1, valid_count) if research_policy else None,
         subject_id=subject_digest.subject_id,
         scope_hash=scope_hash,
         deterministic_quality_gate_evidence_sha256=(
@@ -1916,6 +2109,25 @@ def _build_approval_verification(
         constitution_sync_required=constitution_sync_required,
         enforced=enforced,
         hard_veto=True,
+    )
+
+
+def _personal_record_checks(
+    policy: PersonalResearchPolicy | None, record: ApprovalRecord
+) -> tuple[str, ...]:
+    if policy is None:
+        return (
+            ("PERSONAL_RESEARCH_POLICY_NOT_ACTIVE",)
+            if record.research_confirmation is not None
+            else ()
+        )
+    return personal_record_blockers(
+        policy,
+        record.research_confirmation,
+        record.principal_id,
+        record.approver_role,
+        record.approved_at,
+        record.expires_at,
     )
 
 
@@ -2330,8 +2542,16 @@ def _cli_change_set(
     changed_paths: list[str],
     git_commit: str | None,
     required: bool,
+    review_base_ref: str | None = None,
+    review_head_ref: str | None = None,
 ) -> GovernanceChangeSet | None:
     resolved_repository_root = repository_root.resolve()
+    if review_base_ref is not None or review_head_ref is not None:
+        if changed_paths or git_commit or not review_base_ref or not review_head_ref:
+            raise ValueError("COMMITTED_REVIEW_SCOPE_ARGUMENT_CONFLICT")
+        return resolve_committed_governance_change_set(
+            resolved_repository_root, review_base_ref, review_head_ref
+        )
     if changed_paths:
         return GovernanceChangeSet(
             repository_root=resolved_repository_root,
@@ -2527,6 +2747,15 @@ def load_deterministic_quality_gate_report(
                 change_set_sha256=str(
                     change_set_payload.get("change_set_sha256", "")
                 ).lower(),
+                review_base_commit=str(
+                    change_set_payload.get("review_base_commit", "")
+                ),
+                review_head_commit=str(
+                    change_set_payload.get("review_head_commit", "")
+                ),
+                review_patch_sha256=str(
+                    change_set_payload.get("review_patch_sha256", "")
+                ),
             )
         ),
         subject_digest=GovernanceSubjectDigest(
@@ -2648,6 +2877,9 @@ def load_approval_records(report_path: Path) -> tuple[ApprovalRecord, ...]:
                 expires_at=expires_at,
                 revoked_at=revoked_at,
                 principal_id=str(item.get("principal_id", item.get("approver_id", ""))),
+                research_confirmation=parse_confirmation(
+                    item.get("research_confirmation")
+                ),
                 execution_allowed=bool(item.get("execution_allowed", False)),
                 live_eligibility_status=str(
                     item.get("live_eligibility_status", "LIVE_ORDER_BLOCKED")
@@ -2719,6 +2951,46 @@ def _approval_replay_execution_evidence(
     return junit_path, source_evidence
 
 
+def _verify_frozen_replay_change_set(
+    root: Path,
+    frozen: object,
+    subject: dict[str, object],
+    attestation: dict[str, object],
+) -> None:
+    if not isinstance(frozen, dict):
+        raise ValueError("APPROVAL_REPLAY_CHANGE_SET_MISSING")
+    try:
+        change_set = GovernanceChangeSet(
+            repository_root=Path(str(frozen["repository_root"])),
+            git_commit=str(frozen["git_commit"]),
+            staged_paths=tuple(str(path) for path in frozen["staged_paths"]),
+            unstaged_paths=tuple(str(path) for path in frozen["unstaged_paths"]),
+            untracked_governed_paths=tuple(
+                str(path) for path in frozen["untracked_governed_paths"]
+            ),
+            changed_paths=tuple(str(path) for path in frozen["changed_paths"]),
+            change_set_sha256=str(frozen["change_set_sha256"]),
+            review_base_commit=str(frozen.get("review_base_commit", "")),
+            review_head_commit=str(frozen.get("review_head_commit", "")),
+            review_patch_sha256=str(frozen.get("review_patch_sha256", "")),
+        )
+    except (ValueError, KeyError, TypeError) as error:
+        raise ValueError("APPROVAL_REPLAY_CHANGE_SET_INVALID") from error
+    if change_set.repository_root != root:
+        raise ValueError("APPROVAL_REPLAY_CHANGE_SET_ROOT_DRIFT")
+    if change_set.git_commit != subject.get(
+        "git_commit"
+    ) or change_set.change_set_sha256 != subject.get("change_set_sha256"):
+        raise ValueError("APPROVAL_REPLAY_CHANGE_SET_SUBJECT_DRIFT")
+    if attestation.get("change_set_sha256") != change_set.change_set_sha256:
+        raise ValueError("APPROVAL_REPLAY_WORKSPACE_ATTESTATION_DRIFT")
+    if change_set.review_base_commit:
+        try:
+            verify_committed_review_change_set(change_set)
+        except (ValueError, OSError) as error:
+            raise ValueError("APPROVAL_REPLAY_COMMITTED_REVIEW_DRIFT") from error
+
+
 def load_approval_replay_context(
     root: Path,
     approval_path: Path,
@@ -2786,6 +3058,9 @@ def load_approval_replay_context(
         "SOURCE_SAFETY_BOUNDARY_MISMATCH",
     )
     subject = governance["subject_digest"]
+    _verify_frozen_replay_change_set(
+        root, governance.get("change_set"), subject, attestation
+    )
     require(
         all(
             attestation.get(key) == subject.get(key)
@@ -2976,6 +3251,8 @@ def main(argv: list[str] | None = None) -> int:
         default=[],
     )
     parser.add_argument("--git-commit")
+    parser.add_argument("--review-base-ref")
+    parser.add_argument("--review-head-ref")
     parser.add_argument("--output-json", required=True)
     parsed = parser.parse_args(argv)
 
@@ -3009,6 +3286,8 @@ def main(argv: list[str] | None = None) -> int:
             changed_paths=parsed.changed_paths,
             git_commit=parsed.git_commit,
             required=True,
+            review_base_ref=parsed.review_base_ref,
+            review_head_ref=parsed.review_head_ref,
         )
         quality_gate = QualityGateEvidence(
             status=TECHNICAL_QUALITY_PRIMARY_STATUS,
@@ -3072,11 +3351,19 @@ def main(argv: list[str] | None = None) -> int:
         changed_paths=parsed.changed_paths,
         git_commit=parsed.git_commit,
         required=True,
+        review_base_ref=parsed.review_base_ref,
+        review_head_ref=parsed.review_head_ref,
     )
 
     deterministic_quality_gate = load_deterministic_quality_gate_report(
         Path(parsed.deterministic_quality_gate_report)
     )
+    if deterministic_quality_gate.change_set is None or (
+        change_set is None
+        or deterministic_quality_gate.change_set.change_set_sha256
+        != change_set.change_set_sha256
+    ):
+        raise ValueError("GOVERNANCE_QUALITY_CHANGE_SET_MISMATCH")
     governance_report = build_governance_gate_report(
         repository_root=repository_root,
         repository_validator=load_repository_validator_evidence(

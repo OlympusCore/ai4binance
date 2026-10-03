@@ -69,6 +69,33 @@ def test_policy_projection_validates_and_accepts_current_representative_paths() 
     assert policy.live_eligibility_status == "LIVE_ORDER_BLOCKED"
 
 
+def test_compiled_bytecode_is_not_classified_as_authored_source(
+    tmp_path: Path,
+) -> None:
+    policy = load_technology_language_policy(ROOT)
+    package = tmp_path / "src" / "package"
+    cache = package / "__pycache__"
+    cache.mkdir(parents=True)
+    (cache / "module.cpython-314.pyc").write_bytes(b"\xff\x00")
+    (package / "unsupported.rb").write_text("puts 'unsafe'\n", encoding="utf-8")
+
+    findings = evaluate_technology_language_policy(
+        tmp_path,
+        policy,
+        (
+            "src/package/__pycache__/module.cpython-314.pyc",
+            "src/package/unsupported.rb",
+        ),
+    )
+
+    assert not any(finding.path.endswith(".pyc") for finding in findings)
+    assert any(
+        finding.path == "src/package/unsupported.rb"
+        and finding.code == "UNOWNED_SOURCE_LANGUAGE"
+        for finding in findings
+    )
+
+
 def test_legacy_dashboard_assets_are_bounded_by_ui_language_owners() -> None:
     policy = load_technology_language_policy(ROOT)
     web_sources = {

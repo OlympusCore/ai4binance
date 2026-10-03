@@ -1,0 +1,624 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/governance/document_lock_authority.schema.json",
+  "title": "Prospective written-owner document-lock authority v1 and v2",
+  "$ref": "#/$defs/grant",
+  "$defs": {
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "adoption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision_id",
+        "owner_person_id",
+        "repository_root",
+        "epoch_id",
+        "subject_sha256",
+        "source",
+        "status",
+        "record_origin",
+        "revoked_at_utc",
+        "issued_at_utc",
+        "not_before_utc",
+        "expires_at_utc",
+        "human_confirmation",
+        "natural_person_count",
+        "independent_human_review",
+        "previous_c3_approval",
+        "historical_approval_gaps_closed",
+        "execution_allowed",
+        "contract_version",
+        "decision",
+        "departure_from_legacy_c3",
+        "procedure"
+      ],
+      "properties": {
+        "decision_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_person_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "epoch_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source": {
+          "$ref": "#/$defs/reference"
+        },
+        "status": {
+          "const": "ISSUED"
+        },
+        "record_origin": {
+          "enum": [
+            "OWNER_ISSUED",
+            "TEST_ONLY"
+          ]
+        },
+        "revoked_at_utc": {
+          "const": null
+        },
+        "issued_at_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "not_before_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expires_at_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "human_confirmation": {
+          "const": true
+        },
+        "natural_person_count": {
+          "const": 1
+        },
+        "independent_human_review": {
+          "const": false
+        },
+        "previous_c3_approval": {
+          "const": false
+        },
+        "historical_approval_gaps_closed": {
+          "const": false
+        },
+        "execution_allowed": {
+          "const": false
+        },
+        "contract_version": {
+          "const": "DocumentLockAdoption/v1"
+        },
+        "decision": {
+          "const": "ADOPT_PROSPECTIVE_WRITTEN_OWNER_LOCK_CONTRACT"
+        },
+        "departure_from_legacy_c3": {
+          "const": true
+        },
+        "procedure": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reference"
+          }
+        }
+      }
+    },
+    "grant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision_id",
+        "owner_person_id",
+        "repository_root",
+        "epoch_id",
+        "subject_sha256",
+        "source",
+        "status",
+        "record_origin",
+        "revoked_at_utc",
+        "issued_at_utc",
+        "not_before_utc",
+        "expires_at_utc",
+        "human_confirmation",
+        "natural_person_count",
+        "independent_human_review",
+        "previous_c3_approval",
+        "historical_approval_gaps_closed",
+        "execution_allowed",
+        "contract_version",
+        "adoption",
+        "registration_manifest",
+        "documents",
+        "permitted_effects",
+        "separate_application_authorization_required"
+      ],
+      "properties": {
+        "decision_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_person_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "epoch_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source": {
+          "$ref": "#/$defs/reference"
+        },
+        "status": {
+          "const": "ISSUED"
+        },
+        "record_origin": {
+          "enum": [
+            "OWNER_ISSUED",
+            "TEST_ONLY"
+          ]
+        },
+        "revoked_at_utc": {
+          "const": null
+        },
+        "issued_at_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "not_before_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expires_at_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "human_confirmation": {
+          "const": true
+        },
+        "natural_person_count": {
+          "const": 1
+        },
+        "independent_human_review": {
+          "const": false
+        },
+        "previous_c3_approval": {
+          "const": false
+        },
+        "historical_approval_gaps_closed": {
+          "const": false
+        },
+        "execution_allowed": {
+          "const": false
+        },
+        "contract_version": {
+          "const": "WrittenOwnerDocumentLockGrant/v1"
+        },
+        "adoption": {
+          "$ref": "#/$defs/reference"
+        },
+        "registration_manifest": {
+          "$ref": "#/$defs/reference"
+        },
+        "documents": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "document_id",
+              "version",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "document_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "version": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        },
+        "permitted_effects": {
+          "const": [
+            "BOUNDED_UNLOCK",
+            "REGISTER_EXACT_BYTES",
+            "RELOCK"
+          ]
+        },
+        "separate_application_authorization_required": {
+          "const": true
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "repository_root",
+        "epoch_id",
+        "owner_person_id",
+        "subject_sha256",
+        "issued_at_utc",
+        "not_before_utc",
+        "expires_at_utc",
+        "review_context",
+        "adoption",
+        "grant",
+        "final_manifest",
+        "custody"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "DocumentLockAuthorityContext/v1"
+        },
+        "repository_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "epoch_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_person_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "issued_at_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "not_before_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expires_at_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "review_context": {
+          "$ref": "#/$defs/reference"
+        },
+        "adoption": {
+          "$ref": "#/$defs/reference"
+        },
+        "grant": {
+          "$ref": "#/$defs/reference"
+        },
+        "final_manifest": {
+          "$ref": "#/$defs/reference"
+        },
+        "custody": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "custodian_person_id",
+            "attribution_confirmed",
+            "ownership_basis",
+            "independent_identity_verified",
+            "decision_channel",
+            "checked_at_utc",
+            "adoption_source",
+            "grant_source"
+          ],
+          "properties": {
+            "custodian_person_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "attribution_confirmed": {
+              "const": true
+            },
+            "ownership_basis": {
+              "const": "SELF_DECLARED_PERSONAL_REPOSITORY_OWNER"
+            },
+            "independent_identity_verified": {
+              "const": false
+            },
+            "decision_channel": {
+              "type": "string",
+              "minLength": 1
+            },
+            "checked_at_utc": {
+              "type": "string",
+              "minLength": 1
+            },
+            "adoption_source": {
+              "$ref": "#/$defs/reference"
+            },
+            "grant_source": {
+              "$ref": "#/$defs/reference"
+            }
+          }
+        }
+      }
+    },
+    "completed_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "repository_root",
+        "epoch_id",
+        "owner_person_id",
+        "subject_sha256",
+        "issued_at_utc",
+        "not_before_utc",
+        "expires_at_utc",
+        "review_context",
+        "adoption",
+        "grant",
+        "final_manifest",
+        "custody",
+        "completion"
+      ],
+      "properties": {
+        "contract_version": {
+          "enum": ["DocumentLockAuthorityContext/v2", "DocumentLockAuthorityContext/v3"]
+        },
+        "repository_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "epoch_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_person_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "issued_at_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "not_before_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expires_at_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "review_context": {
+          "$ref": "#/$defs/reference"
+        },
+        "adoption": {
+          "$ref": "#/$defs/reference"
+        },
+        "grant": {
+          "$ref": "#/$defs/reference"
+        },
+        "final_manifest": {
+          "$ref": "#/$defs/reference"
+        },
+        "custody": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "custodian_person_id",
+            "attribution_confirmed",
+            "ownership_basis",
+            "independent_identity_verified",
+            "decision_channel",
+            "checked_at_utc",
+            "adoption_source",
+            "grant_source"
+          ],
+          "properties": {
+            "custodian_person_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "attribution_confirmed": {
+              "const": true
+            },
+            "ownership_basis": {
+              "const": "SELF_DECLARED_PERSONAL_REPOSITORY_OWNER"
+            },
+            "independent_identity_verified": {
+              "const": false
+            },
+            "decision_channel": {
+              "type": "string",
+              "minLength": 1
+            },
+            "checked_at_utc": {
+              "type": "string",
+              "minLength": 1
+            },
+            "adoption_source": {
+              "$ref": "#/$defs/reference"
+            },
+            "grant_source": {
+              "$ref": "#/$defs/reference"
+            }
+          }
+        },
+        "completion": {
+          "$ref": "#/$defs/reference"
+        }
+      }
+    },
+    "completion": {
+      "type": "object",
+      "additionalProperties": false,
+      "if": {"properties": {"contract_version": {"const": "DocumentLockCompletion/v2"}}},
+      "then": {"required": ["reviewed_tree"]},
+      "else": {"not": {"required": ["reviewed_tree"]}},
+      "required": [
+        "contract_version",
+        "status",
+        "record_origin",
+        "repository_root",
+        "epoch_id",
+        "subject_sha256",
+        "adoption",
+        "grant",
+        "final_manifest",
+        "expected_tree",
+        "completed_at_utc",
+        "application_receipt"
+      ],
+      "properties": {
+        "contract_version": {
+          "enum": ["DocumentLockCompletion/v1", "DocumentLockCompletion/v2"]
+        },
+        "status": {
+          "const": "COMPLETED"
+        },
+        "record_origin": {
+          "enum": [
+            "OPERATIONAL_INSTALLATION",
+            "TEST_ONLY"
+          ]
+        },
+        "repository_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "epoch_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "adoption": {
+          "$ref": "#/$defs/reference"
+        },
+        "grant": {
+          "$ref": "#/$defs/reference"
+        },
+        "final_manifest": {
+          "$ref": "#/$defs/reference"
+        },
+        "expected_tree": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "reviewed_tree": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "completed_at_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "application_receipt": {
+          "$ref": "#/$defs/reference"
+        }
+      }
+    },
+    "application_receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "if": {"properties": {"contract_version": {"const": "DocumentLockApplicationReceipt/v2"}}},
+      "then": {"required": ["reviewed_tree"]},
+      "else": {"not": {"required": ["reviewed_tree"]}},
+      "required": [
+        "contract_version",
+        "status",
+        "repository_root",
+        "subject_sha256",
+        "completed_at_utc",
+        "final_manifest",
+        "expected_tree"
+      ],
+      "properties": {
+        "contract_version": {
+          "enum": ["DocumentLockApplicationReceipt/v1", "DocumentLockApplicationReceipt/v2"]
+        },
+        "status": {
+          "const": "COMPLETED"
+        },
+        "repository_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "completed_at_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "final_manifest": {
+          "$ref": "#/$defs/reference"
+        },
+        "expected_tree": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "reviewed_tree": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,822 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/governance/personal_research.schema.json",
+  "title": "Prospective Personal Research Governance",
+  "$ref": "#/$defs/policy",
+  "$defs": {
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "profile",
+        "activation_status",
+        "epoch_id",
+        "allowed_paths",
+        "activation_record",
+        "execution_allowed",
+        "promotion_status",
+        "live_eligibility_status"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "profile": {
+          "const": "PERSONAL_RESEARCH"
+        },
+        "activation_status": {
+          "enum": [
+            "INACTIVE",
+            "ACTIVE"
+          ]
+        },
+        "epoch_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "allowed_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^(?!.*\\.\\.)(?!/)(?!.*\\\\)[A-Za-z0-9_.\\/-]+$"
+          }
+        },
+        "activation_record": {
+          "type": "string"
+        },
+        "execution_allowed": {
+          "const": false
+        },
+        "promotion_status": {
+          "const": "RESEARCH_ONLY"
+        },
+        "live_eligibility_status": {
+          "const": "LIVE_ORDER_BLOCKED"
+        }
+      }
+    },
+    "activation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "decision_kind",
+        "epoch_id",
+        "owner_person_id",
+        "repository_root",
+        "policy_sha256",
+        "prior_baseline_commit",
+        "reviewed_candidate_sha256",
+        "owner_confirmation_ref",
+        "issued_at_utc",
+        "expires_at_utc",
+        "revoked_at_utc",
+        "human_person_count",
+        "independent_human_review",
+        "previous_c3_approval",
+        "historical_approval_gaps_closed",
+        "external_obligations_waived",
+        "execution_allowed",
+        "promotion_status",
+        "live_eligibility_status",
+        "owner_confirmation_sha256",
+        "authority_bindings"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "decision_kind": {
+          "const": "PROSPECTIVE_OWNER_BASELINE_REPLACEMENT"
+        },
+        "epoch_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_person_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "prior_baseline_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "reviewed_candidate_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "owner_confirmation_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "issued_at_utc": {
+          "type": "string",
+          "minLength": 1,
+          "format": "date-time"
+        },
+        "expires_at_utc": {
+          "type": "string",
+          "minLength": 1,
+          "format": "date-time"
+        },
+        "revoked_at_utc": {
+          "type": "null"
+        },
+        "human_person_count": {
+          "const": 1
+        },
+        "independent_human_review": {
+          "const": false
+        },
+        "previous_c3_approval": {
+          "const": false
+        },
+        "historical_approval_gaps_closed": {
+          "const": false
+        },
+        "external_obligations_waived": {
+          "const": false
+        },
+        "execution_allowed": {
+          "const": false
+        },
+        "promotion_status": {
+          "const": "RESEARCH_ONLY"
+        },
+        "live_eligibility_status": {
+          "const": "LIVE_ORDER_BLOCKED"
+        },
+        "owner_confirmation_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "authority_bindings": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "confirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "epoch_id",
+        "owner_person_id",
+        "policy_sha256",
+        "activation_sha256",
+        "independent_human_review",
+        "human_person_count"
+      ],
+      "properties": {
+        "epoch_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_person_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "activation_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "independent_human_review": {
+          "const": false
+        },
+        "human_person_count": {
+          "const": 1
+        }
+      }
+    },
+    "unapplied_patch_subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository_root",
+        "baseline_commit",
+        "patch_sha256",
+        "evidence_sha256",
+        "rollback_sha256",
+        "authority_sha256",
+        "epoch_id",
+        "expires_at_utc",
+        "expected_tree",
+        "permitted_operations",
+        "phase"
+      ],
+      "properties": {
+        "repository_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "baseline_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "patch_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "evidence_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "rollback_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "authority_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "epoch_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expires_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expected_tree": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "permitted_operations": {
+          "const": [
+            "REVIEW_ONLY"
+          ]
+        },
+        "phase": {
+          "const": "UNAPPLIED_PATCH_REVIEW"
+        }
+      }
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "policy_v2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "profile",
+        "activation_status",
+        "epoch_id",
+        "allowed_paths",
+        "activation_record",
+        "execution_allowed",
+        "promotion_status",
+        "live_eligibility_status"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "profile": {
+          "const": "PERSONAL_RESEARCH"
+        },
+        "activation_status": {
+          "enum": [
+            "INACTIVE",
+            "ACTIVE"
+          ]
+        },
+        "epoch_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "allowed_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^(?!.*\\.\\.)(?!/)(?!.*\\\\)[A-Za-z0-9_.\\/-]+$"
+          }
+        },
+        "activation_record": {
+          "type": "string"
+        },
+        "execution_allowed": {
+          "const": false
+        },
+        "promotion_status": {
+          "const": "RESEARCH_ONLY"
+        },
+        "live_eligibility_status": {
+          "const": "LIVE_ORDER_BLOCKED"
+        }
+      }
+    },
+    "activation_v2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "decision_kind",
+        "epoch_id",
+        "owner_person_id",
+        "repository_root",
+        "policy_sha256",
+        "prior_baseline_commit",
+        "reviewed_candidate_sha256",
+        "owner_confirmation_ref",
+        "issued_at_utc",
+        "expires_at_utc",
+        "revoked_at_utc",
+        "human_person_count",
+        "independent_human_review",
+        "previous_c3_approval",
+        "historical_approval_gaps_closed",
+        "external_obligations_waived",
+        "execution_allowed",
+        "promotion_status",
+        "live_eligibility_status",
+        "owner_confirmation_sha256",
+        "authority_bindings",
+        "baseline_adoption",
+        "installation_receipt"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "decision_kind": {
+          "const": "PROSPECTIVE_OWNER_BASELINE_REPLACEMENT"
+        },
+        "epoch_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_person_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "prior_baseline_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "reviewed_candidate_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "owner_confirmation_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "issued_at_utc": {
+          "type": "string",
+          "minLength": 1,
+          "format": "date-time"
+        },
+        "expires_at_utc": {
+          "type": "string",
+          "minLength": 1,
+          "format": "date-time"
+        },
+        "revoked_at_utc": {
+          "type": "null"
+        },
+        "human_person_count": {
+          "const": 1
+        },
+        "independent_human_review": {
+          "const": false
+        },
+        "previous_c3_approval": {
+          "const": false
+        },
+        "historical_approval_gaps_closed": {
+          "const": false
+        },
+        "external_obligations_waived": {
+          "const": false
+        },
+        "execution_allowed": {
+          "const": false
+        },
+        "promotion_status": {
+          "const": "RESEARCH_ONLY"
+        },
+        "live_eligibility_status": {
+          "const": "LIVE_ORDER_BLOCKED"
+        },
+        "owner_confirmation_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "authority_bindings": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "baseline_adoption": {
+          "$ref": "#/$defs/reference"
+        },
+        "installation_receipt": {
+          "$ref": "#/$defs/reference"
+        }
+      }
+    },
+    "baseline_adoption": {
+      "type": "object",
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "contract_version": {
+            "const": "ProspectiveBaselineAdoption/v2"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "payload_inventory",
+          "registration_projection"
+        ]
+      },
+      "else": {
+        "not": {
+          "anyOf": [
+            {"required": ["payload_inventory"]},
+            {"required": ["registration_projection"]}
+          ]
+        }
+      },
+      "required": [
+        "contract_version",
+        "decision_id",
+        "decision",
+        "status",
+        "record_origin",
+        "owner_person_id",
+        "repository_root",
+        "epoch_id",
+        "baseline_commit",
+        "expected_tree",
+        "subject_sha256",
+        "source",
+        "review_subject",
+        "patch",
+        "evidence",
+        "rollback",
+        "authority",
+        "scope",
+        "source_inventory",
+        "authority_bindings",
+        "issued_at_utc",
+        "not_before_utc",
+        "expires_at_utc",
+        "revoked_at_utc",
+        "human_confirmation",
+        "natural_person_count",
+        "independent_human_review",
+        "independently_verified_owner",
+        "previous_c3_approval",
+        "historical_approval_gaps_closed",
+        "external_obligations_waived",
+        "execution_allowed",
+        "initial_repair"
+      ],
+      "properties": {
+        "contract_version": {
+          "enum": [
+            "ProspectiveBaselineAdoption/v1",
+            "ProspectiveBaselineAdoption/v2"
+          ]
+        },
+        "decision_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decision": {
+          "const": "ADOPT_EXACT_PROSPECTIVE_BASELINE"
+        },
+        "status": {
+          "const": "ISSUED"
+        },
+        "record_origin": {
+          "enum": [
+            "OWNER_ISSUED",
+            "TEST_ONLY"
+          ]
+        },
+        "owner_person_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "epoch_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "baseline_commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "expected_tree": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "subject_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source": {
+          "$ref": "#/$defs/reference"
+        },
+        "review_subject": {
+          "$ref": "#/$defs/reference"
+        },
+        "patch": {
+          "$ref": "#/$defs/reference"
+        },
+        "evidence": {
+          "$ref": "#/$defs/reference"
+        },
+        "rollback": {
+          "$ref": "#/$defs/reference"
+        },
+        "authority": {
+          "$ref": "#/$defs/reference"
+        },
+        "scope": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "output_sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "pattern": "^(?!.*\\.\\.)(?!/)(?!.*\\\\)[A-Za-z0-9_.\\/-]+$"
+              },
+              "output_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        },
+        "source_inventory": {
+          "$ref": "#/$defs/reference"
+        },
+        "payload_inventory": {
+          "$ref": "#/$defs/reference"
+        },
+        "registration_projection": {
+          "$ref": "#/$defs/reference"
+        },
+        "authority_bindings": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "issued_at_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "not_before_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expires_at_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revoked_at_utc": {
+          "const": null
+        },
+        "human_confirmation": {
+          "const": true
+        },
+        "natural_person_count": {
+          "const": 1
+        },
+        "independent_human_review": {
+          "const": false
+        },
+        "independently_verified_owner": {
+          "const": false
+        },
+        "previous_c3_approval": {
+          "const": false
+        },
+        "historical_approval_gaps_closed": {
+          "const": false
+        },
+        "external_obligations_waived": {
+          "const": false
+        },
+        "execution_allowed": {
+          "const": false
+        },
+        "initial_repair": {
+          "$ref": "#/$defs/initial_repair"
+        }
+      }
+    },
+    "baseline_installation": {
+      "type": "object",
+      "additionalProperties": false,
+      "if": {"properties": {"contract_version": {"const": "ProspectiveBaselineInstallation/v2"}}},
+      "then": {"required": ["reviewed_tree"]},
+      "else": {"not": {"required": ["reviewed_tree"]}},
+      "required": [
+        "contract_version",
+        "status",
+        "record_origin",
+        "repository_root",
+        "epoch_id",
+        "adoption",
+        "subject_sha256",
+        "patch_sha256",
+        "expected_tree",
+        "completed_at_utc",
+        "application_instruction",
+        "operation_receipt"
+      ],
+      "properties": {
+        "contract_version": {
+          "enum": ["ProspectiveBaselineInstallation/v1", "ProspectiveBaselineInstallation/v2"]
+        },
+        "status": {
+          "const": "COMPLETED"
+        },
+        "record_origin": {
+          "const": "OPERATIONAL_INSTALLATION"
+        },
+        "repository_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "epoch_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "adoption": {
+          "$ref": "#/$defs/reference"
+        },
+        "subject_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "patch_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "expected_tree": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "reviewed_tree": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "completed_at_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "application_instruction": {
+          "$ref": "#/$defs/reference"
+        },
+        "operation_receipt": {
+          "$ref": "#/$defs/reference"
+        }
+      }
+    },
+    "baseline_operation_receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "if": {"properties": {"contract_version": {"const": "ProspectiveBaselineOperationReceipt/v2"}}},
+      "then": {"required": ["reviewed_tree"]},
+      "else": {"not": {"required": ["reviewed_tree"]}},
+      "required": [
+        "contract_version",
+        "status",
+        "record_origin",
+        "repository_root",
+        "subject_sha256",
+        "patch_sha256",
+        "expected_tree",
+        "completed_at_utc"
+      ],
+      "properties": {
+        "contract_version": {
+          "enum": ["ProspectiveBaselineOperationReceipt/v1", "ProspectiveBaselineOperationReceipt/v2"]
+        },
+        "status": {
+          "const": "COMPLETED"
+        },
+        "record_origin": {
+          "const": "OPERATIONAL_INSTALLATION"
+        },
+        "repository_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "patch_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "expected_tree": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "reviewed_tree": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "completed_at_utc": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "initial_repair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "patch",
+        "inventory",
+        "baseline_commit",
+        "expected_tree",
+        "change_class"
+      ],
+      "properties": {
+        "patch": {
+          "$ref": "#/$defs/reference"
+        },
+        "inventory": {
+          "$ref": "#/$defs/reference"
+        },
+        "baseline_commit": {
+          "const": "bc0286893a1073d44290b35521520989ac09dc8a"
+        },
+        "expected_tree": {
+          "const": "5113189796f76fde7b2e5b55ed164792f7e724f9"
+        },
+        "change_class": {
+          "const": "C3_GOVERNED"
+        }
+      }
+    }
+  }
+}

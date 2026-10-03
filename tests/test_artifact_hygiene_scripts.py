@@ -66,6 +66,14 @@ def _write_quality_harness(tmp_path: Path, body: str) -> Path:
     inventory_path = tmp_path / "config/governance/enforcement_inventory.yaml"
     inventory_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(ROOT / "config/governance/enforcement_inventory.yaml", inventory_path)
+    shutil.copy2(
+        ROOT / "scripts" / "cleanup_generated_artifacts.ps1",
+        harness_dir / "cleanup_generated_artifacts.ps1",
+    )
+    shutil.copy2(
+        ROOT / "config" / "governance" / "runtime_artifact_layout_manifest.json",
+        tmp_path / "config/governance/runtime_artifact_layout_manifest.json",
+    )
     harness_path = harness_dir / "quality_harness.ps1"
     python_path = Path(".venv") / "Scripts" / "python.exe"
     coverage_reader = Path("scripts") / "read_coverage_percent.py"
@@ -766,7 +774,7 @@ def test_quality_script_isolates_coverage_artifacts() -> None:
     assert 'Mode = @("ProcessTempRetention")' in text
     assert "Test-IsWindowsAdministrator" in text
     assert '$arguments["ForceAcl"] = $true' in text
-    assert "Invoke-SourceGeneratedArtifactCleanup" in text
+    assert "Invoke-SourceGeneratedArtifactCheck" in text
     assert "Invoke-RepositoryGovernanceValidator" in text
 
     assert "$repositoryValidatorReportPath" in text
@@ -897,7 +905,7 @@ def test_quality_script_isolates_coverage_artifacts() -> None:
     assert "Get-GovernanceGateSummary" in text
     assert "governance_gate_summary = $governanceGateSummary" in text
     assert "Write-QualityGateFailureEvidence" in text
-    assert "stale_latest_invalidated = $true" in text
+    assert "stale_latest_invalidated = $false" in text
     assert "GOVERNED_MARKDOWN_COVERAGE_REALISM_PROOF" in text
     assert "BANDIT_STDOUT_STDERR_CAPTURE" in text
     assert "Get-FileHash" in text
@@ -1062,7 +1070,7 @@ def test_quality_script_runs_gate_steps_in_governed_order() -> None:
     text = _quality_script_text()
     expected_sequence = [
         "Reset-LatestQualityGateArtifacts",
-        "Invoke-SourceGeneratedArtifactCleanup",
+        "Invoke-SourceGeneratedArtifactCheck",
         'Invoke-QualityStep "Dependency check"',
         'Invoke-QualityStep "Ruff format"',
         'Invoke-QualityStep "Ruff lint"',
@@ -1072,7 +1080,6 @@ def test_quality_script_runs_gate_steps_in_governed_order() -> None:
         'Invoke-QualityStep "Privacy leak guard"',
         "Invoke-RepositoryGovernanceValidator",
         "$script:mirrorRemoteCheck = Invoke-ConditionalMirrorHygiene",
-        "Remove-GeneratedCoverageArtifacts",
         "$previousCoverageFile = $env:COVERAGE_FILE",
         "$env:COVERAGE_FILE = $coverageFile",
         "Invoke-PytestWithCapturedOutput",
@@ -1085,7 +1092,6 @@ def test_quality_script_runs_gate_steps_in_governed_order() -> None:
         "Invoke-ArtifactHygieneGateTests",
         "Invoke-ConstitutionSyncGateTests",
         "Invoke-DeterministicGovernanceGate",
-        "Invoke-GeneratedArtifactCleanup",
         "Write-QualityGateGreenEvidence",
     ]
 
@@ -1098,11 +1104,23 @@ def test_quality_script_runs_gate_steps_in_governed_order() -> None:
     ]
 
     assert positions == sorted(positions)
+    full_body = execution_text[
+        : execution_text.index("function Invoke-FastQualityGate")
+    ]
+    assert full_body.rfind("Invoke-SourceGeneratedArtifactCheck") < full_body.index(
+        "Write-QualityGateGreenEvidence"
+    )
     assert '"--quiet"' in coverage_step
 
 
-def test_every_quality_profile_cleans_source_generated_artifacts_first() -> None:
+def test_every_quality_profile_checks_source_generated_artifacts_first() -> None:
     text = _quality_script_text()
+    reset = text[
+        text.index("function Reset-LatestQualityGateArtifacts") : text.index(
+            "\nfunction ", text.index("function Reset-LatestQualityGateArtifacts") + 1
+        )
+    ]
+    assert "Remove-Item" not in reset
 
     for function_name in (
         "Invoke-FastQualityGate",
@@ -1113,11 +1131,22 @@ def test_every_quality_profile_cleans_source_generated_artifacts_first() -> None
         next_function = text.find("\nfunction ", start + 1)
         body = text[start : next_function if next_function >= 0 else len(text)]
         assert body.index("Reset-LatestQualityGateArtifacts") < body.index(
-            "Invoke-SourceGeneratedArtifactCleanup"
+            "Invoke-SourceGeneratedArtifactCheck"
         )
-        assert body.index("Invoke-SourceGeneratedArtifactCleanup") < body.index(
+        assert body.index("Invoke-SourceGeneratedArtifactCheck") < body.index(
             'Invoke-QualityStep "Ruff format"'
         )
+        for destructive_call in (
+            "Invoke-GeneratedArtifactCleanup",
+            "Invoke-ProcessTempRetentionCleanup",
+            "Invoke-TestTempRetentionCleanup",
+            "Remove-GeneratedCoverageArtifacts",
+            "Remove-PytestTempArtifacts",
+        ):
+            assert destructive_call not in body
+    finalizer = text[text.index("finally {\n    try {\n        Stop-Transcript") :]
+    assert "Remove-PytestTempArtifacts" not in finalizer
+    assert "Invoke-TestTempRetentionCleanup" not in finalizer
     assert '"--basetemp",' in text
     assert "$pytestTemp" in text
     assert '"--cov=ai4binance"' in text
@@ -1134,6 +1163,82 @@ def test_every_quality_profile_cleans_source_generated_artifacts_first() -> None
     assert "*> $stepOutputPath" in text
     assert "2>> $gitChangedPathsErrorPath" in text
     assert "git-changed-paths-error.txt" in text
+
+
+def test_quality_source_generated_check_blocks_without_deleting_fixture(
+    tmp_path: Path,
+) -> None:
+    quality = _quality_script_text()
+
+    def definition(name: str) -> str:
+        start = quality.index(f"function {name} {{")
+        end = quality.index("\nfunction ", start + 1)
+        return quality[start:end]
+
+    for label, generated in (("dirty", True), ("clean", False)):
+        fixture = tmp_path / label
+        fixture.mkdir()
+        _copy_cleanup_script(fixture)
+        source = fixture / "src" / "sample.py"
+        source.parent.mkdir()
+        source.write_text("value = 1\n", encoding="utf-8")
+        generated_file = fixture / "src" / "__pycache__" / "sample.pyc"
+        if generated:
+            generated_file.parent.mkdir()
+            generated_file.write_bytes(b"fixture-generated")
+        harness = fixture / "scripts" / "check.ps1"
+        harness.write_text(
+            "\n".join(
+                (
+                    '$qualityRunTimestamp = "fixture"',
+                    "$qualityRunDirectory = Join-Path $PSScriptRoot "
+                    '"../runtime/artifacts/quality/gate/runs/fixture"',
+                    "New-Item -ItemType Directory -Path "
+                    "$qualityRunDirectory -Force | Out-Null",
+                    "$script:qualityStepFailures = @()",
+                    "function Add-QualityStepTelemetry {",
+                    "param($Name, $StartedAtUtc, $Stopwatch, $ExitCode,",
+                    "$Status, $OutputPath, $ArtifactPath)",
+                    "}",
+                    definition("ConvertTo-QualityStepId"),
+                    definition("Invoke-CleanupScript"),
+                    definition("Invoke-SourceGeneratedArtifactCheck"),
+                    'try { Invoke-SourceGeneratedArtifactCheck; "NEXT_STEP_REACHED" }',
+                    'catch { "FAIL: $($_.Exception.Message)" }',
+                )
+            ),
+            encoding="utf-8",
+        )
+        completed = subprocess.run(  # noqa: S603
+            [_powershell(), "-NoLogo", "-NoProfile", "-File", str(harness)],
+            cwd=fixture,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        (fixture / "harness.stdout.txt").write_text(completed.stdout, encoding="utf-8")
+        (fixture / "harness.stderr.txt").write_text(completed.stderr, encoding="utf-8")
+        assert completed.returncode == 0, completed.stderr
+        audit_path = (
+            fixture
+            / "runtime/artifacts/quality/gate/runs/fixture"
+            / "source_generated_artifact_check-output.txt"
+        )
+        audit = json.loads(audit_path.read_text(encoding="utf-16"))
+        assert audit["applied"] is False
+        assert audit["candidate_count"] == int(generated)
+        if generated:
+            assert (
+                "FAIL: Source-generated artifact check found 1 generated artifacts"
+                in completed.stdout
+            )
+            assert generated_file.read_bytes() == b"fixture-generated"
+        else:
+            assert completed.stdout.strip() == "NEXT_STEP_REACHED"
+
+
+def test_quality_wrapper_reports_run_evidence_without_console_noise() -> None:
+    text = _quality_script_text()
     assert '$ErrorActionPreference = "Continue"' in text
     assert "$ErrorActionPreference = $previousErrorActionPreference" in text
     assert "first_actionable_error = $actionableError" in text
@@ -1184,8 +1289,7 @@ def test_quality_script_profiles_preserve_canonical_full_authority() -> None:
     assert "function Invoke-StandardQualityGate" in text
     assert "function Invoke-QualityPytestSelector" in text
     assert "function Get-StandardRequiredPytestArguments" in text
-    assert "function Reset-DmypyStatusFile" in text
-    assert "Remove-Item -LiteralPath $dmypyStatusFile" in text
+    assert '"dmypy-" + $pytestTempRunId + ".json"' in text
     assert 'Invoke-QualityStep "dmypy" @(' in text
     assert '"mypy.dmypy"' in text
     assert '"--status-file"' in text
@@ -2578,6 +2682,7 @@ Invoke-DeterministicGovernanceGate
 def test_quality_script_replays_only_hash_bound_same_subject_full_evidence(
     tmp_path: Path,
 ) -> None:
+    from ai4binance.governance.gate import GovernanceChangeSet
     from ai4binance.ops.quality_gate.telemetry import bind_quality_failure_evidence
 
     run_dir = (
@@ -2613,10 +2718,15 @@ def test_quality_script_replays_only_hash_bound_same_subject_full_evidence(
     def relative(path: Path) -> str:
         return path.relative_to(tmp_path).as_posix()
 
+    change_set = GovernanceChangeSet(
+        repository_root=tmp_path.resolve(),
+        git_commit="2" * 40,
+    )
+    expected_change_set_sha256 = change_set.change_set_sha256
     subject = {
         "repository_tree_sha256": "1" * 64,
         "git_commit": "2" * 40,
-        "change_set_sha256": "3" * 64,
+        "change_set_sha256": expected_change_set_sha256,
         "subject_id": "4" * 64,
     }
     quality_gate_hash = "5" * 64
@@ -2638,7 +2748,7 @@ def test_quality_script_replays_only_hash_bound_same_subject_full_evidence(
                 "workspace_attestation": {
                     "repository_tree_sha256": "1" * 64,
                     "git_commit": "2" * 40,
-                    "change_set_sha256": "7" * 64,
+                    "change_set_sha256": expected_change_set_sha256,
                 },
             }
         },
@@ -2654,6 +2764,7 @@ def test_quality_script_replays_only_hash_bound_same_subject_full_evidence(
         "blockers": ["APPROVAL_REQUIRED"],
         "gate_evidence_sha256": governance_gate_hash,
         "subject_digest": subject,
+        "change_set": change_set.to_payload(),
         "deterministic_quality_gate": {
             "status": "PASS",
             "gate_evidence_sha256": quality_gate_hash,
@@ -2712,7 +2823,7 @@ def test_quality_script_replays_only_hash_bound_same_subject_full_evidence(
         "repository_root": str(tmp_path),
         "repository_tree_sha256": "1" * 64,
         "git_commit": "2" * 40,
-        "change_set_sha256": "7" * 64,
+        "change_set_sha256": expected_change_set_sha256,
     }
     source_payload = {
         "schema_version": 2,
@@ -2753,11 +2864,12 @@ def test_quality_script_replays_only_hash_bound_same_subject_full_evidence(
 $ApprovalRecordReportPath = @'
 {approval_path}
 '@
+$expectedChangeSetSha256 = "{expected_change_set_sha256}"
 $script:qualityInitialWorkspaceAttestation = [ordered]@{{
     repository_root = $repoRoot
     repository_tree_sha256 = "{"1" * 64}"
     git_commit = "{"2" * 40}"
-    change_set_sha256 = "{"7" * 64}"
+    change_set_sha256 = $expectedChangeSetSha256
 }}
 $context = Get-FullApprovalReplayContext
 $acceptedSubject = $context.governance.subject_digest.subject_id
@@ -2769,7 +2881,7 @@ $subjectDriftError = try {{
 catch {{
     $_.Exception.Message
 }}
-$script:qualityInitialWorkspaceAttestation.change_set_sha256 = "{"7" * 64}"
+$script:qualityInitialWorkspaceAttestation.change_set_sha256 = $expectedChangeSetSha256
 Set-Content -LiteralPath $context.pytest_path -Value "tampered" -Encoding UTF8
 $driftError = try {{
     Get-FullApprovalReplayContext | Out-Null

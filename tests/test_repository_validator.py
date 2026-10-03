@@ -4396,6 +4396,19 @@ def test_repository_validator_blocks_disposable_generated_artifacts_inside_src(
 
     assert report.status is RepositoryValidationStatus.RUNNING_WITH_BLOCKERS
     assert disposable_paths <= generated_finding_paths
+    for bytecode_path in (
+        "src/ai4binance/__pycache__/tracked_source.cpython-312.pyc",
+        "src/ai4binance/compiled.pyc",
+    ):
+        assert not any(
+            finding.path == bytecode_path
+            and finding.kind
+            in {
+                RepositoryFindingKind.TERMINOLOGY_POLICY_VIOLATION,
+                RepositoryFindingKind.TECHNOLOGY_LANGUAGE_POLICY_VIOLATION,
+            }
+            for finding in report.findings
+        )
     assert "src/ai4binance/runtime/latest.json" in runtime_finding_paths
     assert artifacts_by_path["src/ai4binance/tracked_source.py"].git_tracked is True
     assert artifacts_by_path["src/ai4binance/tracked_source.py"].generated is False

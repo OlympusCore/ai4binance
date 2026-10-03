@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ai4binance.governance.framework import ChangeApprovalClass
+    from ai4binance.governance.personal_research import PersonalResearchConfirmation
 
 
 class DepartmentId(StrEnum):
@@ -647,6 +648,7 @@ class ApprovalRecord:
     principal_id: str = ""
     execution_allowed: bool = False
     live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
+    research_confirmation: PersonalResearchConfirmation | None = None
 
     def __post_init__(self) -> None:
         _require_identity(

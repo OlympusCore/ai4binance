@@ -12,6 +12,7 @@ from typing import cast
 
 import yaml
 
+from ai4binance.governance.artifact_classification import is_python_bytecode_artifact
 from ai4binance.schema_validation import OfflineSchemaRegistry, SchemaValidationError
 
 POLICY_PATH = Path("config/governance/technology_language_ownership.yaml")
@@ -219,6 +220,8 @@ def evaluate_technology_language_policy(
     violations: list[TechnologyLanguageViolation] = []
     present_languages: set[str] = set()
     for relative in paths:
+        if is_python_bytecode_artifact(relative):
+            continue
         if _excluded_path(relative):
             continue
         classified = relative

@@ -1,0 +1,9 @@
+schema_version: 2
+profile: PERSONAL_RESEARCH
+activation_status: INACTIVE
+epoch_id: personal-research-prospective-v1
+allowed_paths: []
+activation_record: ''
+execution_allowed: false
+promotion_status: RESEARCH_ONLY
+live_eligibility_status: LIVE_ORDER_BLOCKED

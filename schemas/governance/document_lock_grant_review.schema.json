@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/governance/document_lock_grant_review.schema.json",
+  "title": "Prospective document lock grant review; no grant adoption",
+  "$ref": "#/$defs/grant",
+  "$defs": {
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "grant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "grant_id",
+        "owner_person_id",
+        "subject_sha256",
+        "repository_root",
+        "epoch_id",
+        "review_decision",
+        "source",
+        "baseline_replacement",
+        "authority_procedure",
+        "issued_at_utc",
+        "not_before_utc",
+        "expires_at_utc",
+        "revoked_at_utc",
+        "requested_operations",
+        "purpose",
+        "record_origin",
+        "application_allowed",
+        "adoption_allowed",
+        "execution_allowed"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "DocumentLockGrantReview/v1"
+        },
+        "grant_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_person_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "repository_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "epoch_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "review_decision": {
+          "$ref": "#/$defs/reference"
+        },
+        "source": {
+          "$ref": "#/$defs/reference"
+        },
+        "baseline_replacement": {
+          "$ref": "#/$defs/reference"
+        },
+        "authority_procedure": {
+          "$ref": "#/$defs/reference"
+        },
+        "issued_at_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "not_before_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expires_at_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revoked_at_utc": {
+          "const": null
+        },
+        "requested_operations": {
+          "const": [
+            "UNLOCK_EXACT_DOCUMENTS",
+            "REGISTER_EXACT_DOCUMENT_HASHES",
+            "RELOCK_EXACT_DOCUMENTS"
+          ]
+        },
+        "purpose": {
+          "const": "PRE_APPLICATION_GRANT_REVIEW"
+        },
+        "record_origin": {
+          "enum": [
+            "TEST_ONLY",
+            "OWNER_ASSERTION"
+          ]
+        },
+        "application_allowed": {
+          "const": false
+        },
+        "adoption_allowed": {
+          "const": false
+        },
+        "execution_allowed": {
+          "const": false
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "review_context",
+        "grant",
+        "proposed_manifest"
+      ],
+      "properties": {
+        "contract_version": {
+          "enum": ["DocumentLockGrantReviewContext/v1", "DocumentLockGrantReviewContext/v2"]
+        },
+        "review_context": {
+          "$ref": "#/$defs/reference"
+        },
+        "grant": {
+          "$ref": "#/$defs/reference"
+        },
+        "proposed_manifest": {
+          "$ref": "#/$defs/reference"
+        }
+      }
+    }
+  }
+}

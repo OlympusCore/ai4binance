@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
+import subprocess
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -57,6 +59,9 @@ from ai4binance.governance.gate import (
     load_frozen_traceability_audit,
     load_repository_validator_evidence,
     main,
+    resolve_committed_governance_change_set,
+    resolve_governance_change_set,
+    verify_committed_review_change_set,
 )
 from tests.test_governance_constitution_sync import (
     write_core_documents,
@@ -2495,3 +2500,99 @@ def test_main_writes_blocked_gate_payload_and_lowercases_sha(tmp_path: Path) -> 
         payload["deterministic_quality_gate"]["subject_id"]
         == (payload["subject_digest"]["subject_id"])
     )
+
+
+def _git_for_committed_review(root: Path, *arguments: str) -> str:
+    git = shutil.which("git")
+    assert git is not None
+    completed = subprocess.run(  # noqa: S603  # nosec B603
+        [git, "-C", str(root), *arguments],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return completed.stdout.strip()
+
+
+def test_committed_review_keeps_clean_worktree_c3_and_binds_patch(
+    tmp_path: Path,
+) -> None:
+    _git_for_committed_review(tmp_path, "init")
+    _git_for_committed_review(tmp_path, "config", "user.email", "test@example.invalid")
+    _git_for_committed_review(tmp_path, "config", "user.name", "Test Reviewer")
+    target = tmp_path / "scripts" / "quality.ps1"
+    target.parent.mkdir()
+    target.write_text("before\n", encoding="utf-8")
+    _git_for_committed_review(tmp_path, "add", "scripts/quality.ps1")
+    _git_for_committed_review(tmp_path, "commit", "-m", "base")
+    base = _git_for_committed_review(tmp_path, "rev-parse", "HEAD")
+    target.write_text("after\n", encoding="utf-8")
+    _git_for_committed_review(tmp_path, "commit", "-am", "governed change")
+    head = _git_for_committed_review(tmp_path, "rev-parse", "HEAD")
+
+    workspace_change_set = resolve_governance_change_set(tmp_path)
+    assert workspace_change_set is not None
+    assert workspace_change_set.changed_paths == ()
+    review = resolve_committed_governance_change_set(tmp_path, base, head)
+    assert review.changed_paths == ("scripts/quality.ps1",)
+    assert _classify_change_set(review) is ChangeApprovalClass.C3_GOVERNED
+    assert review.review_base_commit == base
+    assert review.review_head_commit == head
+    assert len(review.review_patch_sha256) == 64
+    verify_committed_review_change_set(review)
+    stale_packet = GovernanceChangeSet(
+        repository_root=tmp_path.resolve(),
+        git_commit=head,
+        changed_paths=review.changed_paths,
+        review_base_commit=base,
+        review_head_commit=head,
+        review_patch_sha256="0" * 64,
+    )
+    with pytest.raises(ValueError, match="COMMITTED_REVIEW_SCOPE_DRIFT"):
+        verify_committed_review_change_set(stale_packet)
+    with pytest.raises(ValueError, match="COMMITTED_REVIEW_HEAD_MISMATCH"):
+        resolve_committed_governance_change_set(tmp_path, head, base)
+    target.write_text("local drift\n", encoding="utf-8")
+    workspace_change_set = resolve_governance_change_set(tmp_path)
+    assert workspace_change_set is not None
+    assert workspace_change_set.unstaged_paths == ("scripts/quality.ps1",)
+    with pytest.raises(ValueError, match="COMMITTED_REVIEW_WORKSPACE_DIRTY"):
+        verify_committed_review_change_set(review)
+
+
+def test_committed_review_tracks_rename_sources_and_deletions(tmp_path: Path) -> None:
+    _git_for_committed_review(tmp_path, "init")
+    _git_for_committed_review(tmp_path, "config", "user.email", "test@example.invalid")
+    _git_for_committed_review(tmp_path, "config", "user.name", "Test Reviewer")
+    governed = tmp_path / "scripts" / "quality.ps1"
+    governed.parent.mkdir()
+    governed.write_text("governed content\n", encoding="utf-8")
+    deleted = tmp_path / "config" / "old.json"
+    deleted.parent.mkdir()
+    deleted.write_text("{}\n", encoding="utf-8")
+    _git_for_committed_review(tmp_path, "add", ".")
+    _git_for_committed_review(tmp_path, "commit", "-m", "base")
+    base = _git_for_committed_review(tmp_path, "rev-parse", "HEAD")
+    _git_for_committed_review(
+        tmp_path, "mv", "scripts/quality.ps1", "scripts/quality-renamed.ps1"
+    )
+    _git_for_committed_review(tmp_path, "rm", "config/old.json")
+    _git_for_committed_review(tmp_path, "commit", "-m", "rename and delete")
+    head = _git_for_committed_review(tmp_path, "rev-parse", "HEAD")
+    review = resolve_committed_governance_change_set(tmp_path, base, head)
+    assert set(review.changed_paths) == {
+        "scripts/quality.ps1",
+        "scripts/quality-renamed.ps1",
+        "config/old.json",
+    }
+    assert _classify_change_set(review) is ChangeApprovalClass.C3_GOVERNED
+    stale = GovernanceChangeSet(
+        repository_root=tmp_path.resolve(),
+        git_commit=head,
+        changed_paths=("scripts/quality-renamed.ps1", "config/old.json"),
+        review_base_commit=base,
+        review_head_commit=head,
+        review_patch_sha256=review.review_patch_sha256,
+    )
+    with pytest.raises(ValueError, match="COMMITTED_REVIEW_SCOPE_DRIFT"):
+        verify_committed_review_change_set(stale)

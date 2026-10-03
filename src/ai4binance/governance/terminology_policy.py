@@ -12,6 +12,7 @@ from typing import cast
 
 import yaml
 
+from ai4binance.governance.artifact_classification import is_python_bytecode_artifact
 from ai4binance.schema_validation import OfflineSchemaRegistry, SchemaValidationError
 
 POLICY_PATH = Path("config/governance/canonical_terminology_registry.yaml")
@@ -115,6 +116,8 @@ def evaluate_terminology_policy(
     prohibited = _term_owners(policy.terms, "prohibited_terms")
     deprecated = _term_owners(policy.terms, "deprecated_aliases")
     for relative in _normalized_paths(repository_paths):
+        if is_python_bytecode_artifact(relative):
+            continue
         if relative in policy.excluded_paths or not _is_scanned_path(
             relative,
             policy.scan_roots,

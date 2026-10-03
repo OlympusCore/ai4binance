@@ -409,6 +409,71 @@ def test_governed_instruction_reader_rejects_unapproved_changes(
         repository_validator.read_verified_governed_document(tmp_path, "AGENTS.md")
 
 
+def test_governed_reader_accepts_registered_path_and_rejects_missing_duplicate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    lock = repository_validator._document_lock_manifest(ROOT)
+    assert lock[2] is None
+    monkeypatch.setattr(repository_validator, "_document_lock_manifest", lambda _: lock)
+    source = ROOT / "docs/providers/instruction_codex_provider.md"
+    target = tmp_path / "docs/providers/instruction_codex_provider.md"
+    target.parent.mkdir(parents=True)
+    shutil.copy2(source, target)
+    relative = "docs/providers/instruction_codex_provider.md"
+    assert repository_validator.read_verified_governed_document(tmp_path, relative) == (
+        source.read_text(encoding="utf-8").replace("\r\n", "\n")
+    )
+    with pytest.raises(ValueError, match="source is unavailable"):
+        repository_validator.read_verified_governed_document(
+            tmp_path, "docs/providers/missing.md"
+        )
+    monkeypatch.setattr(
+        repository_validator,
+        "_document_lock_manifest",
+        lambda _: (lock[0], lock[1], "duplicate canonical registration"),
+    )
+    with pytest.raises(ValueError, match="document lock is invalid"):
+        repository_validator.read_verified_governed_document(tmp_path, relative)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows junction regression")
+def test_governed_instruction_reader_rejects_identical_byte_junction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    lock = repository_validator._document_lock_manifest(ROOT)
+    assert lock[2] is None
+    monkeypatch.setattr(repository_validator, "_document_lock_manifest", lambda _: lock)
+    relative = "docs/providers/instruction_codex_provider.md"
+    duplicate = tmp_path / "duplicate/providers/instruction_codex_provider.md"
+    duplicate.parent.mkdir(parents=True)
+    shutil.copy2(ROOT / relative, duplicate)
+    script = tmp_path / "create_junction.ps1"
+    script.write_text(
+        "param([string]$Link, [string]$Target)\n"
+        "New-Item -ItemType Junction -Path $Link -Target $Target | Out-Null\n",
+        encoding="utf-8",
+    )
+    completed = subprocess.run(  # noqa: S603
+        [
+            shutil.which("powershell") or "powershell",
+            "-NoProfile",
+            "-File",
+            str(script),
+            "-Link",
+            str(tmp_path / "docs"),
+            "-Target",
+            str(tmp_path / "duplicate"),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    with pytest.raises(ValueError, match="path is redirected"):
+        repository_validator.read_verified_governed_document(tmp_path, relative)
+    assert duplicate.read_bytes() == (ROOT / relative).read_bytes()
+
+
 def test_startup_does_not_accept_an_empty_repository(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="fabric validation failed"):
         repository_validator.validate_governance_context(tmp_path)

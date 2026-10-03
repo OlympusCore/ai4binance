@@ -88,6 +88,33 @@ def test_prohibited_term_is_a_blocker_in_a_registered_scan_root(tmp_path: Path) 
     )
 
 
+def test_compiled_bytecode_is_not_scanned_as_text_but_source_still_is(
+    tmp_path: Path,
+) -> None:
+    policy = load_terminology_policy(ROOT)
+    package = tmp_path / "src" / "package"
+    cache = package / "__pycache__"
+    cache.mkdir(parents=True)
+    (cache / "module.cpython-314.pyc").write_bytes(b"\xff\x00signal = trade")
+    (package / "module.py").write_text("signal = trade\n", encoding="utf-8")
+
+    findings = evaluate_terminology_policy(
+        tmp_path,
+        policy,
+        (
+            "src/package/__pycache__/module.cpython-314.pyc",
+            "src/package/module.py",
+        ),
+    )
+
+    assert not any(finding.path.endswith(".pyc") for finding in findings)
+    assert any(
+        finding.path == "src/package/module.py"
+        and finding.code == "TERMINOLOGY_PROHIBITED_TERM"
+        for finding in findings
+    )
+
+
 def test_registry_is_not_a_second_source_of_truth() -> None:
     payload = yaml.safe_load((ROOT / POLICY_PATH).read_text(encoding="utf-8"))
 

@@ -12,6 +12,7 @@ import mimetypes
 import os
 import re
 import shutil
+import stat
 import subprocess  # nosec B404
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
@@ -24,6 +25,7 @@ from uuid import NAMESPACE_URL, uuid5
 
 import yaml
 
+from ai4binance.governance.artifact_classification import is_python_bytecode_artifact
 from ai4binance.governance.authority import (
     detect_authority_conflicts,
     load_authority_graph,
@@ -1383,8 +1385,11 @@ def read_verified_governed_document(repository_root: Path, relative: str) -> str
     root = repository_root.resolve()
     if not _is_safe_repository_relative_path(relative):
         raise ValueError("governed context path is invalid")
-    path = (root / relative).resolve()
-    if not path.is_relative_to(root) or not path.is_file():
+    path = root / relative
+    if _has_repository_path_redirection(root, Path(relative)):
+        raise ValueError("governed context path is redirected")
+    resolved = path.resolve()
+    if resolved != path or not resolved.is_relative_to(root) or not path.is_file():
         raise ValueError("governed context source is unavailable")
     entries, approvals, error = _document_lock_manifest(root)
     if error is not None or relative not in entries:
@@ -1614,6 +1619,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--repository-root", type=Path, default=Path.cwd())
     parser.add_argument(
+        "--document-lock-review-context",
+        type=Path,
+        help="Verify versioned pre-application bindings only; never approval.",
+    )
+    parser.add_argument(
+        "--document-lock-review-artifact-root",
+        type=Path,
+        help="Read v2 review artifacts from an isolated root; never authority.",
+    )
+    parser.add_argument(
         "--check-repository",
         action="store_true",
         help="Validate canonical repository governance. This is the default mode.",
@@ -1650,6 +1665,53 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(arguments: Sequence[str] | None = None) -> int:
+    parsed = build_parser().parse_args(arguments)
+    if parsed.document_lock_review_context is None:
+        if parsed.document_lock_review_artifact_root is not None:
+            raise ValueError("DOCUMENT_REVIEW_ARTIFACT_ROOT_REQUIRES_CONTEXT")
+        return _repository_main(arguments)
+    from ai4binance.governance.document_lock_review import review_files
+
+    try:
+        if any(
+            value
+            for key, value in vars(parsed).items()
+            if key
+            not in {
+                "repository_root",
+                "document_lock_review_context",
+                "document_lock_review_artifact_root",
+                "quiet",
+            }
+        ):
+            raise ValueError("DOCUMENT_REVIEW_MODE_CONFLICT")
+        report = review_files(
+            parsed.repository_root,
+            parsed.document_lock_review_context,
+            now=datetime.now(UTC),
+            artifact_root=parsed.document_lock_review_artifact_root,
+        )
+    except (
+        ValueError,
+        OSError,
+        KeyError,
+        TypeError,
+        subprocess.SubprocessError,
+    ) as exc:
+        report = {
+            "status": "REVIEW_BINDINGS_INVALID",
+            "blocker": str(exc),
+            "application_allowed": False,
+            "adoption_allowed": False,
+            "execution_allowed": False,
+            "promotion_status": "RESEARCH_ONLY",
+            "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+        }
+    print(json.dumps(report, sort_keys=True))
+    return 0 if report["status"] == "REVIEW_BINDINGS_VALID" else 2
+
+
+def _repository_main(arguments: Sequence[str] | None = None) -> int:
     parsed = build_parser().parse_args(arguments)
     monitor_subject = None
     if parsed.monitor_health is not None:
@@ -2139,8 +2201,7 @@ def _mirror_path_classification(
             return MirrorPathClassification.TEST_TEMP
         return MirrorPathClassification.TEMP
     parts = set(Path(relative).parts)
-    suffix = Path(relative).suffix.lower()
-    if "__pycache__" in parts or suffix in {".pyc", ".pyo"}:
+    if "__pycache__" in parts or is_python_bytecode_artifact(relative):
         return MirrorPathClassification.GENERATED
     if relative.endswith(".egg-info") or ".egg-info/" in relative:
         return MirrorPathClassification.GENERATED
@@ -2164,7 +2225,6 @@ def _mirror_path_classification(
 def _hard_exclude_classification(relative: str) -> MirrorPathClassification:
     path_parts = Path(relative).parts
     parts = set(path_parts)
-    suffix = Path(relative).suffix.lower()
     if ".hypothesis" in parts or ".pytest_cache" in parts:
         return MirrorPathClassification.TEST_CACHE
     if (
@@ -2184,7 +2244,7 @@ def _hard_exclude_classification(relative: str) -> MirrorPathClassification:
         or path_parts[:3] == ("runtime", "tmp", "pytest")
     ):
         return MirrorPathClassification.TEST_TEMP
-    if "__pycache__" in parts or suffix in {".pyc", ".pyo"}:
+    if "__pycache__" in parts or is_python_bytecode_artifact(relative):
         return MirrorPathClassification.GENERATED
     if relative.endswith(".egg-info") or ".egg-info/" in relative:
         return MirrorPathClassification.GENERATED
@@ -3974,6 +4034,13 @@ def _document_lock_manifest(
         return {}, frozenset(), f"Governed document lock manifest is invalid: {exc}."
     if not isinstance(payload, dict):
         return {}, frozenset(), "Governed document lock manifest must be a JSON object."
+    from ai4binance.governance.document_lock_authority import (
+        prospective_document_approvals,
+    )
+
+    prospective, prospective_error = prospective_document_approvals(root, payload)
+    if prospective_error is not None:
+        return {}, frozenset(), prospective_error
     if payload.get("status") != "ACTIVE":
         return {}, frozenset(), "Governed document lock manifest status must be ACTIVE."
     if payload.get("written_owner_approval_required") is not True:
@@ -4000,7 +4067,7 @@ def _document_lock_manifest(
     )
     if written_approval_error is not None:
         return {}, frozenset(), written_approval_error
-    return entries, approvals, None
+    return entries, approvals | prospective, None
 
 
 def _document_lock_manifest_policy(value: object) -> str | None:
@@ -4156,12 +4223,16 @@ def _document_lock_approvals(
     value: object,
     repository_root: Path | None = None,
 ) -> tuple[frozenset[tuple[str, str]], str | None]:
+    from ai4binance.governance.document_lock_review import legacy_boundary_error
+
     if not isinstance(value, list):
         return frozenset(), "approval_records must be a JSON array."
     approvals: set[tuple[str, str]] = set()
     for item in value:
         if not isinstance(item, dict):
             return frozenset(), "Each approval record must be a JSON object."
+        if boundary_error := legacy_boundary_error(item):
+            return frozenset(), boundary_error
         if item.get("approval_status") != "APPROVED":
             continue
         if item.get("written_owner_approval") is not True:
@@ -4246,6 +4317,10 @@ def _document_lock_approval_evidence(
     item: dict[str, object],
     repository_root: Path | None,
 ) -> str | None:
+    from ai4binance.governance.document_lock_review import legacy_boundary_error
+
+    if boundary_error := legacy_boundary_error(item):
+        return boundary_error
     evidence_path = item.get("approval_evidence_path")
     evidence_sha256 = item.get("approval_evidence_sha256")
     if evidence_path is None and evidence_sha256 is None:
@@ -4271,6 +4346,8 @@ def _document_lock_approval_evidence(
         return f"Approved document lock evidence is invalid: {exc}."
     if not isinstance(payload, dict):
         return "Approved document lock evidence must be a JSON object."
+    if boundary_error := legacy_boundary_error(payload):
+        return boundary_error
     if (
         payload.get("artifact_origin")
         != "governed_document_lock_written_owner_approval"
@@ -4306,6 +4383,22 @@ def _is_safe_repository_relative_path(value: str) -> bool:
         and not path.is_absolute()
         and ".." not in path.parts
     )
+
+
+def _has_repository_path_redirection(root: Path, relative: Path) -> bool:
+    """Reject links and Windows reparse points at every registered path component."""
+    current = root
+    for part in relative.parts:
+        current /= part
+        if current.is_symlink() or current.is_junction():
+            return True
+        try:
+            attributes = current.lstat().st_file_attributes
+        except (AttributeError, FileNotFoundError):
+            continue
+        if attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+            return True
+    return False
 
 
 def _required_knowledge_fields() -> tuple[str, ...]:
@@ -5862,10 +5955,9 @@ def _is_under_src(relative: str) -> bool:
 
 def _is_disposable_generated_artifact(relative: str) -> bool:
     parts = Path(relative).parts
-    suffix = Path(relative).suffix.lower()
     return (
         "__pycache__" in parts
-        or suffix in {".pyc", ".pyo"}
+        or is_python_bytecode_artifact(relative)
         or any(part.endswith(".egg-info") for part in parts)
     )
 

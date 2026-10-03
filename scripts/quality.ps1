@@ -3,6 +3,8 @@ param(
     [string]$Profile = "full",
     [string]$BaseRef = "",
     [string]$HeadRef = "",
+    [string]$GovernanceBaseRef = "",
+    [string]$GovernanceHeadRef = "",
     [Alias("ApprovalRecordPath")]
     [string]$ApprovalRecordReportPath = "",
     [string]$ApprovalBy = "",
@@ -48,8 +50,8 @@ $pytestTempRoot = Join-Path $env:TEMP "pytest"
 New-Item -ItemType Directory -Path $pytestTempRoot -Force | Out-Null
 $dmypyStatusDirectory = Join-Path $repoRoot "runtime\tmp\dmypy"
 New-Item -ItemType Directory -Path $dmypyStatusDirectory -Force | Out-Null
-$dmypyStatusFile = Join-Path $dmypyStatusDirectory "dmypy.json"
 $pytestTempRunId = [guid]::NewGuid().ToString("N")
+$dmypyStatusFile = Join-Path $dmypyStatusDirectory ("dmypy-" + $pytestTempRunId + ".json")
 $pytestTemp = Join-Path $pytestTempRoot ("ai4binance-pytest-" + $pytestTempRunId)
 New-Item -ItemType Directory -Path $pytestTemp -Force | Out-Null
 [ordered]@{
@@ -385,7 +387,8 @@ function Invoke-CleanupScript {
         [Parameter(Mandatory = $true)]
         [string]$Name,
         [Parameter(Mandatory = $true)]
-        [hashtable]$Arguments
+        [hashtable]$Arguments,
+        [switch]$FailOnCandidates
     )
 
     $cleanupScript = Join-Path $PSScriptRoot "cleanup_generated_artifacts.ps1"
@@ -404,7 +407,6 @@ function Invoke-CleanupScript {
     )
     try {
         $global:LASTEXITCODE = 0
-        Remove-Item -LiteralPath $stepOutputPath -Force -ErrorAction SilentlyContinue
         & $cleanupScript @Arguments *> $stepOutputPath
         $invocationSucceeded = $?
         if ($invocationSucceeded) {
@@ -420,6 +422,32 @@ function Invoke-CleanupScript {
             $stepStatus = "FAIL"
             $script:qualityStepFailures += $Name
             throw "$Name failed with exit code $exitCode. Evidence: $stepArtifactPath"
+        }
+        if ($FailOnCandidates) {
+            $audit = Get-Content -LiteralPath $stepOutputPath -Raw | ConvertFrom-Json
+            if (
+                $null -eq $audit -or
+                $audit.command -ne "cleanup-generated-artifacts" -or
+                $audit.applied -ne $false -or
+                $null -eq $audit.candidate_count -or
+                [int]$audit.candidate_count -lt 0 -or
+                $null -eq $audit.blocked_count -or
+                [int]$audit.blocked_count -lt 0
+            ) {
+                $stepStatus = "FAIL"
+                $exitCode = 1
+                $script:qualityStepFailures += $Name
+                throw "$Name returned an invalid audit. Evidence: $stepArtifactPath"
+            }
+            if (
+                [int]$audit.candidate_count -gt 0 -or
+                [int]$audit.blocked_count -gt 0
+            ) {
+                $stepStatus = "FAIL"
+                $exitCode = 1
+                $script:qualityStepFailures += $Name
+                throw "$Name found $($audit.candidate_count) generated artifacts and $($audit.blocked_count) blocked paths. Evidence: $stepArtifactPath"
+            }
         }
         $stepStatus = "PASS"
     }
@@ -470,12 +498,11 @@ function Invoke-ProcessTempRetentionCleanup {
     Invoke-CleanupScript -Name "Process temp retention cleanup" -Arguments $arguments
 }
 
-function Invoke-SourceGeneratedArtifactCleanup {
+function Invoke-SourceGeneratedArtifactCheck {
     $arguments = @{
-        Apply = $true
         Mode = @("SourceGenerated")
     }
-    Invoke-CleanupScript -Name "Source-generated artifact cleanup" -Arguments $arguments
+    Invoke-CleanupScript -Name "Source-generated artifact check" -Arguments $arguments -FailOnCandidates
 }
 
 function Invoke-QualityStepWithAllowedExitCodes {
@@ -504,7 +531,6 @@ function Invoke-QualityStepWithAllowedExitCodes {
     try {
         $script:qualityRunCurrentStep = $Name
         Write-QualityRunMetadata -Status "RUNNING" -CurrentStep $script:qualityRunCurrentStep
-        Remove-Item -LiteralPath $stepOutputPath -Force -ErrorAction SilentlyContinue
         & $python -B @Arguments *> $stepOutputPath
         $exitCode = $LASTEXITCODE
         $script:qualityStepExitCodes[$Name] = $exitCode
@@ -549,12 +575,6 @@ function Invoke-QualityStep {
         -Name $Name `
         -Arguments $Arguments `
         -AllowedExitCodes @(0))
-}
-
-function Reset-DmypyStatusFile {
-    if (Test-Path -LiteralPath $dmypyStatusFile -PathType Leaf) {
-        Remove-Item -LiteralPath $dmypyStatusFile -Force -ErrorAction SilentlyContinue
-    }
 }
 
 function Test-PytestSelectionArgument {
@@ -1063,7 +1083,6 @@ function Invoke-PytestWithCapturedOutput {
     $script:qualitySelectedPytestArguments = @("FULL_TEST_SUITE")
     Write-QualityRunMetadata -Status "RUNNING" -CurrentStep $script:qualityRunCurrentStep
     New-Item -ItemType Directory -Path $qualityRunDirectory -Force | Out-Null
-    Remove-Item -LiteralPath $pytestOutputPath -Force -ErrorAction SilentlyContinue
     try {
         & $python -B @arguments *> $pytestOutputPath
         $exitCode = $LASTEXITCODE
@@ -1121,7 +1140,6 @@ function Invoke-ScopedPytestWithCapturedOutput {
     $script:qualityRunCurrentStep = $Name
     Write-QualityRunMetadata -Status "RUNNING" -CurrentStep $script:qualityRunCurrentStep
     New-Item -ItemType Directory -Path $qualityRunDirectory -Force | Out-Null
-    Remove-Item -LiteralPath $pytestOutputPath -Force -ErrorAction SilentlyContinue
     try {
         & $python -B @arguments *> $pytestOutputPath
         $exitCode = $LASTEXITCODE
@@ -1160,10 +1178,6 @@ function Get-ChangedRepositoryPaths {
         $qualityRunTimestamp +
         "\git-changed-paths-error.txt"
     )
-    Remove-Item `
-        -LiteralPath $gitChangedPathsErrorPath `
-        -Force `
-        -ErrorAction SilentlyContinue
     $previousErrorActionPreference = $ErrorActionPreference
     $changed = @()
     $untracked = @()
@@ -1349,7 +1363,6 @@ function Invoke-BanditWithCapturedOutput {
     $script:qualityRunCurrentStep = "Bandit"
     Write-QualityRunMetadata -Status "RUNNING" -CurrentStep $script:qualityRunCurrentStep
     New-Item -ItemType Directory -Path $qualityRunDirectory -Force | Out-Null
-    Remove-Item -LiteralPath $banditOutputPath -Force -ErrorAction SilentlyContinue
     Set-Content -LiteralPath $banditOutputPath -Value "" -Encoding ASCII
     try {
         & $python -B -m bandit -q -r src *> $banditOutputPath
@@ -1672,19 +1685,6 @@ function Get-RepositoryGitCommit {
 }
 
 function Reset-LatestQualityGateArtifacts {
-    $latestPaths = @(
-        $qualityEvidencePath,
-        $repositoryValidatorReportPath,
-        $deterministicQualityGateReportPath,
-        $humanGovernanceClosureRequestPath,
-        $humanGovernanceClosureRequestMarkdownPath,
-        $governanceGateReportPath
-    )
-    foreach ($path in $latestPaths) {
-        if (Test-Path -LiteralPath $path) {
-            Remove-Item -LiteralPath $path -Force -ErrorAction Stop -Confirm:$false
-        }
-    }
     $script:cachedRepositoryValidatorReport = $null
     $script:cachedGovernanceGateReport = $null
 }
@@ -2075,6 +2075,27 @@ function Get-BanditEvidence {
     }
 }
 
+function Get-GovernanceReviewArguments {
+    param([string]$FrozenGovernanceGateReportPath = "")
+    $base = $GovernanceBaseRef
+    $head = $GovernanceHeadRef
+    if (-not [string]::IsNullOrWhiteSpace($FrozenGovernanceGateReportPath)) {
+        $frozen = Get-Content -LiteralPath $FrozenGovernanceGateReportPath -Raw | ConvertFrom-Json
+        $base = [string]$frozen.change_set.review_base_commit
+        $head = [string]$frozen.change_set.review_head_commit
+        if ($GovernanceBaseRef -or $GovernanceHeadRef) {
+            if ($GovernanceBaseRef -ne $base -or $GovernanceHeadRef -ne $head) {
+                throw "COMMITTED_REVIEW_REPLAY_ARGUMENT_MISMATCH"
+            }
+        }
+    }
+    if ([bool]$base -ne [bool]$head) {
+        throw "COMMITTED_REVIEW_REFS_REQUIRED"
+    }
+    if ($base) { return @("--review-base-ref", $base, "--review-head-ref", $head) }
+    return @()
+}
+
 function Invoke-DeterministicQualityGate {
     $pytestPassCount = Get-PytestPassCount
     $coveragePercent = Get-CoveragePercent
@@ -2089,7 +2110,7 @@ function Invoke-DeterministicQualityGate {
         throw "Deterministic quality gate is missing governed markdown coverage proof"
     }
     $banditEvidence = Get-BanditEvidence
-    Invoke-QualityStep "Deterministic quality gate" @(
+    Invoke-QualityStep "Deterministic quality gate" (@(
         "-m",
         "ai4binance.governance.gate",
         "--mode",
@@ -2120,7 +2141,7 @@ function Invoke-DeterministicQualityGate {
         $banditEvidence.evidence_sha256,
         "--output-json",
         $deterministicQualityGateReportPath
-    )
+    ) + (Get-GovernanceReviewArguments))
 }
 
 function Invoke-DeterministicGovernanceGateStep {
@@ -2186,6 +2207,7 @@ function Invoke-DeterministicGovernanceGateStep {
         "--output-json",
         $governanceGateReportPath
     )
+    $arguments += Get-GovernanceReviewArguments -FrozenGovernanceGateReportPath $FrozenGovernanceGateReportPath
     if (-not [string]::IsNullOrWhiteSpace($ApprovalRecordPathOverride)) {
         $arguments += @("--approval-record-report", $ApprovalRecordPathOverride)
     }
@@ -2376,8 +2398,7 @@ function Invoke-FullApprovalReplayQualityGate {
         -ConstitutionSyncEvidence $context.governance.constitution_sync_tests `
         -ApprovalRecordPathOverride $context.approval_record_path `
         -FrozenGovernanceGateReportPath $context.governance_path | Out-Null
-    Invoke-GeneratedArtifactCleanup
-    Invoke-ProcessTempRetentionCleanup
+    Invoke-SourceGeneratedArtifactCheck
     Assert-QualityWorkspaceStable -Stage "BEFORE_APPROVAL_REPLAY_GREEN_EVIDENCE"
     Write-QualityGateGreenEvidence
     Assert-QualityWorkspaceStable -Stage "AFTER_APPROVAL_REPLAY_GREEN_EVIDENCE"
@@ -2639,7 +2660,7 @@ function Write-QualityGateFailureEvidence {
                     Test-PytestSelectionArgument -Argument $_
                 }
         ).Count
-        stale_latest_invalidated = $true
+        stale_latest_invalidated = $false
         full_verification_status = "NOT_VERIFIED"
         execution_allowed = $false
         promotion_status = "RESEARCH_ONLY"
@@ -2697,7 +2718,7 @@ function Write-QualityProfileEvidence {
                 Test-PytestSelectionArgument -Argument $_
             }
         ).Count
-        stale_latest_invalidated = $true
+        stale_latest_invalidated = $false
         full_verification_status = "NOT_VERIFIED"
         execution_allowed = $false
         promotion_status = "RESEARCH_ONLY"
@@ -3123,7 +3144,7 @@ function Invoke-QualityGate {
         return
     }
     Reset-LatestQualityGateArtifacts
-    Invoke-SourceGeneratedArtifactCleanup
+    Invoke-SourceGeneratedArtifactCheck
     Invoke-QualityStep "Dependency check" @("-m", "pip", "check")
     Invoke-QualityStep "Ruff format" @("-m", "ruff", "format", "--check", ".")
     Invoke-QualityStep "Ruff lint" @("-m", "ruff", "check", ".")
@@ -3149,7 +3170,6 @@ function Invoke-QualityGate {
     Assert-QualityWorkspaceStable -Stage "AFTER_FULL_STATIC_CHECKS"
     Invoke-RepositoryGovernanceValidator
     $script:mirrorRemoteCheck = Invoke-ConditionalMirrorHygiene
-    Remove-GeneratedCoverageArtifacts
     Assert-QualityWorkspaceStable -Stage "BEFORE_FULL_PYTEST"
     $previousCoverageFile = $env:COVERAGE_FILE
     $env:COVERAGE_FILE = $coverageFile
@@ -3182,8 +3202,7 @@ function Invoke-QualityGate {
     Invoke-ConstitutionSyncGateTests | Out-Null
     Assert-QualityWorkspaceStable -Stage "BEFORE_DETERMINISTIC_GOVERNANCE_GATE"
     Invoke-DeterministicGovernanceGate
-    Invoke-GeneratedArtifactCleanup
-    Invoke-ProcessTempRetentionCleanup
+    Invoke-SourceGeneratedArtifactCheck
     Assert-QualityWorkspaceStable -Stage "BEFORE_GREEN_EVIDENCE"
     Write-QualityGateGreenEvidence
     Assert-QualityWorkspaceStable -Stage "AFTER_GREEN_EVIDENCE"
@@ -3191,7 +3210,7 @@ function Invoke-QualityGate {
 
 function Invoke-FastQualityGate {
     Reset-LatestQualityGateArtifacts
-    Invoke-SourceGeneratedArtifactCleanup
+    Invoke-SourceGeneratedArtifactCheck
     Invoke-QualityStep "Ruff format" @("-m", "ruff", "format", "--check", ".")
     Invoke-QualityStep "Ruff lint" @("-m", "ruff", "check", ".")
     Invoke-QualityStep "Ruff maintainability ratchet" @(
@@ -3200,7 +3219,6 @@ function Invoke-FastQualityGate {
         "--repository-root",
         $repoRoot
     )
-    Reset-DmypyStatusFile
     Invoke-QualityStep "dmypy" @(
         "-m",
         "mypy.dmypy",
@@ -3213,14 +3231,14 @@ function Invoke-FastQualityGate {
     Invoke-ScopedPytestWithCapturedOutput `
         -Name "Pytest affected" `
         -PytestArguments (Get-FastAffectedPytestArguments)
-    Invoke-ProcessTempRetentionCleanup
+    Invoke-SourceGeneratedArtifactCheck
     Assert-QualityWorkspaceStable -Stage "BEFORE_FAST_PROFILE_EVIDENCE"
     Write-QualityProfileEvidence -Status "FAST_PROFILE_PASS"
 }
 
 function Invoke-StandardQualityGate {
     Reset-LatestQualityGateArtifacts
-    Invoke-SourceGeneratedArtifactCleanup
+    Invoke-SourceGeneratedArtifactCheck
     Invoke-QualityStep "Ruff format" @("-m", "ruff", "format", "--check", ".")
     Invoke-QualityStep "Ruff lint" @("-m", "ruff", "check", ".")
     Invoke-QualityStep "Ruff maintainability ratchet" @(
@@ -3235,7 +3253,7 @@ function Invoke-StandardQualityGate {
     Invoke-ScopedPytestWithCapturedOutput `
         -Name "Pytest required" `
         -PytestArguments (Get-StandardRequiredPytestArguments)
-    Invoke-ProcessTempRetentionCleanup
+    Invoke-SourceGeneratedArtifactCheck
     Assert-QualityWorkspaceStable -Stage "BEFORE_STANDARD_PROFILE_EVIDENCE"
     Write-QualityProfileEvidence -Status "STANDARD_PROFILE_PASS"
 }
@@ -3305,8 +3323,6 @@ finally {
     else {
         $env:PYTHONPATH = $previousPythonPath
     }
-    Remove-PytestTempArtifacts
-    Invoke-TestTempRetentionCleanup
     Write-QualityPerformanceArtifacts `
         -Status $qualityRunStatus `
         -ErrorMessage $qualityRunError `
