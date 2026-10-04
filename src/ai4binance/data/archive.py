@@ -95,14 +95,19 @@ class ParquetOHLCVArchive:
             raise DatasetIntegrityError("dataset bounds do not match manifest")
         expected_step = timeframe_duration(timeframe)
         stored_gaps: list[str] = []
-        timestamps_py = timestamps.to_pylist()
-        for index in range(table.num_rows - 1):
-            left = timestamps_py[index]
-            right = timestamps_py[index + 1]
-            if right <= left:
+        if table.num_rows > 1:
+            timestamps_py = timestamps.to_pylist()
+            if any(right <= left for left, right in pairwise(timestamps_py)):
                 raise DatasetIntegrityError("dataset sequence is invalid")
-            if right - left != expected_step:
-                stored_gaps.append(f"{left.isoformat()}->{right.isoformat()}")
+            if not all(
+                right - left == expected_step
+                for left, right in pairwise(timestamps_py)
+            ):
+                for left, right in pairwise(timestamps_py):
+                    if right - left != expected_step:
+                        stored_gaps.append(
+                            f"{left.isoformat()}->{right.isoformat()}"
+                        )
         if (
             tuple(stored_gaps) != manifest.gaps
             or len(stored_gaps) != manifest.gap_count
