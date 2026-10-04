@@ -10,7 +10,6 @@ from hashlib import sha256
 from itertools import pairwise
 from pathlib import Path
 
-import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -94,19 +93,15 @@ class ParquetOHLCVArchive:
             or timestamps[-1].as_py() != last
         ):
             raise DatasetIntegrityError("dataset bounds do not match manifest")
-        values = timestamps.to_numpy(zero_copy_only=False)
-        differences = np.diff(values)
-        if np.any(differences <= np.timedelta64(0, "us")):
-            raise DatasetIntegrityError("dataset sequence is invalid")
-        expected_step = np.timedelta64(timeframe_duration(timeframe))
-        gap_indices = np.flatnonzero(differences != expected_step)
+        expected_step = timeframe_duration(timeframe)
         stored_gaps: list[str] = []
-        for index in gap_indices:
+        for index in range(table.num_rows - 1):
             left = timestamps[index].as_py()
             right = timestamps[index + 1].as_py()
             if right <= left:
                 raise DatasetIntegrityError("dataset sequence is invalid")
-            stored_gaps.append(f"{left.isoformat()}->{right.isoformat()}")
+            if right - left != expected_step:
+                stored_gaps.append(f"{left.isoformat()}->{right.isoformat()}")
         if (
             tuple(stored_gaps) != manifest.gaps
             or len(stored_gaps) != manifest.gap_count
