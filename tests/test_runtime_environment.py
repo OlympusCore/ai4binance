@@ -147,3 +147,44 @@ else:
             result.stdout + result.stderr
         )
         assert not external_base.exists()
+
+    @unittest.skipUnless(os.name == "nt", "PowerShell launcher requires Windows")
+    def test_bootstrap_suppresses_child_and_grandchild_source_caches(self) -> None:
+        root = Path(ai4binance.__file__).resolve().parents[2]
+        executable = shutil.which("powershell.exe")
+        assert executable is not None
+        with tempfile.TemporaryDirectory() as directory:
+            module_root = Path(directory) / "source"
+            module_root.mkdir()
+            (module_root / "cache_probe.py").write_text("VALUE = 1\n", encoding="utf-8")
+            code = (
+                "import json, subprocess, sys; import cache_probe; "
+                "child = subprocess.check_output([sys.executable, '-c', "
+                "'import sys; import cache_probe; "
+                "print(int(sys.dont_write_bytecode))'], "
+                "text=True).strip(); "
+                "print(json.dumps([sys.dont_write_bytecode, child]))"
+            )
+            bootstrap = str(root / "scripts" / "initialize_runtime_environment.ps1")
+            command = (
+                ". '" + bootstrap.replace("'", "''") + "'; "
+                "& '"
+                + sys.executable.replace("'", "''")
+                + "' -c '"
+                + code.replace("'", "''")
+                + "'"
+            )
+            environment = dict(os.environ, PYTHONPATH=str(module_root))
+            environment.pop("PYTHONDONTWRITEBYTECODE", None)
+            environment.pop("PYTHONPYCACHEPREFIX", None)
+            result = subprocess.run(  # noqa: S603 - fixed bootstrap and test-only module
+                [executable, "-NoProfile", "-NonInteractive", "-Command", command],
+                cwd=root.parent,
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=True,
+            )
+            assert json.loads(result.stdout) == [True, "1"]
+            assert not (module_root / "__pycache__").exists()

@@ -16,4 +16,6 @@
     $env:TEMP = $runtimeTemporary
     $env:TMP = $runtimeTemporary
     $env:TMPDIR = $runtimeTemporary
+    # The bootstrap's -B flag does not propagate to later Python children.
+    $env:PYTHONDONTWRITEBYTECODE = "1"
 }
