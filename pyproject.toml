@@ -12,6 +12,7 @@ dependencies = [
   "cryptography>=50,<51",
   "defusedxml>=0.7.1,<1",
   "jsonschema>=4.26,<5",
+  "numpy>=1.26,<3",
   "pydantic>=2.10,<3",
   "pydantic-settings>=2.7,<3",
   "pyarrow>=18,<25",

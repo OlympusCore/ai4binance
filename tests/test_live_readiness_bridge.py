@@ -16,7 +16,7 @@ from ai4binance.execution.live_readiness import (
 
 
 def test_readiness_cold_import_does_not_load_concrete_execution_adapters() -> None:
-    result = subprocess.run(  # noqa: S603 -- Fixed interpreter and local import probe.
+    result = subprocess.run(
         [
             sys.executable,
             "-B",

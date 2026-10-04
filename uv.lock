@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = "==3.14.*"
 
 [[package]]
@@ -10,6 +10,7 @@ dependencies = [
     { name = "cryptography" },
     { name = "defusedxml" },
     { name = "jsonschema" },
+    { name = "numpy" },
     { name = "pyarrow" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -59,6 +60,7 @@ requires-dist = [
     { name = "jsonschema", specifier = ">=4.26,<5" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.27,<2" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.14,<2" },
+    { name = "numpy", specifier = ">=1.26,<3" },
     { name = "numpy", marker = "extra == 'voice'", specifier = ">=1.26,<3" },
     { name = "optuna", marker = "extra == 'research'", specifier = ">=4.9,<5" },
     { name = "pip-audit", marker = "extra == 'security'", specifier = ">=2.10,<3" },

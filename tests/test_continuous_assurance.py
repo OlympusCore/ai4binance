@@ -1100,7 +1100,7 @@ def _signal(
 
 
 def test_assurance_contracts_import_without_operational_adapters() -> None:
-    result = subprocess.run(  # noqa: S603 - fixed local Python and literal probe.
+    result = subprocess.run(
         [
             sys.executable,
             "-B",
