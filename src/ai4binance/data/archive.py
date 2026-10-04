@@ -97,17 +97,11 @@ class ParquetOHLCVArchive:
         stored_gaps: list[str] = []
         if table.num_rows > 1:
             timestamps_py = timestamps.to_pylist()
-            if any(right <= left for left, right in pairwise(timestamps_py)):
-                raise DatasetIntegrityError("dataset sequence is invalid")
-            if not all(
-                right - left == expected_step
-                for left, right in pairwise(timestamps_py)
-            ):
-                for left, right in pairwise(timestamps_py):
-                    if right - left != expected_step:
-                        stored_gaps.append(
-                            f"{left.isoformat()}->{right.isoformat()}"
-                        )
+            for left, right in pairwise(timestamps_py):
+                if right <= left:
+                    raise DatasetIntegrityError("dataset sequence is invalid")
+                if right - left != expected_step:
+                    stored_gaps.append(f"{left.isoformat()}->{right.isoformat()}")
         if (
             tuple(stored_gaps) != manifest.gaps
             or len(stored_gaps) != manifest.gap_count
