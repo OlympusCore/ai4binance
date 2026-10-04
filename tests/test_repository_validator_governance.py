@@ -31,6 +31,12 @@ VNEXT_LOCK_ALIGNMENT_PATHS = (
     "README.md",
     "docs/compliance/registry_compliance_matrix.md",
     "docs/registries/registry_strategy_registry.md",
+    "GEMINI.md",
+    "docs/governance/instruction_core_custom_instructions.md",
+    "docs/governance/policy_organization_constitution_handbook.md",
+    "docs/governance/policy_manifest_governance.md",
+    "docs/governance/policy_organization_foundation_operating_model.md",
+    "docs/governance/policy_organization_incident_change_appendices.md",
 )
 
 
