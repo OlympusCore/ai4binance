@@ -46,6 +46,10 @@ jobs:
         shell: pwsh
         run: uv sync --frozen --extra dev
 
+      - name: Remove source-generated artifacts from environment sync
+        shell: pwsh
+        run: .\scripts\cleanup_generated_artifacts.ps1 -Mode SourceGenerated -Apply
+
       - name: Run standard profile for pull requests
         if: github.event_name == 'pull_request'
         shell: pwsh
