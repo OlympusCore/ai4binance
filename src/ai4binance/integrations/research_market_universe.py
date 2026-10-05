@@ -118,7 +118,7 @@ def _read_market_cap_response(
         if error.code < 500:
             raise failure from None
         raise _RetryableMarketCapError(failure) from None
-    except (TimeoutError, URLError, OSError):
+    except TimeoutError, URLError, OSError:
         raise _RetryableMarketCapError(
             ExchangeTransportError("public market-cap request failed")
         ) from None
@@ -126,7 +126,7 @@ def _read_market_cap_response(
         raise ExchangePayloadError("public market-cap payload is too large")
     try:
         decoded = json.loads(payload.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
+    except UnicodeDecodeError, json.JSONDecodeError:
         raise ExchangePayloadError("public market-cap JSON is invalid") from None
     if not isinstance(decoded, list):
         raise ExchangePayloadError("public market-cap payload is invalid")
@@ -223,7 +223,7 @@ def _eligible_wallet_asset(
     asset = payload.get("asset")
     try:
         market_value = Decimal(str(payload.get("market_value_usdt")))
-    except (InvalidOperation, TypeError, ValueError):
+    except InvalidOperation, TypeError, ValueError:
         return None
     if (
         isinstance(asset, str)
@@ -350,7 +350,7 @@ class ResearchMarketUniverseProvider:
                 minimum_value_usdt=self.wallet_minimum_value_usdt,
                 maximum_age=self.wallet_maximum_age,
             )
-        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        except OSError, ValueError, TypeError, json.JSONDecodeError:
             return self._blocked(metadata, "WALLET_UNIVERSE_UNAVAILABLE_OR_STALE")
         if self.manual_selection_path is not None:
             return self._manual_priority_snapshot(metadata, wallet)
@@ -411,7 +411,7 @@ class ResearchMarketUniverseProvider:
                     )
                     if not classification.eligible or asset not in listed:
                         raise ValueError(f"MANUAL_RESEARCH_SELECTION_INVALID_{market}")
-        except (OSError, ValueError, TypeError, yaml.YAMLError):
+        except OSError, ValueError, TypeError, yaml.YAMLError:
             return self._blocked(metadata, "MANUAL_RESEARCH_SELECTION_INVALID")
         return self._assemble(
             metadata,

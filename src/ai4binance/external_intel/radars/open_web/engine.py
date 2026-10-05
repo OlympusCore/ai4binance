@@ -301,7 +301,7 @@ class OpenWebRadarEngine:
             cached = (
                 self.store.get(route.canonical_url) if self.store is not None else None
             )
-        except (OSError, ValueError):
+        except OSError, ValueError:
             return [], route, [f"EVIDENCE_CACHE_INVALID:{source_id}"], False, False
         if cached is not None:
             return [cached], route, [], True, False
@@ -359,7 +359,7 @@ class OpenWebRadarEngine:
         if self.store is not None:
             try:
                 self.store.append(record)
-            except (OSError, ValueError):
+            except OSError, ValueError:
                 return [], route, [f"EVIDENCE_STORE_FAILED:{source_id}"], False, True
         return [record], route, [], False, True
 

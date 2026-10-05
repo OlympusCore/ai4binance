@@ -571,7 +571,7 @@ class ResearchValidationService:
                         terminal_status="COMPLETED",
                         stage_timings_ms=result.stage_timings_ms,
                     )
-        except (Exception, KeyboardInterrupt):
+        except Exception, KeyboardInterrupt:
             self.runtime.finish_validation_run(
                 run_id,
                 normalized_symbol,

@@ -185,7 +185,7 @@ def verify_audit_checkpoint(
                 return False
             try:
                 record = json.loads(raw_line.decode("utf-8"))
-            except (UnicodeDecodeError, json.JSONDecodeError):
+            except UnicodeDecodeError, json.JSONDecodeError:
                 return False
             if not isinstance(record, dict):
                 return False

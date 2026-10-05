@@ -224,7 +224,7 @@ def _symbol(value: str) -> str:
 def _decimal(value: object, name: str) -> Decimal:
     try:
         parsed = Decimal(str(value))
-    except (InvalidOperation, ValueError):
+    except InvalidOperation, ValueError:
         raise ValueError(f"{name} must be decimal-compatible") from None
     if not parsed.is_finite() or parsed < ZERO:
         raise ValueError(f"{name} must be finite and non-negative")

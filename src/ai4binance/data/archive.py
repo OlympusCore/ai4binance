@@ -422,7 +422,7 @@ class ParquetOHLCVArchive:
         try:
             raw["gaps"] = tuple(raw["gaps"])
             return DatasetManifest(**raw)
-        except (KeyError, TypeError, ValueError):
+        except KeyError, TypeError, ValueError:
             raise DatasetIntegrityError("dataset manifest is invalid") from None
 
     @staticmethod

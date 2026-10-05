@@ -289,7 +289,7 @@ class UrllibPrivateJsonTransport:
                     )
                 try:
                     return json.loads(payload.decode("utf-8"))
-                except (UnicodeDecodeError, JSONDecodeError):
+                except UnicodeDecodeError, JSONDecodeError:
                     raise ExchangePayloadError(
                         f"invalid private exchange JSON at {path}"
                     ) from None
@@ -299,7 +299,7 @@ class UrllibPrivateJsonTransport:
                     raise ExchangeHttpError(
                         f"private exchange HTTP {error.code} at {path}"
                     ) from None
-            except (TimeoutError, URLError, OSError):
+            except TimeoutError, URLError, OSError:
                 if attempt == self.max_attempts:
                     raise ExchangeTransportError(
                         f"private exchange request failed at {path}"

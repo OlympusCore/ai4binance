@@ -257,7 +257,7 @@ class FasterWhisperTranscriber:
                 device=self.device,
                 compute_type=self.compute_type,
             )
-        except (OSError, RuntimeError, ValueError):
+        except OSError, RuntimeError, ValueError:
             if (
                 self.device == self.fallback_device
                 and self.compute_type == self.fallback_compute_type
@@ -356,7 +356,7 @@ class FallbackSpeechOutput:
     def speak(self, text: str) -> None:
         try:
             self.primary.speak(text)
-        except (OSError, RuntimeError, subprocess.SubprocessError):
+        except OSError, RuntimeError, subprocess.SubprocessError:
             self.fallback.speak(text)
 
 
@@ -458,11 +458,11 @@ class VoiceAssistantRuntime:
         if self.scheduler.due(now):
             try:
                 self.speaker.speak(self.status_responder())
-            except (OSError, RuntimeError, subprocess.SubprocessError, ValueError):
+            except OSError, RuntimeError, subprocess.SubprocessError, ValueError:
                 self._record_error("VOICE_TTS_FAILED", now, "tts_failures")
         try:
             audio = self.recorder.capture()
-        except (OSError, RuntimeError, ValueError):
+        except OSError, RuntimeError, ValueError:
             self._record_error("VOICE_RECORDER_FAILED", now, "recorder_failures")
             return None
         if audio is None:
@@ -470,7 +470,7 @@ class VoiceAssistantRuntime:
             return None
         try:
             transcript = self.transcriber.transcribe(audio)
-        except (OSError, RuntimeError, ValueError):
+        except OSError, RuntimeError, ValueError:
             self._record_error("VOICE_STT_FAILED", now, "stt_failures")
             return None
         if not transcript:
@@ -489,7 +489,7 @@ class VoiceAssistantRuntime:
                 self.health.state = "STOPPED"
             try:
                 self.speaker.speak(result.response)
-            except (OSError, RuntimeError, subprocess.SubprocessError, ValueError):
+            except OSError, RuntimeError, subprocess.SubprocessError, ValueError:
                 self._record_error("VOICE_TTS_FAILED", now, "tts_failures")
         else:
             self.health.rejected_commands += 1
@@ -556,7 +556,7 @@ def microphone_available() -> bool:
         import sounddevice as sd
 
         devices = sd.query_devices()
-    except (ImportError, OSError, RuntimeError):
+    except ImportError, OSError, RuntimeError:
         return False
     return any(int(device.get("max_input_channels", 0)) > 0 for device in devices)
 

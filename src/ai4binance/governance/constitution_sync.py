@@ -641,7 +641,7 @@ def load_current_quality_gate_evidence(root: Path) -> QualityGateEvidence | None
         return None
     try:
         payload = json.loads(raw_evidence.decode("utf-8-sig"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
+    except UnicodeDecodeError, json.JSONDecodeError:
         return None
     if not isinstance(payload, dict):
         return None

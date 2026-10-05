@@ -85,7 +85,7 @@ class SpotOrderPreviewBuilder:
             )
             latest = self.public_client.ticker_price(symbol)
             book = self.public_client.book_ticker(symbol)
-        except (ValueError, ExchangeError, RuntimeError):
+        except ValueError, ExchangeError, RuntimeError:
             raise ValueError("public Spot preview evidence is unavailable") from None
         if (
             latest <= ZERO

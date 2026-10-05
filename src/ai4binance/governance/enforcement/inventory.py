@@ -408,7 +408,7 @@ def _requirement_evidence_blockers(
             root, payload, workspace_attestation=subject, required_tests=entry.test_refs
         )
         return digest, (*receipt_blockers, *blockers)
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return digest, ("BEHAVIORAL_TEST_EVIDENCE_UNREADABLE",)
 
 

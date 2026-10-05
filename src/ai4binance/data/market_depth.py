@@ -396,7 +396,7 @@ class MarketDepthCollector:
                             for symbol in symbols
                         ]
                     )
-                except (OSError, sqlite3.Error):
+                except OSError, sqlite3.Error:
                     self._status(
                         group, status="BLOCKED", reason="DEPTH_STORAGE_UNAVAILABLE"
                     )

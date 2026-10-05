@@ -166,7 +166,7 @@ def market_history_refresh_status(path: Path) -> dict[str, object]:
 
     try:
         value = _read_refresh_request(path)
-    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+    except OSError, ValueError, TypeError, json.JSONDecodeError:
         return {
             "state": "DATA_BLOCKED",
             "blockers": ["MARKET_HISTORY_REFRESH_REQUEST_INVALID"],
@@ -340,7 +340,7 @@ class PublicRequestBudget:
             try:
                 window_seconds = interval_seconds[interval] * int(interval_count)
                 request_weight_limit = int(limit)
-            except (KeyError, TypeError, ValueError):
+            except KeyError, TypeError, ValueError:
                 continue
             if window_seconds <= 0 or request_weight_limit <= 0:
                 continue
@@ -593,7 +593,7 @@ class ContinuousMarketHistory:
                 refreshed_universe = self.history._eligible_universe(
                     snapshot_time, force_refresh=True
                 )
-            except (OSError, ValueError, ExchangeError):
+            except OSError, ValueError, ExchangeError:
                 refreshed_universe = None
             if refreshed_universe is None or refreshed_universe.blockers:
                 if "MARKET_UNIVERSE_METADATA_UNAVAILABLE" not in blockers:
@@ -622,7 +622,7 @@ class ContinuousMarketHistory:
                         snapshot_transport,
                         snapshot_time,
                     )
-                except (OSError, ValueError, ExchangeError):
+                except OSError, ValueError, ExchangeError:
                     snapshot_failed = True
                     if "MARKET_SNAPSHOT_UNAVAILABLE" not in blockers:
                         blockers.append("MARKET_SNAPSHOT_UNAVAILABLE")
@@ -721,7 +721,7 @@ class ContinuousMarketHistory:
                                 requested_market,
                                 str(candidate["symbol"]),
                             )
-            except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            except OSError, ValueError, TypeError, json.JSONDecodeError:
                 blockers.append("MARKET_HISTORY_REFRESH_REQUEST_INVALID")
         stream_items = self._interleaved_stream_work(work_items)
         staged = self.on_symbol_screen is not None
@@ -1302,7 +1302,7 @@ class ContinuousMarketHistory:
                         return
                     try:
                         candidate = _read_refresh_request(self.refresh_request_path)
-                    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+                    except OSError, ValueError, TypeError, json.JSONDecodeError:
                         if "MARKET_HISTORY_REFRESH_REQUEST_INVALID" not in blockers:
                             blockers.append("MARKET_HISTORY_REFRESH_REQUEST_INVALID")
                         return
@@ -1687,7 +1687,7 @@ class ContinuousMarketHistory:
                     blockers.append(f"MARKET_HISTORY_REFRESH_DATASET_GAPS:{timeframe}")
                 elif now - last_close > timeframe_duration(timeframe) * 2:
                     blockers.append(f"MARKET_HISTORY_REFRESH_DATA_STALE:{timeframe}")
-            except (OSError, ValueError, TypeError):
+            except OSError, ValueError, TypeError:
                 blockers.append(
                     f"MARKET_HISTORY_REFRESH_DATASET_UNAVAILABLE:{timeframe}"
                 )
@@ -1946,7 +1946,7 @@ class ContinuousMarketHistory:
             raise ValueError("observed_at must be timezone-aware")
         try:
             previous = _load(self.history.state_path)
-        except (OSError, ValueError, TypeError):
+        except OSError, ValueError, TypeError:
             previous = {}
         previous_blockers = previous.get("blockers", ())
         if not isinstance(previous_blockers, (list, tuple)):
@@ -2296,7 +2296,7 @@ class ContinuousMarketHistory:
                 epoch = int(row[0])
                 divisor = 1_000_000 if epoch >= 100_000_000_000_000 else 1_000
                 timestamp = datetime.fromtimestamp(epoch / divisor, tz=UTC)
-            except (IndexError, OSError, ValueError):
+            except IndexError, OSError, ValueError:
                 raise ValueError("Vision kline timestamp is invalid") from None
             if start <= timestamp < end:
                 selected.append(row)

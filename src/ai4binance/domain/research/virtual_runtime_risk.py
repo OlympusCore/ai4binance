@@ -451,7 +451,7 @@ class FuturesLeverageGovernor:
                 )
             funding = Decimal(str(context["adverse_funding_ratio"]))
             stress = Decimal(str(context["mark_stress_ratio"]))
-        except (ValueError, KeyError, ArithmeticError, TypeError):
+        except ValueError, KeyError, ArithmeticError, TypeError:
             return ("STRUCTURAL_MARGIN_EVIDENCE_INVALID",)
         assessment = self.assess_structural_leverage(
             entry=entry,

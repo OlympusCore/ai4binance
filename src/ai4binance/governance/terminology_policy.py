@@ -354,7 +354,7 @@ def _read_bounded_text(root: Path, relative: str) -> str | None:
                 return None
             return content.decode("utf-8")
         return path.read_text(encoding="utf-8")
-    except (OSError, EOFError, UnicodeError, ValueError):
+    except OSError, EOFError, UnicodeError, ValueError:
         return None
 
 

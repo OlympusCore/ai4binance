@@ -234,7 +234,7 @@ class ReadOnlyRuntimeCycle:
 
         try:
             snapshot = self.spot_acquirer.acquire(symbol, self.timeframes)
-        except (OSError, RuntimeError, TypeError, ValueError):
+        except OSError, RuntimeError, TypeError, ValueError:
             blockers.append("SPOT_MARKET_PREFLIGHT_FAILED")
             return self._blocked_report(
                 cycle_id,
@@ -251,7 +251,7 @@ class ReadOnlyRuntimeCycle:
         if spot_ready:
             try:
                 spot_research = self.research_service.run(snapshot, wallet=spot_wallet)
-            except (OSError, RuntimeError, TypeError, ValueError):
+            except OSError, RuntimeError, TypeError, ValueError:
                 spot_preflight.append("SPOT_MARKET_PREFLIGHT_FAILED")
                 blockers.append("SPOT_MARKET_PREFLIGHT_FAILED")
                 spot = self._unavailable_advisory("SPOT", spot_preflight)
@@ -337,7 +337,7 @@ class ReadOnlyRuntimeCycle:
                 wallet,
                 average_costs_usdt=average_costs_usdt,
             )
-        except (OSError, RuntimeError, TypeError, ValueError):
+        except OSError, RuntimeError, TypeError, ValueError:
             blockers.append("PORTFOLIO_ANALYTICS_FAILED")
             return None
         blockers.extend(analytics.blockers)
@@ -360,7 +360,7 @@ class ReadOnlyRuntimeCycle:
             return None
         try:
             report = self.cost_basis_service.evaluate(symbol, wallet_quantity)
-        except (OSError, RuntimeError, TypeError, ValueError):
+        except OSError, RuntimeError, TypeError, ValueError:
             blockers.append("COST_BASIS_RECONCILIATION_FAILED")
             return None
         blockers.extend(report.blockers)
@@ -408,7 +408,7 @@ class ReadOnlyRuntimeCycle:
                     f"{balance.asset}USDT",
                     balance.free + balance.locked,
                 )
-            except (OSError, RuntimeError, TypeError, ValueError):
+            except OSError, RuntimeError, TypeError, ValueError:
                 blockers.append("COST_BASIS_RECONCILIATION_FAILED")
                 continue
             blockers.extend(report.blockers)
@@ -482,7 +482,7 @@ class ReadOnlyRuntimeCycle:
                 created_at,
                 account_wide=self.account_wide_monitoring,
             )
-        except (OSError, RuntimeError, TypeError, ValueError):
+        except OSError, RuntimeError, TypeError, ValueError:
             blockers.append("SPOT_WALLET_PREFLIGHT_FAILED")
             return None
         if not wallet.can_trade:
@@ -501,7 +501,7 @@ class ReadOnlyRuntimeCycle:
                 created_at,
                 account_wide=self.account_wide_monitoring,
             )
-        except (OSError, RuntimeError, TypeError, ValueError):
+        except OSError, RuntimeError, TypeError, ValueError:
             blockers.append("FUTURES_ACCOUNT_PREFLIGHT_FAILED")
             return None
         if not account.can_trade:
@@ -511,7 +511,7 @@ class ReadOnlyRuntimeCycle:
     def _futures_advisory(self, snapshot: Any) -> MarketAdvisory:
         try:
             return self.futures_advisor.build(snapshot)
-        except (OSError, RuntimeError, TypeError, ValueError):
+        except OSError, RuntimeError, TypeError, ValueError:
             return MarketAdvisory(
                 market="USD_M_FUTURES",
                 action=Action.NO_TRADE.value,

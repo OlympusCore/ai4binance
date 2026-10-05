@@ -249,7 +249,7 @@ class JsonlAuditStore:
             if path.stat().st_size > 16_384:
                 return None
             payload = json.loads(path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, OSError, json.JSONDecodeError):
+        except FileNotFoundError, OSError, json.JSONDecodeError:
             return None
         return payload if isinstance(payload, dict) else None
 

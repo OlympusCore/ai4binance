@@ -95,7 +95,7 @@ class ValidationSummaryReader:
             for path in sorted(symbol_root.glob("*/*.run-card.json"))[: self.max_runs]:
                 try:
                     runs.append(_run_summary(path))
-                except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+                except OSError, json.JSONDecodeError, KeyError, TypeError, ValueError:
                     blockers.append(f"RUN_CARD_UNREADABLE:{path.as_posix()}")
 
         blocker_counts = Counter(blocker for run in runs for blocker in run.blockers)

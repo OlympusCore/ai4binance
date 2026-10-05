@@ -895,7 +895,7 @@ def _decimal(payload: Mapping[str, object], name: str) -> Decimal:
 def _decimal_value(value: object, label: str) -> Decimal:
     try:
         parsed = Decimal(str(value))
-    except (ArithmeticError, TypeError, ValueError):
+    except ArithmeticError, TypeError, ValueError:
         raise ValueError(f"historical replay persisted {label} is invalid") from None
     if not parsed.is_finite():
         raise ValueError(f"historical replay persisted {label} is invalid")

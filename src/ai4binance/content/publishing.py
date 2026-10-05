@@ -76,7 +76,7 @@ class SocialPublishingGateway:
                     requested_by=request.requested_by,
                     timestamp=now,
                 )
-            except (OSError, ValueError):
+            except OSError, ValueError:
                 return self._receipt(
                     request,
                     request_id,
@@ -120,7 +120,7 @@ class SocialPublishingGateway:
                 )
             try:
                 self.audit_store.complete(receipt)
-            except (OSError, ValueError):
+            except OSError, ValueError:
                 return self._receipt(
                     request,
                     request_id,
@@ -142,7 +142,7 @@ class SocialPublishingGateway:
             blockers.append("PUBLISH_EXPLICIT_CONFIRMATION_MISSING")
         try:
             approved = self.approval_queue.approved_draft_matches(request.draft)
-        except (OSError, ValueError, json.JSONDecodeError):
+        except OSError, ValueError, json.JSONDecodeError:
             blockers.append("PUBLISH_APPROVAL_QUEUE_INVALID")
         else:
             if not approved:
@@ -156,7 +156,7 @@ class SocialPublishingGateway:
         try:
             attempt = self.audit_store.attempt(request_id)
             latest = self.audit_store.latest_success(request.platform)
-        except (OSError, ValueError, json.JSONDecodeError):
+        except OSError, ValueError, json.JSONDecodeError:
             blockers.append("PUBLISH_AUDIT_INVALID")
         else:
             if attempt is not None:
@@ -270,7 +270,7 @@ class SocialPublishingGateway:
             return None, "PUBLISH_PROVIDER_REJECTED_OR_RECEIPT_INVALID"
         try:
             data = json.loads(response.body.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
+        except UnicodeDecodeError, json.JSONDecodeError:
             return None, "PUBLISH_PROVIDER_RECEIPT_INVALID"
         if not isinstance(data, Mapping):
             return None, "PUBLISH_PROVIDER_RECEIPT_INVALID"

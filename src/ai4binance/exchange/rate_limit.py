@@ -75,7 +75,7 @@ class WeightedRateLimitGovernor:
             try:
                 seconds = units[str(item["interval"])] * int(str(item["intervalNum"]))
                 limit = int(str(item["limit"]))
-            except (KeyError, TypeError, ValueError):
+            except KeyError, TypeError, ValueError:
                 continue
             if seconds > 0 and limit > 0:
                 configured[seconds] = _Window(seconds=seconds, limit=limit)

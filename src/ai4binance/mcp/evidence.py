@@ -324,7 +324,7 @@ class EvidenceGateway:
             raw = path.read_bytes()
             digest = hashlib.sha256(raw).hexdigest()
             parsed = json.loads(raw.decode("utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        except OSError, UnicodeDecodeError, json.JSONDecodeError:
             return self._degraded(source, source_name, "EVIDENCE_ARTIFACT_INVALID")
         if not isinstance(parsed, dict):
             return self._degraded(

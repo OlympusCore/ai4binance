@@ -145,7 +145,7 @@ def _probe_endpoint(
     local_after = int(time.time() * 1000)
     try:
         decoded = json.loads(payload.decode("utf-8"))
-    except (UnicodeDecodeError, JSONDecodeError):
+    except UnicodeDecodeError, JSONDecodeError:
         return {"name": endpoint.name, "status": "INVALID_JSON"}
     if not isinstance(decoded, dict):
         return {"name": endpoint.name, "status": "UNEXPECTED_PAYLOAD"}
@@ -169,7 +169,7 @@ def _binance_error(error: urllib.error.HTTPError) -> dict[str, object]:
     try:
         raw = error.read(64_000)
         payload: Any = json.loads(raw.decode("utf-8"))
-    except (OSError, UnicodeDecodeError, JSONDecodeError):
+    except OSError, UnicodeDecodeError, JSONDecodeError:
         return {"binance_code": None, "binance_message": ""}
     if not isinstance(payload, dict):
         return {"binance_code": None, "binance_message": ""}

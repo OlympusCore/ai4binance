@@ -546,7 +546,7 @@ def _read_bounded_text(root: Path, relative: str) -> str | None:
                 raw = stream.read(2_000_001)
             return raw.decode("utf-8") if len(raw) <= 2_000_000 else None
         return path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError, ValueError, EOFError):
+    except OSError, UnicodeError, ValueError, EOFError:
         return None
 
 

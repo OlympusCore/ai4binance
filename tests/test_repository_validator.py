@@ -673,7 +673,7 @@ def _git_commit_all(root: Path) -> bool:
             capture_output=True,
             text=True,
         )
-    except (OSError, subprocess.CalledProcessError):
+    except OSError, subprocess.CalledProcessError:
         return False
     return True
 

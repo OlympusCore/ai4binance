@@ -120,7 +120,7 @@ def run_live_place_spot(
             if authorization_id is not None
             else None
         )
-    except (OSError, TypeError, ValueError):
+    except OSError, TypeError, ValueError:
         authorization = None
         authorization_blockers.append("EXECUTION_AUTHORIZATION_EVIDENCE_INVALID")
     attempted_at = datetime.now(UTC)
@@ -172,7 +172,7 @@ def run_live_place_spot(
             payload["live_order_lifecycle"] = placement.lifecycle_record
         print(json.dumps(to_primitive(payload), ensure_ascii=False, sort_keys=True))
         return 0 if not placement.command_result.blockers else 2
-    except (OSError, RuntimeError, ValueError):
+    except OSError, RuntimeError, ValueError:
         payload["blockers"] = tuple(
             dict.fromkeys(
                 (
@@ -287,7 +287,7 @@ def _private_reader(settings: Settings) -> BinancePrivateAccountReader:
 def _open_orders(settings: Settings, symbol: str) -> object:
     try:
         return _private_reader(settings).open_orders(symbol)
-    except (OSError, RuntimeError, ValueError):
+    except OSError, RuntimeError, ValueError:
         return None
 
 

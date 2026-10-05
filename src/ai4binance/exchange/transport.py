@@ -77,7 +77,7 @@ class UrllibJsonTransport:
                 self.sleeper(
                     self._retry_delay(attempt, error.headers.get("Retry-After"))
                 )
-            except (TimeoutError, URLError, OSError):
+            except TimeoutError, URLError, OSError:
                 if attempt == self.max_attempts:
                     raise ExchangeTransportError(
                         f"public exchange request failed at {path}"
@@ -103,7 +103,7 @@ class UrllibJsonTransport:
             raise ExchangePayloadError(f"public exchange payload too large at {path}")
         try:
             return json.loads(payload.decode("utf-8"))
-        except (UnicodeDecodeError, JSONDecodeError):
+        except UnicodeDecodeError, JSONDecodeError:
             raise ExchangePayloadError(
                 f"invalid public exchange JSON at {path}"
             ) from None

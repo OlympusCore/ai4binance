@@ -569,7 +569,7 @@ def _read_windows_file_usn(stream: BinaryIO) -> int | None:
             ctypes.byref(returned),
             None,
         )
-    except (AttributeError, OSError):
+    except AttributeError, OSError:
         return None
     if not succeeded or returned.value < _WINDOWS_USN_RECORD_V2_MINIMUM_BYTES:
         return None

@@ -83,7 +83,7 @@ class UsdMFuturesPublicTransport:
                         f"USD-M public HTTP {error.code} at {path}"
                     ) from None
                 self.sleeper(self._delay(attempt, error.headers.get("Retry-After")))
-            except (TimeoutError, URLError, OSError):
+            except TimeoutError, URLError, OSError:
                 if attempt == self.max_attempts:
                     raise ExchangeTransportError(
                         f"USD-M public request failed at {path}"
@@ -105,7 +105,7 @@ class UsdMFuturesPublicTransport:
             raise ExchangePayloadError(f"USD-M payload too large at {path}")
         try:
             return json.loads(payload.decode("utf-8"))
-        except (UnicodeDecodeError, JSONDecodeError):
+        except UnicodeDecodeError, JSONDecodeError:
             raise ExchangePayloadError(f"invalid USD-M JSON at {path}") from None
 
     def _delay(self, attempt: int, retry_after: str | None) -> float:

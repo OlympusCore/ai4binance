@@ -649,7 +649,7 @@ class RuntimeResearchContextLoader:
             return feeds, ()
         try:
             loaded = json.loads(absolute.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except OSError, json.JSONDecodeError:
             return feeds, ("LOCAL_RESEARCH_LEDGER_INVALID",)
         if not isinstance(loaded, Mapping):
             return feeds, ("LOCAL_RESEARCH_LEDGER_INVALID",)
@@ -801,7 +801,7 @@ class RuntimeResearchContextLoader:
                 subject_id="runtime-research-ledger",
                 indent=2,
             )
-        except (OSError, TypeError, ValueError):
+        except OSError, TypeError, ValueError:
             return ("LOCAL_RESEARCH_LEDGER_WRITE_FAILED",)
         return ()
 
@@ -1076,7 +1076,7 @@ class RuntimeResearchContextLoader:
                 subject_id=report_id or "runtime-research-opportunities",
                 indent=2,
             )
-        except (OSError, TypeError, ValueError):
+        except OSError, TypeError, ValueError:
             return ("LOCAL_RESEARCH_OPPORTUNITY_REPORT_WRITE_FAILED",)
         return ()
 
@@ -1515,7 +1515,7 @@ class RuntimeResearchContextLoader:
                     rows.append(cast(Mapping[str, object], parsed))
                 else:
                     return (), (f"{blocker_prefix}_INVALID",)
-        except (OSError, json.JSONDecodeError):
+        except OSError, json.JSONDecodeError:
             return (), (f"{blocker_prefix}_INVALID",)
         return tuple(rows), ()
 

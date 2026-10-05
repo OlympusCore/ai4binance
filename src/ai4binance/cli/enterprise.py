@@ -222,7 +222,7 @@ def oek_gap_analysis_payload(change_file: str | None) -> dict[str, object]:
     change_path = Path(change_file)
     try:
         raw_payload = json.loads(change_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except OSError, json.JSONDecodeError:
         return _oek_blocked_payload(("OEK_CHANGE_FILE_INVALID",))
 
     if not isinstance(raw_payload, dict):
@@ -231,7 +231,7 @@ def oek_gap_analysis_payload(change_file: str | None) -> dict[str, object]:
     try:
         manifest = _manifest_from_payload(cast(dict[str, object], raw_payload))
         report = analyze_oek_change_gap(Path.cwd(), manifest)
-    except (KeyError, TypeError, ValueError):
+    except KeyError, TypeError, ValueError:
         return _oek_blocked_payload(("OEK_CHANGE_MANIFEST_INVALID",))
 
     payload = to_primitive(report)

@@ -263,12 +263,11 @@ def test_document_lock_approval_evidence_rejects_each_untrusted_boundary(
         == "Approved document lock evidence sha256 is invalid."
     )
     assert validator._document_lock_approval_evidence(base_item, tmp_path) is None
-    assert (
-        validator._document_lock_approval_evidence(
-            base_item | {"approval_evidence_path": "docs/missing-evidence.json"},
-            tmp_path,
-        )
-        == "Approved document lock evidence file is missing: docs/missing-evidence.json."
+    assert validator._document_lock_approval_evidence(
+        base_item | {"approval_evidence_path": "docs/missing-evidence.json"},
+        tmp_path,
+    ) == (
+        "Approved document lock evidence file is missing: docs/missing-evidence.json."
     )
 
     evidence_path.write_text("{", encoding="utf-8")

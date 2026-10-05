@@ -4397,7 +4397,7 @@ def _has_repository_path_redirection(root: Path, relative: Path) -> bool:
             return True
         try:
             attributes = current.lstat().st_file_attributes
-        except (AttributeError, FileNotFoundError):
+        except AttributeError, FileNotFoundError:
             continue
         if attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT:
             return True
@@ -6036,7 +6036,7 @@ def _git_tracked_files(root: Path) -> set[str]:
             text=False,
             timeout=30,
         )
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+    except OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired:
         return set()
     return {
         item.decode("utf-8").replace("\\", "/")
@@ -6071,7 +6071,7 @@ def _git_has_head(root: Path) -> bool:
             text=True,
             timeout=30,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         return False
     return completed.returncode == 0
 

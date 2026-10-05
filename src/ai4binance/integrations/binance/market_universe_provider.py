@@ -213,7 +213,7 @@ class ReadOnlyBinanceJsonTransport:
                 self.sleeper(
                     self._retry_delay(attempt, error.headers.get("Retry-After"))
                 )
-            except (TimeoutError, URLError, OSError):
+            except TimeoutError, URLError, OSError:
                 if attempt == self.max_attempts:
                     raise ExchangeTransportError(
                         f"public Binance request failed at {path}"
@@ -238,7 +238,7 @@ class ReadOnlyBinanceJsonTransport:
             raise ExchangePayloadError(f"public Binance payload too large at {path}")
         try:
             return json.loads(payload.decode("utf-8"))
-        except (UnicodeDecodeError, JSONDecodeError):
+        except UnicodeDecodeError, JSONDecodeError:
             raise ExchangePayloadError(
                 f"invalid public Binance JSON at {path}"
             ) from None
@@ -327,7 +327,7 @@ class BinanceMarketUniverseProvider:
                                 _text(item.get("contractType")),
                             )
                         )
-        except (ExchangeHttpError, ExchangePayloadError, ExchangeTransportError):
+        except ExchangeHttpError, ExchangePayloadError, ExchangeTransportError:
             return BinanceEligibleMarketSnapshot(
                 spot_symbols=(),
                 futures_symbols=(),
@@ -395,7 +395,7 @@ class BinanceMarketUniverseProvider:
                     "futures.24hr",
                 )
             )
-        except (ExchangeHttpError, ExchangePayloadError, ExchangeTransportError):
+        except ExchangeHttpError, ExchangePayloadError, ExchangeTransportError:
             return BinanceEligibleMarketSnapshot(
                 spot_symbols=(),
                 futures_symbols=(),
@@ -456,7 +456,7 @@ class BinanceMarketUniverseProvider:
         try:
             spot_symbols = self._spot_symbols(priorities)
             futures_symbols = self._futures_symbols(priorities)
-        except (ExchangeHttpError, ExchangePayloadError, ExchangeTransportError):
+        except ExchangeHttpError, ExchangePayloadError, ExchangeTransportError:
             return BinanceUniverseSnapshot(
                 spot_symbols=(),
                 futures_symbols=(),
@@ -621,7 +621,7 @@ class BinanceMarketUniverseProvider:
                 ),
                 "futures.openInterest",
             )
-        except (ExchangeHttpError, ExchangePayloadError, ExchangeTransportError):
+        except ExchangeHttpError, ExchangePayloadError, ExchangeTransportError:
             return _ZERO
         return _decimal(payload.get("openInterest")) * last_price
 
@@ -739,7 +739,7 @@ def _decimal(value: object) -> Decimal:
         return _ZERO
     try:
         parsed = Decimal(str(value))
-    except (InvalidOperation, ValueError):
+    except InvalidOperation, ValueError:
         return _ZERO
     if not parsed.is_finite() or parsed < _ZERO:
         return _ZERO
@@ -751,7 +751,7 @@ def _signed_decimal(value: object) -> Decimal:
         return _ZERO
     try:
         parsed = Decimal(str(value))
-    except (InvalidOperation, ValueError):
+    except InvalidOperation, ValueError:
         return _ZERO
     return parsed if parsed.is_finite() else _ZERO
 

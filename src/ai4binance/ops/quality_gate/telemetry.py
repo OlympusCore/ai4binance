@@ -180,7 +180,7 @@ def _failed_quality_evidence_blockers(
 def _quality_contract_blockers(payload: dict[str, object]) -> tuple[str, ...]:
     try:
         _validate_quality_binding(payload)
-    except (OSError, ValueError):
+    except OSError, ValueError:
         if payload.get("status") == "QUALITY_GATE_FAILED":
             return ("QUALITY_RESULT_FAILED", "QUALITY_EVIDENCE_CONTRACT_INVALID")
         return ("QUALITY_EVIDENCE_CONTRACT_INVALID",)
@@ -268,7 +268,7 @@ def _quality_file_blockers(
         )
         if rebound.get("test_results") != payload.get("test_results"):
             blockers.append("QUALITY_TEST_RESULTS_MISMATCH")
-    except (OSError, ValueError, ElementTree.ParseError, DefusedXmlException):
+    except OSError, ValueError, ElementTree.ParseError, DefusedXmlException:
         blockers.append("QUALITY_EVIDENCE_UNREADABLE")
     return tuple(blockers)
 
@@ -362,7 +362,7 @@ def quality_completion_blockers(
                 encoding="utf-8-sig"
             )
         )
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return ("QUALITY_EVIDENCE_OR_POLICY_UNAVAILABLE",)
     return verify_quality_evidence(
         root,
@@ -542,7 +542,7 @@ def _load_requirement_quality_receipt(
         if failed != (payload.get("status") == "QUALITY_GATE_FAILED"):
             return None, ("REQUIREMENT_QUALITY_RECEIPT_MISMATCH",)
         return payload, ()
-    except (OSError, ValueError, KeyError, TypeError):
+    except OSError, ValueError, KeyError, TypeError:
         return None, ("REQUIREMENT_QUALITY_RECEIPT_INVALID",)
 
 

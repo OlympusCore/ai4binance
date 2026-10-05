@@ -908,7 +908,7 @@ def _trade_record_dashboard_row(
         timeframe = _required_text(position, "timeframe")
         quantity = _positive_decimal_text(position.get("initial_quantity"))
         realized_pnl_usdt = _finite_decimal_text(position.get("realized_pnl_usdt", "0"))
-    except (ArithmeticError, TypeError, ValueError):
+    except ArithmeticError, TypeError, ValueError:
         return None
     return {
         "position_id": position_id,

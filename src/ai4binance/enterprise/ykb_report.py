@@ -1460,7 +1460,7 @@ def _unit_float(value: object, *, default: float) -> float:
         return default
     try:
         parsed = float(str(value))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
     return min(1.0, max(0.0, parsed))
 
@@ -1824,7 +1824,7 @@ def _find_halt_review_artifact_for_ref(root: Path, review_ref: str) -> str:
     if registry_path.exists():
         try:
             registry_payload = json.loads(registry_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except OSError, json.JSONDecodeError:
             registry_payload = {}
         if str(registry_payload.get("review_ref", "")).strip() == normalized_ref:
             artifact_path = str(registry_payload.get("artifact_path", "")).strip()
@@ -1840,7 +1840,7 @@ def _find_halt_review_artifact_for_ref(root: Path, review_ref: str) -> str:
     for path in reversed(candidates):
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except OSError, json.JSONDecodeError:
             continue
         if str(payload.get("review_id", "")).strip() == normalized_ref:
             return _relative_report_path(root, path)
@@ -1848,7 +1848,7 @@ def _find_halt_review_artifact_for_ref(root: Path, review_ref: str) -> str:
     if latest_path.exists():
         try:
             payload = json.loads(latest_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except OSError, json.JSONDecodeError:
             return "ARTIFACT_PATH_UNRESOLVED"
         if str(payload.get("review_id", "")).strip() == normalized_ref:
             return _relative_report_path(root, latest_path)
@@ -1895,7 +1895,7 @@ def _read_halt_review_artifact(
     resolved = candidate if candidate.is_absolute() else root / candidate
     try:
         payload = json.loads(resolved.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except OSError, json.JSONDecodeError:
         return {}
     return payload if isinstance(payload, dict) else {}
 
@@ -4608,7 +4608,7 @@ def _historical_replay_wallet_epoch_context(root: Path) -> str:
             max_bytes=64 * 1024 * 1024,
         )
         records = tuple(_mapping(json.loads(line.decode("utf-8"))) for line in lines)
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError):
+    except OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError:
         return "CURRENT_WALLET_EPOCH=`BLOCKED:RESET_HISTORY_INVALID`"
     reset_payloads = tuple(
         _mapping(record.get("payload"))
@@ -5687,7 +5687,7 @@ def _run_card_playbook(card: Mapping[str, object]) -> str:
 def _read_json_mapping(path: Path) -> Mapping[str, object] | None:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except OSError, json.JSONDecodeError:
         return None
     return _mapping(payload)
 
@@ -5747,7 +5747,7 @@ def _safe_int(value: object) -> int:
         return 0
     try:
         return max(0, int(str(value)))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 0
 
 
@@ -5770,7 +5770,7 @@ def _positive_decimal(value: object) -> Decimal | None:
 def _decimal(value: object, default: Decimal) -> Decimal:
     try:
         parsed = Decimal(str(value))
-    except (InvalidOperation, ValueError):
+    except InvalidOperation, ValueError:
         return default
     return parsed if parsed.is_finite() else default
 

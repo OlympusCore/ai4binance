@@ -379,7 +379,7 @@ def load_internal_radar_latest(repository_root: Path) -> dict[str, object]:
     path = repository_root / "runtime" / "artifacts" / "internal_radar" / "latest.json"
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except OSError, json.JSONDecodeError:
         return {
             "status": "NOT_CONFIGURED",
             "new_candidate_count": 0,
@@ -615,7 +615,7 @@ def _read_state(
             isinstance(payload, dict) and "pending_candidates" in payload
         )
         return known, pending, pending_state_present
-    except (OSError, json.JSONDecodeError):
+    except OSError, json.JSONDecodeError:
         return set(), (), False
 
 

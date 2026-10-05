@@ -230,9 +230,9 @@ def run_advisory_fixture(
             started_at=started_at,
             finished_at=response.finished_at,
         )
-    except (OSError, TimeoutError):
+    except OSError, TimeoutError:
         return _blocked_fixture_run(fixture.fixture_id, "ADVISORY_PROVIDER_UNAVAILABLE")
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return _blocked_fixture_run(
             fixture.fixture_id,
             "ADVISORY_PROVIDER_RESPONSE_INVALID",

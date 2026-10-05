@@ -207,7 +207,7 @@ class GatedSpotOrderExecutor:
                         authorization.authorization_id
                     )
                 )
-            except (OSError, TypeError, ValueError):
+            except OSError, TypeError, ValueError:
                 blockers.append("EXECUTION_AUTHORIZATION_EVIDENCE_INVALID")
             if resolved_authorization is None:
                 blockers.append("EXECUTION_AUTHORIZATION_NOT_APPROVED")
@@ -307,7 +307,7 @@ class GatedSpotOrderExecutor:
             revalidated = self.authorization_source.resolve_execution_authorization(
                 authorization.authorization_id
             )
-        except (OSError, TypeError, ValueError):
+        except OSError, TypeError, ValueError:
             revalidated = None
         if (
             revalidated is None
@@ -404,7 +404,7 @@ class GatedSpotOrderExecutor:
                     query=exact_query,
                     expected_bundle_sha256=authorization.validation_bundle_hash,
                 )
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 validation = LiveGateEvidenceResolution(
                     blockers=("LIVE_GATE_EVIDENCE_INVALID",)
                 )
@@ -417,7 +417,7 @@ class GatedSpotOrderExecutor:
         else:
             try:
                 promotion_status = promotion_registry.resolve(query=exact_query)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 promotion_blockers = ("PROMOTION_EVIDENCE_INVALID",)
             else:
                 promotion_blockers = (

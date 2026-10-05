@@ -728,7 +728,7 @@ def portfolio_command_payload(settings: Settings) -> dict[str, object]:
             payload["status"] = "BLOCKED"
             payload["state"] = "BLOCKED"
         return payload
-    except (OSError, RuntimeError, ValueError):
+    except OSError, RuntimeError, ValueError:
         payload["account_runtime"] = {
             "status": "UNAVAILABLE",
             "runtime_state": "UNAVAILABLE",
@@ -754,7 +754,7 @@ def portfolio_command_payload(settings: Settings) -> dict[str, object]:
                 )
                 payload["status"] = "BLOCKED"
                 payload["state"] = "BLOCKED"
-        except (OSError, RuntimeError, ValueError):
+        except OSError, RuntimeError, ValueError:
             existing_blockers = payload.get("blockers")
             blocker_values = (
                 tuple(existing_blockers)
@@ -779,7 +779,7 @@ def _virtual_portfolio_payload(
     blockers: tuple[str, ...]
     try:
         positions = PaperLedger(settings.paper_ledger_path).latest_positions()
-    except (OSError, ValueError):
+    except OSError, ValueError:
         blockers = ("VIRTUAL_PORTFOLIO_LEDGER_UNAVAILABLE",)
         virtual_portfolio = {
             "source": "PAPER_LEDGER",

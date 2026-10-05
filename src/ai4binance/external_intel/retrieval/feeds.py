@@ -98,7 +98,7 @@ def _timestamp(value: str) -> datetime | None:
         return None
     try:
         parsed = parsedate_to_datetime(value)
-    except (TypeError, ValueError, OverflowError):
+    except TypeError, ValueError, OverflowError:
         try:
             parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
         except ValueError:

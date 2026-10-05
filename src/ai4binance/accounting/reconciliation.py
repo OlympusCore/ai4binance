@@ -315,6 +315,6 @@ def _optional_decimal(value: object) -> Decimal | None:
         return None
     try:
         parsed = Decimal(str(value))
-    except (InvalidOperation, ValueError):
+    except InvalidOperation, ValueError:
         return None
     return parsed if parsed.is_finite() else None

@@ -451,7 +451,7 @@ def _local_model_manifest_blockers(
 
     try:
         artifacts = _load_local_model_artifacts(manifest_path, model_id)
-    except (OSError, ValueError, json.JSONDecodeError):
+    except OSError, ValueError, json.JSONDecodeError:
         return (f"LOCAL_MODEL_MANIFEST_INVALID:{model_id}",)
 
     blockers: list[str] = []
@@ -462,7 +462,7 @@ def _local_model_manifest_blockers(
             candidate, expected_length, expected_sha256 = _local_model_artifact(
                 repository_root, cast(Mapping[str, object], item)
             )
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return (f"LOCAL_MODEL_MANIFEST_INVALID:{model_id}",)
         if not candidate.is_file():
             blockers.append(f"LOCAL_MODEL_ARTIFACT_MISSING:{model_id}:{item['role']}")

@@ -416,7 +416,7 @@ class HarmonicPatternEngine:
                     )
                 else:
                     valid = False
-            except (KeyError, InvalidOperation):
+            except KeyError, InvalidOperation:
                 valid = False
         geometry_quality = (
             max(0.0, 1.0 - float(abs(ratio - Decimal("1"))))

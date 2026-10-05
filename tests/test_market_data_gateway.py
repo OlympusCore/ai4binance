@@ -281,9 +281,9 @@ def test_gateway_rejects_invalid_cycles_and_routes_cli_arguments(
     monkeypatch.setattr(
         gateway_cli,
         "run_gateway",
-        lambda settings, max_cycles: 7
-        if settings == "settings" and max_cycles == 2
-        else 1,
+        lambda settings, max_cycles: (
+            7 if settings == "settings" and max_cycles == 2 else 1
+        ),
     )
     assert gateway_cli.main(("--max-cycles", "2")) == 7
 

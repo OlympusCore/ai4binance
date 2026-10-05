@@ -203,7 +203,7 @@ class BinanceSpotKlineParser:
             raise ExchangePayloadError("stream message size is invalid")
         try:
             decoded = json.loads(encoded)
-        except (UnicodeDecodeError, json.JSONDecodeError):
+        except UnicodeDecodeError, json.JSONDecodeError:
             raise ExchangePayloadError("stream message is invalid JSON") from None
         envelope = self._mapping(decoded, "stream message")
         payload = envelope

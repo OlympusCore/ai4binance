@@ -55,7 +55,7 @@ class LegacyOneMinuteCleanup:
                             raise DatasetIntegrityError(
                                 "replacement timeframe is not direct native data"
                             )
-                except (DatasetIntegrityError, FileNotFoundError, ValueError):
+                except DatasetIntegrityError, FileNotFoundError, ValueError:
                     blockers.append(
                         f"LEGACY_1M_REPLACEMENT_INVALID:{market}:{symbol_root.name}"
                     )

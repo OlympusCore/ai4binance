@@ -79,7 +79,7 @@ def _absolute(path: Path) -> Path:
 def _load_mapping(path: Path) -> dict[str, object]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except OSError, json.JSONDecodeError:
         return {}
     return dict(payload) if isinstance(payload, Mapping) else {}
 
@@ -138,7 +138,7 @@ def _save_progress(
 def _eligible_symbols(cache_root: Path, selection_path: Path) -> tuple[str, ...]:
     try:
         selection_sha256 = manual_selection_digest(selection_path)
-    except (OSError, ValueError):
+    except OSError, ValueError:
         raise ValueError("FUTURES_MULTITF_UNIVERSE_INVALID") from None
     path = cache_root / "universe-v3.json"
     if path.is_symlink() or not path.is_file() or path.stat().st_size > 2_000_000:
@@ -146,7 +146,7 @@ def _eligible_symbols(cache_root: Path, selection_path: Path) -> tuple[str, ...]
     payload = _load_mapping(path)
     try:
         observed_at = datetime.fromisoformat(str(payload["observed_at"]))
-    except (KeyError, TypeError, ValueError):
+    except KeyError, TypeError, ValueError:
         raise ValueError("FUTURES_MULTITF_UNIVERSE_INVALID") from None
     if observed_at.utcoffset() is None:
         raise ValueError("FUTURES_MULTITF_UNIVERSE_INVALID")
@@ -699,7 +699,7 @@ def run_cycle(settings: Settings, *, observed_at: datetime) -> dict[str, object]
     def retry_due(item: str) -> bool:
         try:
             return datetime.fromisoformat(str(retry_after[item])) <= now
-        except (KeyError, TypeError, ValueError):
+        except KeyError, TypeError, ValueError:
             return True
 
     symbol = next((item for item in pending if retry_due(item)), None)
@@ -708,7 +708,7 @@ def run_cycle(settings: Settings, *, observed_at: datetime) -> dict[str, object]
             monitoring = _monitor_futures_symbol(
                 settings, Path.cwd(), monitor_symbol, now
             )
-        except (OSError, TypeError, ValueError):
+        except OSError, TypeError, ValueError:
             monitoring = {
                 "status": "DEGRADED",
                 "symbol": monitor_symbol,
@@ -729,7 +729,7 @@ def run_cycle(settings: Settings, *, observed_at: datetime) -> dict[str, object]
                 trigger=trigger,
                 completed_trigger_ids=completed_tuning_triggers,
             )
-        except (OSError, RuntimeError, TypeError, ValueError):
+        except OSError, RuntimeError, TypeError, ValueError:
             tuning = {
                 "status": "BLOCKED",
                 "blockers": ["FUTURES_FAILURE_TUNING_UNAVAILABLE"],
@@ -866,7 +866,7 @@ def run_cycle(settings: Settings, *, observed_at: datetime) -> dict[str, object]
         retry_after[symbol] = (now + timedelta(minutes=30)).isoformat()
     try:
         monitoring = _monitor_futures_symbol(settings, Path.cwd(), monitor_symbol, now)
-    except (OSError, TypeError, ValueError):
+    except OSError, TypeError, ValueError:
         monitoring = {
             "status": "DEGRADED",
             "symbol": monitor_symbol,
@@ -887,7 +887,7 @@ def run_cycle(settings: Settings, *, observed_at: datetime) -> dict[str, object]
             trigger=monitor_trigger or backtest_trigger,
             completed_trigger_ids=completed_tuning_triggers,
         )
-    except (OSError, RuntimeError, TypeError, ValueError):
+    except OSError, RuntimeError, TypeError, ValueError:
         tuning = {
             "status": "BLOCKED",
             "blockers": ["FUTURES_FAILURE_TUNING_UNAVAILABLE"],

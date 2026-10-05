@@ -188,7 +188,7 @@ class SqliteMemoryProjection:
                 )
             finally:
                 connection.close()
-        except (OSError, sqlite3.DatabaseError, ValueError):
+        except OSError, sqlite3.DatabaseError, ValueError:
             return MemoryProjectionAudit(
                 expected_hash=expected_hash,
                 actual_hash=None,

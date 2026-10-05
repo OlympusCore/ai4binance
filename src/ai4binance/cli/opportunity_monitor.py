@@ -59,7 +59,7 @@ def refresh_candle_windows(
                     end_at=now,
                 )
                 source = "CANONICAL_ARCHIVE_SHA256:" + manifest.sha256
-        except (OSError, ValueError):
+        except OSError, ValueError:
             pass
         if rows:
             samples.update(symbol, tf, rows, source=source, generated_at=now)
