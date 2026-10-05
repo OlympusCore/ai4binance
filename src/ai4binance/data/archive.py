@@ -124,6 +124,8 @@ class ParquetOHLCVArchive:
         expected_last: datetime,
     ) -> pa.Table:
         table = pq.read_table(parquet_path)  # type: ignore[no-untyped-call]
+        if table.num_rows == 0:
+            raise DatasetIntegrityError("dataset bounds do not match manifest")
         timestamps = table.column("timestamp")
         if (
             table.num_rows != manifest.row_count
