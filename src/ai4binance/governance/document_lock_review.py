@@ -98,17 +98,20 @@ def _bound_bytes(root: Path, reference: dict[str, Any]) -> bytes:
     return data
 
 
-def _git_text(root: Path, *arguments: str) -> str:
+def _git_bytes(root: Path, *arguments: str) -> bytes:
     git = shutil.which("git")
     if git is None:
         raise ValueError("DOCUMENT_REVIEW_GIT_UNAVAILABLE")
     return subprocess.run(  # noqa: S603  # nosec B603
         [git, "-C", str(root), *arguments],
         capture_output=True,
-        text=True,
         check=True,
         timeout=15,
-    ).stdout.strip()
+    ).stdout
+
+
+def _git_text(root: Path, *arguments: str) -> str:
+    return _git_bytes(root, *arguments).decode("utf-8").strip()
 
 
 def _baseline(root: Path, expected: str) -> None:
@@ -116,6 +119,43 @@ def _baseline(root: Path, expected: str) -> None:
         result = _git_text(root, "rev-parse", option)
         if result != value:
             raise ValueError("DOCUMENT_REVIEW_BASELINE_OR_ROOT_DRIFT")
+
+
+def _completed_baseline(
+    root: Path, subject: dict[str, Any], installed_tree: str
+) -> None:
+    """Bind historical review to an actual accepted ancestor and installed bytes."""
+    if _git_text(root, "rev-parse", "--show-toplevel") != root.as_posix():
+        raise ValueError("DOCUMENT_REVIEW_BASELINE_OR_ROOT_DRIFT")
+    history = _git_text(
+        root,
+        "log",
+        "--format=%H %T",
+        "--ancestry-path",
+        f"{subject['baseline_commit']}..HEAD",
+    )
+    accepted = [
+        row.split()[0]
+        for row in history.splitlines()
+        if len(row.split()) == 2 and row.split()[1] == installed_tree
+    ]
+    if len(accepted) != 1:
+        raise ValueError("DOCUMENT_REVIEW_COMPLETED_TREE_NOT_ACCEPTED")
+    commit = accepted[0]
+    for document in subject["documents"]:
+        relative = document["path"]
+        committed = _git_bytes(root, "show", f"{commit}:{relative}")
+        if (
+            _digest(committed) != document["sha256"]
+            or _path(root, relative).read_bytes() != committed
+        ):
+            raise ValueError("DOCUMENT_REVIEW_COMPLETED_DOCUMENT_DRIFT")
+    manifest = "config/governance/governed_document_lock_manifest.json"
+    if (
+        _git_bytes(root, "show", f"{commit}:{manifest}")
+        != _path(root, manifest).read_bytes()
+    ):
+        raise ValueError("DOCUMENT_REVIEW_COMPLETED_MANIFEST_DRIFT")
 
 
 def _documents(
@@ -242,6 +282,7 @@ def verify_document_lock_review(
     *,
     now: datetime,
     artifact_root: Path | None = None,
+    installed_tree: str | None = None,
 ) -> dict[str, object]:
     """Check pinned evidence without authenticating the caller's identity or custody."""
     validate_local_definition(SCHEMA, "decision", decision)
@@ -271,7 +312,10 @@ def verify_document_lock_review(
     if _digest(encoded) != decision["subject_sha256"]:
         raise ValueError("DOCUMENT_REVIEW_SUBJECT_HASH_MISMATCH")
     _period(subject, now)
-    _baseline(root, subject["baseline_commit"])
+    if installed_tree is None:
+        _baseline(root, subject["baseline_commit"])
+    else:
+        _completed_baseline(root, subject, installed_tree)
     patch_subject = UnappliedPatchSubject(
         repository_root=subject["repository_root"],
         baseline_commit=subject["baseline_commit"],

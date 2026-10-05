@@ -449,6 +449,20 @@ def test_v3_completion_separates_reviewed_and_installed_trees(
     operation = json.loads((root / receipt["application_receipt"]["path"]).read_bytes())
     reviewed_tree = bundle["prior"]["review_subject"]["expected_tree"]
     installed_tree = "d" * 40
+    prior_git_text = review._git_text
+
+    def completed_git_text(actual_root: Path, *args: str) -> str:
+        if args[0] == "log":
+            return f"{'f' * 40} {installed_tree}"
+        return prior_git_text(actual_root, *args)
+
+    def completed_git_bytes(actual_root: Path, *args: str) -> bytes:
+        assert args[0] == "show"
+        assert args[1].startswith("f" * 40 + ":")
+        return (actual_root / args[1].split(":", 1)[1]).read_bytes()
+
+    monkeypatch.setattr(review, "_git_text", completed_git_text)
+    monkeypatch.setattr(review, "_git_bytes", completed_git_bytes)
     receipt.update(
         contract_version="DocumentLockCompletion/v2",
         reviewed_tree=reviewed_tree,

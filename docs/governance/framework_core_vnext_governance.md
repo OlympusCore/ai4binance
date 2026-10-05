@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-FRM-001
 title: AI4BINANCE Core vNext Governance Framework
 document_type: FRAMEWORK
-version: 2.0.6
+version: 2.0.7
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -265,6 +265,38 @@ Only C4 changes require high-assurance approval.
 Approval Packet approval binds to scope_hash.
 Code/constitution divergence is prohibited.
 ```
+
+
+#### 3.1.0 Bounded Founding Owner Amendment Recognition
+
+initial_owner_amendment_contract=InitialOwnerAmendment/v1
+
+Within local research/paper scope only, a genuine exact-subject constitutive
+decision by Huseyin Cicek may establish the initial single-owner rule. The
+decision expressly departs from the project-authored two-human C3 default; it
+does not assert that the old requirement was satisfied. A real decision from
+the human owner, its exact approved baseline, patch and outputs, one principal,
+time-bound and revocable scope, and genuine custody evidence are required.
+The initial contract must bind individually reviewed protected bytes, passing
+technical and policy controls, completed inactive installation, and separately
+bound initial activation. It cannot be created by a candidate test result.
+The genuine owner-issued founding directive replaces the project-authored
+founding procedure only for the reviewed V6 local research/paper transition.
+It admits the corresponding InitialOwnerAmendment/v1 implementation contract
+as an explicit normative replacement; legacy double C3 approval is not
+reported as satisfied. The original directive is preserved at
+runtime/artifacts/governance/sole-owner/founding-migration-20261005/owner-directive.txt
+with SHA-256 614eac078448d874bc74e7276936e31c95ca7c97ad0ae301231f5fcea0604be3.
+The reviewed subject is AI4B-V6-INITIAL-REVIEW-C749BB7F568E47E1.
+Mechanical rebinding to actual phase baselines is permitted without semantic
+expansion. Recognition does not complete installation, satisfy failed gates,
+or activate the governance model. Inactive adoption and separate activation
+remain bound to genuine source, approved bytes, accepted anchors and actual
+passing canonical evidence.
+External constraints, risk and validation vetoes remain binding. Live orders,
+deployment, credentials, infrastructure, risk overrides, promotion, and C4
+effects are excluded. Later C3 operations remain under their preceding accepted
+policy. Missing originals and historical approvals are not reconstructed.
 
 Legacy instruction modernization:
 

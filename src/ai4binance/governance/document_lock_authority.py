@@ -173,7 +173,13 @@ def verify_lock_authority(
     prior = review._decode(review._bound_bytes(root, context["review_context"]))
     validate_local_definition(review.SCHEMA, "context", prior)
     decision = review._decode(review._bound_bytes(root, prior["decision"]))
-    review.verify_document_lock_review(root, decision, prior, now=operation_time)
+    installed_tree = None
+    if context["contract_version"] == "DocumentLockAuthorityContext/v3":
+        completion = review._decode(review._bound_bytes(root, context["completion"]))
+        installed_tree = completion["expected_tree"]
+    review.verify_document_lock_review(
+        root, decision, prior, now=operation_time, installed_tree=installed_tree
+    )
     subject = decision["review_subject"]
     _context_subject(context, decision, operation_time)
     adoption = _record(root, context, "adoption", subject, operation_time)
