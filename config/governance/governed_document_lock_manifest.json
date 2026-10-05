@@ -1994,6 +1994,25 @@
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_separate_decision_chain_rules_20260904_001.json",
       "approval_evidence_sha256": "14d8407edec6092873cb159c88c634b86b9b0a3ff6a54f8def8b35d42e37c7b3"
+    },
+    {
+      "approval_id": "AI4B-GOV-DOCLOCK-CORE-2-0-7-HOOK-REGISTRATION-20261005-001",
+      "approval_scope": "PRESERVE_EXISTING_CORE_2_0_7_AND_RECONCILE_ITS_DOCUMENT_LOCK_ONLY; NO_INDEPENDENT_C3_ADOPTION_OR_ACTIVATION; NO_LIVE_AUTHORITY",
+      "approval_status": "APPROVED",
+      "approved_by": "Huseyin Cicek",
+      "approved_at_utc": "2026-10-05T00:25:02Z",
+      "approval_timestamp_basis": "CURRENT_OWNER_PRESERVATION_DIRECTION_RECEIVED_AT",
+      "written_owner_approval": true,
+      "approved_sha256": {
+        "docs/governance/framework_core_vnext_governance.md": "94942971e44b954464692e3d9859cc30ea829e0589e564192283023cd208271c"
+      },
+      "approval_source": "PRESERVED_OWNER_DIRECTIVE_AND_CURRENT_OWNER_REPAIR_DIRECTION",
+      "source_owner_directive": {
+        "path": "runtime/artifacts/governance/sole-owner/founding-migration-20261005/owner-directive.txt",
+        "sha256": "614eac078448d874bc74e7276936e31c95ca7c97ad0ae301231f5fcea0604be3"
+      },
+      "approval_evidence_path": "runtime/artifacts/repository_validation/governance/core-2-0-7-hook-registration/owner-approval.json",
+      "approval_evidence_sha256": "75e3b4a191d3567e4174e3041bc90d971299260fd93edd07dd8bde99e94ccbf8"
     }
   ],
   "lock_reason": "Protect active source-of-truth, policy-as-code, and machine-enforceable governed conditions until written owner approval exists.",
@@ -2279,13 +2298,13 @@
       "authority_scope": "core_constitution",
       "canonical_path": "docs/governance/framework_core_vnext_governance.md",
       "document_status": "ACTIVE",
-      "expected_hash": "4a45841e53a368a90b02157df1c1ea8ae160f406f5352162adbde17c70cea10d",
+      "expected_hash": "94942971e44b954464692e3d9859cc30ea829e0589e564192283023cd208271c",
       "lock_state": "LOCKED",
       "path": "docs/governance/framework_core_vnext_governance.md",
-      "sha256": "4a45841e53a368a90b02157df1c1ea8ae160f406f5352162adbde17c70cea10d",
+      "sha256": "94942971e44b954464692e3d9859cc30ea829e0589e564192283023cd208271c",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "2.0.6"
+      "version": "2.0.7"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -4632,6 +4651,25 @@
       "written_owner_approval": true,
       "approval_evidence_path": "runtime/artifacts/repository_validation/governance/governed_document_lock_approval_ai4b_gov_doclock_decision_contract_normalization_20260904_001.json",
       "approval_evidence_sha256": "5b4972b90294cfadf034a0efe6ded9f517f17eda8a53b611b89b6ca9f003ff98"
+    },
+    {
+      "approval_id": "AI4B-GOV-DOCLOCK-CORE-2-0-7-HOOK-REGISTRATION-20261005-001",
+      "approval_scope": "PRESERVE_EXISTING_CORE_2_0_7_AND_RECONCILE_ITS_DOCUMENT_LOCK_ONLY; NO_INDEPENDENT_C3_ADOPTION_OR_ACTIVATION; NO_LIVE_AUTHORITY",
+      "approval_status": "APPROVED",
+      "approved_by": "Huseyin Cicek",
+      "approved_at_utc": "2026-10-05T00:25:02Z",
+      "approval_timestamp_basis": "CURRENT_OWNER_PRESERVATION_DIRECTION_RECEIVED_AT",
+      "written_owner_approval": true,
+      "approved_sha256": {
+        "docs/governance/framework_core_vnext_governance.md": "94942971e44b954464692e3d9859cc30ea829e0589e564192283023cd208271c"
+      },
+      "approval_source": "PRESERVED_OWNER_DIRECTIVE_AND_CURRENT_OWNER_REPAIR_DIRECTION",
+      "source_owner_directive": {
+        "path": "runtime/artifacts/governance/sole-owner/founding-migration-20261005/owner-directive.txt",
+        "sha256": "614eac078448d874bc74e7276936e31c95ca7c97ad0ae301231f5fcea0604be3"
+      },
+      "approval_evidence_path": "runtime/artifacts/repository_validation/governance/core-2-0-7-hook-registration/owner-approval.json",
+      "approval_evidence_sha256": "75e3b4a191d3567e4174e3041bc90d971299260fd93edd07dd8bde99e94ccbf8"
     }
   ]
 }
