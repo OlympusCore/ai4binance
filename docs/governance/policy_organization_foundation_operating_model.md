@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-OEK-101
 title: AI4BINANCE Organization Foundation and Operating Model Policy
 document_type: POLICY
-version: 1.0.0
+version: 1.0.1
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -46,11 +46,11 @@ AI4BINANCE is not a single coin, a single exchange or a single trading bot. It i
 | **Level** | **Norm**                                                        | **Conflict**                                           |
 |------------|-----------------------------------------------------------------|---------------------------------------------------------------|
 | 1          | Applicable law, regulation, and binding authority decision  | Highest external norm.                                         |
-| 2          | AI4BINANCE Organization Constitution and Handbook                  | It oversees all internal policies, prompts, configurations, and workflows. |
-| 3          | Board of Directors policies and committee decisions                 | Must align with OEK.                              |
-| 4          | Presidential policies, SOP, runbook, and control standards    | Implemented according to higher norms.                          |
-| 5          | Agent charter, workflow, prompt, model/strategy card and config | Operates within the given constraints.                    |
-| 6          | Unique task, prompt order, and operational instruction                 | Conflicts with upper norms; if conflicting, it is not applied.                |
+| 2          | Core Constitution | Governs all subordinate repository authority. The handbook is its family index/projection. |
+| 3          | Governance and compliance policies | Must align with external mandatory constraints and Core. |
+| 4          | Canonical contracts and schemas | Define bounded contracts under governing policies. |
+| 5          | Repository instructions | Specialize mechanics without overriding higher authority. |
+| 6          | Subordinate implementation surfaces, workflows and task instructions | Operate within higher authority; conflicting instructions are not applied. |
 
 ## 1.3 Duty of Non-Execution and Secure Shutdown
 

@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-OEK-106
 title: AI4BINANCE Organization Incident Change and Appendices Policy
 document_type: POLICY
-version: 1.0.0
+version: 1.0.1
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -198,7 +198,7 @@ This policy section defines incident management, authority matrices, change cont
 
 - AI4BINANCE Agentic AI Human Characteristics and Cognitive Architecture Specification — specification for purpose, skills, character, behavior, authority, memory, and cognitive loop internal requirements.
 
-- AI4BINANCE Organizational Constitution and Handbook v2.0 — constitutional norms, hierarchy, correlation, strategy factory, cyber/privacy, and audit structure.
+- AI4BINANCE Core Constitution governs constitutional norms and authority hierarchy; the Organization Constitution and Handbook is its governed policy-family index/projection for correlation, strategy factory, cyber/privacy, and audit structure.
 
 - AI4BINANCE EnterpriseAI vNext / Custom Instructions Core — deterministic multi-agent, shared snapshot, validation, paper/manual, and LIVE_ORDER_BLOCKED approach.
 

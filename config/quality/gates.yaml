@@ -319,6 +319,18 @@ affected_tests:
 standard_impact_tests:
   mappings:
     - *canonical_runtime_owners
+    - name: protected_document_registration
+      path_prefixes:
+        - config/governance/governed_document_lock_manifest.json
+      tests:
+        - tests/test_document_lock_review.py
+        - tests/test_document_lock_grant_review.py
+        - tests/test_document_lock_authority.py
+        - tests/test_document_lock_completed_baseline.py
+        - tests/test_repository_validator_governance.py
+        - tests/test_governance_gate.py
+        - tests/test_enterprise_contracts.py
+        - tests/test_determinism_replay_qaqc.py
     - name: trading_method_registry_and_lineage
       path_prefixes:
         - docs/registries/registry_trading_intelligence.yaml

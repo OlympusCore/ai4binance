@@ -91,6 +91,26 @@ def test_policy_rejects_coerced_booleans(tmp_path: Path, value: object) -> None:
         load_quality_gate_policy(path)
 
 
+def test_standard_document_registration_runs_contract_and_determinism_checks() -> None:
+    policy = load_quality_gate_policy(POLICY_PATH)
+    selected = resolve_standard_pytest_arguments(
+        policy, ROOT, ("config/governance/governed_document_lock_manifest.json",)
+    )
+    assert set(policy.required_tests) <= set(selected)
+    assert {
+        "tests/test_document_lock_authority.py",
+        "tests/test_document_lock_completed_baseline.py",
+        "tests/test_repository_validator_governance.py",
+        "tests/test_governance_gate.py",
+        "tests/test_enterprise_contracts.py",
+        "tests/test_determinism_replay_qaqc.py",
+    } <= set(selected)
+    with pytest.raises(AffectedScopeResolutionError, match="unknown"):
+        resolve_standard_pytest_arguments(
+            policy, ROOT, ("config/governance/unmapped_registration.json",)
+        )
+
+
 def test_standard_rejects_unknown_scope_and_missing_required_tests(
     tmp_path: Path,
 ) -> None:
@@ -253,6 +273,7 @@ def test_quality_gate_policy_locks_profile_authority_and_tooling() -> None:
     assert policy.required_tests == REQUIRED_TESTS
     assert {mapping.name for mapping in policy.standard_impact_mappings} == {
         "canonical_virtual_runtime_owners",
+        "protected_document_registration",
         "trading_method_registry_and_lineage",
         "instruction_contracts",
         "changed_tests",

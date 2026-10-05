@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-INS-001
 title: AI4BINANCE Core Custom Instructions
 document_type: INSTRUCTION
-version: 2.0.3
+version: 2.0.4
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -82,6 +82,8 @@ DETERMINISTIC_GOVERNANCE_GATE = POLICY_ELIGIBILITY.
 HUMAN_GOVERNANCE = CONSEQUENTIAL_AUTHORITY.
 Risk-tiered human governance applies only when the proven change is consequential.
 Only C3 changes require double approval.
+Core section 3.1.0 separately admits its exact owner-directed reconciliation.
+That bounded exception grants no future amendment or governance activation.
 Only C4 changes require high-assurance approval.
 Approval Packet approval binds to scope_hash.
 Code and written constitution must not diverge.

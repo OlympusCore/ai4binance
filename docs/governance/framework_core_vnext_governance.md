@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-FRM-001
 title: AI4BINANCE Core vNext Governance Framework
 document_type: FRAMEWORK
-version: 2.0.7
+version: 2.0.8
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -267,7 +267,7 @@ Code/constitution divergence is prohibited.
 ```
 
 
-#### 3.1.0 Bounded Founding Owner Amendment Recognition
+#### 3.1.0 Bounded Owner Amendment and Reconciliation Recognition
 
 initial_owner_amendment_contract=InitialOwnerAmendment/v1
 
@@ -297,6 +297,39 @@ External constraints, risk and validation vetoes remain binding. Live orders,
 deployment, credentials, infrastructure, risk overrides, promotion, and C4
 effects are excluded. Later C3 operations remain under their preceding accepted
 policy. Missing originals and historical approvals are not reconstructed.
+
+The subsequent explicit owner directive preserved at
+runtime/artifacts/maintenance_archive/d0_baseline_reconciliation_20261005/normative-reconciliation-owner-directive.txt
+with SHA-256 1d4cb7deb7d9e08044c0db636620b490a62ea1fe3be397021055e7ec107daae2
+is a separate bounded normative amendment,
+not a renewal or semantic rebinding of the V6 decision. It admits the current
+six-document reconciliation and only its directly necessary Core and hierarchy
+corrections through the existing DocumentLockReview/v2, DocumentLockAdoption/v1,
+WrittenOwnerDocumentLockGrant/v1, and DocumentLockAuthorityContext contracts.
+This exact owner-directed transition departs from the project-authored double
+C3 default without claiming two independent human approvals. Capture its actual
+baseline, reviewed patch and final outputs, one owner principal, genuine source,
+custody, bounded validity, revocation snapshot, and procedure pins. Preserve
+valid pre-existing approvals for bytes already committed at that baseline;
+they do not approve amended bytes. New bytes require the fresh exact grant.
+
+The reconciliation scope is GEMINI.md, instruction_core_custom_instructions.md,
+policy_organization_constitution_handbook.md, policy_manifest_governance.md,
+policy_organization_foundation_operating_model.md, and
+policy_organization_incident_change_appendices.md at their canonical paths,
+plus this Core correction. Register only individually reviewed final raw bytes.
+The owner-approved hierarchy is External Mandatory Constraints -> Core
+Constitution -> Governance/Compliance -> Canonical Contracts -> Repository
+Instructions -> subordinate implementation surfaces. The handbook is a family
+index/projection and cannot supersede Core. Unknown history remains unresolved.
+
+This admits no future amendment, permanent sole-owner activation, trading,
+deployment, promotion, or risk override. Complete the actual local registration
+and restore manifest protection before recording an installation receipt.
+Passing unchanged canonical technical and policy checks is required for
+acceptance; recognition, registered bytes, installed consumers, quality, and
+activation remain separate facts. Other C3 operations retain the preceding
+accepted policy. Risk and Validation vetoes and LIVE_ORDER_BLOCKED remain hard.
 
 Legacy instruction modernization:
 
