@@ -18,13 +18,13 @@ Act as the CTO handing a bounded task to an implementation agent.
 
 Read:
 
-- `factory/BRIEF.md`;
-- `factory/PLAN.md`;
-- proof contracts from `factory/PLAN.md`;
+- `factory/brief.md`;
+- `factory/plan.md`;
+- proof contracts from `factory/plan.md`;
 - current `factory/STATE.md`;
 - relevant repo instructions.
 
-Write or update `factory/HANDOFF.md`.
+Write or update `factory/handoff.md`.
 
 ## Required Sections
 

@@ -29,7 +29,7 @@ Use Mermaid diagrams when they clarify flow or ownership.
 
 ## Owner Guide
 
-After review, update `factory/GUIDE.md` with:
+After review, update `factory/guide.md` with:
 
 - what exists now;
 - how it works;

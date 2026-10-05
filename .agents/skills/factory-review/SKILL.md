@@ -17,9 +17,9 @@ task context from artifacts and source files.
 
 ## Review Inputs
 
-- `factory/BRIEF.md`.
-- `factory/PLAN.md`.
-- `factory/HANDOFF.md`.
+- `factory/brief.md`.
+- `factory/plan.md`.
+- `factory/handoff.md`.
 - Changed files.
 - Proof commands and outputs.
 - Relevant source and tests.
@@ -31,7 +31,7 @@ task context from artifacts and source files.
 3. Re-run the full quality gate when practical.
 4. Search for missing degraded paths, stale state, weak tests, leaked authority,
    provider drift, secret exposure, and false proof.
-5. Update `factory/REVIEW.md`.
+5. Update `factory/review.md`.
 
 ## Required Verdicts
 

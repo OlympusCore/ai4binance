@@ -14,7 +14,7 @@ source_of_truth_scope: canonical
 machine_enforceable: true
 audit_required: true
 classification: INTERNAL
-canonical_path: factory/HANDOFF.md
+canonical_path: factory/handoff.md
 ---
 
 # Factory Handoff

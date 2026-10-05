@@ -12,7 +12,7 @@ metadata:
 
 # Factory Plan
 
-Create either `factory/BRIEF.md` or `factory/PLAN.md` depending on the current
+Create either `factory/brief.md` or `factory/plan.md` depending on the current
 phase. Keep planning source-grounded and small enough for a bounded execution
 agent.
 
@@ -30,7 +30,7 @@ from the repository. Capture:
 - unknowns;
 - recommendation.
 
-Write or update `factory/BRIEF.md`.
+Write or update `factory/brief.md`.
 
 ## Blueprint Mode
 
@@ -45,7 +45,7 @@ Break work into ordered tasks. Each task must include:
 - stop conditions;
 - safety notes.
 
-Write or update `factory/PLAN.md`.
+Write or update `factory/plan.md`.
 
 ## AI4BINANCE Boundaries
 

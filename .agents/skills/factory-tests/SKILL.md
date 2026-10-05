@@ -17,7 +17,7 @@ exam that can prove success or force iteration.
 
 ## Required Contract Per Task
 
-Each task in `factory/PLAN.md` must define:
+Each task in `factory/plan.md` must define:
 
 - observable acceptance criteria;
 - exact command or manual proof path;
