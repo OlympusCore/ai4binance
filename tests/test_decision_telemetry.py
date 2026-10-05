@@ -91,7 +91,7 @@ def test_telemetry_compatibility_exports_preserve_model_and_builder_identity() -
 
 
 def test_domain_telemetry_import_does_not_load_operational_owners() -> None:
-    completed = subprocess.run(  # noqa: S603
+    completed = subprocess.run(
         [
             sys.executable,
             "-B",

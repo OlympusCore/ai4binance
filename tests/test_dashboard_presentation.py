@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_dashboard_types_are_strictly_checked() -> None:
-    completed = subprocess.run(  # noqa: S603
+    completed = subprocess.run(
         [sys.executable, "-B", "scripts/check_dashboard_types.py"],
         cwd=ROOT,
         capture_output=True,

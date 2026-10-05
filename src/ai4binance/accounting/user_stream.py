@@ -196,7 +196,7 @@ class BinanceUsdMListenKeyManager:
     def _request(self, method: str) -> dict[str, object]:
         if method not in {"POST", "PUT", "DELETE"}:
             raise ValueError("USD-M listenKey method is not allowlisted")
-        request = Request(  # noqa: S310  # nosec B310
+        request = Request(  # nosec B310
             FUTURES_LISTEN_KEY_URL,
             headers={
                 "Accept": "application/json",
