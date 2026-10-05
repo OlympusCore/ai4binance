@@ -10,7 +10,6 @@ from hashlib import sha256
 from itertools import pairwise
 from pathlib import Path
 
-import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -86,32 +85,7 @@ class ParquetOHLCVArchive:
                 replace_conflicts_from_sources=replace_conflicts_from_sources,
             )
 
-        table = pq.read_table(paths[0])  # type: ignore[no-untyped-call]
-        timestamps = table.column("timestamp")
-        if (
-            table.num_rows != manifest.row_count
-            or timestamps[0].as_py() != datetime.fromisoformat(manifest.first_timestamp)
-            or timestamps[-1].as_py() != last
-        ):
-            raise DatasetIntegrityError("dataset bounds do not match manifest")
-        values = timestamps.to_numpy(zero_copy_only=False)
-        differences = np.diff(values)
-        if np.any(differences <= np.timedelta64(0, "us")):
-            raise DatasetIntegrityError("dataset sequence is invalid")
-        expected_step = np.timedelta64(timeframe_duration(timeframe))
-        gap_indices = np.flatnonzero(differences != expected_step)
-        stored_gaps: list[str] = []
-        for index in gap_indices:
-            left = timestamps[index].as_py()
-            right = timestamps[index + 1].as_py()
-            if right <= left:
-                raise DatasetIntegrityError("dataset sequence is invalid")
-            stored_gaps.append(f"{left.isoformat()}->{right.isoformat()}")
-        if (
-            tuple(stored_gaps) != manifest.gaps
-            or len(stored_gaps) != manifest.gap_count
-        ):
-            raise DatasetIntegrityError("dataset gaps do not match manifest")
+        table = self._read_manifest_verified_table(paths[0], manifest, timeframe, last)
 
         new_table = self._candle_table(incoming)
         new_table = new_table.cast(table.schema.remove_metadata())
@@ -141,6 +115,39 @@ class ParquetOHLCVArchive:
         )
         self._write_manifest(paths[1], updated)
         return updated
+
+    def _read_manifest_verified_table(
+        self,
+        parquet_path: Path,
+        manifest: DatasetManifest,
+        timeframe: str,
+        expected_last: datetime,
+    ) -> pa.Table:
+        table = pq.read_table(parquet_path)  # type: ignore[no-untyped-call]
+        if table.num_rows == 0:
+            raise DatasetIntegrityError("dataset bounds do not match manifest")
+        timestamps = table.column("timestamp")
+        if (
+            table.num_rows != manifest.row_count
+            or timestamps[0].as_py() != datetime.fromisoformat(manifest.first_timestamp)
+            or timestamps[-1].as_py() != expected_last
+        ):
+            raise DatasetIntegrityError("dataset bounds do not match manifest")
+        expected_step = timeframe_duration(timeframe)
+        stored_gaps: list[str] = []
+        if table.num_rows > 1:
+            timestamps_py = timestamps.to_pylist()
+            for left, right in pairwise(timestamps_py):
+                if right <= left:
+                    raise DatasetIntegrityError("dataset sequence is invalid")
+                if right - left != expected_step:
+                    stored_gaps.append(f"{left.isoformat()}->{right.isoformat()}")
+        if (
+            tuple(stored_gaps) != manifest.gaps
+            or len(stored_gaps) != manifest.gap_count
+        ):
+            raise DatasetIntegrityError("dataset gaps do not match manifest")
+        return table
 
     def update(
         self,
