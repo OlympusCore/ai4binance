@@ -159,7 +159,7 @@ class HmacSpotUserDataStreamSession:
             if isinstance(raw, bytes):
                 raw = raw.decode("utf-8")
             message = json.loads(raw)
-        except (UnicodeDecodeError, TypeError, json.JSONDecodeError):
+        except UnicodeDecodeError, TypeError, json.JSONDecodeError:
             raise RuntimeError("Spot user-data stream returned invalid JSON") from None
         if not isinstance(message, dict):
             raise RuntimeError("Spot user-data stream message is not an object")
@@ -196,7 +196,7 @@ class BinanceUsdMListenKeyManager:
     def _request(self, method: str) -> dict[str, object]:
         if method not in {"POST", "PUT", "DELETE"}:
             raise ValueError("USD-M listenKey method is not allowlisted")
-        request = Request(  # noqa: S310  # nosec B310
+        request = Request(  # nosec B310
             FUTURES_LISTEN_KEY_URL,
             headers={
                 "Accept": "application/json",
@@ -209,13 +209,13 @@ class BinanceUsdMListenKeyManager:
             raw = self.opener(request, self.timeout_seconds)
         except HTTPError as error:
             raise RuntimeError(f"USD-M listenKey HTTP {error.code}") from None
-        except (TimeoutError, URLError, OSError):
+        except TimeoutError, URLError, OSError:
             raise RuntimeError("USD-M listenKey request failed") from None
         if not raw:
             return {}
         try:
             payload = json.loads(raw.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
+        except UnicodeDecodeError, json.JSONDecodeError:
             raise RuntimeError("USD-M listenKey response is invalid JSON") from None
         if not isinstance(payload, dict):
             raise RuntimeError("USD-M listenKey response is not an object")
@@ -256,7 +256,7 @@ class FuturesUsdMUserDataStreamSession:
             if isinstance(raw, bytes):
                 raw = raw.decode("utf-8")
             message = json.loads(raw)
-        except (UnicodeDecodeError, TypeError, json.JSONDecodeError):
+        except UnicodeDecodeError, TypeError, json.JSONDecodeError:
             raise RuntimeError("USD-M user-data stream returned invalid JSON") from None
         if isinstance(message, dict) and isinstance(message.get("data"), dict):
             return cast(Mapping[str, object], message["data"])
@@ -417,7 +417,7 @@ class AccountingUserStreamCollectorService:
         for session in reversed(opened):
             try:
                 session.close()
-            except (OSError, RuntimeError, ValueError, WebSocketException):
+            except OSError, RuntimeError, ValueError, WebSocketException:
                 blockers.append(f"{session.product_type.value}_WEBSOCKET_CLOSE_FAILED")
 
     def _append_subscription_event(

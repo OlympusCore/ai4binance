@@ -652,7 +652,8 @@ def test_core_constitution_change_control_is_synced_across_written_rules() -> No
         ),
         AGENTS: (
             "The canonical constitution is "
-            "`docs/governance/framework_core_vnext_governance.md`.",
+            "`docs/governance/framework_core_vnext_governance.md`; "
+            "repository completion follows section 3.2.",
             "`docs/governance/policy_organization_constitution_handbook.md`",
             "`docs/standards/standard_repository_file_governance.md`",
             "Codex workflows must load `docs/providers/instruction_codex_provider.md`.",
@@ -755,22 +756,34 @@ def test_instruction_context_router_avoids_default_corpus_loading() -> None:
     ):
         assert route in root_text
 
-    for adapter_path in (
-        CODEX_PROVIDER_INSTRUCTIONS,
-        CLAUDE_PROVIDER_INSTRUCTIONS,
+    for adapter_path, required_fragments in (
+        (
+            CODEX_PROVIDER_INSTRUCTIONS,
+            (
+                "Load root and this adapter; add only applicable scoped `AGENTS.md`.",
+                "Route before governed reads;",
+                "do not preload the canonical map.",
+                "Search affected fragments, reuse unchanged evidence, "
+                "escalate one source;",
+                "missing evidence denies.",
+            ),
+        ),
+        (
+            CLAUDE_PROVIDER_INSTRUCTIONS,
+            (
+                "Load `AGENTS.md`, this adapter and the nearest applicable "
+                "scoped `AGENTS.md`.",
+                "Route before other governed-source reads.",
+                "Do not preload the canonical map.",
+                "Search affected fragments; reuse unchanged evidence.",
+                "Escalate one source at a time; missing evidence fails closed.",
+            ),
+        ),
     ):
         adapter_text = adapter_path.read_text(encoding="utf-8")
         normalized_adapter = re.sub(r"\s+", " ", adapter_text)
-        assert (
-            "Base context: `AGENTS.md` plus this adapter (two files)."
-            in normalized_adapter
-        )
-        assert (
-            "Add the nearest scoped `AGENTS.md` only for paths within its scope."
-        ) in normalized_adapter
-        assert "Route before other governed-source reads." in normalized_adapter
-        assert "Do not preload the canonical map." in normalized_adapter
-        assert "Escalate one source at a time" in normalized_adapter
+        for fragment in required_fragments:
+            assert fragment in normalized_adapter
         assert "then every applicable nested" not in normalized_adapter
         assert "Load additional governed sources named by the root contract" not in (
             normalized_adapter

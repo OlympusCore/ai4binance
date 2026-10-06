@@ -34,7 +34,7 @@ class FallbackSpotPriceReader:
     def ticker_price(self, symbol: str) -> Decimal:
         try:
             return self.primary.ticker_price(symbol)
-        except (OSError, RuntimeError, TypeError, ValueError):
+        except OSError, RuntimeError, TypeError, ValueError:
             return self.fallback.ticker_price(symbol)
 
 
@@ -128,7 +128,7 @@ class PortfolioAnalyticsService:
                 )
                 if price <= ZERO:
                     raise ValueError("ticker price must be positive")
-            except (OSError, RuntimeError, TypeError, ValueError):
+            except OSError, RuntimeError, TypeError, ValueError:
                 unpriced.append(balance.asset)
                 continue
             raw.append(
@@ -209,7 +209,7 @@ class PortfolioAnalyticsService:
     def _finite_decimal(value: object, name: str) -> Decimal:
         try:
             parsed = Decimal(str(value))
-        except (InvalidOperation, ValueError):
+        except InvalidOperation, ValueError:
             raise ValueError(f"{name} must be decimal-compatible") from None
         if not parsed.is_finite() or parsed < ZERO:
             raise ValueError(f"{name} must be finite and non-negative")

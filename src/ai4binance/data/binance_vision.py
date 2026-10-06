@@ -254,7 +254,7 @@ class BinanceVisionIngestor:
                 close=Decimal(row[4]),
                 volume=Decimal(row[5]),
             )
-        except (ValueError, ArithmeticError):
+        except ValueError, ArithmeticError:
             raise BinanceVisionIntegrityError(
                 "Binance Vision kline row contains invalid values"
             ) from None

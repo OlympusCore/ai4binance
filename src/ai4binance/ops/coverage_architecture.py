@@ -880,7 +880,7 @@ def _test_assertion_proven(
     try:
         source = (root / path_text).read_text(encoding="utf-8")
         tree = ast.parse(source)
-    except (OSError, SyntaxError, UnicodeError):
+    except OSError, SyntaxError, UnicodeError:
         return False
     function = next(
         (
@@ -953,7 +953,7 @@ def _valid_runtime_evidence(
             separators=(",", ":"),
         ).encode("utf-8")
         payload_hash = str(raw.get("payload_hash", ""))
-    except (OSError, UnicodeError, json.JSONDecodeError, ValueError, TypeError):
+    except OSError, UnicodeError, json.JSONDecodeError, ValueError, TypeError:
         return False
     if (
         raw.get("evidence_type") != "COVERAGE_ASSURANCE_RUNTIME_PROOF"

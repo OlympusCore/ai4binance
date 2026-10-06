@@ -564,7 +564,7 @@ def run_runtime_command(
                     subject_id="resident-research-feed-refresh",
                     indent=2,
                 )
-            except (OSError, TypeError, ValueError):
+            except OSError, TypeError, ValueError:
                 # Feed availability must not stop the read-only runtime. The feed
                 # remains stale and downstream freshness checks fail closed.
                 pass
@@ -587,7 +587,7 @@ def run_runtime_command(
                 ),
             ).run(max_cycles=max_cycles)
         return 0
-    except (KeyboardInterrupt, RuntimeError):
+    except KeyboardInterrupt, RuntimeError:
         return 2
 
 
@@ -671,7 +671,7 @@ def run_virtual_market_daemon(
                         selection_sha256 = manual_selection_digest(
                             settings.market_history_manual_universe_path
                         )
-                    except (OSError, ValueError):
+                    except OSError, ValueError:
                         selection_sha256 = None
 
                     universe = (
@@ -1096,7 +1096,7 @@ def _virtual_market_ranked_symbols(
             local,
             max_symbols_per_market=_VIRTUAL_MARKET_UNIVERSE_LIMIT,
         ).spot_symbols(configured)
-    except (ExchangeError, OSError, TypeError, ValueError):
+    except ExchangeError, OSError, TypeError, ValueError:
         return ()
     return tuple(
         item.symbol
@@ -1173,7 +1173,7 @@ def _request_market_history_refresh_if_stale(
             requested_at=observed_at,
             requester="VIRTUAL_MARKET",
         )
-    except (OSError, ValueError):
+    except OSError, ValueError:
         cycle_report["market_history_refresh"] = {
             "state": "DATA_BLOCKED",
             "blockers": ["VIRTUAL_MARKET_REFRESH_REQUEST_FAILED"],
@@ -1259,7 +1259,7 @@ def _virtual_loss_tuning_trigger(
 ) -> tuple[dict[str, object] | None, dict[str, object] | None]:
     try:
         trigger = journal.daily_loss_tuning_trigger(observed_at)
-    except (OSError, RuntimeError, TypeError, ValueError):
+    except OSError, RuntimeError, TypeError, ValueError:
         return None, {
             "status": "BLOCKED",
             "blockers": ["VIRTUAL_LOSS_TUNING_TRIGGER_UNAVAILABLE"],
@@ -1312,7 +1312,7 @@ def _existing_virtual_loss_tuning_result(
     attempted_at = existing.get("attempted_at")
     try:
         previous_attempt = datetime.fromisoformat(str(attempted_at)).astimezone(UTC)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         previous_attempt = observed_at.astimezone(UTC) - timedelta(hours=1)
     if observed_at.astimezone(UTC) - previous_attempt >= timedelta(minutes=15):
         return None
@@ -1435,7 +1435,7 @@ def _previous_virtual_market_success(path: Path) -> datetime | None:
         if parsed.tzinfo is None or parsed.utcoffset() is None:
             return None
         return parsed.astimezone(UTC)
-    except (AttributeError, json.JSONDecodeError, OSError, TypeError, ValueError):
+    except AttributeError, json.JSONDecodeError, OSError, TypeError, ValueError:
         return None
 
 
@@ -1852,7 +1852,7 @@ def _fetch_feed_items_with_blocker(
             max_items=max_items,
             max_file_bytes=max_file_bytes,
         )
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return (), blocker
     if not items:
         return (), blocker
@@ -1923,7 +1923,7 @@ def _write_runtime_research_user_reports(
             ),
         )
         report_paths["news"] = _user_report_path_payload(news_paths)
-    except (OSError, TypeError, ValueError):
+    except OSError, TypeError, ValueError:
         blockers.append("NEWS_USER_REPORT_WRITE_FAILED")
 
     try:
@@ -1966,7 +1966,7 @@ def _write_runtime_research_user_reports(
             ),
         )
         report_paths["technology"] = _user_report_path_payload(technology_paths)
-    except (OSError, TypeError, ValueError):
+    except OSError, TypeError, ValueError:
         blockers.append("TECHNOLOGY_USER_REPORT_WRITE_FAILED")
 
     return report_paths, tuple(dict.fromkeys(blockers))
@@ -2024,7 +2024,7 @@ def _write_virtual_portfolio_user_report(
                 ),
             ),
         )
-    except (OSError, TypeError, ValueError):
+    except OSError, TypeError, ValueError:
         return {}, ("VIRTUAL_PORTFOLIO_USER_REPORT_WRITE_FAILED",)
     return _user_report_path_payload(paths), ()
 
@@ -2349,7 +2349,7 @@ def _persist_trace_report(path: Path, payload: dict[str, object]) -> str | None:
             subject_id=report_id or "runtime-research-trace-validation",
             indent=2,
         )
-    except (OSError, TypeError, ValueError):
+    except OSError, TypeError, ValueError:
         return "RUNTIME_RESEARCH_TRACE_REPORT_WRITE_FAILED"
     return None
 
@@ -2362,7 +2362,7 @@ def _jsonl_source_index(
         return {}
     try:
         rows = _read_jsonl_rows(path)
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return {}
     index: dict[str, str] = {}
     for row in rows:
@@ -2385,7 +2385,7 @@ def _jsonl_source_index(
 def _load_json_mapping(path: Path) -> Mapping[str, object] | None:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except OSError, json.JSONDecodeError:
         return None
     if not isinstance(payload, Mapping):
         return None
@@ -2449,7 +2449,7 @@ def _eligible_news_symbols(settings: Settings) -> tuple[str, ...]:
                 }
             )
         )
-    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+    except OSError, TypeError, ValueError, json.JSONDecodeError:
         return ()
     return symbols
 

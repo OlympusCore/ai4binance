@@ -171,7 +171,7 @@ def bind_event_context(
             for value in values
         )
         _validate_snapshot_rows(snapshot, rows, maximum_age)
-    except (ValidationError, ValueError, TypeError):
+    except ValidationError, ValueError, TypeError:
         reason = f"{channel.upper()}_CONTEXT_INVALID_OR_UNAVAILABLE_AT_DECISION"
         # Explicit malformed supplied data cannot suppress a valid risk row in
         # the same batch by making an optional channel look merely absent.

@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-FRM-001
 title: AI4BINANCE Core vNext Governance Framework
 document_type: FRAMEWORK
-version: 2.0.8
+version: 2.0.10
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -331,6 +331,45 @@ acceptance; recognition, registered bytes, installed consumers, quality, and
 activation remain separate facts. Other C3 operations retain the preceding
 accepted policy. Risk and Validation vetoes and LIVE_ORDER_BLOCKED remain hard.
 
+#### 3.1.1 Governed Document Update Lifecycle
+
+document_update_contract=WrittenOwnerDocumentLockUpdate/v1
+
+DocumentLockAuthorityContext/v4 separates a completed historical installation
+from a separately reviewed document update. This implementation procedure does
+not replace the classification, Approval Packet, double C3 approval, high-
+assurance C4 approval or exact-subject requirements in section 3.1.
+A written owner decision may authorize only the bounded candidate application.
+It does not establish policy eligibility, final acceptance or execution authority.
+
+Each update requires a fresh genuine owner-issued application decision over the
+canonical SHA-256 review subject, exact patch, original and replacement document
+bytes, registration projection, procedure payloads, evidence and rollback.
+One application is permitted within at most 24 hours. Draft, wrong-subject,
+expired-at-application, revoked or unsupported records cannot authorize work.
+Preserve authority metadata, inventory, historical approval records and all
+Risk, Validation, security and live-execution vetoes. Registration changes are
+limited to the individually reviewed document versions and raw-byte hashes.
+
+The first successor must verify its completed v3 predecessor against its actual
+accepted Git installation, including original procedure and evidence pins.
+Later successors must verify the complete immutable predecessor chain.
+Historical bytes never approve changed current bytes. A completed update remains
+evidence of its bounded installation after the application window ends; fresh
+work requires a fresh exact decision. Reject missing, inconsistent or cyclic
+predecessors and inspect at most 32 successor records.
+
+Current manifest, documents and procedure must match the latest reviewed,
+owner-permitted completed candidate installation. Record actual application time,
+one application and restored protections separately. Restore read-only and ACL
+write protection on success, and original bytes and protections on failure.
+Installation receipts are not final candidate approval. Canonical FULL, the
+applicable C3/C4 human approval requirements and policy eligibility remain
+separate mandatory acceptance controls. No sole-person governance exception,
+independent human review or historical approval repair is created by this rule.
+This procedure cannot authorize trading, signing changes, credentials, risk
+overrides, promotion, deployment, Git publication or live execution.
+
 Legacy instruction modernization:
 
 ```text
@@ -460,6 +499,55 @@ ConstitutionalChangeControl
   -> code_constitution_divergence_allowed=false
   -> live_eligibility_status=LIVE_ORDER_BLOCKED
 ```
+
+### 3.2 Repository Completion Invariant
+
+This normative invariant is owned by this Core Constitution at
+`L1_CORE_CONSTITUTION`, beneath external mandatory constraints.
+`main` is the persistent working branch. Successful task completion requires
+all seven conditions simultaneously at final task closure:
+
+1. Exactly one registered worktree at the verified canonical repository root.
+2. HEAD attached to `main`.
+3. Exactly one local branch: `main`.
+4. Exactly one branch on the live canonical remote `origin`: `main`.
+5. HEAD, local `refs/heads/main`, refreshed `refs/remotes/origin/main`, and live
+   remote `refs/heads/main` reference the same commit SHA.
+6. `git status --porcelain=v1 --untracked-files=all` returns no entries.
+7. Required quality, governance, protected-document, and acceptance controls pass.
+
+Missing live remote evidence blocks `COMPLETE`. Refresh canonical remote tracking
+references before final verification; cached tracking references alone are not
+live remote evidence. Verify the root and canonical remote before evaluating
+these conditions. Failed, stale, unavailable or different-subject evidence cannot
+establish successful completion.
+
+Lower-authority instructions, providers, code, configuration, tests and runtime
+records cannot waive these conditions or independently redefine this rule.
+Exceptions require an explicitly authorized amendment at this controlling authority level,
+subject to section 3.1 and external mandatory constraints.
+
+Ordinary active-task edits remain permitted. Authorized temporary branches and
+worktrees must be consolidated before successful completion.
+Commit/push preparation must not require remote SHA equality before the authorized
+push; the complete invariant applies at final task closure.
+This timing does not waive any independent commit, push, protection or approval
+control. Technical tests alone do not establish `COMPLETE`.
+
+Use the existing automatic Codex Stop hook and
+`ai4binance.ops.quality_gate.repository_completion` observer to enforce the Git
+conditions at closure. The observer grants no authority and does not replace
+required quality, governance, protected-document or human acceptance controls.
+AGENTS and provider adapters reference this definition and may specialize only
+its operational mechanics.
+
+Preserve unrelated changes, stashes, index content and unique commits. Integrate
+only reviewed compatible work. Commit and push only within explicit authorization;
+push normally. Remove additional branches only after their work is verified
+preserved in live `origin/main`; remove additional worktrees only when clean and
+their work is preserved there. Never force-push, force-remove, hard reset, clean
+destructively, fabricate approvals or weaken controls.
+Keep `RESEARCH_ONLY` and `LIVE_ORDER_BLOCKED`.
 
 ## 4. Canonical Cycle
 

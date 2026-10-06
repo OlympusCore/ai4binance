@@ -158,7 +158,7 @@ def universe_monitor_summary(
                     status = "STALE"
                 else:
                     status = "CURRENT"
-            except (FileNotFoundError, OSError, ValueError, TypeError):
+            except FileNotFoundError, OSError, ValueError, TypeError:
                 status = "UNAVAILABLE"
             status_counts[timeframe][status] += 1
         try:
@@ -169,7 +169,7 @@ def universe_monitor_summary(
             continue
         try:
             monitor = read_monitor(root, market, symbol)
-        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        except OSError, ValueError, TypeError, json.JSONDecodeError:
             continue
         monitored_symbols += 1
         rows = monitor.get("candidates")
@@ -349,7 +349,7 @@ def inspect_market_data(
             identities.append(f"{tf}:{manifest.sha256}:{last_close}")
         except FileNotFoundError:
             pass
-        except (OSError, ValueError, KeyError, TypeError):
+        except OSError, ValueError, KeyError, TypeError:
             row.update(status="INVALID", blockers=["DATASET_INTEGRITY_FAILED"])
             rows = ()
         candles[tf] = rows
@@ -544,7 +544,7 @@ def _outcome(
             target_price=_decimal(row.get("tp1")),
         )
         return cast(dict[str, object], to_primitive(evaluated))
-    except (OSError, ValueError, KeyError, TypeError):
+    except OSError, ValueError, KeyError, TypeError:
         return {
             "status": "NOT_EVALUABLE",
             "outcome_reason_codes": ["OUTCOME_DATA_UNAVAILABLE"],
@@ -638,7 +638,7 @@ def refresh_monitor(
         elif not invalid and futures_builder is not None:
             try:
                 item.update(futures_builder(snapshot, tf))
-            except (OSError, ValueError, RuntimeError, ExchangeError):
+            except OSError, ValueError, RuntimeError, ExchangeError:
                 item.update(
                     status="DATA_BLOCKED", blockers=["DERIVATIVES_DATA_UNAVAILABLE"]
                 )

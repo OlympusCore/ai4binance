@@ -2682,7 +2682,10 @@ Invoke-DeterministicGovernanceGate
 def test_quality_script_replays_only_hash_bound_same_subject_full_evidence(
     tmp_path: Path,
 ) -> None:
-    from ai4binance.governance.gate import GovernanceChangeSet
+    from ai4binance.governance.constitution_sync import (
+        build_quality_gate_workspace_attestation,
+    )
+    from ai4binance.governance.gate import resolve_governance_change_set
     from ai4binance.ops.quality_gate.telemetry import bind_quality_failure_evidence
 
     run_dir = (
@@ -2718,14 +2721,69 @@ def test_quality_script_replays_only_hash_bound_same_subject_full_evidence(
     def relative(path: Path) -> str:
         return path.relative_to(tmp_path).as_posix()
 
-    change_set = GovernanceChangeSet(
-        repository_root=tmp_path.resolve(),
-        git_commit="2" * 40,
+    policy = tmp_path / "config/quality/gates.yaml"
+    policy.parent.mkdir(parents=True, exist_ok=True)
+    policy.write_bytes((ROOT / "config/quality/gates.yaml").read_bytes())
+    # Build the supported wrapper before freezing real, test-only Git subjects.
+    # Generated evidence stays under runtime and cannot alter either digest.
+    harness_path = _write_quality_harness(
+        tmp_path,
+        r"""
+$runDirectory = Join-Path $repoRoot "runtime/artifacts/quality/gate/runs/source-run"
+$ApprovalRecordReportPath = Join-Path $runDirectory "approval.json"
+$attestationPath = Join-Path $runDirectory "attestation.json"
+$script:qualityInitialWorkspaceAttestation = (
+    Get-Content -LiteralPath $attestationPath -Raw | ConvertFrom-Json
+)
+$expectedChangeSetSha256 = $script:qualityInitialWorkspaceAttestation.change_set_sha256
+$context = Get-FullApprovalReplayContext
+$acceptedSubject = $context.governance.subject_digest.subject_id
+$script:qualityInitialWorkspaceAttestation.change_set_sha256 = ("9" * 64)
+$subjectDriftError = try {
+    Get-FullApprovalReplayContext | Out-Null
+    "NO_ERROR"
+}
+catch {
+    $_.Exception.Message
+}
+$script:qualityInitialWorkspaceAttestation.change_set_sha256 = $expectedChangeSetSha256
+Set-Content -LiteralPath $context.pytest_path -Value "tampered" -Encoding UTF8
+$driftError = try {
+    Get-FullApprovalReplayContext | Out-Null
+    "NO_ERROR"
+}
+catch {
+    $_.Exception.Message
+}
+[ordered]@{
+    accepted_subject = $acceptedSubject
+    quality_path = $context.quality_path
+    subject_drift_error = $subjectDriftError
+    drift_error = $driftError
+} | ConvertTo-Json -Depth 4
+""",
     )
+    git = shutil.which("git")
+    assert git is not None
+    for arguments in (
+        ("config", "user.email", "test@example.invalid"),
+        ("config", "user.name", "Test Only Reviewer"),
+        ("add", "scripts", "config"),
+        ("commit", "-m", "Test-only replay baseline"),
+    ):
+        subprocess.run(  # noqa: S603
+            [git, "-C", str(tmp_path), *arguments],
+            check=True,
+            capture_output=True,
+        )
+    attestation = build_quality_gate_workspace_attestation(tmp_path)
+    change_set = resolve_governance_change_set(tmp_path)
+    assert change_set is not None
     expected_change_set_sha256 = change_set.change_set_sha256
+    assert attestation.change_set_sha256 != expected_change_set_sha256
     subject = {
-        "repository_tree_sha256": "1" * 64,
-        "git_commit": "2" * 40,
+        "repository_tree_sha256": attestation.repository_tree_sha256,
+        "git_commit": attestation.git_commit,
         "change_set_sha256": expected_change_set_sha256,
         "subject_id": "4" * 64,
     }
@@ -2745,11 +2803,7 @@ def test_quality_script_replays_only_hash_bound_same_subject_full_evidence(
                 "pytest_pass_count": 7,
                 "coverage_percent": 90.0,
                 "coverage_realism_proof_sha256": digest(coverage_markdown_path),
-                "workspace_attestation": {
-                    "repository_tree_sha256": "1" * 64,
-                    "git_commit": "2" * 40,
-                    "change_set_sha256": expected_change_set_sha256,
-                },
+                "workspace_attestation": attestation.to_payload(),
             }
         },
     }
@@ -2811,20 +2865,15 @@ def test_quality_script_replays_only_hash_bound_same_subject_full_evidence(
         encoding="utf-8",
     )
 
-    policy = tmp_path / "config/quality/gates.yaml"
-    policy.parent.mkdir(parents=True, exist_ok=True)
-    policy.write_bytes((ROOT / "config/quality/gates.yaml").read_bytes())
     (run_dir / "pytest-results.xml").write_text(
         '<testsuites><testsuite><testcase file="tests/test_fixture.py" '
         'name="test_only" /></testsuite></testsuites>',
         encoding="utf-8",
     )
-    source_attestation: dict[str, object] = {
-        "repository_root": str(tmp_path),
-        "repository_tree_sha256": "1" * 64,
-        "git_commit": "2" * 40,
-        "change_set_sha256": expected_change_set_sha256,
-    }
+    source_attestation: dict[str, object] = dict(attestation.to_payload())
+    (run_dir / "attestation.json").write_text(
+        json.dumps(source_attestation), encoding="utf-8"
+    )
     source_payload = {
         "schema_version": 2,
         "status": "QUALITY_GATE_FAILED",
@@ -2858,46 +2907,13 @@ def test_quality_script_replays_only_hash_bound_same_subject_full_evidence(
         ),
         encoding="utf-8",
     )
-    payload = _run_quality_function_harness(
-        tmp_path,
-        rf"""
-$ApprovalRecordReportPath = @'
-{approval_path}
-'@
-$expectedChangeSetSha256 = "{expected_change_set_sha256}"
-$script:qualityInitialWorkspaceAttestation = [ordered]@{{
-    repository_root = $repoRoot
-    repository_tree_sha256 = "{"1" * 64}"
-    git_commit = "{"2" * 40}"
-    change_set_sha256 = $expectedChangeSetSha256
-}}
-$context = Get-FullApprovalReplayContext
-$acceptedSubject = $context.governance.subject_digest.subject_id
-$script:qualityInitialWorkspaceAttestation.change_set_sha256 = "{"9" * 64}"
-$subjectDriftError = try {{
-    Get-FullApprovalReplayContext | Out-Null
-    "NO_ERROR"
-}}
-catch {{
-    $_.Exception.Message
-}}
-$script:qualityInitialWorkspaceAttestation.change_set_sha256 = $expectedChangeSetSha256
-Set-Content -LiteralPath $context.pytest_path -Value "tampered" -Encoding UTF8
-$driftError = try {{
-    Get-FullApprovalReplayContext | Out-Null
-    "NO_ERROR"
-}}
-catch {{
-    $_.Exception.Message
-}}
-[ordered]@{{
-    accepted_subject = $acceptedSubject
-    quality_path = $context.quality_path
-    subject_drift_error = $subjectDriftError
-    drift_error = $driftError
-}} | ConvertTo-Json -Depth 4
-""",
+    # Capture in the existing process temp area, outside the frozen fixture.
+    completed = _run_external_command(
+        [_powershell(), "-NoLogo", "-NoProfile", "-File", str(harness_path)],
+        cwd=tmp_path,
     )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    payload = json.loads(completed.stdout[completed.stdout.find("{") :])
 
     assert payload["accepted_subject"] == "4" * 64
     assert payload["quality_path"].endswith("deterministic-quality-gate.json")
@@ -4630,6 +4646,142 @@ def test_cleanup_runtime_run_retention_keeps_latest_twenty(
         "runtime/test/repository-validator/runs/run-00",
         "runtime/test/repository-validator/runs/run-01",
     }
+
+
+def test_cleanup_fresh_process_tree_needs_no_descendant_scan(tmp_path: Path) -> None:
+    _copy_cleanup_script(tmp_path)
+    tree = tmp_path / "runtime/tmp/process/fresh"
+    for index in range(30):
+        child = tree / str(index)
+        child.mkdir(parents=True)
+        (child / "old.txt").write_text("old", encoding="utf-8")
+    before = {
+        path.relative_to(tmp_path): path.read_bytes()
+        for path in tmp_path.rglob("*")
+        if path.is_file()
+    }
+
+    report = _run_cleanup_script(tmp_path, "-Mode", "ProcessTempRetention")
+
+    assert report["candidates"] == []
+    assert report["tree_scan_metrics"]["recent_tree_shortcuts"] == 1
+    assert report["tree_scan_metrics"]["directories_enumerated"] == 0
+    assert report["tree_scan_metrics"]["file_entries_examined"] == 0
+    assert report["dry_run_summary"] is None
+    after = {
+        path.relative_to(tmp_path): path.read_bytes()
+        for path in tmp_path.rglob("*")
+        if path.is_file()
+    }
+    assert after == before
+
+
+def test_cleanup_backdated_process_root_preserves_fresh_file(tmp_path: Path) -> None:
+    _copy_cleanup_script(tmp_path)
+    tree = tmp_path / "runtime/tmp/process/backdated"
+    nested = tree / "old-subtree"
+    nested.mkdir(parents=True)
+    (nested / "old.txt").write_text("old", encoding="utf-8")
+    (tree / ".fresh.txt").write_text("fresh", encoding="utf-8")
+    old = time.time() - 3 * 86400
+    os.utime(tree, (old, old))
+
+    report = _run_cleanup_script(tmp_path, "-Mode", "ProcessTempRetention")
+
+    assert report["candidates"] == []
+    assert report["tree_scan_metrics"]["directories_enumerated"] == 1
+    assert report["tree_scan_metrics"]["file_entries_examined"] == 1
+    assert report["tree_scan_metrics"]["recent_tree_shortcuts"] == 1
+
+
+def test_cleanup_backdated_process_root_preserves_fresh_empty_directory(
+    tmp_path: Path,
+) -> None:
+    _copy_cleanup_script(tmp_path)
+    tree = tmp_path / "runtime/tmp/process/backdated"
+    fresh = tree / "fresh-empty"
+    fresh.mkdir(parents=True)
+    old = time.time() - 3 * 86400
+    os.utime(tree, (old, old))
+
+    report = _run_cleanup_script(tmp_path, "-Mode", "ProcessTempRetention")
+
+    assert report["candidates"] == []
+    assert report["tree_scan_metrics"]["directories_enumerated"] == 1
+    assert report["tree_scan_metrics"]["file_entries_examined"] == 0
+    assert report["tree_scan_metrics"]["recent_tree_shortcuts"] == 1
+    assert fresh.is_dir()
+
+
+def test_cleanup_stale_tree_visits_each_directory_once_and_keeps_findings(
+    tmp_path: Path,
+) -> None:
+    _copy_cleanup_script(tmp_path)
+    tree = tmp_path / "runtime/tmp/process/stale"
+    for name in ("first", "second"):
+        child = tree / name
+        child.mkdir(parents=True)
+        (child / ".hidden.txt").write_text("old", encoding="utf-8")
+    old = time.time() - 3 * 86400
+    for path in [*tree.rglob("*"), tree]:
+        os.utime(path, (old, old))
+
+    report = _run_cleanup_script(tmp_path, "-Mode", "ProcessTempRetention")
+
+    assert [row["path"].replace("\\", "/") for row in report["candidates"]] == [
+        "runtime/tmp/process/stale"
+    ]
+    assert report["tree_scan_metrics"]["directories_enumerated"] == 3
+    assert report["tree_scan_metrics"]["file_entries_examined"] == 2
+    assert report["tree_scan_metrics"]["recent_tree_shortcuts"] == 0
+    assert tree.is_dir()
+
+
+def test_cleanup_nested_junction_is_blocked_without_following_target(
+    tmp_path: Path,
+) -> None:
+    _copy_cleanup_script(tmp_path)
+    tree = tmp_path / "runtime/tmp/process/stale"
+    tree.mkdir(parents=True)
+    target = tmp_path / "preserved-target"
+    target.mkdir()
+    marker = target / "evidence.txt"
+    marker.write_text("preserve", encoding="utf-8")
+    link = tree / "linked-target"
+    command = (
+        f"New-Item -ItemType Junction -Path '{link}' -Target '{target}' | Out-Null"
+    )
+    created = _run_external_command(
+        [_powershell(), "-NoProfile", "-Command", command], cwd=tmp_path
+    )
+    assert created.returncode == 0, created.stderr
+    old = time.time() - 3 * 86400
+    os.utime(tree, (old, old))
+
+    report = _run_cleanup_script(tmp_path, "-Mode", "ProcessTempRetention")
+
+    assert report["candidates"] == []
+    assert report["blocked_candidates"] == [
+        {"path": "runtime\\tmp\\process\\stale", "reason": "PROCESS_TEMP_SCAN_FAILED"}
+    ]
+    assert report["tree_scan_metrics"]["directories_enumerated"] == 1
+    assert report["tree_scan_metrics"]["file_entries_examined"] == 0
+    assert marker.read_text(encoding="utf-8") == "preserve"
+
+
+def test_cleanup_dry_run_writes_evidence_only_to_explicit_output(
+    tmp_path: Path,
+) -> None:
+    _copy_cleanup_script(tmp_path)
+    output = tmp_path / "runtime/artifacts/scan.json"
+
+    report = _run_cleanup_script(
+        tmp_path, "-Mode", "Coverage", "-WhatIfSummaryPath", str(output)
+    )
+
+    assert report["applied"] is False
+    assert report["dry_run_summary"].replace("\\", "/") == "runtime/artifacts/scan.json"
+    assert json.loads(output.read_text(encoding="utf-8-sig"))["applied"] is False
 
 
 def test_cleanup_runtime_run_retention_rejects_policy_path_widening(

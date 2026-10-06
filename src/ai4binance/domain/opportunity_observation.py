@@ -102,7 +102,7 @@ def has_complete_measurable_trade_plan(candidate: Mapping[str, object]) -> bool:
             return False
         try:
             decimal_value = Decimal(str(value))
-        except (ArithmeticError, ValueError):
+        except ArithmeticError, ValueError:
             return False
         if not decimal_value.is_finite() or decimal_value <= ZERO:
             return False
@@ -388,7 +388,7 @@ def _positive_decimal(value: object) -> Decimal | None:
         return None
     try:
         parsed = Decimal(str(value))
-    except (ArithmeticError, ValueError):
+    except ArithmeticError, ValueError:
         return None
     return parsed if parsed.is_finite() and parsed > ZERO else None
 

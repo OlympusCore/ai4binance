@@ -176,6 +176,8 @@ affected_tests:
         - src/ai4binance/ops/quality_gate/
       tests:
         - tests/test_quality_gate_profiles.py
+        - tests/test_repository_completion.py
+        - tests/test_codex_governance_hook.py
     - name: maintainability_ratchet
       path_prefixes:
         - config/quality/ruff-maintainability-baseline.json
@@ -263,6 +265,7 @@ affected_tests:
         - src/ai4binance/governance/technology_language_policy.py
       tests:
         - tests/test_codex_governance_hook.py
+        - tests/test_repository_completion.py
         - tests/governance/terminology/test_terminology_policy.py
         - tests/governance/terminology/test_governance_enforcement_fabric.py
         - tests/governance/architecture/test_technology_language_policy.py
@@ -447,6 +450,7 @@ standard_impact_tests:
         - src/ai4binance/governance/technology_language_policy.py
       tests:
         - tests/test_codex_governance_hook.py
+        - tests/test_repository_completion.py
         - tests/governance/terminology/test_terminology_policy.py
         - tests/governance/terminology/test_governance_enforcement_fabric.py
         - tests/governance/architecture/test_technology_language_policy.py

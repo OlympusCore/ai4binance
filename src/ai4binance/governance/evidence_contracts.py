@@ -128,7 +128,7 @@ class GovernedArtifactReader:
         source_hash = hashlib.sha256(raw).hexdigest()
         try:
             payload = json.loads(raw.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
+        except UnicodeDecodeError, json.JSONDecodeError:
             return _degraded(
                 artifact_type,
                 source_name,
@@ -174,7 +174,7 @@ class GovernedArtifactReader:
             )
         try:
             observed_at = _parse_datetime(payload[timestamp_field])
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return _degraded(
                 artifact_type,
                 source_name,

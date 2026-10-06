@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-POL-MANIFEST-001
 title: AI4BINANCE Manifest Governance Policy
 document_type: POLICY
-version: 1.0.1
+version: 1.0.2
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -283,6 +283,18 @@ After approval:
 6. immediately restore filesystem locks.
 
 Unlocked governed documents must not be left writable after an approved change.
+
+The governed document update lifecycle in Core section 3.1.1 uses
+WrittenOwnerDocumentLockUpdate/v1 and DocumentLockAuthorityContext/v4 without
+changing the existing C3/C4 approval requirements. Preserve completed predecessor
+evidence unchanged and verify its actual accepted installation. Bind every
+successor to the preceding final manifest and its own exact reviewed version/hash
+delta. Registration cannot change inventory, authority metadata, historical
+approval records or manifest-lock policy. Current bytes require a fresh exact
+written-owner application grant and an observed completed installation;
+an old completed review cannot approve new bytes. Draft records are not grants.
+Application permission and installation receipts do not replace canonical FULL,
+policy eligibility, the applicable human Approval Packet or final acceptance.
 
 ## 13. Validation and Enforcement
 

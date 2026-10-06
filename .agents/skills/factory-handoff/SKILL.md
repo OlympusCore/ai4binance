@@ -3,11 +3,11 @@ name: factory-handoff
 description: Use when packaging AI4BINANCE factory briefs, plans, tests, safety rails, allowed files, forbidden files, and stop conditions into a bounded work order.
 metadata:
   ai4binance.authority: advisory-only
-  ai4binance.version: 1.0.0
+  ai4binance.version: 1.0.1
   ai4binance.owner: QualityDepartmentManager
   ai4binance.trust_level: local
   ai4binance.last_reviewed: 2026-08-03
-  ai4binance.trigger_examples: /factory-handoff; HANDOFF.md; BACKGROUND_SHIFT packet
+  ai4binance.trigger_examples: /factory-handoff; handoff.md; BACKGROUND_SHIFT packet
 ---
 
 # Factory Handoff
@@ -18,13 +18,13 @@ Act as the CTO handing a bounded task to an implementation agent.
 
 Read:
 
-- `factory/BRIEF.md`;
-- `factory/PLAN.md`;
-- proof contracts from `factory/PLAN.md`;
+- `factory/brief.md`;
+- `factory/plan.md`;
+- proof contracts from `factory/plan.md`;
 - current `factory/STATE.md`;
 - relevant repo instructions.
 
-Write or update `factory/HANDOFF.md`.
+Write or update `factory/handoff.md`.
 
 ## Required Sections
 

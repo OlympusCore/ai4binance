@@ -118,6 +118,7 @@
     "PATH": "${workspaceFolder}\\.venv\\Scripts;${env:PATH}",
     "PIP_DISABLE_PIP_VERSION_CHECK": "1",
     "PIP_NO_PYTHON_VERSION_WARNING": "1",
+    "PYTHONDONTWRITEBYTECODE": "1",
     "PYTHONIOENCODING": "utf-8",
     "PYTHONPATH": "${workspaceFolder}/src",
     "PYTHONUTF8": "1",

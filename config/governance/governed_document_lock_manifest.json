@@ -2026,13 +2026,13 @@
       "authority_scope": "repository_agent_operations",
       "canonical_path": "AGENTS.md",
       "document_status": "ACTIVE",
-      "expected_hash": "604aae26e1c51091797cde67bd97cf90345fabe9b50c52e9d7d74df689417156",
+      "expected_hash": "9fb62d54acc5e9278d7018fbd6cbfbb36479e30d138ec10ba1c84bec7570e109",
       "lock_state": "LOCKED",
       "path": "AGENTS.md",
-      "sha256": "604aae26e1c51091797cde67bd97cf90345fabe9b50c52e9d7d74df689417156",
+      "sha256": "9fb62d54acc5e9278d7018fbd6cbfbb36479e30d138ec10ba1c84bec7570e109",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "5.0.1"
+      "version": "5.0.3"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -2043,13 +2043,13 @@
       "authority_scope": "claude_provider_adapter",
       "canonical_path": "CLAUDE.md",
       "document_status": "ACTIVE",
-      "expected_hash": "53851c342845f889f7fcd6cb5c8c5961d96aeb023ae1e730a035dae7922255d7",
+      "expected_hash": "5fdd54b762221c607654d8b40e6acc8c074374c8bb9d977c2ef65250e5722ea4",
       "lock_state": "LOCKED",
       "path": "CLAUDE.md",
-      "sha256": "53851c342845f889f7fcd6cb5c8c5961d96aeb023ae1e730a035dae7922255d7",
+      "sha256": "5fdd54b762221c607654d8b40e6acc8c074374c8bb9d977c2ef65250e5722ea4",
       "source_of_truth": false,
       "supersedes": [],
-      "version": "1.0.1"
+      "version": "1.0.2"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -2128,13 +2128,13 @@
       "authority_scope": "compliance_matrix",
       "canonical_path": "docs/compliance/registry_compliance_matrix.md",
       "document_status": "ACTIVE",
-      "expected_hash": "10a0822ff9ea284416485a41d50e28bd6f0fc7589f6ddc179fe08b8d0ba1af2c",
+      "expected_hash": "dc73e47a8ac38c1068d2b725fd8d93794498ecd76438eca745e08c4c4cf506cd",
       "lock_state": "LOCKED",
       "path": "docs/compliance/registry_compliance_matrix.md",
-      "sha256": "10a0822ff9ea284416485a41d50e28bd6f0fc7589f6ddc179fe08b8d0ba1af2c",
+      "sha256": "dc73e47a8ac38c1068d2b725fd8d93794498ecd76438eca745e08c4c4cf506cd",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "2.10.17"
+      "version": "2.10.19"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -2298,13 +2298,13 @@
       "authority_scope": "core_constitution",
       "canonical_path": "docs/governance/framework_core_vnext_governance.md",
       "document_status": "ACTIVE",
-      "expected_hash": "263470955401b4df41cb2d9942cb2a4eb4f6cf12144a9dfcbefd5cdf3ea727f2",
+      "expected_hash": "90b217e0b81cfb43fdd3c2b5300e6d2e475c58a5ab566605882a9f93cdb03c3c",
       "lock_state": "LOCKED",
       "path": "docs/governance/framework_core_vnext_governance.md",
-      "sha256": "263470955401b4df41cb2d9942cb2a4eb4f6cf12144a9dfcbefd5cdf3ea727f2",
+      "sha256": "90b217e0b81cfb43fdd3c2b5300e6d2e475c58a5ab566605882a9f93cdb03c3c",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "2.0.8"
+      "version": "2.0.10"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -2434,13 +2434,13 @@
       "authority_scope": "manifest_governance",
       "canonical_path": "docs/governance/policy_manifest_governance.md",
       "document_status": "ACTIVE",
-      "expected_hash": "4c17bdc46ad1aa04e9ddbc2e0a13be76fce839c2dbbf618f10dcf23a103aca4b",
+      "expected_hash": "a6fbeb282bdce4143dd13d61abe720f8f6bef30b33ecd54ad31fb0f7bf7ad2db",
       "lock_state": "LOCKED",
       "path": "docs/governance/policy_manifest_governance.md",
-      "sha256": "4c17bdc46ad1aa04e9ddbc2e0a13be76fce839c2dbbf618f10dcf23a103aca4b",
+      "sha256": "a6fbeb282bdce4143dd13d61abe720f8f6bef30b33ecd54ad31fb0f7bf7ad2db",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "1.0.1"
+      "version": "1.0.2"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -2672,13 +2672,13 @@
       "authority_scope": "claude_provider_adapter",
       "canonical_path": "docs/providers/instruction_claude_provider.md",
       "document_status": "ACTIVE",
-      "expected_hash": "1a427cf0d6e6d0e280b820644b5408bb37ad9877d3aada49c2475e318217af63",
+      "expected_hash": "7b361fc8c2842ba4d6303c954594f3ce28e68a387078bd24c19ed84bd8f769a7",
       "lock_state": "LOCKED",
       "path": "docs/providers/instruction_claude_provider.md",
-      "sha256": "1a427cf0d6e6d0e280b820644b5408bb37ad9877d3aada49c2475e318217af63",
+      "sha256": "7b361fc8c2842ba4d6303c954594f3ce28e68a387078bd24c19ed84bd8f769a7",
       "source_of_truth": false,
       "supersedes": [],
-      "version": "2.0.1"
+      "version": "2.0.2"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -2689,13 +2689,13 @@
       "authority_scope": "codex_provider_adapter",
       "canonical_path": "docs/providers/instruction_codex_provider.md",
       "document_status": "ACTIVE",
-      "expected_hash": "8040ce897de09fff4a6fdd1636be239fa00e96a86c241d79318af2fae3b9a6bf",
+      "expected_hash": "396885d2ad8cc5ada4ea2ef7a89347dea99187c85b780f008f1ae80e3cd5f1e7",
       "lock_state": "LOCKED",
       "path": "docs/providers/instruction_codex_provider.md",
-      "sha256": "8040ce897de09fff4a6fdd1636be239fa00e96a86c241d79318af2fae3b9a6bf",
+      "sha256": "396885d2ad8cc5ada4ea2ef7a89347dea99187c85b780f008f1ae80e3cd5f1e7",
       "source_of_truth": false,
       "supersedes": [],
-      "version": "2.0.1"
+      "version": "2.0.3"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -3577,13 +3577,13 @@
       "authority_scope": "gemini_provider_adapter",
       "canonical_path": "GEMINI.md",
       "document_status": "ACTIVE",
-      "expected_hash": "b4c9a970cb2f0a1cbdf1a215adc26484994063c34a970608f8a3977639748f1d",
+      "expected_hash": "a20e4e38d76bb7375c960c2f55c3ac5caeda8d974b52ca734782ee0cfb91064e",
       "lock_state": "LOCKED",
       "path": "GEMINI.md",
-      "sha256": "b4c9a970cb2f0a1cbdf1a215adc26484994063c34a970608f8a3977639748f1d",
+      "sha256": "a20e4e38d76bb7375c960c2f55c3ac5caeda8d974b52ca734782ee0cfb91064e",
       "source_of_truth": false,
       "supersedes": [],
-      "version": "1.0.1"
+      "version": "1.0.2"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -4673,14 +4673,14 @@
     }
   ],
   "prospective_lock_grant": {
-    "contract_version": "DocumentLockRegistration/v2",
-    "adoption": {
-      "path": "runtime/artifacts/maintenance_archive/d0_baseline_reconciliation_20261005/normative-reconciliation-routing-owner-adoption.json",
-      "sha256": "08da378278dc32c3e50d96e56f1153dc43d0a97c2b8bd32cd299fecb50aecf81"
-    },
+    "contract_version": "DocumentLockRegistration/v3",
     "grant": {
-      "path": "runtime/artifacts/maintenance_archive/d0_baseline_reconciliation_20261005/normative-reconciliation-routing-owner-grant.json",
-      "sha256": "af61b1e041ad972ddffd2f1220c1f8f9af34853dfe22caf9e35fac7800da1009"
+      "path": "runtime/artifacts/git_consolidation/20261005T110227/completion-rule-core-amendment/authorized-recovery-application/owner-grant.json",
+      "sha256": "69a268378d64cffb016912dd49941092fb62e1adaef4f44c519787e8af5eb5e5"
+    },
+    "predecessor": {
+      "path": "runtime/artifacts/git_consolidation/20261005T110227/completion-rule-core-amendment/predecessor-context.raw.txt",
+      "sha256": "0346c35415f22fa8d8d28c05fdf88b0cfbf7d64c8f986aae646adbea59889b9e"
     }
   }
 }

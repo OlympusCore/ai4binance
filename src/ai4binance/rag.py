@@ -1217,7 +1217,7 @@ class LlamaCppAdvisoryRunner:
                 timeout=self.timeout_seconds,
             ) as response:
                 payload = json.loads(response.read(self.guard.max_response_bytes))
-        except (OSError, urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+        except OSError, urllib.error.URLError, TimeoutError, json.JSONDecodeError:
             return AdvisoryProviderResult(
                 "llama.cpp",
                 self.model,
@@ -1316,7 +1316,7 @@ class OllamaAdvisoryRunner:
                 timeout=self.timeout_seconds,
             ) as response:
                 payload = json.loads(response.read(self.guard.max_response_bytes))
-        except (OSError, urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+        except OSError, urllib.error.URLError, TimeoutError, json.JSONDecodeError:
             return AdvisoryProviderResult(
                 "ollama",
                 self.model,

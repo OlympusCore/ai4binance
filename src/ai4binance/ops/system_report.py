@@ -238,7 +238,7 @@ def runtime_state_payload(
     path = settings.runtime_state_path
     try:
         payload = json.loads(path.read_text(encoding="utf-8-sig"))
-    except (OSError, json.JSONDecodeError):
+    except OSError, json.JSONDecodeError:
         return _blocked_component(
             "runtime-state",
             "DEGRADED",
@@ -339,9 +339,9 @@ def local_advisory_health_payload(settings: Settings) -> dict[str, object]:
                 blockers.append("QWEN_PROMPTER_STATE_INVALID")
         except FileNotFoundError:
             blockers.append("PRIMARY_LOCAL_REASONING_STATE_MISSING")
-        except (OSError, json.JSONDecodeError):
+        except OSError, json.JSONDecodeError:
             blockers.append("QWEN_PROMPTER_STATE_INVALID")
-    except (OSError, json.JSONDecodeError):
+    except OSError, json.JSONDecodeError:
         blockers.append("PRIMARY_LOCAL_REASONING_STATE_INVALID")
 
     if health.get("provider") != _LOCAL_ADVISORY_PROVIDER:
@@ -481,7 +481,7 @@ def _safe_component(
 ) -> dict[str, object]:
     try:
         payload = builder()
-    except (OSError, RuntimeError, ValueError, TypeError, json.JSONDecodeError):
+    except OSError, RuntimeError, ValueError, TypeError, json.JSONDecodeError:
         return _blocked_component(
             command,
             "DEGRADED",
@@ -815,7 +815,7 @@ def _safe_int(value: object) -> int | None:
         return None
     try:
         return int(str(value))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 

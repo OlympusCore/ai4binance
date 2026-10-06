@@ -52,6 +52,7 @@ from ai4binance.governance.gate import (
     SecurityScanEvidence,
     _build_repository_hygiene_gate,
     _classify_change_set,
+    _verify_frozen_replay_change_set,
     build_deterministic_quality_gate_report,
     build_governance_gate_report,
     load_approval_records,
@@ -2512,6 +2513,155 @@ def _git_for_committed_review(root: Path, *arguments: str) -> str:
         check=True,
     )
     return completed.stdout.strip()
+
+
+@pytest.fixture
+def replay_workspace(tmp_path: Path) -> Path:
+    """A local test-only Git subject; never an operational approval artifact."""
+    _git_for_committed_review(tmp_path, "init")
+    _git_for_committed_review(tmp_path, "config", "user.email", "test@example.invalid")
+    _git_for_committed_review(tmp_path, "config", "user.name", "Test Only Reviewer")
+    _git_for_committed_review(tmp_path, "config", "core.autocrlf", "false")
+    target = tmp_path / "src" / "subject.py"
+    target.parent.mkdir()
+    target.write_bytes(b"value = 1\n")
+    _git_for_committed_review(tmp_path, "add", "src/subject.py")
+    _git_for_committed_review(tmp_path, "commit", "-m", "Test-only base")
+    target.write_bytes(b"value = 2\n")
+    return tmp_path.resolve()
+
+
+def test_frozen_replay_accepts_distinct_canonical_hash_domains(
+    replay_workspace: Path,
+) -> None:
+    scope = resolve_governance_change_set(replay_workspace)
+    assert scope is not None
+    workspace = constitution_sync_module.build_quality_gate_workspace_attestation(
+        replay_workspace
+    )
+    assert workspace.change_set_sha256 != scope.change_set_sha256
+    workspace_payload: dict[str, object] = dict(workspace.to_payload())
+    _verify_frozen_replay_change_set(
+        replay_workspace, scope.to_payload(), scope.to_payload(), workspace_payload
+    )
+
+
+@pytest.mark.parametrize(
+    "drift",
+    [
+        "repository_root",
+        "repository_tree_sha256",
+        "git_commit",
+        "change_set_sha256",
+        "file_bytes",
+        "line_endings",
+        "index",
+        "head",
+        "scope",
+        "payload_hash",
+        "subject_hash",
+        "scope_root",
+    ],
+)
+def test_frozen_replay_rejects_hash_and_content_drift(
+    replay_workspace: Path,
+    drift: str,
+) -> None:
+    scope = resolve_governance_change_set(replay_workspace)
+    assert scope is not None
+    frozen = scope.to_payload()
+    subject = scope.to_payload()
+    workspace: dict[str, object] = dict(
+        constitution_sync_module.build_quality_gate_workspace_attestation(
+            replay_workspace
+        ).to_payload()
+    )
+    error = "APPROVAL_REPLAY_WORKSPACE_ATTESTATION_DRIFT"
+    if drift in workspace:
+        workspace[drift] = "invalid-test-only-binding"
+    elif drift in {"file_bytes", "line_endings"}:
+        (replay_workspace / "src/subject.py").write_bytes(
+            b"value = 3\n" if drift == "file_bytes" else b"value = 2\r\n"
+        )
+    elif drift == "index":
+        _git_for_committed_review(replay_workspace, "add", "src/subject.py")
+    elif drift == "head":
+        _git_for_committed_review(replay_workspace, "commit", "-am", "Test-only drift")
+    elif drift == "scope":
+        other_scope = GovernanceChangeSet(
+            repository_root=replay_workspace,
+            git_commit=scope.git_commit,
+            changed_paths=("src/other.py",),
+        )
+        frozen = other_scope.to_payload()
+        subject = other_scope.to_payload()
+        error = "APPROVAL_REPLAY_CHANGE_SET_SUBJECT_DRIFT"
+    elif drift == "payload_hash":
+        frozen["change_set_sha256"] = "0" * 64
+        error = "APPROVAL_REPLAY_CHANGE_SET_INVALID"
+    elif drift == "subject_hash":
+        subject["change_set_sha256"] = "0" * 64
+        error = "APPROVAL_REPLAY_CHANGE_SET_SUBJECT_DRIFT"
+    elif drift == "scope_root":
+        other_scope = GovernanceChangeSet(
+            repository_root=replay_workspace / "other",
+            git_commit=scope.git_commit,
+        )
+        frozen = other_scope.to_payload()
+        subject = other_scope.to_payload()
+        error = "APPROVAL_REPLAY_CHANGE_SET_ROOT_DRIFT"
+    with pytest.raises(ValueError, match=error):
+        _verify_frozen_replay_change_set(replay_workspace, frozen, subject, workspace)
+
+
+def test_frozen_replay_preserves_committed_review_binding(
+    replay_workspace: Path,
+) -> None:
+    base = _git_for_committed_review(replay_workspace, "rev-parse", "HEAD")
+    _git_for_committed_review(replay_workspace, "commit", "-am", "Test-only review")
+    head = _git_for_committed_review(replay_workspace, "rev-parse", "HEAD")
+    scope = resolve_committed_governance_change_set(replay_workspace, base, head)
+    workspace: dict[str, object] = dict(
+        constitution_sync_module.build_quality_gate_workspace_attestation(
+            replay_workspace
+        ).to_payload()
+    )
+    _verify_frozen_replay_change_set(
+        replay_workspace, scope.to_payload(), scope.to_payload(), workspace
+    )
+    stale = GovernanceChangeSet(
+        repository_root=replay_workspace,
+        git_commit=head,
+        changed_paths=scope.changed_paths,
+        review_base_commit=base,
+        review_head_commit=head,
+        review_patch_sha256="0" * 64,
+    )
+    with pytest.raises(ValueError, match="APPROVAL_REPLAY_COMMITTED_REVIEW_DRIFT"):
+        _verify_frozen_replay_change_set(
+            replay_workspace, stale.to_payload(), stale.to_payload(), workspace
+        )
+
+
+@pytest.mark.parametrize("field", ["approved_at_utc", "expires_at_utc"])
+def test_draft_marker_cannot_skip_timestamp_validation(
+    tmp_path: Path,
+    field: str,
+) -> None:
+    record = {
+        "approved_at_utc": "2026-10-05T00:00:00Z",
+        "expires_at_utc": "2026-10-06T00:00:00Z",
+        field: "<test-only-invalid-timestamp>",
+    }
+    path = tmp_path / "test-only-draft.json"
+    path.write_text(
+        json.dumps(
+            {"draft_status": "DRAFT_ONLY_NOT_APPROVAL", "approval_records": [record]}
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match=field + " must be ISO-8601"):
+        load_approval_records(path)
 
 
 def test_committed_review_keeps_clean_worktree_c3_and_binds_patch(

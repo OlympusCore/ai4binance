@@ -796,7 +796,7 @@ def _text_tuple(value: object) -> tuple[str, ...]:
 def _float_0_100(value: object) -> float:
     try:
         number = float(str(value))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 0.0
     if not isfinite(number):
         return 0.0
@@ -806,7 +806,7 @@ def _float_0_100(value: object) -> float:
 def _float_0_1(value: object) -> float:
     try:
         number = float(str(value))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 0.0
     if not isfinite(number):
         return 0.0

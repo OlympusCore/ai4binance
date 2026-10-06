@@ -45,6 +45,11 @@ def hook(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     monkeypatch.setattr(
         module, "quality_completion_blockers", lambda _root, _subject: ()
     )
+    monkeypatch.setattr(
+        module,
+        "inspect_git_completion",
+        lambda _root: {"status": "PASS", "blockers": []},
+    )
     return module
 
 
@@ -99,6 +104,17 @@ def test_read_only_turn_does_not_run_validator_or_claim_compliance(
     validator.assert_not_called()
 
 
+@pytest.mark.parametrize("event", ["SessionStart", "UserPromptSubmit"])
+def test_startup_does_not_require_final_git_completion(
+    hook: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, event: str
+) -> None:
+    observer = Mock(side_effect=AssertionError("Git completion is a closure control"))
+    monkeypatch.setattr(hook, "inspect_git_completion", observer)
+    context = hook.handle_event(_event(event), tmp_path)
+    assert "additionalContext" in context["hookSpecificOutput"]
+    observer.assert_not_called()
+
+
 def test_stop_rejects_missing_quality_even_when_repository_passes(
     hook: ModuleType,
     tmp_path: Path,
@@ -115,6 +131,27 @@ def test_stop_rejects_missing_quality_even_when_repository_passes(
     result = hook.handle_event(_event("Stop"), tmp_path)
     assert result["decision"] == "block"
     assert "QUALITY_EVIDENCE_OR_POLICY_UNAVAILABLE" in result["reason"]
+
+
+@pytest.mark.parametrize("changed", [True, False])
+def test_stop_rejects_git_failures_even_without_source_changes(
+    hook: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, changed: bool
+) -> None:
+    hook.handle_event(_event("UserPromptSubmit"), tmp_path)
+    if changed:
+        monkeypatch.setattr(hook, "_snapshot", lambda _root: {"subject": "after"})
+    monkeypatch.setattr(
+        hook, "validate_repository", lambda _root: _report(blocked=False)
+    )
+    monkeypatch.setattr(
+        hook,
+        "inspect_git_completion",
+        lambda _root: {"status": "BLOCKED", "blockers": ["GIT_COMPLETION_DIRTY"]},
+    )
+    result = hook.handle_event(_event("Stop"), tmp_path)
+    assert result["decision"] == "block"
+    assert "GIT_COMPLETION_DIRTY" in result["reason"]
+    assert hook.handle_event(_event("Stop", active=True), tmp_path)["continue"] is False
 
 
 @pytest.mark.parametrize("blocked", [True, False])
@@ -403,7 +440,9 @@ def test_governed_instruction_reader_rejects_unapproved_changes(
     source = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
     changed = source + "\nUnauthorized instruction.\n"
     if mutation == "version":
-        changed = source.replace("version: 5.0.1", "version: 99.0.0", 1)
+        registered_version = lock[0]["AGENTS.md"].version
+        changed = source.replace(f"version: {registered_version}", "version: 99.0.0", 1)
+        assert changed != source
     (tmp_path / "AGENTS.md").write_text(changed, encoding="utf-8")
     with pytest.raises(ValueError, match="governed context"):
         repository_validator.read_verified_governed_document(tmp_path, "AGENTS.md")

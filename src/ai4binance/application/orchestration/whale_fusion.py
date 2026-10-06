@@ -83,7 +83,7 @@ class WhaleFusionResearchService:
         if self.audit_writer is not None:
             try:
                 audit_written = self.audit_writer.append(envelope)
-            except (OSError, TypeError, ValueError):
+            except OSError, TypeError, ValueError:
                 audit_written = False
                 pipeline_blockers.append("FUSION_AUDIT_WRITE_FAILED")
                 fusion = replace(

@@ -1,4 +1,4 @@
 interface:
   display_name: "Factory Handoff"
   short_description: "Package bounded work orders"
-  default_prompt: "Use /factory-handoff to package brief, plan, tests, safety rails, and stop conditions into HANDOFF.md."
+  default_prompt: "Use /factory-handoff to package brief, plan, tests, safety rails, and stop conditions into handoff.md."

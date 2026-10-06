@@ -3,7 +3,7 @@ name: factory
 description: Route governed AI4BINANCE software factory work. Use when the user asks for /factory, factory orchestration, project state routing, next factory step selection, or converting an idea into the correct factory phase while preserving NO_TRADE, RESEARCH_ONLY, and LIVE_ORDER_BLOCKED safety boundaries.
 metadata:
   ai4binance.authority: advisory-only
-  ai4binance.version: 1.0.0
+  ai4binance.version: 1.0.1
   ai4binance.owner: QualityDepartmentManager
   ai4binance.trust_level: review-required
   ai4binance.last_reviewed: 2026-08-03
@@ -19,8 +19,8 @@ then route the user to the correct phase without widening authority.
 
 - User request.
 - `factory/STATE.md`.
-- Existing factory artifacts if present: `BRIEF.md`, `PLAN.md`, `HANDOFF.md`,
-  `REVIEW.md`, `GUIDE.md`, `progress.md`, and `log.md`.
+- Existing factory artifacts if present: `brief.md`, `plan.md`, `handoff.md`,
+  `review.md`, `guide.md`, `progress.md`, and `log.md`.
 - Relevant repo instructions and affected source files.
 
 ## Routing

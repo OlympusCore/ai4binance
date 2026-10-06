@@ -3,7 +3,7 @@ name: factory-tests
 description: Use when adding proof contracts, acceptance criteria, and exact verification commands to AI4BINANCE factory tasks before code is written.
 metadata:
   ai4binance.authority: advisory-only
-  ai4binance.version: 1.0.0
+  ai4binance.version: 1.0.1
   ai4binance.owner: QualityDepartmentManager
   ai4binance.trust_level: local
   ai4binance.last_reviewed: 2026-08-03
@@ -17,7 +17,7 @@ exam that can prove success or force iteration.
 
 ## Required Contract Per Task
 
-Each task in `factory/PLAN.md` must define:
+Each task in `factory/plan.md` must define:
 
 - observable acceptance criteria;
 - exact command or manual proof path;

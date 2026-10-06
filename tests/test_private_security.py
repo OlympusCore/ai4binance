@@ -210,7 +210,10 @@ def test_usd_m_private_reader_is_signed_get_only() -> None:
     assert reader.position_mode() == {"ok": True}
     assert reader.multi_assets_mode() == {"ok": True}
     assert all(request.method == "GET" for request in transport.requests)
-    assert all("fapi.binance.com" in request.full_url for request in transport.requests)
+    for request in transport.requests:
+        parsed = urlparse(request.full_url)
+        assert parsed.scheme == "https"
+        assert parsed.hostname == "fapi.binance.com"
     assert not hasattr(reader, "create_order")
     with pytest.raises(ValueError, match="read-only"):
         requests.build("/fapi/v1/order")

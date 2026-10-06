@@ -2982,8 +2982,21 @@ def _verify_frozen_replay_change_set(
         "git_commit"
     ) or change_set.change_set_sha256 != subject.get("change_set_sha256"):
         raise ValueError("APPROVAL_REPLAY_CHANGE_SET_SUBJECT_DRIFT")
-    if attestation.get("change_set_sha256") != change_set.change_set_sha256:
+    # Quality hashes Git status and file bytes; governance hashes a typed scope.
+    # Each digest must match the current subject from its canonical producer.
+    current_attestation = build_quality_gate_workspace_attestation(root)
+    if any(
+        attestation.get(key) != value
+        for key, value in current_attestation.to_payload().items()
+    ):
         raise ValueError("APPROVAL_REPLAY_WORKSPACE_ATTESTATION_DRIFT")
+    if not change_set.review_base_commit:
+        current_change_set = resolve_governance_change_set(root)
+        if (
+            current_change_set is None
+            or current_change_set.change_set_sha256 != change_set.change_set_sha256
+        ):
+            raise ValueError("APPROVAL_REPLAY_CHANGE_SET_SUBJECT_DRIFT")
     if change_set.review_base_commit:
         try:
             verify_committed_review_change_set(change_set)

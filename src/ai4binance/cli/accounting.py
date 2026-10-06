@@ -519,7 +519,7 @@ def latest_reconciliation_status(path: Path) -> dict[str, object]:
         try:
             line = encoded_line.decode("utf-8")
             event = json.loads(line)
-        except (UnicodeDecodeError, json.JSONDecodeError):
+        except UnicodeDecodeError, json.JSONDecodeError:
             malformed = True
             continue
         payload = event.get("payload") if isinstance(event, dict) else None

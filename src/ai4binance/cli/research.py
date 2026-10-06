@@ -146,7 +146,7 @@ def run_validate_research(settings: Settings, symbol: str | None) -> int:
         }
         print(json.dumps(to_primitive(payload), ensure_ascii=False, sort_keys=True))
         return 0
-    except (DatasetIntegrityError, FileNotFoundError, ValueError, OSError):
+    except DatasetIntegrityError, FileNotFoundError, ValueError, OSError:
         validation_symbol = safe_validation_symbol(symbol, settings)
         blocked_payload: dict[str, object] = {
             "symbol": validation_symbol,

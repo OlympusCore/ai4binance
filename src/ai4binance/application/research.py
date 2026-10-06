@@ -1248,7 +1248,7 @@ class ResearchApplicationService:
     ) -> Decimal | None:
         try:
             parsed = Decimal(str(value))
-        except (ArithmeticError, ValueError, TypeError):
+        except ArithmeticError, ValueError, TypeError:
             return None
         if not parsed.is_finite():
             return None
@@ -1358,7 +1358,7 @@ class ResearchApplicationService:
                 quantity=Decimal(str(quantity)),
                 risk_amount_usdt=Decimal(str(risk_amount_usdt)),
             )
-        except (ArithmeticError, ValueError, TypeError):
+        except ArithmeticError, ValueError, TypeError:
             return None
 
     @staticmethod

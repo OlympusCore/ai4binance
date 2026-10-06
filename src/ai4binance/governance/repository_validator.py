@@ -35,6 +35,12 @@ from ai4binance.governance.authority import (
 )
 from ai4binance.governance.authority.model import AUTHORITY_LAYERS
 from ai4binance.governance.blockers import BLOCKER_REGISTRY_PATH, load_blocker_registry
+from ai4binance.governance.document_metadata import (
+    clean_metadata_value as _clean_metadata_value,
+)
+from ai4binance.governance.document_metadata import (
+    read_document_frontmatter as _metadata_frontmatter,
+)
 from ai4binance.governance.governance_enforcement_fabric import (
     FABRIC_PATH as GOVERNANCE_ENFORCEMENT_FABRIC_PATH,
 )
@@ -66,6 +72,8 @@ from ai4binance.governance_primitives import (
 )
 from ai4binance.reporting import to_primitive
 from ai4binance.schema_validation import OfflineSchemaRegistry, SchemaValidationError
+
+_frontmatter = _metadata_frontmatter
 
 
 class RepositoryValidationStatus(StrEnum):
@@ -4394,7 +4402,7 @@ def _has_repository_path_redirection(root: Path, relative: Path) -> bool:
             return True
         try:
             attributes = current.lstat().st_file_attributes
-        except (AttributeError, FileNotFoundError):
+        except AttributeError, FileNotFoundError:
             continue
         if attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT:
             return True
@@ -4685,31 +4693,6 @@ def _read_utf8_text_or_none(path: Path) -> str | None:
         return None
 
 
-def _frontmatter(path: Path) -> dict[str, str] | None:
-    text = _read_utf8_text_or_none(path)
-    if text is None:
-        return None
-    if text.startswith("---\r\n"):
-        offset = 5
-    elif text.startswith("---\n"):
-        offset = 4
-    else:
-        return None
-    end = text.find("\n---", offset)
-    if end == -1:
-        return None
-    fields: dict[str, str] = {}
-    for raw_line in text[offset:end].splitlines():
-        if raw_line[:1].isspace():
-            continue
-        line = raw_line.strip()
-        if not line or line.startswith("#") or ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        fields[key.strip()] = _clean_metadata_value(value)
-    return fields
-
-
 def _frontmatter_sequence(path: Path, field: str) -> tuple[str, ...]:
     text = _read_utf8_text_or_none(path)
     if text is None:
@@ -4739,11 +4722,6 @@ def _frontmatter_sequence(path: Path, field: str) -> tuple[str, ...]:
             if item.startswith("- "):
                 values.append(_clean_metadata_value(item[2:]))
     return tuple(values)
-
-
-def _clean_metadata_value(value: str) -> str:
-    cleaned = value.strip().strip("\"'`")
-    return cleaned
 
 
 def _metadata_bool(field: str, metadata: dict[str, str]) -> bool:
@@ -6033,7 +6011,7 @@ def _git_tracked_files(root: Path) -> set[str]:
             text=False,
             timeout=30,
         )
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+    except OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired:
         return set()
     return {
         item.decode("utf-8").replace("\\", "/")
@@ -6068,7 +6046,7 @@ def _git_has_head(root: Path) -> bool:
             text=True,
             timeout=30,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         return False
     return completed.returncode == 0
 

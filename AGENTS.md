@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-AGT-001
 title: AI4Binance Root Agent Instructions
 document_type: INSTRUCTION
-version: 5.0.1
+version: 5.0.3
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: REPOSITORY
@@ -34,7 +34,7 @@ Research/paper trading; capital protection/auditability first; no guaranteed-ret
 
 External > Core > governance/compliance > contracts/schemas > standards/controls/quality > registries/architecture/ADRs > workflows/providers/scopes > code/config > evidence/runtime.
 `DETERMINISTIC_QUALITY_GATE = TECHNICAL_TRUTH`; `DETERMINISTIC_GOVERNANCE_GATE = POLICY_ELIGIBILITY`; `HUMAN_GOVERNANCE = CONSEQUENTIAL_AUTHORITY`.
-The canonical constitution is `docs/governance/framework_core_vnext_governance.md`.
+The canonical constitution is `docs/governance/framework_core_vnext_governance.md`; repository completion follows section 3.2.
 `docs/governance/policy_organization_constitution_handbook.md` is its family index.
 Provider, scoped, and lower authority may specialize mechanics only; they cannot widen or override.
 

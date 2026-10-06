@@ -128,7 +128,7 @@ class WalletSnapshotService:
     def _decimal(value: object, field_name: str) -> Decimal:
         try:
             parsed = Decimal(str(value))
-        except (InvalidOperation, ValueError):
+        except InvalidOperation, ValueError:
             raise ValueError(f"{field_name} must be decimal-compatible") from None
         if not parsed.is_finite() or parsed < 0:
             raise ValueError(f"{field_name} must be finite and non-negative")

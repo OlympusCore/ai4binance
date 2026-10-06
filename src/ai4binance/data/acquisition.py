@@ -415,7 +415,7 @@ class DataAcquisitionAgent:
                 "depth_event_at": event_at,
                 "depth_coverage": depth["coverage"],
             }
-        except (OSError, sqlite3.Error, ValueError, KeyError, TypeError):
+        except OSError, sqlite3.Error, ValueError, KeyError, TypeError:
             return {"depth_status": "UNAVAILABLE"}
 
     def _fetch_klines(
@@ -457,7 +457,7 @@ class DataAcquisitionAgent:
                         )
                         for candle in candles
                     )
-                except (OSError, ValueError):
+                except OSError, ValueError:
                     local[timeframe] = ()
             return local
         workers = min(self.max_workers, len(timeframes))

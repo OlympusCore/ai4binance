@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-PRV-CODEX-001
 title: AI4Binance Codex Provider Instructions
 document_type: PROVIDER_ADAPTER
-version: 2.0.1
+version: 2.0.3
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: PROVIDER_ADAPTER
@@ -30,12 +30,10 @@ deployment, or execution authority.
 
 ## 1. Loading contract
 
-Base context: `AGENTS.md` plus this adapter (two files). Add the nearest scoped
-`AGENTS.md` only for paths within its scope.
+Load root and this adapter; add only applicable scoped `AGENTS.md`.
 
-Route before other governed-source reads. Do not preload the canonical map.
-Search affected fragments; reuse unchanged evidence. Escalate one source at a
-time; missing evidence fails closed.
+Route before governed reads; do not preload the canonical map. Search affected
+fragments, reuse unchanged evidence, escalate one source; missing evidence denies.
 
 ## 2. Authority boundary
 
@@ -75,11 +73,8 @@ a production-grade Codex prompt written entirely in professional English. Do
 not implement the generated prompt unless implementation is also explicitly
 requested.
 
-Include only relevant sections such as role, context, objective, verified state,
-assumptions, authority, execution mode, scope, affected contracts, safety,
-workflow, implementation requirements, acceptance criteria, tests, security,
-compliance, risk controls, compatibility, documentation, deliverables, final
-report, and prohibited actions.
+Follow the root `/autoprompt` contract. Include relevant verified context,
+authority, scope, acceptance criteria, validation, safety and deliverables.
 
 ## 5. Codex tool mechanics
 
@@ -106,6 +101,10 @@ successfully and its evidence was inspected.
 Auto-Control may detect or block governance, schema, language, repository,
 security, evidence, risk, and execution violations. Codex must not weaken such
 controls to make a result pass.
+
+Codex completion follows `docs/governance/framework_core_vnext_governance.md` section 3.2.
+The existing Stop hook consumes
+`ai4binance.ops.quality_gate.repository_completion`; independent controls remain binding.
 
 ## 7. Conflict and safe state
 

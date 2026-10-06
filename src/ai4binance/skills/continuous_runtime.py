@@ -118,7 +118,7 @@ def read_skill_discovery_status(settings: Settings) -> dict[str, object]:
     state_path = _absolute(settings.skill_discovery_state_path)
     try:
         payload = json.loads(state_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except OSError, json.JSONDecodeError:
         return {
             "command": "skill-discovery-status",
             "status": "BLOCKED",

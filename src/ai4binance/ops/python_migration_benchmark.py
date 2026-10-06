@@ -226,7 +226,7 @@ def _await_host_quiescence(
     for attempt in range(_QUIESCENCE_ATTEMPTS):
         try:
             load_percent = float(sample())
-        except (OSError, ValueError):
+        except OSError, ValueError:
             return False, tuple(samples), "HOST_LOAD_UNAVAILABLE"
         if not 0.0 <= load_percent <= 100.0:
             return False, tuple(samples), "HOST_LOAD_SAMPLE_INVALID"
@@ -974,7 +974,7 @@ def _git_output(
             encoding="utf-8",
             timeout=10,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         return None, "LATEST_EVIDENCE_REPOSITORY_STATE_UNAVAILABLE"
     if completed.returncode != 0:
         return None, "LATEST_EVIDENCE_REPOSITORY_STATE_UNAVAILABLE"
@@ -1236,7 +1236,7 @@ def _run_measurement_process(
             return "MEASUREMENT_PROCESS_TIMEOUT", tuple(samples)
         try:
             load_percent = float(sample())
-        except (OSError, ValueError):
+        except OSError, ValueError:
             stop_process()
             return "HOST_LOAD_UNAVAILABLE_DURING_MEASUREMENT", tuple(samples)
         if not 0.0 <= load_percent <= 100.0:

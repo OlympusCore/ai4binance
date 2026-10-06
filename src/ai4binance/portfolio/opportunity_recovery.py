@@ -482,7 +482,7 @@ def _default_opportunities_payload(
 def _read_market_state(path: object) -> Mapping[str, object] | None:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))  # type: ignore[attr-defined]
-    except (OSError, json.JSONDecodeError, AttributeError):
+    except OSError, json.JSONDecodeError, AttributeError:
         return None
     return payload if isinstance(payload, Mapping) else None
 
@@ -1480,7 +1480,7 @@ def _optional_positive_decimal(value: object | None, name: str) -> Decimal | Non
 def _decimal(value: object, default: Decimal) -> Decimal:
     try:
         parsed = Decimal(str(value))
-    except (InvalidOperation, ValueError):
+    except InvalidOperation, ValueError:
         return default
     return parsed if parsed.is_finite() else default
 

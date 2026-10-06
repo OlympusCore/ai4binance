@@ -436,7 +436,7 @@ class BinanceVisionFuturesReplayIngestor:
             published = self.fetch(f"{url}.CHECKSUM")
             try:
                 expected = published.decode("ascii").strip().split()[0].lower()
-            except (UnicodeError, IndexError):
+            except UnicodeError, IndexError:
                 expected = ""
             actual = sha256(payload).hexdigest()
             if not re.fullmatch(r"[0-9a-f]{64}", expected) or actual != expected:
@@ -489,7 +489,7 @@ class BinanceVisionFuturesReplayIngestor:
                             f"archive CSV schema is invalid: {key}"
                         )
                     rows = tuple(dict(row) for row in reader)
-        except (zipfile.BadZipFile, UnicodeError, csv.Error):
+        except zipfile.BadZipFile, UnicodeError, csv.Error:
             raise BinanceVisionFuturesIntegrityError(
                 f"invalid ZIP or CSV archive: {key}"
             ) from None
@@ -752,7 +752,7 @@ class BinanceVisionFuturesReplayIngestor:
                 close=BinanceVisionFuturesReplayIngestor._decimal(row["close"]),
                 volume=BinanceVisionFuturesReplayIngestor._decimal(row["volume"]),
             )
-        except (KeyError, ValueError):
+        except KeyError, ValueError:
             raise BinanceVisionFuturesIntegrityError(
                 "Futures OHLCV row contains invalid values"
             ) from None
@@ -807,7 +807,7 @@ class BinanceVisionFuturesReplayIngestor:
             value = int(raw)
             divisor = 1_000_000 if value >= 100_000_000_000_000 else 1_000
             return datetime.fromtimestamp(value / divisor, tz=UTC)
-        except (ValueError, ArithmeticError, OSError):
+        except ValueError, ArithmeticError, OSError:
             raise BinanceVisionFuturesIntegrityError(
                 "Futures timestamp is invalid"
             ) from None

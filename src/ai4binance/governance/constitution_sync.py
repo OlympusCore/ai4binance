@@ -260,7 +260,8 @@ CORE_WRITTEN_RULE_EXPECTATIONS: tuple[WrittenRuleExpectation, ...] = (
         path="AGENTS.md",
         required_fragments=(
             "The canonical constitution is "
-            "`docs/governance/framework_core_vnext_governance.md`.",
+            "`docs/governance/framework_core_vnext_governance.md`; "
+            "repository completion follows section 3.2.",
             "`docs/governance/policy_organization_constitution_handbook.md`",
             "`docs/standards/standard_repository_file_governance.md`",
             "Codex workflows must load `docs/providers/instruction_codex_provider.md`.",
@@ -641,7 +642,7 @@ def load_current_quality_gate_evidence(root: Path) -> QualityGateEvidence | None
         return None
     try:
         payload = json.loads(raw_evidence.decode("utf-8-sig"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
+    except UnicodeDecodeError, json.JSONDecodeError:
         return None
     if not isinstance(payload, dict):
         return None

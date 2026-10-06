@@ -238,7 +238,7 @@ class OnChainProviderReplay:
                     envelope.provider_id, envelope.received_at, envelope.source_url
                 ),
             )
-        except (ExchangePayloadError, ValueError):
+        except ExchangePayloadError, ValueError:
             return OnChainProviderReplayResult(
                 envelope, None, ("PROVIDER_PAYLOAD_INVALID",)
             )

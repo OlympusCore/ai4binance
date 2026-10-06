@@ -85,7 +85,7 @@ def runtime_status(state_directory: Path, now: datetime) -> dict[str, Any]:
         if learning is not None:
             result["controlled_learning"] = learning
         return result
-    except (OSError, ValueError, TypeError, KeyError):
+    except OSError, ValueError, TypeError, KeyError:
         return {"state": "DATA_UNAVAILABLE", "blocker_count": None}
 
 
@@ -147,7 +147,7 @@ def learning_summary_projection(
                 "experiment_count": len(value["experiments"]),
             }
         )
-    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+    except OSError, ValueError, TypeError, KeyError, AttributeError:
         return None
 
 
@@ -313,7 +313,7 @@ def wallet_answer(
                 if value is not None
                 else messages["StatusWithoutValue"].format(observed, status)
             )
-    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+    except OSError, ValueError, TypeError, KeyError, AttributeError:
         return result
     return {**result, "evidence_status": "VERIFIED_LOCAL_SNAPSHOT", "message": message}
 
@@ -421,7 +421,7 @@ def main() -> int:
         result = dispatch(json.loads(raw.decode("utf-8-sig")))
         print(json.dumps({"result": result}, ensure_ascii=True))
         return 0
-    except (OSError, ValueError, TypeError, KeyError):
+    except OSError, ValueError, TypeError, KeyError:
         print("ASSISTANT_REQUEST_FAILED", file=sys.stderr)
         return 2
 

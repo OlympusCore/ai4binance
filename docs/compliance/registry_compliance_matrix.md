@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-REG-001
 title: AI4BINANCE Compliance Matrix
 document_type: REGISTRY
-version: 2.10.17
+version: 2.10.19
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -107,14 +107,14 @@ unverified requirement.
 | Capability | Code and test proof | Status | Remaining obstacle |
 |---|---|---|---|
 | Secure Spot defaults | `config.py`, `safety.py`, `test_config_reporting.py`, `test_safety.py` | COMPLETED | Live conscious closed |
-| Immutable snapshot and shared agent contract | `schemas.py`, `test_schemas.py` | COMPLETED | — |
+| Immutable snapshot and shared agent contract | `schemas.py`, `test_schemas.py` | COMPLETED | â€” |
 | Terminology, repository naming, and technology-language enforcement fabric | `docs/standards/standard_terminology_governance.md`, `docs/standards/standard_repository_naming_governance.md`, `docs/standards/standard_technology_language_ownership.md`, `config/governance/governance_enforcement_fabric.yaml`, the family projections and schemas, `docs/registries/registry_authority_graph.yaml`, `src/ai4binance/governance/governance_enforcement_fabric.py`, `src/ai4binance/governance/repository_validator.py`, and `tests/governance/terminology/test_governance_enforcement_fabric.py` | PARTIALLY_VERIFIED | Three L4 normative standards retain separate authority scopes and bind to one non-authoritative deterministic fabric. The authority graph records each standard, terminology projection, and shared fabric so declared impact traversal includes the closure. The repository validator remains the execution point; the fabric provides technical conformance evidence only and cannot grant policy eligibility, consequential change authority, promotion, or live execution. `execution_allowed=false`, `RESEARCH_ONLY`, and `LIVE_ORDER_BLOCKED` remain unchanged. |
 | Dependency-aware parallel orchestrator | `agents/orchestrator.py`, `agents/telemetry.py`, related tests | COMPLETED | Hard process-timeout only possible with isolated backend |
 | Agent governance registry | `agents/catalog.py`, `agents/registry.py`, `test_agent_registry.py` | COMPLETED | No hard-gate promotion proof |
 | Agentic workflow pattern catalog | `governance/agentic_patterns.py`, `.agents/skills/agentic-workflow-patterns`, `test_agentic_patterns.py` | COMPLETED | Pattern selection and plan contract exist; autonomous/live execution missing |
 | AI orchestration and multi-agent orchestration pyramid framework | `docs/governance/framework_orchestration_ai_multi_agent.md`, `src/ai4binance/governance/agentic_patterns.py`, `.agents/skills/agentic-workflow-patterns/SKILL.md`, `tests/test_agentic_patterns.py`, `docs/registries/registry_agent_registry.md`, `docs/registries/registry_workflow_registry.md`, `docs/registries/registry_ai_system_inventory.md`, `docs/registries/registry_evidence_registry.md`, `docs/reports/governance/evidence_ai_orchestration_operational_readiness.md`, `docs/reports/governance/evidence_ai_orchestration_agent_review_records.md`, `docs/reports/governance/evidence_ai_orchestration_risk_impact_records.md`, `docs/reports/governance/report_platform_blocker_closure_map.md`, `docs/reports/governance/report_repository_governance_findings.md` | COMPLETED | Governance logic, runtime pattern-selection tests, end-to-end orchestration KPI evidence, per-agent role-package review records, AIMS risk-impact records, blocker closure mapping, and repository governance findings are complete for report-only and advisory AI orchestration readiness. This does not grant autonomous execution, deployment, live trading, risk-limit changes, strategy promotion, or external certification; `execution_allowed=false`, `RESEARCH_ONLY`, and `LIVE_ORDER_BLOCKED` remain preserved. |
 | Enterprise holding governance | `enterprise/`, `docs/governance/policy_holding_governance.md`, `test_enterprise_*` | COMPLETED | General Manager/QAQC/work-order layer management and audit generation; execution permissions not granted |
-| Agent lifecycle state machine | `enterprise/agent_lifecycle.py`, `test_enterprise_agent_lifecycle.py` | COMPLETED | Typed `IDLE` → `PERCEIVE` → `REASON` → `PLAN` → `ACT` → `OBSERVE` → `HUMAN_CHECK` → terminal flow exists; live permissions missing |
+| Agent lifecycle state machine | `enterprise/agent_lifecycle.py`, `test_enterprise_agent_lifecycle.py` | COMPLETED | Typed `IDLE` â†’ `PERCEIVE` â†’ `REASON` â†’ `PLAN` â†’ `ACT` â†’ `OBSERVE` â†’ `HUMAN_CHECK` â†’ terminal flow exists; live permissions missing |
 | Privacy boundary / `docs/archive/reference_local_computer_profile.md` | `privacy_boundary.py`, `enterprise/quality_audit.py`, `test_privacy_boundary.py`, `test_enterprise_quality_audit.py` | COMPLETED | Local computer profile is only usable with reference to `docs/archive/reference_local_computer_profile.md`; copying to another file generates QAQC blocker |
 | QAQC system audit | `enterprise/quality_audit.py`, `cli/enterprise.py`, `test_enterprise_quality_audit.py` | COMPLETED | `quality-system-audit` report-only mode; `WRITTEN_APPROVAL_DOC_SYNC`, `RESEARCH_ONLY`, and `LIVE_ORDER_BLOCKED` are constants |
 | OEK Constitution Authority Source, Compliance and Gap Audit | `docs/governance/policy_organization_constitution_handbook.md`, `enterprise/contracts.py`, `enterprise/prompt_intake.py`, `enterprise/oek_compliance.py`, `enterprise/quality_audit.py`, `cli/enterprise.py`, `test_enterprise_contracts.py`, `test_enterprise_prompt_intake.py`, `test_enterprise_quality_audit.py`, `test_cli.py` | COMPLETED | `BoardDirective` and GM prompt-order chain cannot be established without `OEK_AUTHORITY_SOURCE:docs/governance/policy_organization_constitution_handbook.md` and `OEK_CONSTITUTION_COMPLIANCE`; OEK entity/version/core principle/live-blocked boundary is checked; `oek-gap-analysis` agent/skill/workflow/config change manifests are linked to OEK controls; OEK alone does not grant production, risk, promotion, or live trading authority |
@@ -139,7 +139,7 @@ unverified requirement.
 | Binance Vision integrity/security | SHA-256, host allowlist, HTTPS, bounded response | COMPLETED | Upstream accessibility is an external dependency |
 | Read-only private account reader | `exchange/private.py`, `portfolio/wallet.py`, `application/runtime.py` | COMPLETED | `secrets/bnc.env` allowlist loader, narrow ACL, and real Spot/USD-M GET smoke proof exist; no write permissions |
 | Spot inventory and SELL semantics | `domain.py`, `risk.py`, wallet capture tests | PARTIAL | Real account open-order reconciliation proof is required |
-| Rebalancing proposal agent | — | MISSING | Wallet, target allocation and human approval workflow required |
+| Rebalancing proposal agent | â€” | MISSING | Wallet, target allocation and human approval workflow required |
 | Core technical indicators | `indicators.py`, `agents/technical.py`, related tests | RESEARCH | Multi-mode OOS promotion is required |
 | Market Outlook Intelligent Engine | `outlook/`, `application/research.py`, `test_market_outlook.py` | PARTIAL | Real macro calendar/news provider and full TPO/composite auction profile are required |
 | Advanced technical agents | `agents/advanced.py`, `test_advanced_agents.py` | RESEARCH | Some are proxy/diagnostic; contextual statistics missing |
@@ -148,7 +148,7 @@ unverified requirement.
 | Strategy registry | `strategies/registry.py`, `strategies/compression.py`, `strategies/regime_playbooks.py` | PARTIAL | 10/20 playbook calculations generated; new candidates wait OOS |
 | Candidate arbitration | `strategies/arbitration.py`, `test_stage_governance.py` | COMPLETED | Portfolio-wide correlation optimization missing |
 | WHALE-FUSION | `whale_fusion/`, application and integration tests | RESEARCH | Provider envelope/replay provenance-freshness-finality gate exists; real provider and OOS proof missing |
-| WHALE-FUSION → Strategy interaction | bounded supplementary ±5 modifier, `test_stage_governance.py` | COMPLETED | Cannot act as standalone trigger/hard-gate |
+| WHALE-FUSION â†’ Strategy interaction | bounded supplementary Â±5 modifier, `test_stage_governance.py` | COMPLETED | Cannot act as standalone trigger/hard-gate |
 | Confluence correlation governance | `agents/specialists.py`, `test_agents.py` | COMPLETED | OOS weight calibration missing |
 | RiskEngine and Binance filters | `risk.py`, `exchange/filters.py` | COMPLETED | Does not approve without real wallet context |
 | First 5 candidates risk assessment | `RiskEngine.evaluate_many`, RiskAgent metadata tests | COMPLETED | Total portfolio risk distribution partial |
@@ -158,7 +158,7 @@ unverified requirement.
 | Walk-forward and OOS | `validation/`, statistical evidence, `test_walk_forward.py` | COMPLETED | Real multi-regime promotion artifact is missing |
 | Purge/embargo and overfit statistics | `validation/overfit.py`, walk-forward config, related tests | COMPLETED | Promotion pipeline mandatory connection and real data proof required |
 | Tuning and sensitivity | `tuning/`, tuning governance tests | COMPLETED | Dataset revision exists; Optuna is only optional isolated benchmark and promotion unauthorized |
-| Promotion Board → Strategy Registry | `tuning/promotion.py`, `test_tuning_governance.py` | COMPLETED | Only PAPER_APPROVED; live permission missing |
+| Promotion Board â†’ Strategy Registry | `tuning/promotion.py`, `test_tuning_governance.py` | COMPLETED | Only PAPER_APPROVED; live permission missing |
 | Controlled learning engine | `learning/`, `application/learning_loop.py`, `tests/test_wallet_learning.py` | COMPLETED | Controlled learning remains advisory-only. `LearningSummary`, `ProfitabilityOptimizationLoop`, `ProfitabilityExperiment`, and `ExperimentCandidate` now carry canonical `application_state=NOT_APPLIED` plus explicit `promotion_evidence_required=true` and `closure_evidence_required=true`, so the engine may generate lessons and improvement candidates but cannot claim that an improvement was applied without separate promotion and closure evidence. It cannot change production parameters, execution authority, or risk limits. |
 | Learning application wiring | `application/learning_loop.py`, `application/research.py` | COMPLETED | Default is closed; must be explicitly configured |
 | Append-only audit and secret redaction | `storage/jsonl.py`, `learning/storage.py`, `tests/test_storage.py`, `tests/test_wallet_learning.py` | COMPLETED | Append-only JSONL audit records use secret redaction, destination read-back verification, and an optional tamper-evident hash chain. Consequential governance and learning audit writers use the sealed mode with durable write-through and fail-closed chain validation; external WORM/immutable retention remains a separate control and centralized retention/rotation policy is still missing. |
@@ -280,7 +280,7 @@ candidate reproduction conditions and live trading authority are out of scope.
 ## Agent Management Enhancement Phase H-M
 
 1. Pinned commit, SHA-256, license, and capability quarantine gate for external skill/plugin.
-2. Spec → red test → minimal implementation → two reviews → quality gate run card.
+2. Spec â†’ red test â†’ minimal implementation â†’ two reviews â†’ quality gate run card.
 3. Deduplication, contradiction, validation, human approval, and expiry lesson lifecycle.
 4. Proven admission manifest for nightly jobs including path/capability/lock/timeout.
 5. Redacted hash, citation, blocker, and latency fixture grader for advisory trace.
@@ -448,3 +448,31 @@ Proof: `src/ai4binance/portfolio/orders.py`,
 `src/ai4binance/portfolio/investment.py`, `src/ai4binance/application/runtime.py`,
 `src/ai4binance/accounting/ui_reports.py`, `tests/test_investment_management.py`,
 `tests/test_runtime_cycle.py`, `tests/test_accounting_collectors.py`.
+
+
+## Existing implementation traceability
+
+These references connect existing capability owners, written rules and deterministic
+tests. They do not assert operational readiness, external assurance, human approval,
+or closure of failed evidence. Core risk and validation vetoes remain binding;
+`execution_allowed=false`, `RESEARCH_ONLY`, and `LIVE_ORDER_BLOCKED` are preserved.
+
+| Canonical implementation | Governing reference | Test surface | Existing responsibility and boundary |
+|---|---|---|---|
+| `src/ai4binance/application/orchestration/whale_fusion.py` | `docs/architecture/framework_architecture_overview.md` | `tests/test_whale_fusion_application.py` | Sequence fusion, audit and immutable snapshot orchestration; audit failure blocks execution. |
+| `src/ai4binance/data/legacy_1m_cleanup.py` | `docs/standards/standard_repository_artifact_separation_governance.md` | `tests/test_legacy_1m_cleanup.py` | Inspect legacy one-minute runtime datasets; apply only replacement-verified cleanup under separate deletion authorization. |
+| `src/ai4binance/exchange/rate_limit.py` | `docs/governance/framework_core_vnext_governance.md` | `tests/test_market_data_gateway.py` | Coordinate weighted public REST capacity, cooldown and hard stops; request priority cannot bypass the stop. |
+| `src/ai4binance/governance/audit_checkpoint.py` | `docs/governance/framework_trust_assurance_governance_plane.md` | `tests/test_lowest_coverage_persistence_and_governance.py` | Bind a local audit-chain checkpoint to retention and optional external anchor evidence; local evidence grants no execution authority. |
+| `src/ai4binance/governance/document_lock_review.py` | `docs/governance/policy_manifest_governance.md` | `tests/test_document_lock_review.py` | Validate pinned document-review scope, raw bytes, time, custody references and revocation; validation does not authenticate a human or authorize application. |
+| `src/ai4binance/governance/document_metadata.py` | `docs/standards/standard_governed_knowledge_metadata.md` | `tests/test_document_lock_review.py` | Share the scalar frontmatter reader between document review and repository validation, preserving missing and invalid input boundaries. |
+| `src/ai4binance/infrastructure/filesystem/opportunity_artifact_loader.py` | `docs/architecture/framework_architecture_overview.md` | `tests/test_opportunity_artifact_loader.py` | Decode optional local JSON mappings; absent, malformed or non-mapping artifacts remain unavailable to consumers. |
+| `src/ai4binance/intelligence/event_context.py` | `docs/governance/framework_core_vnext_governance.md` | `tests/test_trading_context_packages.py` | Bind bounded news and sentiment observations to decision-time context as advisory evidence. |
+| `src/ai4binance/intelligence/patterns.py` | `docs/governance/framework_core_vnext_governance.md` | `tests/test_trading_intelligence.py` | Normalize existing deterministic pattern hypotheses with recorded method lineage; hypotheses do not authorize a trade. |
+| `src/ai4binance/internal_radar.py` | `docs/architecture/framework_external_intelligence_evidence_fabric.md` | `tests/test_internal_radar.py` | Capture local image fingerprints and bounded metadata; absent inference evidence remains a review candidate. |
+| `src/ai4binance/ops/build_metadata.py` | `docs/standards/standard_repository_artifact_separation_governance.md` | `tests/test_source_artifact_producers.py` | Route default reproducible setuptools metadata to runtime/cache/build/metadata while honoring explicitly selected output locations. |
+| `src/ai4binance/ops/python_runtime_removal_gate.py` | `docs/workflows/runbook_python_runtime_migration_benchmark.md` | `tests/test_python_runtime_removal_gate.py` | Assess runtime-removal readiness using exact runtime and validation evidence; assessment performs no uninstall. |
+| `src/ai4binance/validation/futures_oos.py` | `docs/governance/policy_organization_market_strategy_validation.md` | `tests/test_futures_oos.py` | Read and write exact-bound USD-M Futures OOS evidence fail closed; technical evidence does not authorize promotion or live execution. |
+
+| `src/ai4binance/governance/document_lock_authority.py` | `docs/governance/framework_core_vnext_governance.md`, `docs/governance/policy_manifest_governance.md` | `tests/test_document_lock_authority.py`, `tests/test_document_lock_update_lifecycle.py` | Verify exact completed predecessor history and separately issued document-update successors; no final candidate, risk or execution authority is created. |
+
+| `src/ai4binance/ops/quality_gate/repository_completion.py`, `scripts/codex_governance_hook.py` | `docs/governance/framework_core_vnext_governance.md` section 3.2 | `tests/test_repository_completion.py`, `tests/test_codex_governance_hook.py` | Observe the constitutional Git completion conditions at final closure; startup and authorized commit/push preparation do not require remote SHA equality. Preserve independent quality, governance, protected-document and human acceptance controls; no execution authority or successful closure is asserted. |

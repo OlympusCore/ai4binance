@@ -46,8 +46,11 @@ def _required_executable(*names: str) -> str:
 def _run_git_authorization(
     repository: Path,
     *arguments: str,
+    powershell: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    powershell = _required_executable("powershell.exe", "powershell", "pwsh")
+    powershell = powershell or _required_executable(
+        "powershell.exe", "powershell", "pwsh"
+    )
     helper = REPOSITORY_ROOT / "scripts" / "git_write_authorization.ps1"
     return subprocess.run(  # noqa: S603
         [
@@ -521,6 +524,51 @@ def test_git_write_authorization_is_exact_and_single_use(tmp_path: Path) -> None
     assert "GIT_WRITE_AUTHORIZATION_ERROR" in replay.stderr
     assert "RESEARCH_ONLY" in replay.stderr
     assert "LIVE_ORDER_BLOCKED" in replay.stderr
+
+
+@pytest.mark.parametrize(
+    ("approval_shell", "consumer_shell"),
+    [("pwsh", "powershell.exe"), ("powershell.exe", "pwsh"), ("pwsh", "pwsh")],
+)
+def test_git_write_authorization_preserves_timestamps_across_shells(
+    tmp_path: Path, approval_shell: str, consumer_shell: str
+) -> None:
+    repository = tmp_path / "repository"
+    _initialize_git_repository(repository)
+    challenge_path, approval_command = _prepare_authorization(repository, "Commit")
+    challenge = json.loads(challenge_path.read_text(encoding="utf-8"))
+    approved = _run_git_authorization(
+        repository,
+        "-Mode",
+        "Approve",
+        "-ChallengePath",
+        str(challenge_path),
+        "-ApprovalText",
+        approval_command,
+        powershell=_required_executable(approval_shell),
+    )
+    assert approved.returncode == 0, approved.stderr
+    authorization_path = Path(_output_value(approved.stdout, "AUTHORIZATION_PATH"))
+    approval = json.loads(
+        Path(str(authorization_path) + ".approval.json").read_text(encoding="utf-8")
+    )
+    assert approval["expires_at_utc"] == challenge["expires_at_utc"]
+    assert json.loads(authorization_path.read_text(encoding="utf-8")) == challenge
+    consumed = _run_git_authorization(
+        repository,
+        "-Mode",
+        "Consume",
+        "-Operation",
+        "Commit",
+        "-Channel",
+        "NonInteractive",
+        "-ChallengePath",
+        str(authorization_path),
+        powershell=_required_executable(consumer_shell),
+    )
+    assert consumed.returncode == 0, consumed.stderr
+    assert "GIT_WRITE_AUTHORIZATION_CONSUMED" in consumed.stdout
+    assert not authorization_path.exists()
 
 
 def test_git_write_authorization_rejects_subject_drift(tmp_path: Path) -> None:

@@ -13,6 +13,7 @@ from typing import Any, Self
 import pytest
 
 from ai4binance.governance import document_lock_review as review
+from ai4binance.governance import document_metadata as metadata
 from ai4binance.governance import repository_validator as validator
 
 NOW = datetime(2026, 10, 2, tzinfo=UTC)
@@ -21,6 +22,62 @@ PERIOD = {
     "not_before_utc": "2026-10-01T00:00:00Z",
     "expires_at_utc": "2026-10-03T00:00:00Z",
 }
+
+
+def test_document_review_and_validator_share_the_metadata_reader(
+    tmp_path: Path,
+) -> None:
+    document = tmp_path / "document.md"
+    document.write_text(
+        "---\ndocument_id: `TEST-ONLY-001`\nversion: '1.0.0'\n"
+        "supersedes:\n  - OLD\n# Comment\n---\n# Body\n",
+        encoding="utf-8",
+    )
+    assert metadata.read_document_frontmatter is review.read_document_frontmatter
+    assert metadata.read_document_frontmatter is validator._frontmatter
+    assert review.read_document_frontmatter(document) == {
+        "document_id": "TEST-ONLY-001",
+        "version": "1.0.0",
+        "supersedes": "",
+    }
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"",
+        b"document_id: TEST_ONLY_WITHOUT_FRONTMATTER\n",
+        b"---\ndocument_id: TEST_ONLY_WITHOUT_CLOSING_DELIMITER\n",
+        b"---\ndocument_id: \xff\n---\n",
+    ],
+    ids=["empty", "missing-opening", "missing-closing", "invalid-utf8"],
+)
+def test_shared_metadata_reader_rejects_invalid_frontmatter(
+    tmp_path: Path, payload: bytes
+) -> None:
+    document = tmp_path / "test-only-invalid-document.md"
+    document.write_bytes(payload)
+    assert metadata.read_document_frontmatter(document) is None
+
+
+@pytest.mark.parametrize("line_ending", ["\n", "\r\n"], ids=["lf", "crlf"])
+def test_shared_metadata_reader_accepts_scalar_frontmatter_line_endings(
+    tmp_path: Path, line_ending: str
+) -> None:
+    document = tmp_path / "test-only-scalar-document.md"
+    text = line_ending.join(
+        ["---", "document_id: 'TEST_ONLY_SCALAR'", "version: `1.0.0`", "---", ""]
+    )
+    document.write_bytes(text.encode("utf-8"))
+    assert metadata.read_document_frontmatter(document) == {
+        "document_id": "TEST_ONLY_SCALAR",
+        "version": "1.0.0",
+    }
+
+
+def test_shared_metadata_reader_preserves_missing_file_error(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError):
+        metadata.read_document_frontmatter(tmp_path / "test-only-missing-document.md")
 
 
 def save(root: Path, name: str, value: object) -> dict[str, str]:

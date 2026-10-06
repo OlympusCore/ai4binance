@@ -6,10 +6,16 @@ import hashlib
 import json
 import shutil
 import subprocess  # nosec B404
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from ai4binance.governance.document_metadata import (
+    read_document_frontmatter as read_document_frontmatter,
+)
 from ai4binance.governance.personal_research import UnappliedPatchSubject
 from ai4binance.schema_validation import validate_local_definition
 
@@ -18,6 +24,31 @@ SCHEMA = (
     / "schemas/governance/document_lock_review.schema.json"
 )
 CONTRACT = "DocumentLockReview/v1"
+_HISTORY: ContextVar[tuple[Path, str] | None] = ContextVar(
+    "document_lock_accepted_history", default=None
+)
+
+
+@contextmanager
+def accepted_history(root: Path, commit: str) -> Iterator[None]:
+    """Read an accepted snapshot; this does not authorize current content."""
+    token = _HISTORY.set((root.resolve(), commit))
+    try:
+        yield
+    finally:
+        _HISTORY.reset(token)
+
+
+def _repository_bytes(root: Path, relative: str) -> bytes:
+    path = _path(root, relative)
+    historical = _HISTORY.get()
+    if historical is not None and not relative.startswith("runtime/"):
+        if root.resolve() != historical[0]:
+            raise ValueError("DOCUMENT_REVIEW_HISTORY_ROOT")
+        return _git_bytes(root, "show", f"{historical[1]}:{relative}")
+    return path.read_bytes()
+
+
 PROSPECTIVE_FIELDS = frozenset(
     {
         "contract_version",
@@ -92,7 +123,7 @@ def _path(root: Path, relative: str) -> Path:
 
 
 def _bound_bytes(root: Path, reference: dict[str, Any]) -> bytes:
-    data = _path(root, reference["path"]).read_bytes()
+    data = _repository_bytes(root, reference["path"])
     if _digest(data) != reference["sha256"]:
         raise ValueError("DOCUMENT_REVIEW_ARTIFACT_DRIFT")
     return data
@@ -121,10 +152,8 @@ def _baseline(root: Path, expected: str) -> None:
             raise ValueError("DOCUMENT_REVIEW_BASELINE_OR_ROOT_DRIFT")
 
 
-def _completed_baseline(
-    root: Path, subject: dict[str, Any], installed_tree: str
-) -> None:
-    """Bind historical review to an actual accepted ancestor and installed bytes."""
+def _accepted_commit(root: Path, subject: dict[str, Any], installed_tree: str) -> str:
+    """Resolve one actual accepted installation on the current Git ancestry."""
     if _git_text(root, "rev-parse", "--show-toplevel") != root.as_posix():
         raise ValueError("DOCUMENT_REVIEW_BASELINE_OR_ROOT_DRIFT")
     history = _git_text(
@@ -141,19 +170,25 @@ def _completed_baseline(
     ]
     if len(accepted) != 1:
         raise ValueError("DOCUMENT_REVIEW_COMPLETED_TREE_NOT_ACCEPTED")
-    commit = accepted[0]
+    return accepted[0]
+
+
+def _completed_baseline(
+    root: Path, subject: dict[str, Any], installed_tree: str
+) -> None:
+    """Bind historical review to an actual accepted ancestor and installed bytes."""
+    commit = _accepted_commit(root, subject, installed_tree)
     for document in subject["documents"]:
         relative = document["path"]
         committed = _git_bytes(root, "show", f"{commit}:{relative}")
         if (
             _digest(committed) != document["sha256"]
-            or _path(root, relative).read_bytes() != committed
+            or _repository_bytes(root, relative) != committed
         ):
             raise ValueError("DOCUMENT_REVIEW_COMPLETED_DOCUMENT_DRIFT")
     manifest = "config/governance/governed_document_lock_manifest.json"
-    if (
-        _git_bytes(root, "show", f"{commit}:{manifest}")
-        != _path(root, manifest).read_bytes()
+    if _git_bytes(root, "show", f"{commit}:{manifest}") != _repository_bytes(
+        root, manifest
     ):
         raise ValueError("DOCUMENT_REVIEW_COMPLETED_MANIFEST_DRIFT")
 
@@ -161,8 +196,6 @@ def _completed_baseline(
 def _documents(
     root: Path, subject: dict[str, Any], *, artifacts_root: Path | None = None
 ) -> None:
-    from ai4binance.governance.repository_validator import _frontmatter
-
     source_root = artifacts_root or root
     manifest = _decode(_bound_bytes(source_root, subject["registration_manifest"]))
     entries = manifest["locked_documents"]
@@ -188,7 +221,7 @@ def _documents(
         )
         if artifacts_root is not None:
             _bound_bytes(source_root, candidates[relative])
-        metadata = _frontmatter(path) or {}
+        metadata = read_document_frontmatter(path) or {}
         matches = [e for e in entries if e["path"] == relative]
         if len(matches) != 1:
             raise ValueError("DOCUMENT_REVIEW_REGISTRATION_MISSING_OR_DUPLICATE")

@@ -168,8 +168,9 @@ def test_runtime_hygiene_main_resolves_relative_paths_and_persists(
     monkeypatch.setattr(
         runtime_hygiene,
         "build_runtime_hygiene_report",
-        lambda root, **kwargs: observed.update(root=root, **kwargs)
-        or {"status": "PASS"},
+        lambda root, **kwargs: (
+            observed.update(root=root, **kwargs) or {"status": "PASS"}
+        ),
     )
     monkeypatch.setattr(
         runtime_hygiene,

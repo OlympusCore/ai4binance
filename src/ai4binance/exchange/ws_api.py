@@ -76,7 +76,7 @@ class Ed25519Credentials:
                 payload,
                 password=self.passphrase.encode() if self.passphrase else None,
             )
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             raise ValueError("Ed25519 private key cannot be loaded") from None
         if not isinstance(loaded, Ed25519PrivateKey):
             raise ValueError("private key must be Ed25519")
@@ -194,7 +194,7 @@ class BinanceSpotWsConnection:
                     if isinstance(raw, bytes):
                         raw = raw.decode("utf-8")
                     message = json.loads(cast(str, raw))
-                except (TypeError, UnicodeDecodeError, json.JSONDecodeError):
+                except TypeError, UnicodeDecodeError, json.JSONDecodeError:
                     raise ValueError(
                         "Spot WebSocket API returned invalid JSON"
                     ) from None

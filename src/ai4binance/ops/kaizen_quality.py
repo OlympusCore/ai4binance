@@ -1159,7 +1159,7 @@ def _load_current_gate_json_object(
         payload = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return None, unavailable_blocker
-    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+    except OSError, json.JSONDecodeError, UnicodeDecodeError:
         return None, malformed_blocker
     if not isinstance(payload, dict):
         return None, malformed_blocker
@@ -1265,7 +1265,7 @@ def build_instruction_baseline(repository_root: Path) -> InstructionBaseline:
         try:
             content = path.read_bytes()
             text = content.decode("utf-8")
-        except (OSError, UnicodeDecodeError):
+        except OSError, UnicodeDecodeError:
             unreadable_paths.append(relative_path)
             continue
         documents.append(
@@ -2220,7 +2220,7 @@ def _runtime_data_snapshot_blockers(
             continue
         try:
             payload = json.loads(marker.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except OSError, json.JSONDecodeError:
             blockers.append(f"RUNTIME_DATA_RESET_RETENTION_METADATA_INVALID:{relative}")
             continue
         if (
@@ -2363,7 +2363,7 @@ def _traceability_matrix(
     try:
         records = journal.records()
         journal_status = TraceabilityStatus.PASS
-    except (OSError, ValueError):
+    except OSError, ValueError:
         records = ()
         journal_status = TraceabilityStatus.RUNNING_WITH_BLOCKERS
     trace_refs = {

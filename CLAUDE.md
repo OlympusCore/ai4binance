@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-AGT-CLAUDE-001
 title: AI4BINANCE Claude Provider Adapter Instructions
 document_type: INSTRUCTION
-version: 1.0.1
+version: 1.0.2
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: PROVIDER_ADAPTER
@@ -34,6 +34,8 @@ Claude workflows must follow `AGENTS.md` and the governed knowledge under
 `docs/`. If this adapter appears to conflict with higher-authority repository
 instructions, the higher-authority instruction prevails and the conflict must be
 reported as `GOVERNANCE_CONFLICT`.
+
+Claude completion follows Core section 3.2: `docs/governance/framework_core_vnext_governance.md`.
 
 ## Safety Boundary
 

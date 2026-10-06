@@ -104,7 +104,7 @@ class RuntimeStatusStore:
     def _read_previous_health(self) -> dict[str, object]:
         try:
             payload = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except OSError, json.JSONDecodeError:
             return {}
         if not isinstance(payload, dict):
             return {}
@@ -287,7 +287,7 @@ class PrivateRuntimeStatusStore:
     def _read_previous_payload(self) -> dict[str, object] | None:
         try:
             payload = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except OSError, json.JSONDecodeError:
             return None
         return payload if isinstance(payload, dict) else None
 
@@ -331,7 +331,7 @@ class PrivateRuntimeStatusStore:
             local = tuple(_stored_order_view(item) for item in raw_orders)
             exchange = tuple(_account_order_view(item) for item in exchange_orders)
             report = reconcile_open_orders(local, exchange)
-        except (InvalidOperation, TypeError, ValueError):
+        except InvalidOperation, TypeError, ValueError:
             return unavailable
         report_payload = cast(dict[str, object], to_primitive(report))
         return {
@@ -423,7 +423,7 @@ class SingleInstanceLease:
                 return int(raw), None
             except ValueError:
                 value = json.loads(raw)
-        except (OSError, ValueError, json.JSONDecodeError):
+        except OSError, ValueError, json.JSONDecodeError:
             raise RuntimeError("runtime lock is invalid") from None
         if not isinstance(value, dict) or value.get("schema_version") != 1:
             raise RuntimeError("runtime lock is invalid")

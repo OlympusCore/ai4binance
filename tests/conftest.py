@@ -18,6 +18,10 @@ if TESTS_DIR_STR not in sys.path:
 if SRC_DIR_STR not in sys.path:
     sys.path.insert(0, SRC_DIR_STR)
 
+# Protect editor discovery, which invokes pytest without the interpreter -B flag.
+sys.dont_write_bytecode = True
+os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
+
 # Bind tempfile and child-process environments before fixtures are collected.
 from ai4binance import configure_runtime_environment  # noqa: E402
 

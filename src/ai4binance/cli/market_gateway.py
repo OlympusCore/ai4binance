@@ -51,7 +51,7 @@ class _GatewayStateHeartbeat:
             return
         try:
             loaded = json.loads(self._path.read_text(encoding="utf-8-sig"))
-        except (OSError, json.JSONDecodeError):
+        except OSError, json.JSONDecodeError:
             loaded = {}
         payload = loaded if isinstance(loaded, dict) else {}
         raw_blockers = payload.get("blockers", [])
@@ -204,7 +204,7 @@ def _run_live_cycle(gateway: BinanceMarketDataGateway) -> bool:
             # The next outer loop performs bounded REST gap recovery before either
             # WebSocket connection can resume.
             return False
-        except (ConnectionClosed, OSError, TimeoutError):
+        except ConnectionClosed, OSError, TimeoutError:
             reconnect_attempt += 1
             time.sleep(_reconnect_delay(reconnect_attempt))
             continue

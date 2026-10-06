@@ -74,7 +74,7 @@ def test_factory_skills_have_frontmatter_and_live_blocker() -> None:
 
 def test_factory_state_preserves_safety_terms() -> None:
     state_text = (ROOT / "factory" / "STATE.md").read_text(encoding="utf-8")
-    handoff_text = (ROOT / "factory" / "HANDOFF.md").read_text(encoding="utf-8")
+    handoff_text = (ROOT / "factory" / "handoff.md").read_text(encoding="utf-8")
 
     for term in SAFETY_TERMS:
         assert term in state_text

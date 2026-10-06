@@ -113,7 +113,7 @@ def read_cached_market_universe(
             manual_selection_sha256=payload.get("manual_selection_sha256"),
             source=str(payload.get("source", "BINANCE_PUBLIC_EXCHANGE_INFO")),
         )
-    except (AttributeError, KeyError, OSError, TypeError, ValueError):
+    except AttributeError, KeyError, OSError, TypeError, ValueError:
         return None
 
 
@@ -328,7 +328,7 @@ class BinanceVisionArchiveCache:
             # always ASCII. Decode only that token so filename encoding cannot
             # turn a valid digest into a false integrity failure.
             expected = published.strip().split(maxsplit=1)[0].decode("ascii").lower()
-        except (UnicodeError, IndexError):
+        except UnicodeError, IndexError:
             expected = ""
         actual = sha256(payload).hexdigest()
         if not re.fullmatch(r"[0-9a-f]{64}", expected) or expected != actual:
@@ -429,7 +429,7 @@ class MarketHistorySynchronizer:
 
             try:
                 manual_selection_sha256 = manual_selection_digest(manual_selection_path)
-            except (OSError, ValueError):
+            except OSError, ValueError:
                 return BinanceEligibleMarketSnapshot(
                     spot_symbols=(),
                     futures_symbols=(),
@@ -548,7 +548,7 @@ class MarketHistorySynchronizer:
                 status="DEFERRED",
                 blocker="SPOT_DAILY_SOURCE_NOT_PUBLISHED",
             )
-        except (HTTPError, OSError, ValueError, zipfile.BadZipFile):
+        except HTTPError, OSError, ValueError, zipfile.BadZipFile:
             return MarketHistorySymbolResult(
                 market="SPOT",
                 symbol=symbol,
@@ -655,7 +655,7 @@ class MarketHistorySynchronizer:
                 detail_sources=tuple(sources),
                 blocker="FUTURES_DETAIL_SOURCE_NOT_PUBLISHED",
             )
-        except (HTTPError, OSError, ValueError, zipfile.BadZipFile):
+        except HTTPError, OSError, ValueError, zipfile.BadZipFile:
             return MarketHistorySymbolResult(
                 market="USD_M_FUTURES",
                 symbol=symbol,
@@ -853,7 +853,7 @@ def _parse_kline_archive(
                 close=Decimal(row[4]),
                 volume=Decimal(row[5]),
             )
-        except (ArithmeticError, OSError, ValueError):
+        except ArithmeticError, OSError, ValueError:
             raise MarketHistoryIntegrityError(
                 f"kline row contains invalid values: {key}"
             ) from None
@@ -905,7 +905,7 @@ def _csv_rows(key: str, payload: bytes) -> list[list[str]]:
             with archive.open(member) as stream:
                 text = io.TextIOWrapper(stream, encoding="utf-8", newline="")
                 return list(csv.reader(text))
-    except (UnicodeError, csv.Error, zipfile.BadZipFile):
+    except UnicodeError, csv.Error, zipfile.BadZipFile:
         raise MarketHistoryIntegrityError(
             f"invalid ZIP or CSV archive: {key}"
         ) from None

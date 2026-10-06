@@ -91,7 +91,7 @@ class FuturesOosEvidenceReader:
         try:
             payload = self._load_payload(query)
             return self._matches(payload, query) and self._artifact_matches(payload)
-        except (OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError):
+        except OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError:
             return False
 
     def _load_payload(self, query: FuturesOosEvidenceQuery) -> Mapping[str, object]:

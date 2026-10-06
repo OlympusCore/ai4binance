@@ -3,7 +3,7 @@ name: factory-explain
 description: Use when explaining AI4BINANCE factory plans, work orders, reviews, and completed code in plain language with concise diagrams.
 metadata:
   ai4binance.authority: advisory-only
-  ai4binance.version: 1.0.0
+  ai4binance.version: 1.0.1
   ai4binance.owner: QualityDepartmentManager
   ai4binance.trust_level: local
   ai4binance.last_reviewed: 2026-08-03
@@ -29,7 +29,7 @@ Use Mermaid diagrams when they clarify flow or ownership.
 
 ## Owner Guide
 
-After review, update `factory/GUIDE.md` with:
+After review, update `factory/guide.md` with:
 
 - what exists now;
 - how it works;

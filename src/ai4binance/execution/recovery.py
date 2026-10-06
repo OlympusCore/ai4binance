@@ -75,7 +75,7 @@ def recover_paper_orders(
                 continue
             identities.add(state.order_id)
             orders.append(state)
-        except (EventJournalCorruptionError, ValueError):
+        except EventJournalCorruptionError, ValueError:
             blockers.append("PAPER_ORDER_JOURNAL_INVALID")
 
     reconciliation: ReconciliationReport | None = None

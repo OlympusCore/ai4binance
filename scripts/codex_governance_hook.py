@@ -27,6 +27,7 @@ from ai4binance.governance.technology_language_policy import (
     load_technology_language_policy,
 )
 from ai4binance.infrastructure.persistence.safe_json import write_json_object_verified
+from ai4binance.ops.quality_gate.repository_completion import inspect_git_completion
 from ai4binance.ops.quality_gate.telemetry import quality_completion_blockers
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -222,9 +223,24 @@ def handle_event(payload: dict[str, object], root: Path = ROOT) -> dict[str, obj
                 "additionalContext": context,
             }
         }
+    git_completion = inspect_git_completion(root)
+    git_blockers = [
+        {"kind": reason, "path": ".git"} for reason in git_completion["blockers"]
+    ]
     if state.get("baseline") == before and state.get("pending") is not True:
         # No source changes is not a declaration that the repository is compliant.
-        return {}
+        if not git_blockers:
+            return {}
+        receipt_path = destination / "runs" / f"{uuid4().hex}.json"
+        _write(receipt_path, {"git_completion": git_completion})
+        return _blocked(
+            "GIT_COMPLETION_BLOCKED. "
+            + "; ".join(str(item["kind"]) for item in git_blockers)
+            + f". Evidence: {receipt_path.relative_to(root).as_posix()}. "
+            "Do not claim successful completion; report BLOCKED. "
+            "Preserve unrelated work. RESEARCH_ONLY; LIVE_ORDER_BLOCKED.",
+            already_continued=active,
+        )
 
     report = validate_repository(root)
     after = _snapshot(root)
@@ -237,6 +253,7 @@ def handle_event(payload: dict[str, object], root: Path = ROOT) -> dict[str, obj
         {"kind": reason, "path": "runtime/artifacts/quality/gate/latest.json"}
         for reason in quality_completion_blockers(root, before)
     )
+    blockers.extend(git_blockers)
     if after != before:
         blockers.append({"kind": "WORKSPACE_CHANGED_DURING_VALIDATION", "path": "."})
     receipt_path = destination / "runs" / f"{uuid4().hex}.json"
@@ -253,6 +270,7 @@ def handle_event(payload: dict[str, object], root: Path = ROOT) -> dict[str, obj
             "semantic_completeness": "NOT_PROVEN",
             "artifact_count": report.artifact_count,
             "blockers": blockers,
+            "git_completion": git_completion,
             "execution_allowed": False,
             "promotion_status": "RESEARCH_ONLY",
             "live_eligibility_status": "LIVE_ORDER_BLOCKED",

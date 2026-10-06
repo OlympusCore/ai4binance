@@ -230,6 +230,12 @@ $candidates = @()
 $blockedCandidates = [System.Collections.Generic.List[object]]::new()
 $activeProcessCommandLines = $null
 $activeProcessInspectionFailed = $false
+$treeScanMetrics = [ordered]@{
+    calls = 0
+    directories_enumerated = 0
+    file_entries_examined = 0
+    recent_tree_shortcuts = 0
+}
 $selectedModes = [System.Collections.Generic.List[string]]::new()
 foreach ($item in $Mode) {
     if ($item -eq "All") {
@@ -308,20 +314,52 @@ if ($selectedModes.Contains("RuntimeTestRetention")) {
 }
 
 function Get-LatestTreeWriteTimeUtc {
-    param([Parameter(Mandatory = $true)][string]$Path)
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [DateTimeOffset]$RecentAfterUtc = [DateTimeOffset]::MaxValue
+    )
 
+    $script:treeScanMetrics.calls++
     $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+    if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+        throw "Retention scan requires reparse-point review: $Path"
+    }
     $latest = [DateTimeOffset]$item.LastWriteTimeUtc
+    # Age-only callers need no exact maximum once the tree is already fresh.
+    if ($latest -gt $RecentAfterUtc) {
+        $script:treeScanMetrics.recent_tree_shortcuts++
+        return $latest
+    }
     if (-not $item.PSIsContainer) {
         return $latest
     }
-    Get-ChildItem -LiteralPath $Path -File -Recurse -Force -ErrorAction Stop |
-        ForEach-Object {
-            $modified = [DateTimeOffset]$_.LastWriteTimeUtc
+    $pending = [System.Collections.Generic.Stack[System.IO.DirectoryInfo]]::new()
+    $pending.Push([System.IO.DirectoryInfo]::new($item.FullName))
+    while ($pending.Count -gt 0) {
+        $directory = $pending.Pop()
+        $script:treeScanMetrics.directories_enumerated++
+        # Enumerate each directory once without per-file provider/pipeline overhead.
+        # Access failures propagate to the existing fail-closed caller.
+        foreach ($entry in $directory.EnumerateFileSystemInfos()) {
+            if ($entry.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+                throw "Retention scan requires reparse-point review: $($entry.FullName)"
+            }
+            if ($entry -isnot [System.IO.DirectoryInfo]) {
+                $script:treeScanMetrics.file_entries_examined++
+            }
+            $modified = [DateTimeOffset]$entry.LastWriteTimeUtc
             if ($modified -gt $latest) {
                 $latest = $modified
             }
+            if ($latest -gt $RecentAfterUtc) {
+                $script:treeScanMetrics.recent_tree_shortcuts++
+                return $latest
+            }
+            if ($entry -is [System.IO.DirectoryInfo]) {
+                $pending.Push($entry)
+            }
         }
+    }
     return $latest
 }
 
@@ -447,6 +485,7 @@ if ($selectedModes.Contains("RuntimeTmpRetention")) {
     Get-ChildItem -LiteralPath $runtimeTmpRoot -Force -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -notin $protectedNames } |
         ForEach-Object {
+            $entryPath = $_.FullName
             if ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
                 Add-BlockedCandidate `
                     -Path $_.FullName `
@@ -454,11 +493,12 @@ if ($selectedModes.Contains("RuntimeTmpRetention")) {
                 return
             }
             try {
-                $latest = Get-LatestTreeWriteTimeUtc -Path $_.FullName
+                $latest = Get-LatestTreeWriteTimeUtc `
+                    -Path $_.FullName -RecentAfterUtc $now.AddDays(-$minimumAgeDays)
             }
             catch {
                 Add-BlockedCandidate `
-                    -Path $_.FullName `
+                    -Path $entryPath `
                     -Reason "RUNTIME_TMP_SCAN_FAILED"
                 return
             }
@@ -524,6 +564,7 @@ if ($selectedModes.Contains("RuntimeRunRetention")) {
         $runRows = @(
             Get-ChildItem -LiteralPath $runPolicyRoot -Directory -Force |
                 ForEach-Object {
+                    $entryPath = $_.FullName
                     if (
                         $_.Attributes -band
                         [System.IO.FileAttributes]::ReparsePoint
@@ -533,9 +574,17 @@ if ($selectedModes.Contains("RuntimeRunRetention")) {
                             -Reason "RUNTIME_RUN_REPARSE_POINT_REVIEW_REQUIRED"
                         return
                     }
+                    try {
+                        $latest = Get-LatestTreeWriteTimeUtc -Path $entryPath
+                    }
+                    catch {
+                        Add-BlockedCandidate `
+                            -Path $entryPath -Reason "RUNTIME_RUN_SCAN_FAILED"
+                        return
+                    }
                     [pscustomobject]@{
                         item = $_
-                        latest = Get-LatestTreeWriteTimeUtc -Path $_.FullName
+                        latest = $latest
                     }
                 } |
                 Sort-Object latest -Descending
@@ -637,12 +686,14 @@ if ($selectedModes.Contains("ProcessTempRetention")) {
         }
         $processEntries |
             ForEach-Object {
+                $entryPath = $_.FullName
                 try {
-                    $latest = Get-LatestTreeWriteTimeUtc -Path $_.FullName
+                    $latest = Get-LatestTreeWriteTimeUtc `
+                        -Path $_.FullName -RecentAfterUtc $now.AddDays(-$RetentionDays)
                 }
                 catch {
                     Add-BlockedCandidate `
-                        -Path $_.FullName `
+                        -Path $entryPath `
                         -Reason "PROCESS_TEMP_SCAN_FAILED"
                     return
                 }
@@ -764,15 +815,10 @@ if ($Apply -and @($candidates).Count -gt 0) {
     } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
 }
 
-if (-not $Apply) {
-    if ([string]::IsNullOrWhiteSpace($WhatIfSummaryPath)) {
-        New-Item -ItemType Directory -Path $runRoot -Force | Out-Null
-        $WhatIfSummaryPath = Join-Path $runRoot "generated-artifacts-cleanup-dry-run.json"
-    }
-    else {
-        $WhatIfSummaryPath = Assert-InRepoPath -Path $WhatIfSummaryPath
-        New-Item -ItemType Directory -Path (Split-Path -Parent $WhatIfSummaryPath) -Force | Out-Null
-    }
+if (-not $Apply -and -not [string]::IsNullOrWhiteSpace($WhatIfSummaryPath)) {
+    # Evidence-writing callers opt in explicitly; an ordinary dry scan is read-only.
+    $WhatIfSummaryPath = Assert-InRepoPath -Path $WhatIfSummaryPath
+    New-Item -ItemType Directory -Path (Split-Path -Parent $WhatIfSummaryPath) -Force | Out-Null
     [pscustomobject]@{
         command = "cleanup-generated-artifacts"
         applied = $false
@@ -798,6 +844,7 @@ if (-not $Apply) {
     candidate_count = @($candidates).Count
     applied_count = @($candidates | Where-Object { $_.applied }).Count
     blocked_count = @($blockedCandidates).Count
+    tree_scan_metrics = $treeScanMetrics
     archive_directory = if ($Apply -and (Test-Path -LiteralPath $runRoot)) {
         Get-RepoRelativePath -Path $runRoot
     }

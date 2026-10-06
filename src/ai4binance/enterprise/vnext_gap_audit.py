@@ -275,7 +275,7 @@ def _audit_requirement_traceability(root: Path) -> _RequirementTraceabilityAudit
         )
     try:
         inventory = load_enforcement_inventory(inventory_path)
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return _RequirementTraceabilityAudit(
             status="INVALID",
             entry_count=0,
@@ -336,7 +336,7 @@ def _requirement_reference_blockers(
             continue
         try:
             payload = json.loads(evidence_path.read_text(encoding="utf-8-sig"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        except OSError, UnicodeDecodeError, json.JSONDecodeError:
             blockers.append(f"{entry.requirement_id}:EVIDENCE_REF_INVALID")
             continue
         if not isinstance(payload, Mapping):
@@ -614,7 +614,7 @@ def _load_coverage_policy_result(root: Path) -> str | None:
         return None
     try:
         payload = json.loads(evidence_path.read_text(encoding="utf-8-sig"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+    except OSError, UnicodeDecodeError, json.JSONDecodeError:
         return None
     if not isinstance(payload, Mapping):
         return None
@@ -652,7 +652,7 @@ def _enforcement_closure_capability(
         )
     try:
         inventory = load_enforcement_inventory(inventory_path)
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return VnextCapabilityGap(
             capability_id=str(definition["capability_id"]),
             title=str(definition["title"]),
@@ -1176,7 +1176,7 @@ def _load_production_evidence(
         return None, "PRODUCTION_EVIDENCE_TOO_LARGE"
     try:
         payload = json.loads(resolved_source.read_text(encoding="utf-8-sig"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+    except OSError, UnicodeDecodeError, json.JSONDecodeError:
         return None, "PRODUCTION_EVIDENCE_INVALID_JSON"
     if not isinstance(payload, Mapping):
         return None, "PRODUCTION_EVIDENCE_SCHEMA_INVALID"

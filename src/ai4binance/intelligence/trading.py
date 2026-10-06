@@ -156,7 +156,7 @@ class ScenarioEngine:
                     (row for row in scenarios if row.scenario_id == selected_id), None
                 ),
             )
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return self.blocked(snapshot, (*blockers, "MULTI_METHOD_EVIDENCE_INVALID"))
         return TradingIntelligenceState(
             snapshot_id=snapshot.snapshot_id,

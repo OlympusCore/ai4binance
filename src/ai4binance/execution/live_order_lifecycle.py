@@ -780,7 +780,7 @@ def _decimal_or_none(value: object, name: str) -> Decimal | None:
 def _positive_decimal(value: object, name: str) -> Decimal:
     try:
         parsed = Decimal(str(value))
-    except (InvalidOperation, TypeError, ValueError):
+    except InvalidOperation, TypeError, ValueError:
         raise ValueError(f"{name} must be decimal-compatible") from None
     if not parsed.is_finite() or parsed <= ZERO:
         raise ValueError(f"{name} must be positive")

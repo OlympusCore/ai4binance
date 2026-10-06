@@ -290,7 +290,7 @@ class LlamaCppVisionRunner:
                 request, timeout=self.timeout_seconds
             ) as response:
                 response_payload = json.loads(response.read(_MAX_RESPONSE_BYTES))
-        except (OSError, urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+        except OSError, urllib.error.URLError, TimeoutError, json.JSONDecodeError:
             return _blocked_evidence(
                 candidate_id,
                 source_content_sha256,
@@ -303,7 +303,7 @@ class LlamaCppVisionRunner:
             observation = _normalize_visual_only_observation(
                 _validate_observation(_parse_json_object(content))
             )
-        except (TypeError, ValueError, json.JSONDecodeError):
+        except TypeError, ValueError, json.JSONDecodeError:
             return _blocked_evidence(
                 candidate_id,
                 source_content_sha256,

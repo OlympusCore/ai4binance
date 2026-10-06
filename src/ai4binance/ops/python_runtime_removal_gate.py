@@ -286,7 +286,7 @@ def _run_python_json(
             text=True,
             timeout=timeout_seconds,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         return None, ("CANONICAL_PYTHON_PROBE_FAILED",)
     captured_size = len(process.stdout.encode("utf-8")) + len(
         process.stderr.encode("utf-8")
@@ -380,7 +380,7 @@ def _venv_check(root: Path, runtime: Mapping[str, Any]) -> RemovalGateCheck:
     try:
         observed_prefix = Path(str(runtime.get("prefix", ""))).resolve()
         observed_base = Path(str(runtime.get("base_prefix", ""))).resolve()
-    except (OSError, ValueError):
+    except OSError, ValueError:
         observed_prefix = Path()
         observed_base = Path()
         blockers.append("VENV_RUNTIME_PREFIX_INVALID")
@@ -426,7 +426,7 @@ def _dependency_check(executable: Path, root: Path) -> RemovalGateCheck:
             text=True,
             timeout=60,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         return _check(
             "DEPENDENCY_RESOLUTION",
             passed=False,
@@ -802,7 +802,7 @@ def _hardcoded_reference_check(root: Path) -> RemovalGateCheck:
             if not path.is_file() or path.stat().st_size > _MAX_EVIDENCE_BYTES:
                 continue
             text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeError):
+        except OSError, UnicodeError:
             blockers.append(f"ACTIVE_REFERENCE_SCAN_FAILED:{normalized}")
             continue
         for line_number, line in enumerate(text.splitlines(), start=1):

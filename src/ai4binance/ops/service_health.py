@@ -152,7 +152,7 @@ def service_health_from_spec(
             blockers.append(f"{label}_STATE_INVALID")
     except FileNotFoundError:
         blockers.append(f"{label}_STATE_MISSING")
-    except (OSError, json.JSONDecodeError):
+    except OSError, json.JSONDecodeError:
         blockers.append(f"{label}_STATE_INVALID")
 
     updated_at = _parse_datetime(payload.get("updated_at"))
@@ -373,7 +373,7 @@ def _useful_cycle_timestamp(
     except FileNotFoundError:
         blockers.append(f"{spec.label}_USEFUL_CYCLE_STATE_MISSING")
         return None
-    except (OSError, json.JSONDecodeError):
+    except OSError, json.JSONDecodeError:
         blockers.append(f"{spec.label}_USEFUL_CYCLE_STATE_INVALID")
         return None
     if not isinstance(loaded, dict):
@@ -414,7 +414,7 @@ def _safe_int(value: object) -> int | None:
         return None
     try:
         return int(str(value))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 

@@ -12,6 +12,7 @@ dependencies = [
   "cryptography>=50,<51",
   "defusedxml>=0.7.1,<1",
   "jsonschema>=4.26,<5",
+  "numpy>=1.26,<3",
   "pydantic>=2.10,<3",
   "pydantic-settings>=2.7,<3",
   "pyarrow>=18,<25",
@@ -27,7 +28,7 @@ dev = [
   "mypy>=1.14,<2",
   "pytest>=8.3,<10",
   "pytest-cov>=6,<8",
-  "ruff==0.14.14", # Avoid broad PEP 758 rewrites during the runtime migration.
+  "ruff==0.16.9", # Avoid broad PEP 758 rewrites during the runtime migration.
   "types-PyYAML>=6.0.12,<7",
 ]
 mcp = ["mcp>=1.27,<2"]
@@ -42,7 +43,6 @@ voice = [
   "aiohttp>=3.14.3,<4",
   "edge-tts>=7.2.8,<8",
   "faster-whisper==1.2.1",
-  "numpy>=1.26,<3",
   "sounddevice>=0.5.5,<0.6",
   "truststore>=0.10,<1",
 ]
@@ -52,6 +52,9 @@ ai4binance-mcp = "ai4binance.mcp.server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.cmdclass]
+egg_info = "ai4binance.ops.build_metadata.RuntimeEggInfo"
 
 [tool.ruff]
 target-version = "py314"

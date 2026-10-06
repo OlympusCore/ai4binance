@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-PRV-CLAUDE-001
 title: AI4Binance Claude Provider Instructions
 document_type: PROVIDER_ADAPTER
-version: 2.0.1
+version: 2.0.2
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: PROVIDER_ADAPTER
@@ -30,8 +30,7 @@ or execution authority.
 
 ## 1. Loading contract
 
-Base context: `AGENTS.md` plus this adapter (two files). Add the nearest scoped
-`AGENTS.md` only for paths within its scope.
+Load `AGENTS.md`, this adapter and the nearest applicable scoped `AGENTS.md`.
 
 Route before other governed-source reads. Do not preload the canonical map.
 Search affected fragments; reuse unchanged evidence. Escalate one source at a
@@ -77,6 +76,8 @@ When this adapter conflicts with higher authority, report
 
 Preserve `RESEARCH_ONLY`, `execution_allowed=false`, and `LIVE_ORDER_BLOCKED`
 unless independently verified higher-authority gates establish another state.
+
+Claude closure defers to `docs/governance/framework_core_vnext_governance.md` section 3.2.
 
 ## 6. Completion report
 

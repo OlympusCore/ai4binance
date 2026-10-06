@@ -119,7 +119,8 @@ def write_core_documents(root: Path, *, compliance_extra: str = "") -> None:
                 "## ELI10",
                 "",
                 "The canonical constitution is "
-                "`docs/governance/framework_core_vnext_governance.md`.",
+                "`docs/governance/framework_core_vnext_governance.md`; "
+                "repository completion follows section 3.2.",
                 "Use `docs/governance/policy_organization_constitution_handbook.md`.",
                 "Use `docs/standards/standard_repository_file_governance.md`.",
                 "Codex workflows must load "
@@ -669,6 +670,41 @@ def test_governance_alignment_surfaces_root_agent_contract_mismatch(
         finding.kind is LooseCodeGapKind.CONSTITUTION_FAMILY_MISMATCH
         and finding.path == "AGENTS.md"
         and "instruction_codex_provider.md" in finding.detail
+        for finding in report.findings
+    )
+    assert "LIVE_ORDER_BLOCKED" in report.blockers
+
+
+@pytest.mark.parametrize(
+    ("original", "replacement"),
+    [
+        (
+            "docs/governance/framework_core_vnext_governance.md",
+            "docs/governance/missing_constitution.md",
+        ),
+        (
+            "repository completion follows section 3.2.",
+            "repository completion follows section 3.1.",
+        ),
+    ],
+)
+def test_governance_alignment_rejects_wrong_completion_authority(
+    tmp_path: Path, original: str, replacement: str
+) -> None:
+    write_core_documents(tmp_path)
+    write_quality_evidence(tmp_path)
+    root_instructions = tmp_path / "AGENTS.md"
+    root_instructions.write_text(
+        root_instructions.read_text(encoding="utf-8").replace(original, replacement),
+        encoding="utf-8",
+    )
+
+    report = audit_governance_alignment(tmp_path)
+
+    assert report.status is GovernanceAlignmentStatus.RUNNING_WITH_BLOCKERS
+    assert any(
+        finding.kind is LooseCodeGapKind.CONSTITUTION_FAMILY_MISMATCH
+        and finding.path == "AGENTS.md"
         for finding in report.findings
     )
     assert "LIVE_ORDER_BLOCKED" in report.blockers

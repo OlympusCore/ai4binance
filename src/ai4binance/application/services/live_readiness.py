@@ -398,7 +398,7 @@ class LiveReadinessBuilder:
             authorization = self.approval_queue.resolve_execution_authorization(
                 authorization_id
             )
-        except (OSError, TypeError, ValueError):
+        except OSError, TypeError, ValueError:
             return None
         if authorization is None or authorization.blockers_for(
             preview.command,

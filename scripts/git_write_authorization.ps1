@@ -266,7 +266,12 @@ print(json.dumps(payload, ensure_ascii=True, separators=(",", ":")))
         if ($pythonExitCode -ne 0 -or @($canonical).Count -eq 0) {
             throw "GIT_WRITE_AUTHORIZATION_JSON_INVALID"
         }
-        return ([string](@($canonical) -join "`n")) | ConvertFrom-Json
+        $jsonOptions = @{}
+        if ((Get-Command ConvertFrom-Json).Parameters.ContainsKey("DateKind")) {
+            # Preserve exact timestamp text across PowerShell authorization boundaries.
+            $jsonOptions["DateKind"] = "String"
+        }
+        return ConvertFrom-Json -InputObject ([string](@($canonical) -join "`n")) @jsonOptions
     }
     throw "GIT_WRITE_AUTHORIZATION_ARTIFACT_SIZE_INVALID"
 }

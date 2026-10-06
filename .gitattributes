@@ -11,3 +11,14 @@
 *.webp binary
 *.pdf binary
 *.gguf binary
+
+schemas/governance/document_lock_authority.schema.json -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+
+# Preserve the exact approved bytes of changed governed documents.
+AGENTS.md -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+CLAUDE.md -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+factory/brief.md -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+factory/guide.md -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+factory/handoff.md -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+factory/plan.md -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+factory/review.md -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

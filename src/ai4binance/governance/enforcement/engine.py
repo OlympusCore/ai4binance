@@ -796,7 +796,7 @@ class DeterministicEnforcementEngine:
                 return "AUDIT_COMMIT_TIMESTAMP_MISMATCH"
             if _parse_timestamp(receipt.recorded_at) > _utcnow():
                 return "AUDIT_COMMIT_FUTURE"
-        except (OSError, ValueError):
+        except OSError, ValueError:
             return "AUDIT_COMMIT_UNVERIFIED"
         return None
 

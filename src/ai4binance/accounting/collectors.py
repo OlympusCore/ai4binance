@@ -175,7 +175,7 @@ class BinanceAccountingRestSource:
     ) -> Sequence[object]:
         try:
             return _sequence(getter(), blocker)
-        except (OSError, RuntimeError, TypeError, ValueError):
+        except OSError, RuntimeError, TypeError, ValueError:
             self._add_blocker(blocker)
             return ()
 
@@ -186,7 +186,7 @@ class BinanceAccountingRestSource:
     ) -> Mapping[str, object]:
         try:
             return _mapping(getter(), blocker)
-        except (OSError, RuntimeError, TypeError, ValueError):
+        except OSError, RuntimeError, TypeError, ValueError:
             self._add_blocker(blocker)
             return {}
 
@@ -1098,7 +1098,7 @@ def _signed_decimal(value: object, name: str) -> Decimal:
         raise ValueError(f"{name} must be text Decimal, not float")
     try:
         parsed = Decimal(str(value))
-    except (InvalidOperation, ValueError):
+    except InvalidOperation, ValueError:
         raise ValueError(f"{name} must be decimal-compatible") from None
     if not parsed.is_finite():
         raise ValueError(f"{name} must be finite")

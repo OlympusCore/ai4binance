@@ -449,7 +449,7 @@ def run_market_history_command(
                         ),
                         "MARKET_HISTORY_STATE_STALE",
                     ]
-        except (OSError, ValueError, KeyError, TypeError):
+        except OSError, ValueError, KeyError, TypeError:
             payload = {
                 "command": command,
                 "status": "BLOCKED",

@@ -3,16 +3,16 @@ name: factory-plan
 description: Use when interviewing for missing product context or turning approved AI4BINANCE factory briefs into small ordered testable plans.
 metadata:
   ai4binance.authority: advisory-only
-  ai4binance.version: 1.0.0
+  ai4binance.version: 1.0.1
   ai4binance.owner: QualityDepartmentManager
   ai4binance.trust_level: local
   ai4binance.last_reviewed: 2026-08-03
-  ai4binance.trigger_examples: /factory-plan; BRIEF.md; PLAN.md
+  ai4binance.trigger_examples: /factory-plan; brief.md; plan.md
 ---
 
 # Factory Plan
 
-Create either `factory/BRIEF.md` or `factory/PLAN.md` depending on the current
+Create either `factory/brief.md` or `factory/plan.md` depending on the current
 phase. Keep planning source-grounded and small enough for a bounded execution
 agent.
 
@@ -30,7 +30,7 @@ from the repository. Capture:
 - unknowns;
 - recommendation.
 
-Write or update `factory/BRIEF.md`.
+Write or update `factory/brief.md`.
 
 ## Blueprint Mode
 
@@ -45,7 +45,7 @@ Break work into ordered tasks. Each task must include:
 - stop conditions;
 - safety notes.
 
-Write or update `factory/PLAN.md`.
+Write or update `factory/plan.md`.
 
 ## AI4BINANCE Boundaries
 
