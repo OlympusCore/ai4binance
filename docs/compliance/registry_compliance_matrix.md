@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-REG-001
 title: AI4BINANCE Compliance Matrix
 document_type: REGISTRY
-version: 2.10.20
+version: 2.10.21
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -476,3 +476,4 @@ or closure of failed evidence. Core risk and validation vetoes remain binding;
 | `src/ai4binance/governance/document_lock_authority.py` | `docs/governance/framework_core_vnext_governance.md`, `docs/governance/policy_manifest_governance.md` | `tests/test_document_lock_authority.py`, `tests/test_document_lock_update_lifecycle.py` | Verify exact completed predecessor history and separately issued document-update successors; no final candidate, risk or execution authority is created. |
 
 | `src/ai4binance/ops/quality_gate/repository_completion.py`, `scripts/codex_governance_hook.py`, `scripts/git-hooks/pre-push` | `AI4B-GOV-GIT-001`; Core section 3.2; Manifest Governance section 17 | `tests/test_repository_completion.py`, `tests/test_codex_governance_hook.py` | One shared Git baseline check; operation-scoped authorized changes and synchronization; controlled creation veto; fresh remote detection; REMOTE_ONLY CI. Application, technical tests, C3 acceptance and actual VERIFIED_BASELINE remain separate. |
+| `src/ai4binance/governance/package_owner_acceptance.py`, `src/ai4binance/governance/gate.py`, `scripts/prepare_c3_human_governance_closure_request.py` | `AI4B-GOV-C3-OWNER-20261007`; Core section 3.1.2; Manifest Governance section 18 | `tests/test_package_owner_acceptance.py`, `tests/test_governance_gate.py` | One genuine owner only for the exact reviewed C3 package; completed protected update and separate normative decision; sealed outputs; all current subject/evidence vetoes; legacy double C3 and C4 unchanged outside scope. TEST_ONLY results never activate authority. |

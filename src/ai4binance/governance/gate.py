@@ -42,6 +42,12 @@ from ai4binance.governance.framework import (
     ChangeApprovalClass,
     ConstitutionalChangeControl,
 )
+from ai4binance.governance.package_owner_acceptance import (
+    PROFILE as BOUNDED_OWNER_PROFILE,
+)
+from ai4binance.governance.package_owner_acceptance import (
+    load_package_owner_acceptance,
+)
 from ai4binance.governance.personal_research import (
     PersonalResearchPolicy,
     load_personal_research_policy,
@@ -679,6 +685,7 @@ class ApprovalVerificationEvidence:
     constitution_sync_required: bool = False
     enforced: bool = False
     hard_veto: bool = False
+    bounded_owner_identity: tuple[str, str, str, str, str] | None = None
     approval_profile: str = "LEGACY_C3"
     independent_human_review: bool | None = None
     human_person_count: int | None = None
@@ -774,7 +781,7 @@ class ApprovalVerificationEvidence:
             raise ValueError("required approval verification must remain a hard veto")
 
     def to_payload(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "change_class": self.change_class.value,
             "status": self.status.value,
             "lifecycle_stage": self.lifecycle_stage.value,
@@ -804,6 +811,16 @@ class ApprovalVerificationEvidence:
             "enforced": self.enforced,
             "hard_veto": self.hard_veto,
         }
+        if self.bounded_owner_identity is not None:
+            person, approver, principal, role, expiry = self.bounded_owner_identity
+            payload["bounded_owner_identity"] = {
+                "owner_person_id": person,
+                "approver_id": approver,
+                "principal_id": principal,
+                "approver_role": role,
+                "expires_at_utc": expiry,
+            }
+        return payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -1930,6 +1947,15 @@ def _build_approval_verification(
         _approval_requirements(change_class)
     )
     research_policy = load_personal_research_policy(governance_gate.repository_root)
+    package_owner = load_package_owner_acceptance(
+        governance_gate.repository_root,
+        () if change_set is None else change_set.changed_paths,
+        change_class.value,
+    )
+    if package_owner is not None:
+        if research_policy is not None:
+            raise ValueError("BOUNDED_OWNER_POLICY_OVERLAP")
+        required_count = 1
     if research_policy is not None and required_count:
         research_policy.check_scope(
             () if change_set is None else change_set.changed_paths, change_class.value
@@ -1981,6 +2007,8 @@ def _build_approval_verification(
     now = datetime.now(UTC)
     for record in approval_records:
         research_blockers = _personal_record_checks(research_policy, record)
+        if package_owner is not None:
+            research_blockers += package_owner.record_blockers(record)
         if research_blockers:
             blockers.extend(research_blockers)
             continue
@@ -2087,9 +2115,26 @@ def _build_approval_verification(
         approval_required=True,
         required_approval_count=required_count,
         observed_approval_count=valid_count,
-        approval_profile="PERSONAL_RESEARCH" if research_policy else "LEGACY_C3",
-        independent_human_review=False if research_policy else None,
-        human_person_count=min(1, valid_count) if research_policy else None,
+        bounded_owner_identity=(
+            package_owner.owner_person_id,
+            package_owner.approver_id,
+            package_owner.principal_id,
+            package_owner.approver_role,
+            package_owner.expires_at.isoformat(),
+        )
+        if package_owner is not None
+        else None,
+        approval_profile=(
+            BOUNDED_OWNER_PROFILE
+            if package_owner is not None
+            else "PERSONAL_RESEARCH"
+            if research_policy
+            else "LEGACY_C3"
+        ),
+        independent_human_review=False if research_policy or package_owner else None,
+        human_person_count=min(1, valid_count)
+        if research_policy or package_owner
+        else None,
         subject_id=subject_digest.subject_id,
         scope_hash=scope_hash,
         deterministic_quality_gate_evidence_sha256=(

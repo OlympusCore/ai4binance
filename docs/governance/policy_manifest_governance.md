@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-POL-MANIFEST-001
 title: AI4BINANCE Manifest Governance Policy
 document_type: POLICY
-version: 1.0.3
+version: 1.0.4
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -407,3 +407,15 @@ bypasses visible. No external ruleset mutation is authorized by this policy.
 The canonical validator and quality profile remain mandatory; tests of mocked
 responses are TEST_ONLY evidence, not a verified production baseline.
 
+## 18. Bounded Owner Package Acceptance Projection
+
+Core section 3.1.2 exclusively owns AI4B-GOV-C3-OWNER-20261007. The fabric
+projection and existing governance gate consume an individually reviewed,
+completed protected update plus its genuine separate normative owner decision.
+One exact current owner approval is eligible only inside the reviewed package,
+while all subject, evidence, identity, expiry, revocation and safety vetoes remain.
+Other C3 operations retain double approval. Drafts and TEST_ONLY fixtures never
+activate recognition. The existing closure request must describe the actual
+BOUNDED_OWNER_PACKAGE profile without inventing independent human participants.
+Git publication and VERIFIED_BASELINE remain independently controlled by Core
+section 3.2. Preserve RESEARCH_ONLY and LIVE_ORDER_BLOCKED.

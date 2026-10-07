@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-FRM-001
 title: AI4BINANCE Core vNext Governance Framework
 document_type: FRAMEWORK
-version: 2.0.11
+version: 2.0.12
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -499,6 +499,59 @@ ConstitutionalChangeControl
   -> code_constitution_divergence_allowed=false
   -> live_eligibility_status=LIVE_ORDER_BLOCKED
 ```
+
+#### 3.1.2 Bounded Owner Acceptance for the Canonical Git Rule Package
+
+bounded_owner_acceptance_contract=AI4B-GOV-C3-OWNER-20261007
+
+Only the current canonical Git rule package and its directly necessary acceptance
+amendment may use one genuine human owner decision in local research/paper scope.
+This prospective normative amendment expressly departs from the project-authored
+two-human C3 default for this package. It never reports that two independent
+humans reviewed or approved it. Other C3 changes retain section 3.1 unchanged;
+C4, live execution, credentials, deployment, promotion and risk overrides remain
+outside this recognition. The owner is Huseyin Cicek, represented by the existing
+Huseyin / GovernanceOwner / huseyin-governance-owner-principal identity. No new
+person, role appointment, identity verification or independent review is created.
+
+The original package is the exact committed change from
+51aa502297903c52f98d58e63f6c916b43bce433 to
+f3d81cb6bb57f9fe6e69661f1ddbbcf4db4d5901. The non-authoritative
+bounded_owner_acceptance fabric projection must bind that original patch, this
+Core raw-byte hash, the canonical root, the finite allowed change paths and the
+complete individually reviewed output inventory. Each output must match the
+immutable evidence sealed by the new WrittenOwnerDocumentLockUpdate/v1 review.
+Only the replacement of Core 2.0.11 raw SHA-256
+7147a031c7774e03def1a232030c70af32f110af83898b4f04f43b4c9e8d7e08
+with reviewed Core 2.0.12 at the exact package commit baseline is recognized.
+Later successor updates cannot reuse this recognition.
+The derived protected manifest remains subject to its existing exact transition
+verifier. Missing, changed, expired, revoked or inconsistent input fails closed.
+
+Recognition requires a separately genuine OWNER_ISSUED normative decision over
+the exact reviewed amendment, bound to the same source and subject as its actual
+completed DocumentLockAuthorityContext/v4 update. The normative record must
+expressly state departure_from_legacy_c3=true, natural_person_count=1 and
+independent_human_review=false. An application receipt alone cannot supply it.
+Its validity is at most 24 hours and cannot outlive the application decision.
+Preparation, a draft, a test fixture or an agent-written assertion cannot activate
+this recognition. Preserve the immutable predecessor chain and all protections.
+
+The existing governance gate remains the sole acceptance consumer. Only an
+eligible C3 package may require one exact current GovernanceOwner approval.
+Subject, scope, quality, governance, authority, lifecycle, expiry, revocation,
+identity and all deterministic vetoes remain mandatory. Final acceptance requires
+fresh canonical FULL evidence and an actual current-scope owner decision; old
+approval records do not approve changed subjects or hashes. Record the profile as
+BOUNDED_OWNER_PACKAGE and independent_human_review=false. File installation,
+normative recognition, final acceptance and Git baseline are separate facts.
+
+The existing closure request and approval replay must consume this exact profile
+without soliciting a fictional second principal. Git publication still requires
+its independent explicit authorization; section 3.2 remains unchanged. No future
+amendment, general single-owner model, historical approval repair, trading,
+promotion, deployment or live-risk permission is established. Keep RESEARCH_ONLY,
+execution_allowed=false and LIVE_ORDER_BLOCKED.
 
 ### 3.2 Repository Completion Invariant
 

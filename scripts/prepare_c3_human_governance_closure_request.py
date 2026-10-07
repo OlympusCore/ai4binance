@@ -156,7 +156,23 @@ def build_closure_request(
         raise ValueError(
             "closure request preparation requires approval-required changes"
         )
-    required_roles = _required_roles(change_class, required_approval_count)
+    bounded_owner = (
+        approval_verification.get("approval_profile") == "BOUNDED_OWNER_PACKAGE"
+    )
+    owner_identity = None
+    required_roles: tuple[str, ...]
+    if bounded_owner:
+        owner_identity = _get_object(approval_verification, "bounded_owner_identity")
+        if (
+            change_class != "C3_GOVERNED"
+            or required_approval_count != 1
+            or owner_identity.get("approver_role") != "GovernanceOwner"
+            or approval_verification.get("independent_human_review") is not False
+        ):
+            raise ValueError("bounded owner closure profile is inconsistent")
+        required_roles = ("GovernanceOwner",)
+    else:
+        required_roles = _required_roles(change_class, required_approval_count)
 
     prepared_at = datetime.now(UTC).replace(microsecond=0)
     expires_at = prepared_at + timedelta(days=1)
@@ -263,7 +279,23 @@ def build_closure_request(
             }
         )
 
-    return {
+    if owner_identity is not None:
+        expires_at = min(
+            expires_at,
+            datetime.fromisoformat(
+                _get_text(owner_identity, "expires_at_utc").replace("Z", "+00:00")
+            ),
+        )
+        if expires_at <= prepared_at:
+            raise ValueError("bounded owner closure recognition expired")
+        template_records[0]["approval_id"] = "<set-from-genuine-owner-decision>"
+        template_records[0]["approved_at_utc"] = (
+            "<actual-owner-decision-recorded-at-utc>"
+        )
+        template_records[0]["approver_id"] = _get_text(owner_identity, "approver_id")
+        template_records[0]["principal_id"] = _get_text(owner_identity, "principal_id")
+
+    result = {
         "schema_version": "1.0.0",
         "artifact_origin": "deterministic_governance_closure_request",
         "prepared_at_utc": prepared_at.isoformat().replace("+00:00", "Z"),
@@ -311,6 +343,26 @@ def build_closure_request(
         "approval_checklist": list(APPROVAL_CHECKLIST),
         "approval_record_template": template_records,
     }
+    if owner_identity is not None:
+        result["approval_profile"] = "BOUNDED_OWNER_PACKAGE"
+        result["independent_human_review"] = False
+        result["required_human_person_count"] = 1
+        result["instructions"] = [
+            (
+                "The genuine owner must supply the final exact current-subject "
+                "acceptance decision."
+            ),
+            (
+                "Faithfully record that decision using the established owner identity; "
+                "do not create a second person or independent review claim."
+            ),
+            f"Save the actual owner record to {CANONICAL_APPROVAL_TARGET}.",
+            (
+                "Re-run scripts/quality.ps1 with -ApprovalRecordPath using the "
+                "existing canonical replay."
+            ),
+        ]
+    return result
 
 
 def render_closure_request_markdown(payload: dict[str, Any]) -> str:

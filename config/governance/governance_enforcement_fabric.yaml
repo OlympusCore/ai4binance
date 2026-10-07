@@ -1,6 +1,6 @@
 document_id: "AI4B-GOV-FABRIC-001"
 fabric_id: "AI4B-GOV-FABRIC-001"
-version: "1.3.0"
+version: "1.4.0"
 status: "ACTIVE"
 authority_layer: "L4_REPOSITORY_STANDARDS_CONTROLS_QUALITY_POLICIES"
 authority_effect: "IMPLEMENTATION"
@@ -130,10 +130,90 @@ repository_git:
   rule_id: "AI4B-GOV-GIT-001"
   core_ref: "docs/governance/framework_core_vnext_governance.md"
   core_section: "3.2"
-  core_sha256: "7147a031c7774e03def1a232030c70af32f110af83898b4f04f43b4c9e8d7e08"
+  core_sha256: "fe770aaf518bb413dd9ed99654f8cd974ac016dec775563cd14eff7741651b14"
   policy_ref: "docs/governance/policy_manifest_governance.md"
-  policy_sha256: "5e5827cf56bafc027160c1b5ebe278e31cfc03a4a40796bf7d9cfacb693246fa"
+  policy_sha256: "cbf25d228409f21260dcfbf6adef13332da80bc1c4d1225d23e66e6ddbb4edbc"
   canonical_root: "C:/vscode-projects/ai4binance"
   canonical_remote_url: "https://github.com/OlympusCore/ai4binance.git"
   projection_role: "ENFORCEMENT_PROJECTION"
   source_of_truth: false
+
+bounded_owner_acceptance:
+  rule_id: AI4B-GOV-C3-OWNER-20261007
+  core_ref: docs/governance/framework_core_vnext_governance.md
+  core_section: 3.1.2
+  core_sha256: fe770aaf518bb413dd9ed99654f8cd974ac016dec775563cd14eff7741651b14
+  canonical_root: C:/vscode-projects/ai4binance
+  epoch_id: AI4B_CANONICAL_GIT_RULE_OWNER_AMENDMENT_20261007
+  package_base_commit: 51aa502297903c52f98d58e63f6c916b43bce433
+  package_commit: f3d81cb6bb57f9fe6e69661f1ddbbcf4db4d5901
+  package_patch_sha256: 1716301760edd93d6030f055ad935343b7c955f883a34b414d8f1fecb89eb741
+  owner_person_id: Huseyin Cicek
+  approver_id: Huseyin
+  principal_id: huseyin-governance-owner-principal
+  approver_role: GovernanceOwner
+  normative_decision_ref: runtime/artifacts/git_consolidation/canonical-baseline-rule-20261007/bounded-owner-amendment/normative-owner-decision.json
+  allowed_change_paths:
+  - .codex/environments/environment.toml
+  - .github/workflows/quality_profiles.yml
+  - '0'
+  - '1'
+  - '10756'
+  - config/governance/governance_enforcement_fabric.yaml
+  - config/governance/governed_document_lock_manifest.json
+  - docs/compliance/registry_compliance_matrix.md
+  - docs/governance/framework_core_vnext_governance.md
+  - docs/governance/policy_manifest_governance.md
+  - pyproject.toml
+  - schemas/governance/governance_enforcement_fabric.schema.json
+  - scripts/codex_governance_hook.py
+  - scripts/git-hooks/pre-commit
+  - scripts/git-hooks/pre-push
+  - scripts/prepare_c3_human_governance_closure_request.py
+  - scripts/quality.ps1
+  - scripts/restore_codex_worktree_standards.ps1
+  - scripts/setup_codex_worktree.ps1
+  - src/ai4binance/governance/gate.py
+  - src/ai4binance/governance/package_owner_acceptance.py
+  - src/ai4binance/governance/repository_validator.py
+  - src/ai4binance/ops/quality_gate/repository_completion.py
+  - tests/governance/terminology/test_governance_enforcement_fabric.py
+  - tests/test_artifact_hygiene_scripts.py
+  - tests/test_dependency_security_regressions.py
+  - tests/test_governance_gate.py
+  - tests/test_package_owner_acceptance.py
+  - tests/test_repository_completion.py
+  - tests/test_repository_validator.py
+  - tests/test_security_tooling_contract.py
+  - uv.lock
+  reviewed_output_paths:
+  - .codex/environments/environment.toml
+  - .github/workflows/quality_profiles.yml
+  - config/governance/governance_enforcement_fabric.yaml
+  - docs/compliance/registry_compliance_matrix.md
+  - docs/governance/framework_core_vnext_governance.md
+  - docs/governance/policy_manifest_governance.md
+  - pyproject.toml
+  - schemas/governance/governance_enforcement_fabric.schema.json
+  - scripts/codex_governance_hook.py
+  - scripts/git-hooks/pre-commit
+  - scripts/git-hooks/pre-push
+  - scripts/prepare_c3_human_governance_closure_request.py
+  - scripts/quality.ps1
+  - scripts/restore_codex_worktree_standards.ps1
+  - scripts/setup_codex_worktree.ps1
+  - src/ai4binance/governance/gate.py
+  - src/ai4binance/governance/package_owner_acceptance.py
+  - src/ai4binance/governance/repository_validator.py
+  - src/ai4binance/ops/quality_gate/repository_completion.py
+  - tests/governance/terminology/test_governance_enforcement_fabric.py
+  - tests/test_artifact_hygiene_scripts.py
+  - tests/test_dependency_security_regressions.py
+  - tests/test_governance_gate.py
+  - tests/test_package_owner_acceptance.py
+  - tests/test_repository_completion.py
+  - tests/test_repository_validator.py
+  - tests/test_security_tooling_contract.py
+  - uv.lock
+  source_of_truth: false
+  projection_role: ENFORCEMENT_PROJECTION
