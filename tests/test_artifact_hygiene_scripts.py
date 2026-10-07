@@ -38,6 +38,54 @@ def _quality_script_text() -> str:
     return (Path("scripts") / "quality.ps1").read_text(encoding="utf-8")
 
 
+@pytest.mark.parametrize("enabled", [False, True])
+def test_quality_git_synchronization_preserves_native_argument_vector(
+    tmp_path: Path, enabled: bool
+) -> None:
+    """TEST_ONLY transport probe executes the actual runner assignment."""
+    assignment = next(
+        line
+        for line in _quality_script_text().splitlines()
+        if "$gitSynchronizationArguments = if" in line
+    )
+    sink = tmp_path / "test_only_argument_sink.py"
+    sink.write_text(
+        "import json, sys\nprint(json.dumps(sys.argv[1:]))\n", encoding="utf-8"
+    )
+    python = ROOT / ".venv/Scripts/python.exe"
+    assert python.is_file()
+    harness = tmp_path / "test_only_argument_transport.ps1"
+    harness.write_text(
+        "$ErrorActionPreference = 'Stop'\n"
+        + "$SynchronizationSequence = "
+        + ("$true" if enabled else "$false")
+        + "\n"
+        + assignment
+        + "\n"
+        + "& '"
+        + str(python).replace("'", "''")
+        + "' -B '"
+        + str(sink).replace("'", "''")
+        + "' @gitSynchronizationArguments\n"
+        + "exit $LASTEXITCODE\n",
+        encoding="utf-8",
+    )
+    shells = {_powershell()}
+    if pwsh := shutil.which("pwsh"):
+        shells.add(pwsh)
+    for shell in sorted(shells):
+        result = subprocess.run(  # noqa: S603
+            [shell, "-NoLogo", "-NoProfile", "-File", str(harness)],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert json.loads(result.stdout) == (
+            ["--synchronization-sequence"] if enabled else []
+        ), shell
+
+
 def _quality_function_preamble() -> str:
     """Extract TEST_ONLY helper definitions without starting the production gate."""
     text = _quality_script_text()

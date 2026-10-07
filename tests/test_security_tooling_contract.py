@@ -5,7 +5,10 @@ import os
 import re
 import shutil
 import subprocess
+import sys
+import time
 import tomllib
+import warnings
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -112,10 +115,7 @@ def _initialize_git_repository(repository: Path) -> str:
     )
     tracked = repository / "tracked.txt"
     tracked.write_text("baseline\n", encoding="utf-8")
-    subprocess.run(  # noqa: S603
-        [git, "-C", str(repository), "add", "tracked.txt"],
-        check=True,
-    )
+    _stage_fixture_baseline(repository, git)
     subprocess.run(  # noqa: S603
         [
             git,
@@ -131,6 +131,174 @@ def _initialize_git_repository(repository: Path) -> str:
         check=True,
     )
     return git
+
+
+def _stage_fixture_baseline(repository: Path, git: str) -> None:
+    """TEST_ONLY bounded recovery for the observed Windows loose-object denial."""
+    assert repository.resolve() != REPOSITORY_ROOT
+    assert (repository / ".git").is_dir()
+    command = [git, "-C", str(repository), "add", "tracked.txt"]
+    delays = (0.01, 0.02, 0.04, 0.08, 0.16, 0.25, 0.25)
+    errors: list[str] = []
+    for attempt in range(len(delays) + 1):
+        result = subprocess.run(  # noqa: S603
+            command, check=False, capture_output=True, text=True, timeout=30
+        )
+        if result.returncode == 0:
+            if errors:
+                warnings.warn(
+                    "TEST_ONLY_GIT_OBJECT_WRITE_RECOVERED after "
+                    f"{len(errors)} denied attempts:\n" + "\n".join(errors),
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+            return
+        errors.append(result.stderr)
+        object_denied = re.search(
+            r"(?m)^error: unable to write file '?\.git/objects/"
+            r"[0-9a-f]{2}/[0-9a-f]{38}'?: Permission denied\r?$",
+            result.stderr,
+        )
+        if (
+            sys.platform != "win32"
+            or result.returncode != 128
+            or object_denied is None
+            or attempt == len(delays)
+        ):
+            failure = subprocess.CalledProcessError(
+                result.returncode, command, result.stdout, result.stderr
+            )
+            failure.add_note(
+                "TEST_ONLY_GIT_BASELINE_FAILED; captured attempt stderr:\n"
+                + "\n".join(errors)
+            )
+            raise failure
+        time.sleep(delays[attempt])
+
+
+@pytest.fixture
+def empty_git_fixture(tmp_path: Path) -> tuple[Path, str]:
+    """Create a TEST_ONLY repository without changing the real Git index."""
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    git = _required_executable("git")
+    subprocess.run(  # noqa: S603
+        [git, "init", "--quiet", str(repository)],
+        check=True,
+        capture_output=True,
+    )
+    (repository / "tracked.txt").write_text("baseline\n", encoding="utf-8")
+    return repository, git
+
+
+def test_fixture_baseline_recovers_transient_object_write_denial(
+    empty_git_fixture: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """TEST_ONLY injected denial followed by a real successful Git add."""
+    repository, git = empty_git_fixture
+    original_run = subprocess.run
+    attempts = 0
+    delays: list[float] = []
+    stderr = "error: unable to write file .git/objects/18/" + "a" * 38
+    stderr += ": Permission denied\n"
+
+    def flaky_run(
+        command: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        nonlocal attempts
+        attempts += 1
+        assert command == [git, "-C", str(repository), "add", "tracked.txt"]
+        if attempts < 3:
+            return subprocess.CompletedProcess(command, 128, "", stderr)
+        return original_run(command, check=False, capture_output=True, text=True)
+
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(subprocess, "run", flaky_run)
+    monkeypatch.setattr(time, "sleep", delays.append)
+    with pytest.warns(RuntimeWarning, match="TEST_ONLY_GIT_OBJECT_WRITE_RECOVERED"):
+        _stage_fixture_baseline(repository, git)
+    assert attempts == 3
+    assert delays == [0.01, 0.02]
+    staged = original_run(
+        [git, "-C", str(repository), "show", ":tracked.txt"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert staged.stdout == "baseline\n"
+
+
+@pytest.mark.parametrize(
+    ("platform", "exit_code", "stderr", "expected_attempts"),
+    [
+        (
+            "win32",
+            128,
+            "error: unable to write file .git/objects/18/"
+            + "a" * 38
+            + ": Permission denied\n",
+            8,
+        ),
+        (
+            "linux",
+            128,
+            "error: unable to write file .git/objects/18/"
+            + "a" * 38
+            + ": Permission denied\n",
+            1,
+        ),
+        (
+            "win32",
+            128,
+            "fatal: Unable to create '.git/index.lock': Permission denied",
+            1,
+        ),
+        ("win32", 128, "fatal: disk full", 1),
+        (
+            "win32",
+            1,
+            "error: unable to write file .git/objects/18/"
+            + "a" * 38
+            + ": Permission denied\n",
+            1,
+        ),
+    ],
+)
+def test_fixture_baseline_preserves_persistent_and_unrelated_failures(
+    empty_git_fixture: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+    platform: str,
+    exit_code: int,
+    stderr: str,
+    expected_attempts: int,
+) -> None:
+    """TEST_ONLY injected failures retain the veto and original diagnostics."""
+    repository, git = empty_git_fixture
+    attempts = 0
+    delays: list[float] = []
+
+    def denied_run(
+        command: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        nonlocal attempts
+        attempts += 1
+        return subprocess.CompletedProcess(command, exit_code, "", stderr)
+
+    monkeypatch.setattr(sys, "platform", platform)
+    monkeypatch.setattr(subprocess, "run", denied_run)
+    monkeypatch.setattr(time, "sleep", delays.append)
+    with pytest.raises(subprocess.CalledProcessError) as rejected:
+        _stage_fixture_baseline(repository, git)
+    assert rejected.value.returncode == exit_code
+    assert rejected.value.stderr == stderr
+    assert stderr in rejected.value.__notes__[0]
+    assert attempts == expected_attempts
+    assert len(delays) == expected_attempts - 1
+
+
+def test_fixture_baseline_rejects_real_repository() -> None:
+    with pytest.raises(AssertionError):
+        _stage_fixture_baseline(REPOSITORY_ROOT, _required_executable("git"))
 
 
 def _install_test_hooks(repository: Path) -> None:

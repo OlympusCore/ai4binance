@@ -23,7 +23,7 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace([string]$qualityGitComm
     throw "QUALITY_GATE_GIT_COMMON_DIRECTORY_UNAVAILABLE"
 }
 $gitValidationOperation = if ($env:GITHUB_ACTIONS -eq "true") { "ci" } else { "quality" }
-$gitSynchronizationArguments = if ($SynchronizationSequence) { @("--synchronization-sequence") } else { @() }
+[string[]]$gitSynchronizationArguments = if ($SynchronizationSequence) { @("--synchronization-sequence") } else { @() }
 function Invoke-CanonicalGitPreflight {
     & $python -B -m ai4binance.ops.quality_gate.repository_completion `
         --repository-root $repoRoot --operation $gitValidationOperation `

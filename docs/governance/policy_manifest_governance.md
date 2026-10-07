@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-POL-MANIFEST-001
 title: AI4BINANCE Manifest Governance Policy
 document_type: POLICY
-version: 1.0.4
+version: 1.0.5
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -419,3 +419,11 @@ activate recognition. The existing closure request must describe the actual
 BOUNDED_OWNER_PACKAGE profile without inventing independent human participants.
 Git publication and VERIFIED_BASELINE remain independently controlled by Core
 section 3.2. Preserve RESEARCH_ONLY and LIVE_ORDER_BLOCKED.
+
+
+The exact Core 2.0.13 correction replaces the active recognition pins only after
+a fresh owner-issued normative decision and completed protected successor.
+Preserve the prior decision and installation chain without rebinding historical
+approval. Re-seal the finite reviewed output inventory for the authorized Git
+fixture and argument-transport repairs. Unrecognized successors remain blocked;
+current FULL, final exact owner acceptance and Git authorization remain separate.

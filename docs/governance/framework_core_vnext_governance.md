@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-FRM-001
 title: AI4BINANCE Core vNext Governance Framework
 document_type: FRAMEWORK
-version: 2.0.12
+version: 2.0.13
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -521,9 +521,20 @@ bounded_owner_acceptance fabric projection must bind that original patch, this
 Core raw-byte hash, the canonical root, the finite allowed change paths and the
 complete individually reviewed output inventory. Each output must match the
 immutable evidence sealed by the new WrittenOwnerDocumentLockUpdate/v1 review.
-Only the replacement of Core 2.0.11 raw SHA-256
-7147a031c7774e03def1a232030c70af32f110af83898b4f04f43b4c9e8d7e08
-with reviewed Core 2.0.12 at the exact package commit baseline is recognized.
+The initial Core 2.0.11 to 2.0.12 recognition remains historical installation
+evidence. Its genuine decisions and immutable completed predecessor chain are
+preserved; they do not approve this correction or its changed outputs.
+This separately reviewed prospective correction recognizes only Core 2.0.12
+raw SHA-256 fe770aaf518bb413dd9ed99654f8cd974ac016dec775563cd14eff7741651b14
+to reviewed Core 2.0.13 at baseline
+72cf9ca3a926508b499601f55d8fda857c452186, using epoch
+AI4B_CANONICAL_GIT_RULE_OWNER_REPAIR_20261007. Its directly necessary scope is
+the TEST_ONLY Windows Git loose-object write recovery, canonical PowerShell
+argument transport, their rejection/regression tests and these exact acceptance
+pins. Preserve the original finite path inventory and all deterministic vetoes.
+A fresh genuine exact-subject normative owner decision, separately completed
+protected update and new individually sealed output inventory are mandatory.
+The initial decision cannot be replayed or mechanically rebound to this update.
 Later successor updates cannot reuse this recognition.
 The derived protected manifest remains subject to its existing exact transition
 verifier. Missing, changed, expired, revoked or inconsistent input fails closed.
