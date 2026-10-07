@@ -9,7 +9,8 @@ param(
     [string]$ApprovalRecordReportPath = "",
     [string]$ApprovalBy = "",
     [string[]]$ApprovalRoles = @(),
-    [int]$ApprovalExpiryHours = 24
+    [int]$ApprovalExpiryHours = 24,
+    [switch]$SynchronizationSequence
 )
 
 $ErrorActionPreference = "Stop"
@@ -20,6 +21,16 @@ $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 $qualityGitCommonDirectory = & git -C $repoRoot rev-parse --path-format=absolute --git-common-dir
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace([string]$qualityGitCommonDirectory)) {
     throw "QUALITY_GATE_GIT_COMMON_DIRECTORY_UNAVAILABLE"
+}
+$gitValidationOperation = if ($env:GITHUB_ACTIONS -eq "true") { "ci" } else { "quality" }
+$gitSynchronizationArguments = if ($SynchronizationSequence) { @("--synchronization-sequence") } else { @() }
+function Invoke-CanonicalGitPreflight {
+    & $python -B -m ai4binance.ops.quality_gate.repository_completion `
+        --repository-root $repoRoot --operation $gitValidationOperation `
+        --task-scope "Canonical quality verification of an already authorized task" `
+        --output-json (Join-Path $repoRoot "runtime/artifacts/quality/gate/git_preflight_latest.json") `
+        @gitSynchronizationArguments
+    if ($LASTEXITCODE -ne 0) { throw "CANONICAL_GIT_QUALITY_PREFLIGHT_BLOCKED" }
 }
 $qualityLockScope = [IO.Path]::GetFullPath(([string]$qualityGitCommonDirectory).Trim())
 $qualityGateHashAlgorithm = [System.Security.Cryptography.SHA256]::Create()
@@ -1421,11 +1432,16 @@ function Invoke-RepositoryGovernanceValidator {
         # Git-only cache receipts cannot establish a current validation result.
         $script:repositoryValidatorCacheStatus = "DISABLED"
         $script:repositoryValidatorCacheReason = "mutable validator inputs require fresh validation"
-        Invoke-QualityStep "Repository governance validator" @(
+        $gitValidatorSynchronizationArguments = if ($SynchronizationSequence) { @("--git-synchronization-sequence") } else { @() }
+        Invoke-QualityStep "Repository governance validator" (@(
             "-m",
             "ai4binance.governance.repository_validator",
             "--repository-root",
             $repoRoot,
+            "--git-task-scope",
+            "Canonical quality verification of an already authorized task",
+            "--git-operation",
+            $gitValidationOperation,
             "--repository-policy",
             $repositoryValidatorPolicyPath,
             "--output-json",
@@ -1441,7 +1457,7 @@ function Invoke-RepositoryGovernanceValidator {
             "--output-mirror-manifest",
             $mirrorManifestPath,
             "--quiet"
-        )
+        ) + $gitValidatorSynchronizationArguments)
         Write-RepositoryValidatorRunArtifacts -CacheMode "FRESH_VALIDATION"
     }
     finally {
@@ -3274,6 +3290,7 @@ New-Item -ItemType Directory -Path $qualityGateArtifactDirectory -Force | Out-Nu
 Start-Transcript -Path $qualityRunOutputPath -Force | Out-Null
 Write-QualityRunMetadata -Status $qualityRunStatus -CurrentStep $qualityRunCurrentStep
 try {
+    Invoke-CanonicalGitPreflight
     $profileOutput = & $python -B -m ai4binance.ops.quality_gate profile `
         --config $qualityGateProfileConfigPath --profile $script:qualityGateProfile
     if ($LASTEXITCODE -ne 0) { throw "QUALITY_PROFILE_POLICY_INVALID" }

@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-POL-MANIFEST-001
 title: AI4BINANCE Manifest Governance Policy
 document_type: POLICY
-version: 1.0.2
+version: 1.0.3
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -374,3 +374,36 @@ and human-governed promotion controls.
 A governed artifact is not compliant because it exists, is listed, or is
 read-only. It is compliant only when registration, authority, lifecycle state,
 integrity evidence, change control, validation, and filesystem protection agree.
+
+## 17. Canonical Git Baseline Enforcement
+
+`AI4B-GOV-GIT-001` is defined exclusively by Core Constitution section 3.2.
+This policy specializes enforcement, not constitutional authority. The
+`repository_git` projection in the existing governance enforcement fabric pins
+the approved canonical root, remote endpoint and exact Core/policy bytes.
+The shared Python 3.14 checker resolves the matching configured remote alias
+from both fetch and push endpoints and performs bounded live remote queries.
+No cached result or remote-tracking ref may substitute for live remote evidence.
+
+Record the task scope, original workspace attestation, topology observation,
+operation, state, independent blockers and live query time in existing runtime
+status/evidence. Scope declarations describe a task; they do not create user or
+human governance authorization. Preflight findings remain visible during
+read-only diagnosis and authorized repair. Dirty-state findings block baseline
+claims, while a recorded already authorized bounded task permits testing/editing.
+
+Reuse the checker at Codex startup/Stop, repository-validator CLI and canonical
+quality entry, controlled worktree setup, pre-commit/pre-push hooks and existing
+CI. The pre-push checker restricts the exact update set to canonical main and
+preserves the existing one-use Git-specific authorization consumer. Local/remote
+SHA differences during explicitly authorized synchronization preparation are
+observed and deferred to fresh post-publication completion verification.
+Publication preparation must never be reported as final synchronized evidence.
+Promotion or release readiness requires the complete invariant and all existing
+independent controls. CI emits REMOTE_ONLY scope and never VERIFIED_BASELINE.
+
+Keep provider protection capability/status and residual direct-command/other-clone
+bypasses visible. No external ruleset mutation is authorized by this policy.
+The canonical validator and quality profile remain mandatory; tests of mocked
+responses are TEST_ONLY evidence, not a verified production baseline.
+

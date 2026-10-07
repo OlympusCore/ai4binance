@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-REG-001
 title: AI4BINANCE Compliance Matrix
 document_type: REGISTRY
-version: 2.10.19
+version: 2.10.20
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -475,4 +475,4 @@ or closure of failed evidence. Core risk and validation vetoes remain binding;
 
 | `src/ai4binance/governance/document_lock_authority.py` | `docs/governance/framework_core_vnext_governance.md`, `docs/governance/policy_manifest_governance.md` | `tests/test_document_lock_authority.py`, `tests/test_document_lock_update_lifecycle.py` | Verify exact completed predecessor history and separately issued document-update successors; no final candidate, risk or execution authority is created. |
 
-| `src/ai4binance/ops/quality_gate/repository_completion.py`, `scripts/codex_governance_hook.py` | `docs/governance/framework_core_vnext_governance.md` section 3.2 | `tests/test_repository_completion.py`, `tests/test_codex_governance_hook.py` | Observe the constitutional Git completion conditions at final closure; startup and authorized commit/push preparation do not require remote SHA equality. Preserve independent quality, governance, protected-document and human acceptance controls; no execution authority or successful closure is asserted. |
+| `src/ai4binance/ops/quality_gate/repository_completion.py`, `scripts/codex_governance_hook.py`, `scripts/git-hooks/pre-push` | `AI4B-GOV-GIT-001`; Core section 3.2; Manifest Governance section 17 | `tests/test_repository_completion.py`, `tests/test_codex_governance_hook.py` | One shared Git baseline check; operation-scoped authorized changes and synchronization; controlled creation veto; fresh remote detection; REMOTE_ONLY CI. Application, technical tests, C3 acceptance and actual VERIFIED_BASELINE remain separate. |

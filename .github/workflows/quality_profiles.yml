@@ -48,6 +48,12 @@ jobs:
         shell: pwsh
         run: uv sync --frozen --extra dev
 
+      - name: Verify canonical remote branches (remote scope only)
+        shell: pwsh
+        env:
+          PYTHONPATH: src
+        run: .venv/Scripts/python.exe -B -m ai4binance.ops.quality_gate.repository_completion --operation ci --output-json runtime/artifacts/quality/gate/git-ci.json
+
       - name: Run standard profile for pull requests
         if: github.event_name == 'pull_request'
         shell: pwsh

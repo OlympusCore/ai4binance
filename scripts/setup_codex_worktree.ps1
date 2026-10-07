@@ -6,6 +6,14 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$canonicalRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+$env:PYTHONPATH = Join-Path $canonicalRoot "src"
+& (Join-Path $canonicalRoot ".venv/Scripts/python.exe") -B `
+    -m ai4binance.ops.quality_gate.repository_completion `
+    --repository-root $canonicalRoot --operation create_worktree `
+    --task-scope "Already authorized bounded repository recovery"
+if ($LASTEXITCODE -ne 0) { throw "CANONICAL_GIT_WORKFLOW_BLOCKED" }
+
 if (-not $InstallDependencies) {
     throw "Dependency installation requires the explicit -InstallDependencies switch."
 }

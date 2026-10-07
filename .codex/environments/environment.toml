@@ -9,29 +9,14 @@ script = ""
 script = '''
 & {
     $ErrorActionPreference = 'Stop'
-    $scriptPath = 'H:\BackUP\Downloads\repair_codex_bootstrap.py'
-    $worktreeRoot = $env:CODEX_WORKTREE_PATH
-
-    if (-not $worktreeRoot) {
-        $worktreeRoot = & git rev-parse --show-toplevel
-        if ($LASTEXITCODE -ne 0 -or -not $worktreeRoot) {
-            throw 'Worktree root could not be resolved.'
-        }
-    }
-
-    if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
-        throw "Bootstrap utility not found: $scriptPath"
-    }
-
-    & 'C:\vscode-projects\ai4binance\.venv\Scripts\python.exe' -B `
-        $scriptPath `
-        'C:\vscode-projects\ai4binance' `
-        $worktreeRoot
-
-    if ($LASTEXITCODE -ne 0) {
-        throw 'Worktree bootstrap validation failed.'
-    }
+    $canonicalRoot = 'C:/vscode-projects/ai4binance'
+    $env:PYTHONPATH = Join-Path $canonicalRoot 'src'
+    & (Join-Path $canonicalRoot '.venv/Scripts/python.exe') -B `
+        -m ai4binance.ops.quality_gate.repository_completion `
+        --repository-root $canonicalRoot --operation create_worktree
+    if ($LASTEXITCODE -ne 0) { throw 'Canonical repository rule prohibits additional worktree bootstrap.' }
 }'''
+
 
 [[actions]]
 name = "Git Status"

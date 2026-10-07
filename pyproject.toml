@@ -33,6 +33,7 @@ dev = [
 ]
 mcp = ["mcp>=1.27,<2"]
 research = [
+  "mako>=1.4.3,<2", # CVE-2026-102991: patched release with native Windows tests.
   "optuna>=4.9,<5",
 ]
 security = [
@@ -43,6 +44,7 @@ voice = [
   "aiohttp>=3.14.3,<4",
   "edge-tts>=7.2.8,<8",
   "faster-whisper==1.2.1",
+  "multidict>=6.9.1,<7", # CVE-2026-104874: C-extension reference leaks.
   "sounddevice>=0.5.5,<0.6",
   "truststore>=0.10,<1",
 ]

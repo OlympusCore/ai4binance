@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-FRM-001
 title: AI4BINANCE Core vNext Governance Framework
 document_type: FRAMEWORK
-version: 2.0.10
+version: 2.0.11
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -502,52 +502,65 @@ ConstitutionalChangeControl
 
 ### 3.2 Repository Completion Invariant
 
-This normative invariant is owned by this Core Constitution at
-`L1_CORE_CONSTITUTION`, beneath external mandatory constraints.
-`main` is the persistent working branch. Successful task completion requires
-all seven conditions simultaneously at final task closure:
+Rule ID: `AI4B-GOV-GIT-001`.
 
-1. Exactly one registered worktree at the verified canonical repository root.
-2. HEAD attached to `main`.
-3. Exactly one local branch: `main`.
-4. Exactly one branch on the live canonical remote `origin`: `main`.
-5. HEAD, local `refs/heads/main`, refreshed `refs/remotes/origin/main`, and live
-   remote `refs/heads/main` reference the same commit SHA.
-6. `git status --porcelain=v1 --untracked-files=all` returns no entries.
-7. Required quality, governance, protected-document, and acceptance controls pass.
+This normative rule belongs to `L1_CORE_CONSTITUTION`, subordinate to external
+mandatory constraints. The steady state is `VERIFIED_BASELINE`: exactly one
+registered Git worktree at the verified canonical repository root, HEAD attached
+to `main`, exactly one local branch (`refs/heads/main`), exactly one branch on the
+verified canonical remote (`refs/heads/main`), and identical full commit SHAs for
+HEAD, local main and live remote main. The index and working tree must be clean,
+including no untracked non-ignored files. Canonical ignore rules apply; changing
+them to conceal work or a violation is prohibited.
 
-Missing live remote evidence blocks `COMPLETE`. Refresh canonical remote tracking
-references before final verification; cached tracking references alone are not
-live remote evidence. Verify the root and canonical remote before evaluating
-these conditions. Failed, stale, unavailable or different-subject evidence cannot
-establish successful completion.
+Local branches are `refs/heads/*`; remote branches are the current `refs/heads/*`
+advertised by the canonical remote. Tags are outside branch cardinality.
+Worktrees are all registered worktrees in this repository's common Git directory.
+Remote-tracking refs are cached evidence and neither required equality inputs nor
+proof of current remote truth. Resolve the canonical remote from the approved
+identity projection and actual fetch/push configuration, never from its alias.
 
-Lower-authority instructions, providers, code, configuration, tests and runtime
-records cannot waive these conditions or independently redefine this rule.
-Exceptions require an explicitly authorized amendment at this controlling authority level,
-subject to section 3.1 and external mandatory constraints.
+`CHANGE_IN_PROGRESS` records an already authorized bounded task through the
+existing task/status evidence mechanism. Editing, testing, validation and
+authorized recovery may make the worktree dirty. An independently explicitly
+authorized commit/publication sequence may temporarily separate local and remote
+SHAs. This state grants no new permission and cannot be reported as a clean,
+synchronized baseline. No additional branch, registered worktree or alternate
+checkout is permitted, including during an authorized task.
 
-Ordinary active-task edits remain permitted. Authorized temporary branches and
-worktrees must be consolidated before successful completion.
-Commit/push preparation must not require remote SHA equality before the authorized
-push; the complete invariant applies at final task closure.
-This timing does not waive any independent commit, push, protection or approval
-control. Technical tests alone do not establish `COMPLETE`.
+Task preflight and quality checks preserve necessary authorized editing and
+testing; independent unsafe or unauthorized actions remain blocked. Commit/push
+preparation must not require remote SHA equality before authorized publication.
+Final completion and baseline declarations require fresh equality afterward.
+Do not declare COMPLETE, release readiness or VERIFIED_BASELINE while any
+invariant is violated or unverified. Required quality, governance,
+protected-document and human acceptance controls remain independently binding.
 
-Use the existing automatic Codex Stop hook and
-`ai4binance.ops.quality_gate.repository_completion` observer to enforce the Git
-conditions at closure. The observer grants no authority and does not replace
-required quality, governance, protected-document or human acceptance controls.
-AGENTS and provider adapters reference this definition and may specialize only
-its operational mechanics.
+Lower-authority instructions, providers, scoped instructions, scripts,
+configuration and execution workflows cannot waive or redefine this rule.
+Future change requires an explicitly owner-authorized canonical amendment
+under section 3.1; it never grants an exception through a lower-level adapter.
+Missing or inaccessible live remote evidence is NOT_VERIFIED and blocks closure.
+Detached or shallow CI checkouts may validate declared remote/ref evidence only;
+they cannot prove workstation worktree cardinality, attachment or cleanliness.
 
-Preserve unrelated changes, stashes, index content and unique commits. Integrate
-only reviewed compatible work. Commit and push only within explicit authorization;
-push normally. Remove additional branches only after their work is verified
-preserved in live `origin/main`; remove additional worktrees only when clean and
-their work is preserved there. Never force-push, force-remove, hard reset, clean
-destructively, fabricate approvals or weaken controls.
-Keep `RESEARCH_ONLY` and `LIVE_ORDER_BLOCKED`.
+Operational enforcement belongs to the existing Manifest Governance policy and
+its pinned fabric projection. Reuse the shared
+`ai4binance.ops.quality_gate.repository_completion` checker at task preflight,
+controlled creation, quality/repository validation, Git publication preparation,
+CI and final Stop/completion boundaries. Evaluate independent observations and
+preserve every violation; never silently remediate them.
+
+Instructions and client hooks cannot prevent every direct Git command or another
+clone from creating remote branches. Inspect provider protections read-only;
+unavailable or unverified prevention remains an explicit limitation. Detection
+must block false completion/baseline claims. External settings require separate
+authorization. Current extra branches/worktrees require a preservation inventory
+and separately authorized remediation; this rule grants no deletion, discard,
+commit, push, deployment or history-rewrite authority.
+
+Preserve PAPER_TRADING, MANUAL_CONFIRMATION, LIVE_EXECUTION_DISABLED, READ_ONLY_API,
+RESEARCH_ONLY and LIVE_ORDER_BLOCKED.
 
 ## 4. Canonical Cycle
 

@@ -8,6 +8,18 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+if ($Apply) {
+    $canonicalRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+    $env:PYTHONPATH = Join-Path $canonicalRoot "src"
+    foreach ($targetRoot in $WorktreePaths) {
+        & (Join-Path $canonicalRoot ".venv/Scripts/python.exe") -B `
+            -m ai4binance.ops.quality_gate.repository_completion `
+            --repository-root $targetRoot --operation preflight `
+            --task-scope "Already authorized bounded repository recovery"
+        if ($LASTEXITCODE -ne 0) { throw "CANONICAL_GIT_RECOVERY_TARGET_BLOCKED" }
+    }
+}
+
 $rules = @(
     @{
         Path = "docs/standards/standard_repository_naming_governance.md"

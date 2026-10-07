@@ -15,9 +15,27 @@
     "source_of_truth_scope": {"const": "enforcement_projection"}, "canonical_path": {"const": "config/governance/governance_enforcement_fabric.yaml"},
     "safety": {"type": "object", "additionalProperties": false, "required": ["execution_allowed", "promotion_status", "live_eligibility_status"], "properties": {"execution_allowed": {"const": false}, "promotion_status": {"const": "RESEARCH_ONLY"}, "live_eligibility_status": {"const": "LIVE_ORDER_BLOCKED"}}},
     "families": {"type": "object", "additionalProperties": false, "required": ["terminology", "repository_naming", "technology_language"], "properties": {"terminology": {"$ref": "#/$defs/family"}, "repository_naming": {"$ref": "#/$defs/family"}, "technology_language": {"$ref": "#/$defs/family"}}},
-    "quality_gate": {"$ref": "#/$defs/quality_gate"}
+    "quality_gate": {"$ref": "#/$defs/quality_gate"},
+    "repository_git": {"$ref": "#/$defs/repository_git"}
   },
   "$defs": {
+    "repository_git": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule_id", "core_ref", "core_section", "core_sha256", "policy_ref", "policy_sha256", "canonical_root", "canonical_remote_url", "projection_role", "source_of_truth"],
+      "properties": {
+        "rule_id": {"const": "AI4B-GOV-GIT-001"},
+        "core_ref": {"const": "docs/governance/framework_core_vnext_governance.md"},
+        "core_section": {"const": "3.2"},
+        "core_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "policy_ref": {"const": "docs/governance/policy_manifest_governance.md"},
+        "policy_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "canonical_root": {"type": "string", "pattern": "^(?:[A-Za-z]:/|/).+"},
+        "canonical_remote_url": {"type": "string", "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\.git$"},
+        "projection_role": {"const": "ENFORCEMENT_PROJECTION"},
+        "source_of_truth": {"const": false}
+      }
+    },
     "family": {
       "type": "object", "additionalProperties": false,
       "required": ["authority_scope", "standard_path", "standard_id", "standard_version", "standard_content_sha256", "projection_path", "schema_path"],

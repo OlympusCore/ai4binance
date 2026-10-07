@@ -989,10 +989,12 @@ def test_repository_validator_main_writes_requested_outputs(tmp_path: Path) -> N
         ]
     )
 
-    assert exit_code == 0
-    assert json.loads(output_json.read_text(encoding="utf-8"))["status"] == "PASS"
+    assert exit_code == 2
+    result = json.loads(output_json.read_text(encoding="utf-8"))
+    assert result["status"] == "RUNNING_WITH_BLOCKERS"
+    assert result["blockers"] == ["GIT_COMPLETION_AUTHORITY_UNAVAILABLE"]
     findings_payload = json.loads(output_findings.read_text(encoding="utf-8"))
-    assert findings_payload["status"] == "PASS"
+    assert findings_payload["status"] == "RUNNING_WITH_BLOCKERS"
     assert findings_payload["policy_source_path"] == (
         "policies/repository-validator/manifest-policy.json"
     )
@@ -1037,7 +1039,7 @@ def test_repository_validator_module_entrypoint_exits_with_main_status(
         ],
     )
 
-    with pytest.raises(SystemExit, match="0"):
+    with pytest.raises(SystemExit, match=r"^2$"):
         runpy.run_path(
             str(Path(repository_validator_module.__file__).resolve()),
             run_name="__main__",
@@ -2077,7 +2079,8 @@ def test_repository_validator_main_exports_deterministic_mirror_manifest(
     payload = json.loads(output_manifest.read_text(encoding="utf-8"))
     exported_paths = [entry["path"] for entry in payload["root_inventory"]]
 
-    assert exit_code == 0
+    # Artifact export remains available; this TEST_ONLY root is not a Git baseline.
+    assert exit_code == 2
     assert payload["policy_id"] == "AI4B-GOV-MIRROR-HYGIENE-001"
     assert payload["mirror_role"] == "NON_CANONICAL_MIRROR"
     assert payload["authority"] == "NONE"
@@ -2870,7 +2873,7 @@ def test_repository_validator_repository_cli_quiet_and_output_branches(
         ]
     )
     quiet_stdout = capsys.readouterr().out
-    assert quiet_exit_code == 0
+    assert quiet_exit_code == 2
     assert quiet_stdout == ""
 
     output_json = tmp_path / "artifacts" / "repository-cli.json"
@@ -2898,9 +2901,10 @@ def test_repository_validator_repository_cli_quiet_and_output_branches(
     output_stdout = capsys.readouterr().out
     output_payload = json.loads(output_json.read_text(encoding="utf-8"))
 
-    assert output_exit_code == 0
-    assert '"status": "PASS"' in output_stdout
-    assert output_payload["status"] == "PASS"
+    assert output_exit_code == 2
+    assert '"status": "RUNNING_WITH_BLOCKERS"' in output_stdout
+    assert output_payload["status"] == "RUNNING_WITH_BLOCKERS"
+    assert output_payload["blockers"] == ["GIT_COMPLETION_AUTHORITY_UNAVAILABLE"]
     assert output_payload["policy_source_path"] == (
         "policies/repository-validator/manifest-policy.json"
     )
@@ -6260,18 +6264,21 @@ def test_repository_validator_cli_is_deterministic_json(tmp_path: Path) -> None:
     completed = subprocess.run(  # noqa: S603
         [
             sys.executable,
+            "-B",
             "-m",
             "ai4binance.governance.repository_validator",
             "--repository-root",
             str(tmp_path),
         ],
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
     )
     payload = json.loads(completed.stdout)
 
-    assert payload["status"] == "PASS"
+    assert completed.returncode == 2
+    assert payload["status"] == "RUNNING_WITH_BLOCKERS"
+    assert payload["blockers"] == ["GIT_COMPLETION_AUTHORITY_UNAVAILABLE"]
     assert payload["artifact_count"] == 21
     assert payload["analyzed_at_utc"]
     assert payload["analysis_scope"] == "AGGRESSIVE_ALL_FILES"

@@ -140,6 +140,7 @@ def _install_test_hooks(repository: Path) -> None:
         assert source.is_file(), source
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
+    _install_test_git_boundary(repository)
     # Test-only venv reuses the already installed dependencies without installation.
     site_packages = repository / ".venv/Lib/site-packages"
     site_packages.mkdir(parents=True, exist_ok=True)
@@ -158,6 +159,110 @@ def _install_test_hooks(repository: Path) -> None:
         ],
         check=True,
     )
+
+
+def _install_test_git_boundary(repository: Path) -> None:
+    """Install a TEST_ONLY delegation double, never canonical Git authority."""
+    package = repository / "src/ai4binance/ops/quality_gate"
+    package.mkdir(parents=True, exist_ok=True)
+    for path in (package.parent / "__init__.py", package / "__init__.py"):
+        path.write_text('"""TEST_ONLY hook integration fixture."""\n', encoding="utf-8")
+    (package / "repository_completion.py").write_text(
+        '''"""TEST_ONLY boundary double; real checker is tested independently."""
+import argparse
+import json
+from pathlib import Path
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--repository-root", type=Path, required=True)
+parser.add_argument("--operation", choices=("pre_commit", "pre_push"), required=True)
+parser.add_argument("--task-scope", required=True)
+parser.add_argument("--push-updates-path")
+parser.add_argument("--remote-name")
+parser.add_argument("--remote-url")
+args = parser.parse_args()
+assert args.task_scope.strip()
+common = args.repository_root / ".git"
+calls = common / "test_only_git_boundary_calls.jsonl"
+with calls.open("a", encoding="utf-8") as stream:
+    stream.write(json.dumps(vars(args), default=str) + "\\n")
+denied = (common / "test_only_git_boundary_deny").exists()
+print(json.dumps({
+    "scope": "TEST_ONLY_DELEGATION",
+    "status": "BLOCKED" if denied else "PASS",
+    "baseline_verified": False,
+    "execution_allowed": False,
+    "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+}))
+raise SystemExit(1 if denied else 0)
+''',
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.parametrize("operation", ["Commit", "Push"])
+def test_test_only_canonical_veto_preserves_exact_git_authorization(
+    tmp_path: Path, operation: str
+) -> None:
+    repository = tmp_path / "repository"
+    git = _initialize_git_repository(repository)
+    _install_test_hooks(repository)
+    remote_name = ""
+    updates: Path | None = None
+    if operation == "Commit":
+        (repository / "tracked.txt").write_text("TEST_ONLY changed\n", encoding="utf-8")
+        subprocess.run(  # noqa: S603
+            [git, "-C", str(repository), "add", "tracked.txt"], check=True
+        )
+        command = [git, "-C", str(repository), "commit", "-m", "TEST_ONLY veto"]
+    else:
+        remote = tmp_path / "remote.git"
+        subprocess.run([git, "init", "--quiet", "--bare", str(remote)], check=True)  # noqa: S603
+        remote_name = "origin"
+        subprocess.run(  # noqa: S603
+            [git, "-C", str(repository), "remote", "add", remote_name, str(remote)],
+            check=True,
+        )
+        head = subprocess.run(  # noqa: S603
+            [git, "-C", str(repository), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        updates = tmp_path / "updates.txt"
+        updates.write_text(
+            f"refs/heads/main {head} refs/heads/main {'0' * 40}\n", encoding="utf-8"
+        )
+        command = [git, "-C", str(repository), "push", remote_name, "main"]
+    challenge, approval = _prepare_authorization(
+        repository, operation, remote_name=remote_name, push_updates_path=updates
+    )
+    authorization = _approve_authorization(repository, challenge, approval)
+    (repository / ".git/test_only_git_boundary_deny").write_text(
+        "TEST_ONLY explicit boundary veto\n", encoding="utf-8"
+    )
+    rejected = subprocess.run(  # noqa: S603
+        command,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env={
+            **os.environ,
+            "AI4BINANCE_GIT_WRITE_AUTHORIZATION_PATH": str(authorization),
+        },
+    )
+    assert rejected.returncode != 0
+    assert "TEST_ONLY_DELEGATION" in rejected.stdout + rejected.stderr
+    assert "GIT_WRITE_AUTHORIZATION_CONSUMED" not in rejected.stdout + rejected.stderr
+    assert authorization.is_file()
+    calls = (
+        (repository / ".git/test_only_git_boundary_calls.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    )
+    assert len(calls) == 1
+    assert json.loads(calls[0])["operation"] == f"pre_{operation.lower()}"
 
 
 def test_synthetic_repository_bootstrap_covers_dot_sourced_dependencies() -> None:

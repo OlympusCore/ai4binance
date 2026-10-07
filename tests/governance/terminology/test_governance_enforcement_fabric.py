@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+import yaml
 
 from ai4binance.governance import governance_enforcement_fabric as fabric_module
 from ai4binance.governance import repository_validator
@@ -24,8 +25,43 @@ from ai4binance.governance.repository_validator import (
     RepositoryFindingKind,
     _document_lock_manifest,
 )
+from ai4binance.schema_validation import OfflineSchemaRegistry, SchemaValidationError
 
 ROOT = Path(__file__).parents[3]
+
+
+def test_fabric_schema_accepts_the_pinned_git_projection() -> None:
+    payload = yaml.safe_load((ROOT / fabric_module.FABRIC_PATH).read_text())
+    OfflineSchemaRegistry.from_directory(ROOT / "schemas").validate(
+        fabric_module.SCHEMA_ID, payload
+    )
+    assert payload["repository_git"]["rule_id"] == "AI4B-GOV-GIT-001"
+    assert payload["repository_git"]["source_of_truth"] is False
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("source_of_truth", True),
+        ("core_ref", "README.md"),
+        ("core_sha256", "TEST_ONLY_invalid_hash"),
+        ("canonical_root", "TEST_ONLY_relative"),
+        (
+            "canonical_remote_url",
+            "https://github.com/TEST_ONLY/repo.git --upload-pack=invalid",
+        ),
+        ("TEST_ONLY_unknown_field", "invalid"),
+    ],
+)
+def test_fabric_schema_rejects_invalid_git_projection(
+    field: str, value: object
+) -> None:
+    payload = yaml.safe_load((ROOT / fabric_module.FABRIC_PATH).read_text())
+    payload["repository_git"][field] = value
+    with pytest.raises(SchemaValidationError):
+        OfflineSchemaRegistry.from_directory(ROOT / "schemas").validate(
+            fabric_module.SCHEMA_ID, payload
+        )
 
 
 @pytest.mark.parametrize("input_kind", ["list", "tuple", "generator"])

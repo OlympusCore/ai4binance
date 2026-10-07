@@ -14,6 +14,7 @@ import re
 import shutil
 import stat
 import subprocess  # nosec B404
+import sys
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass
@@ -1621,6 +1622,12 @@ def validate_mirror_hygiene(
     )
 
 
+def _add_git_boundary_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--git-task-scope", default="")
+    parser.add_argument("--git-operation", choices=("quality", "ci"), default=None)
+    parser.add_argument("--git-synchronization-sequence", action="store_true")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="AI4BINANCE deterministic repository governance validator"
@@ -1664,6 +1671,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-policy-snapshot", type=Path)
     parser.add_argument("--output-cleanup-plan", type=Path)
     parser.add_argument("--output-mirror-manifest", type=Path)
+    _add_git_boundary_arguments(parser)
     parser.add_argument(
         "--quiet",
         action="store_true",
@@ -1719,6 +1727,78 @@ def main(arguments: Sequence[str] | None = None) -> int:
     return 0 if report["status"] == "REVIEW_BINDINGS_VALID" else 2
 
 
+def _git_boundary_payload(parsed: argparse.Namespace) -> dict[str, object]:
+    """Use the shared CLI protocol without a validator/observer import cycle."""
+    arguments = [
+        sys.executable,
+        "-B",
+        "-m",
+        "ai4binance.ops.quality_gate.repository_completion",
+        "--repository-root",
+        str(parsed.repository_root),
+        "--operation",
+        parsed.git_operation or "quality",
+        "--task-scope",
+        parsed.git_task_scope,
+    ]
+    if parsed.git_synchronization_sequence:
+        arguments.append("--synchronization-sequence")
+    try:
+        observed = subprocess.run(  # noqa: S603  # nosec B603
+            arguments, capture_output=True, text=True, check=False, timeout=120
+        )
+        payload = json.loads(observed.stdout)
+        blockers = payload["blockers"]
+        if (
+            not isinstance(blockers, list)
+            or not all(
+                isinstance(reason, str) and reason.startswith("GIT_COMPLETION_")
+                for reason in blockers
+            )
+            or payload["execution_allowed"] is not False
+            or payload["live_eligibility_status"] != "LIVE_ORDER_BLOCKED"
+            or payload["rule_id"] != "AI4B-GOV-GIT-001"
+            or payload["repository_root"] != parsed.repository_root.resolve().as_posix()
+            or payload["operation"] != (parsed.git_operation or "quality")
+            or (observed.returncode == 0) != (payload["status"] == "PASS")
+            or (payload["status"] == "PASS") != (not blockers)
+        ):
+            raise ValueError("Invalid canonical Git observation")
+        return cast(dict[str, object], payload)
+    except OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError:
+        return {"blockers": ["GIT_COMPLETION_OBSERVATION_UNAVAILABLE"]}
+
+
+def _git_repository_checks(
+    repository_report: RepositoryValidationReport, parsed: argparse.Namespace
+) -> RepositoryValidationReport:
+    from dataclasses import replace
+
+    git_report = _git_boundary_payload(parsed)
+    git_blockers = cast(list[str], git_report["blockers"])
+    git_findings = tuple(
+        RepositoryValidationFinding(
+            kind=RepositoryFindingKind.GOVERNANCE_ENFORCEMENT_FABRIC_VIOLATION,
+            severity=RepositoryFindingSeverity.HIGH,
+            path=".git",
+            detail=reason,
+            blocker=True,
+            rule_id="AI4B-GOV-GIT-001",
+        )
+        for reason in git_blockers
+    )
+    return replace(
+        repository_report,
+        findings=repository_report.findings + git_findings,
+        blockers=tuple(dict.fromkeys((*repository_report.blockers, *git_blockers))),
+        status=(
+            RepositoryValidationStatus.RUNNING_WITH_BLOCKERS
+            if repository_report.blockers or git_findings
+            else RepositoryValidationStatus.PASS
+        ),
+    )
+
+
 def _repository_main(arguments: Sequence[str] | None = None) -> int:
     parsed = build_parser().parse_args(arguments)
     monitor_subject = None
@@ -1767,10 +1847,13 @@ def _repository_main(arguments: Sequence[str] | None = None) -> int:
         if repository_policy_path.is_file()
         else RepositoryPolicy.ai4binance_vnext()
     )
-    repository_report = validate_repository(
-        parsed.repository_root,
-        policy=repository_policy,
-        policy_source_path=repository_policy_path,
+    repository_report = _git_repository_checks(
+        validate_repository(
+            parsed.repository_root,
+            policy=repository_policy,
+            policy_source_path=repository_policy_path,
+        ),
+        parsed,
     )
     if parsed.output_json is not None:
         _write_report_json(parsed.output_json, repository_report)

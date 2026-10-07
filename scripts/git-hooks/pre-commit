@@ -8,6 +8,15 @@ quality_gate_lease="$git_common_dir/ai4binance-quality-gate-write-lease.json"
 authorization_helper="$repo_root/scripts/git_write_authorization.ps1"
 gitleaks="$repo_root/tools/gitleaks/v8.30.1/gitleaks.exe"
 
+git_python="$repo_root/.venv/Scripts/python.exe"
+if [ -x "$repo_root/.venv/bin/python" ]; then
+    git_python="$repo_root/.venv/bin/python"
+fi
+if ! PYTHONPATH="$repo_root/src" "$git_python" -B -m ai4binance.ops.quality_gate.repository_completion \
+    --repository-root "$repo_root" --operation pre_commit --task-scope "Git-specific commit authorization preparation"; then
+    exit 1
+fi
+
 if [ ! -f "$quality_gate_guard" ]; then
     echo "QUALITY_GATE_GIT_WRITE_GUARD_MISSING: $quality_gate_guard" >&2
     echo "RESEARCH_ONLY" >&2

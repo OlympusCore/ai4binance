@@ -1,6 +1,6 @@
 document_id: "AI4B-GOV-FABRIC-001"
 fabric_id: "AI4B-GOV-FABRIC-001"
-version: "1.2.0"
+version: "1.3.0"
 status: "ACTIVE"
 authority_layer: "L4_REPOSITORY_STANDARDS_CONTROLS_QUALITY_POLICIES"
 authority_effect: "IMPLEMENTATION"
@@ -125,3 +125,15 @@ quality_gate:
         - "config/quality/gates.yaml"
       required_tests:
         - "tests/test_requirement_assurance_chain.py"
+
+repository_git:
+  rule_id: "AI4B-GOV-GIT-001"
+  core_ref: "docs/governance/framework_core_vnext_governance.md"
+  core_section: "3.2"
+  core_sha256: "7147a031c7774e03def1a232030c70af32f110af83898b4f04f43b4c9e8d7e08"
+  policy_ref: "docs/governance/policy_manifest_governance.md"
+  policy_sha256: "5e5827cf56bafc027160c1b5ebe278e31cfc03a4a40796bf7d9cfacb693246fa"
+  canonical_root: "C:/vscode-projects/ai4binance"
+  canonical_remote_url: "https://github.com/OlympusCore/ai4binance.git"
+  projection_role: "ENFORCEMENT_PROJECTION"
+  source_of_truth: false

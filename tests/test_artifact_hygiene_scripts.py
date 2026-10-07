@@ -39,6 +39,7 @@ def _quality_script_text() -> str:
 
 
 def _quality_function_preamble() -> str:
+    """Extract TEST_ONLY helper definitions without starting the production gate."""
     text = _quality_script_text()
     marker = "New-Item -ItemType Directory -Path $qualityGateArtifactDirectory"
     preamble, separator, _ = text.partition(marker)
@@ -749,6 +750,37 @@ def test_import_mirror_inventory_script_rejects_invalid_manifest(
     assert not imported_manifest.exists()
 
 
+def test_quality_preflight_remains_explicit_and_fail_closed(tmp_path: Path) -> None:
+    """TEST_ONLY unapproved fixture root must fail before profile execution."""
+    payload = _run_quality_function_harness(
+        tmp_path,
+        """
+$preflightError = ""
+try {
+    Invoke-CanonicalGitPreflight | Out-Null
+}
+catch {
+    $preflightError = $_.Exception.Message
+}
+$preflight = Get-Content -LiteralPath (
+    Join-Path $repoRoot "runtime/artifacts/quality/gate/git_preflight_latest.json"
+) -Raw | ConvertFrom-Json
+[ordered]@{
+    error = $preflightError
+    status = $preflight.status
+    blockers = @($preflight.blockers)
+    baseline_verified = $preflight.baseline_verified
+    execution_allowed = $preflight.execution_allowed
+} | ConvertTo-Json -Depth 5
+""",
+    )
+    assert payload["error"] == "CANONICAL_GIT_QUALITY_PREFLIGHT_BLOCKED"
+    assert payload["status"] == "BLOCKED"
+    assert payload["blockers"] == ["GIT_COMPLETION_AUTHORITY_UNAVAILABLE"]
+    assert payload["baseline_verified"] is False
+    assert payload["execution_allowed"] is False
+
+
 def test_quality_script_isolates_coverage_artifacts() -> None:
     text = _quality_script_text()
 
@@ -1068,6 +1100,12 @@ def test_quality_profile_workflow_has_structural_github_contract() -> None:
 
 def test_quality_script_runs_gate_steps_in_governed_order() -> None:
     text = _quality_script_text()
+    driver = text.split("Start-Transcript -Path $qualityRunOutputPath", 1)[1]
+    assert (
+        driver.index("Invoke-CanonicalGitPreflight")
+        < driver.index("ai4binance.ops.quality_gate profile")
+        < driver.index("Invoke-SelectedQualityGate")
+    )
     expected_sequence = [
         "Reset-LatestQualityGateArtifacts",
         "Invoke-SourceGeneratedArtifactCheck",

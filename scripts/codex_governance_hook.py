@@ -27,7 +27,10 @@ from ai4binance.governance.technology_language_policy import (
     load_technology_language_policy,
 )
 from ai4binance.infrastructure.persistence.safe_json import write_json_object_verified
-from ai4binance.ops.quality_gate.repository_completion import inspect_git_completion
+from ai4binance.ops.quality_gate.repository_completion import (
+    inspect_git_boundary,
+    inspect_git_completion,
+)
 from ai4binance.ops.quality_gate.telemetry import quality_completion_blockers
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -156,6 +159,20 @@ def _generation_context(root: Path) -> str:
 def _startup_context(root: Path) -> str:
     before = _snapshot(root)
     context = _authority_context(root) + _generation_context(root)
+    preflight = inspect_git_boundary(root, operation="preflight")
+    _write(
+        root / EVIDENCE_ROOT / "preflight_latest.json",
+        {
+            "baseline": before,
+            "git_preflight": preflight,
+            "scope_authority": "EXISTING_USER_TASK_AUTHORIZATION_REQUIRED",
+        },
+    )
+    context += "\nGit preflight observation: " + json.dumps(preflight)
+    context += (
+        "\nRecord already authorized task scope for CHANGE_IN_PROGRESS; "
+        "findings do not prevent read-only diagnosis or explicitly authorized repair.\n"
+    )
     if _snapshot(root) != before:
         raise ValueError("WORKSPACE_CHANGED_DURING_STARTUP")
     if len(context) > 20_000:
