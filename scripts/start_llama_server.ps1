@@ -6,8 +6,8 @@ param(
     [string]$MmprojPath = $env:AI4BINANCE_LLAMA_MMPROJ_PATH,
     [int]$CtxSize = $(if ($env:LLAMA_CTX_LIMIT) { [int]$env:LLAMA_CTX_LIMIT } else { 4096 }),
     [int]$GpuLayers = $(if ($env:AI4BINANCE_LLAMA_GPU_LAYERS) { [int]$env:AI4BINANCE_LLAMA_GPU_LAYERS } elseif ($env:LLAMA_GPU_LAYERS) { [int]$env:LLAMA_GPU_LAYERS } else { 0 }),
-    [int]$Parallel = $(if ($env:AI4BINANCE_LLAMA_PARALLEL) { [int]$env:AI4BINANCE_LLAMA_PARALLEL } elseif ($env:LLAMA_PARALLEL) { [int]$env:LLAMA_PARALLEL } else { 1 }),
-    [int]$Threads = $(if ($env:AI4BINANCE_LLAMA_THREADS) { [int]$env:AI4BINANCE_LLAMA_THREADS } elseif ($env:LLAMA_THREADS) { [int]$env:LLAMA_THREADS } else { 4 })
+    [int]$Parallel = $(if ($env:AI4BINANCE_LLAMA_PARALLEL) { [int]$env:AI4BINANCE_LLAMA_PARALLEL } elseif ($env:LLAMA_PARALLEL) { [int]$env:LLAMA_PARALLEL } else { 2 }),
+    [int]$Threads = $(if ($env:AI4BINANCE_LLAMA_THREADS) { [int]$env:AI4BINANCE_LLAMA_THREADS } elseif ($env:LLAMA_THREADS) { [int]$env:LLAMA_THREADS } else { 8 })
 )
 
 $ErrorActionPreference = "Stop"

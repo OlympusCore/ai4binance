@@ -1,6 +1,9 @@
 """Regression coverage for the fail-closed canonical model registry."""
 
 import json
+import shutil
+import subprocess
+from hashlib import sha256
 from pathlib import Path
 from typing import Any, cast
 
@@ -233,6 +236,42 @@ def test_registry_detects_source_contract_artifact_substitution(tmp_path: Path) 
     report = validate_model_registry(ROOT, tampered)
 
     assert "ARTIFACT_HASH_MISMATCH:price-action-scenario-catalog" in report.blockers
+
+
+@pytest.mark.parametrize("autocrlf", ["true", "false"])
+def test_registered_launcher_contract_survives_git_checkout(
+    tmp_path: Path, autocrlf: str
+) -> None:
+    """A test-only Git checkout preserves the registered source-contract bytes."""
+    entry = require_registered_model(
+        "local-llamacpp-qwen3-8b", load_model_registry(REGISTRY)
+    )
+    assert entry.artifact.artifact_uri == "scripts/start_llama_server.ps1"
+    git_executable = shutil.which("git")
+    if git_executable is None:
+        raise RuntimeError("Git is required for the source-contract checkout test")
+    fixture = tmp_path / "test-only-git-checkout"
+    fixture.mkdir()
+    (fixture / ".gitattributes").write_bytes((ROOT / ".gitattributes").read_bytes())
+    launcher = fixture / entry.artifact.artifact_uri
+    launcher.parent.mkdir(parents=True)
+    launcher.write_bytes((ROOT / entry.artifact.artifact_uri).read_bytes())
+    commands = (
+        ("init", "--quiet"),
+        ("config", "core.autocrlf", autocrlf),
+        ("add", "--", ".gitattributes", entry.artifact.artifact_uri),
+        ("checkout-index", "--all", "--prefix=checkout/"),
+    )
+    for command in commands:
+        subprocess.run(  # noqa: S603 - fixed Git argv and test-owned fixture paths.
+            [git_executable, "-C", str(fixture), *command],
+            check=True,
+            capture_output=True,
+        )
+    checked_out = fixture / "checkout" / entry.artifact.artifact_uri
+    assert (
+        sha256(checked_out.read_bytes()).hexdigest() == entry.artifact.artifact_sha256
+    )
 
 
 def test_registry_detects_local_model_manifest_artifact_drift(tmp_path: Path) -> None:

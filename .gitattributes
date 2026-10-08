@@ -12,6 +12,9 @@
 *.pdf binary
 *.gguf binary
 
+# Preserve the registered llama.cpp source-contract bytes across checkouts.
+scripts/start_llama_server.ps1 -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+
 schemas/governance/document_lock_authority.schema.json -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 
 # Preserve the exact approved bytes of changed governed documents.
