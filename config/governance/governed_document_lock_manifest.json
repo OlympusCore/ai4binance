@@ -2298,13 +2298,13 @@
       "authority_scope": "core_constitution",
       "canonical_path": "docs/governance/framework_core_vnext_governance.md",
       "document_status": "ACTIVE",
-      "expected_hash": "f9c25e829035791b2197f5bdb01e853152d6bdf83675af79489de2ad7df2563b",
+      "expected_hash": "0cb0aedfb3d0dde896af4c65a931f4a32878280dd4716b2645322ce49fa403d3",
       "lock_state": "LOCKED",
       "path": "docs/governance/framework_core_vnext_governance.md",
-      "sha256": "f9c25e829035791b2197f5bdb01e853152d6bdf83675af79489de2ad7df2563b",
+      "sha256": "0cb0aedfb3d0dde896af4c65a931f4a32878280dd4716b2645322ce49fa403d3",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "2.0.13"
+      "version": "2.0.14"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -2434,13 +2434,13 @@
       "authority_scope": "manifest_governance",
       "canonical_path": "docs/governance/policy_manifest_governance.md",
       "document_status": "ACTIVE",
-      "expected_hash": "423de50ecfca050b202b98a01cc71878c0456c85cf1e401a1003bd800dab42f5",
+      "expected_hash": "95eb2b98be444b30662e08728bd8619fd90cecd1e6fdb7822357c3e92ebedb81",
       "lock_state": "LOCKED",
       "path": "docs/governance/policy_manifest_governance.md",
-      "sha256": "423de50ecfca050b202b98a01cc71878c0456c85cf1e401a1003bd800dab42f5",
+      "sha256": "95eb2b98be444b30662e08728bd8619fd90cecd1e6fdb7822357c3e92ebedb81",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "1.0.5"
+      "version": "1.0.6"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -4675,12 +4675,12 @@
   "prospective_lock_grant": {
     "contract_version": "DocumentLockRegistration/v3",
     "grant": {
-      "path": "runtime/artifacts/git_consolidation/canonical-baseline-rule-20261007/bounded-owner-amendment/quality-repair-owner-grant.json",
-      "sha256": "7a174d7fe379a5827bfba0025a00cd63f6f4835309daa17634a7411e256e189a"
+      "path": "runtime/artifacts/git_consolidation/canonical-baseline-rule-20261007/bounded-owner-amendment/yaml-format-repair-owner-grant.json",
+      "sha256": "5ee07f9b74937667f17d0ab6bbfc456cb957a62e913fe344a4dc7481d120f7a4"
     },
     "predecessor": {
-      "path": "runtime/artifacts/git_consolidation/canonical-baseline-rule-20261007/bounded-owner-amendment/quality-repair-predecessor-context.raw.json",
-      "sha256": "f837e87f029cd0f8067a71628c9667fd82ae5dd771826cffff9f919aeb516b94"
+      "path": "runtime/artifacts/git_consolidation/canonical-baseline-rule-20261007/bounded-owner-amendment/yaml-format-repair-predecessor-context.raw.json",
+      "sha256": "3d313ef2a36f3b895267c73cf26dbce829be43858e9a9a9c3be275ea7dcddf02"
     }
   }
 }

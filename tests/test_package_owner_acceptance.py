@@ -108,8 +108,8 @@ def package(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
                     {
                         "path": owner.CORE,
                         "before_sha256": owner.PRIOR_CORE_SHA256,
-                        "before_version": "2.0.12",
-                        "version": "2.0.13",
+                        "before_version": "2.0.13",
+                        "version": "2.0.14",
                         "sha256": policy["core_sha256"],
                     }
                 ],
@@ -331,7 +331,7 @@ def test_later_successor_cannot_reuse_recognition(package: dict[str, Any]) -> No
     root = package["root"]
     context = dict(package["context"])
     grant = json.loads((root / context["grant"]["path"]).read_text())
-    grant["review_subject"]["documents"][0]["version"] = "2.0.14"
+    grant["review_subject"]["documents"][0]["version"] = "2.0.15"
     context["grant"] = _write(root, context["grant"]["path"], grant)
     decision = {**package["decision"], "grant": context["grant"]}
     _write(root, CONTEXT_PATH, context)
@@ -537,6 +537,33 @@ def test_predecessor_grant_cannot_approve_quality_repair_successor(
         before_version="2.0.11",
         version="2.0.12",
         before_sha256="7147a031c7774e03def1a232030c70af32f110af83898b4f04f43b4c9e8d7e08",
+    )
+    context["grant"] = _write(root, context["grant"]["path"], grant)
+    _write(root, CONTEXT_PATH, context)
+    _write(
+        root,
+        package["policy"]["normative_decision_ref"],
+        {**package["decision"], "grant": context["grant"]},
+    )
+    with pytest.raises(ValueError, match="EXACT_AMENDMENT_REQUIRED"):
+        owner.load_package_owner_acceptance(
+            root, package["change_set"].changed_paths, "C3_GOVERNED", now=NOW
+        )
+
+
+def test_consumed_quality_repair_grant_cannot_approve_format_successor(
+    package: dict[str, Any],
+) -> None:
+    """TEST_ONLY latest consumed predecessor pins cannot approve new bytes."""
+    root = package["root"]
+    context = dict(package["context"])
+    grant = json.loads((root / context["grant"]["path"]).read_text())
+    review = grant["review_subject"]
+    review["baseline_commit"] = "72cf9ca3a926508b499601f55d8fda857c452186"
+    review["documents"][0].update(
+        before_version="2.0.12",
+        version="2.0.13",
+        before_sha256="fe770aaf518bb413dd9ed99654f8cd974ac016dec775563cd14eff7741651b14",
     )
     context["grant"] = _write(root, context["grant"]["path"], grant)
     _write(root, CONTEXT_PATH, context)

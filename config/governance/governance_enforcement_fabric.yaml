@@ -1,6 +1,6 @@
 document_id: AI4B-GOV-FABRIC-001
 fabric_id: AI4B-GOV-FABRIC-001
-version: 1.4.1
+version: 1.4.2
 status: ACTIVE
 authority_layer: L4_REPOSITORY_STANDARDS_CONTROLS_QUALITY_POLICIES
 authority_effect: IMPLEMENTATION
@@ -145,20 +145,20 @@ repository_git:
   rule_id: AI4B-GOV-GIT-001
   core_ref: docs/governance/framework_core_vnext_governance.md
   core_section: '3.2'
-  core_sha256: f9c25e829035791b2197f5bdb01e853152d6bdf83675af79489de2ad7df2563b
+  core_sha256: 0cb0aedfb3d0dde896af4c65a931f4a32878280dd4716b2645322ce49fa403d3
   policy_ref: docs/governance/policy_manifest_governance.md
-  policy_sha256: 423de50ecfca050b202b98a01cc71878c0456c85cf1e401a1003bd800dab42f5
+  policy_sha256: 95eb2b98be444b30662e08728bd8619fd90cecd1e6fdb7822357c3e92ebedb81
   canonical_root: C:/vscode-projects/ai4binance
   canonical_remote_url: https://github.com/OlympusCore/ai4binance.git
-  projection_role: ENFORCEMENT_PROJECTION
+  projection_role: "ENFORCEMENT_PROJECTION"
   source_of_truth: false
 bounded_owner_acceptance:
   rule_id: AI4B-GOV-C3-OWNER-20261007
   core_ref: docs/governance/framework_core_vnext_governance.md
   core_section: 3.1.2
-  core_sha256: f9c25e829035791b2197f5bdb01e853152d6bdf83675af79489de2ad7df2563b
+  core_sha256: 0cb0aedfb3d0dde896af4c65a931f4a32878280dd4716b2645322ce49fa403d3
   canonical_root: C:/vscode-projects/ai4binance
-  epoch_id: AI4B_CANONICAL_GIT_RULE_OWNER_REPAIR_20261007
+  epoch_id: AI4B_CANONICAL_GIT_RULE_OWNER_FORMAT_20261008
   package_base_commit: 51aa502297903c52f98d58e63f6c916b43bce433
   package_commit: f3d81cb6bb57f9fe6e69661f1ddbbcf4db4d5901
   package_patch_sha256: 1716301760edd93d6030f055ad935343b7c955f883a34b414d8f1fecb89eb741
@@ -166,7 +166,7 @@ bounded_owner_acceptance:
   approver_id: Huseyin
   principal_id: huseyin-governance-owner-principal
   approver_role: GovernanceOwner
-  normative_decision_ref: runtime/artifacts/git_consolidation/canonical-baseline-rule-20261007/bounded-owner-amendment/quality-repair-normative-owner-decision.json
+  normative_decision_ref: runtime/artifacts/git_consolidation/canonical-baseline-rule-20261007/bounded-owner-amendment/yaml-format-repair-normative-owner-decision.json
   allowed_change_paths:
   - .codex/environments/environment.toml
   - .github/workflows/quality_profiles.yml
@@ -231,4 +231,4 @@ bounded_owner_acceptance:
   - uv.lock
   source_of_truth: false
   projection_role: ENFORCEMENT_PROJECTION
-  review_baseline_commit: 72cf9ca3a926508b499601f55d8fda857c452186
+  review_baseline_commit: 01bcf1c8fe74618740824a5021c5a3874f191321

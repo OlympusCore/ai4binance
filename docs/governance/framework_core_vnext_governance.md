@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-FRM-001
 title: AI4BINANCE Core vNext Governance Framework
 document_type: FRAMEWORK
-version: 2.0.13
+version: 2.0.14
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -521,20 +521,23 @@ bounded_owner_acceptance fabric projection must bind that original patch, this
 Core raw-byte hash, the canonical root, the finite allowed change paths and the
 complete individually reviewed output inventory. Each output must match the
 immutable evidence sealed by the new WrittenOwnerDocumentLockUpdate/v1 review.
-The initial Core 2.0.11 to 2.0.12 recognition remains historical installation
-evidence. Its genuine decisions and immutable completed predecessor chain are
-preserved; they do not approve this correction or its changed outputs.
-This separately reviewed prospective correction recognizes only Core 2.0.12
-raw SHA-256 fe770aaf518bb413dd9ed99654f8cd974ac016dec775563cd14eff7741651b14
-to reviewed Core 2.0.13 at baseline
-72cf9ca3a926508b499601f55d8fda857c452186, using epoch
-AI4B_CANONICAL_GIT_RULE_OWNER_REPAIR_20261007. Its directly necessary scope is
-the TEST_ONLY Windows Git loose-object write recovery, canonical PowerShell
-argument transport, their rejection/regression tests and these exact acceptance
-pins. Preserve the original finite path inventory and all deterministic vetoes.
+The completed Core 2.0.11 to 2.0.12 and Core 2.0.12 to 2.0.13
+recognitions remain historical installation evidence. Their genuine decisions,
+reviewed subjects and immutable completed predecessor chains are preserved;
+they do not approve this format correction or its changed outputs.
+This separately reviewed prospective format correction recognizes only Core
+2.0.13 raw SHA-256 f9c25e829035791b2197f5bdb01e853152d6bdf83675af79489de2ad7df2563b
+to reviewed Core 2.0.14 at baseline
+01bcf1c8fe74618740824a5021c5a3874f191321, using epoch
+AI4B_CANONICAL_GIT_RULE_OWNER_FORMAT_20261008. Its behavioral scope is only
+restoring the required quotes on the existing repository Git projection_role
+line, with identical parsed configuration values. Preserve the installed Git
+fixture recovery and native argument transport repairs. Only directly necessary
+exact acceptance, registration and schema bindings accompany this correction.
+Preserve the original finite path inventory, package identity and all vetoes.
 A fresh genuine exact-subject normative owner decision, separately completed
 protected update and new individually sealed output inventory are mandatory.
-The initial decision cannot be replayed or mechanically rebound to this update.
+Neither prior recognition nor its consumed decision may be replayed or rebound.
 Later successor updates cannot reuse this recognition.
 The derived protected manifest remains subject to its existing exact transition
 verifier. Missing, changed, expired, revoked or inconsistent input fails closed.

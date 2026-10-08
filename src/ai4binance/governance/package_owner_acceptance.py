@@ -31,7 +31,7 @@ CORE = "docs/governance/framework_core_vnext_governance.md"
 MANIFEST = "config/governance/governed_document_lock_manifest.json"
 RULE = "AI4B-GOV-C3-OWNER-20261007"
 PROFILE = "BOUNDED_OWNER_PACKAGE"
-PRIOR_CORE_SHA256 = "fe770aaf518bb413dd9ed99654f8cd974ac016dec775563cd14eff7741651b14"
+PRIOR_CORE_SHA256 = "f9c25e829035791b2197f5bdb01e853152d6bdf83675af79489de2ad7df2563b"
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,8 +135,8 @@ def _installed_decision(
     if (
         reviewed["baseline_commit"] != policy["review_baseline_commit"]
         or core_document["before_sha256"] != PRIOR_CORE_SHA256
-        or core_document["before_version"] != "2.0.12"
-        or core_document["version"] != "2.0.13"
+        or core_document["before_version"] != "2.0.13"
+        or core_document["version"] != "2.0.14"
         or core_document["sha256"] != policy["core_sha256"]
     ):
         raise ValueError("BOUNDED_OWNER_EXACT_AMENDMENT_REQUIRED")

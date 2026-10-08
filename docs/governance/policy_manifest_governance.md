@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-POL-MANIFEST-001
 title: AI4BINANCE Manifest Governance Policy
 document_type: POLICY
-version: 1.0.5
+version: 1.0.6
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -421,9 +421,13 @@ Git publication and VERIFIED_BASELINE remain independently controlled by Core
 section 3.2. Preserve RESEARCH_ONLY and LIVE_ORDER_BLOCKED.
 
 
-The exact Core 2.0.13 correction replaces the active recognition pins only after
-a fresh owner-issued normative decision and completed protected successor.
-Preserve the prior decision and installation chain without rebinding historical
-approval. Re-seal the finite reviewed output inventory for the authorized Git
-fixture and argument-transport repairs. Unrecognized successors remain blocked;
-current FULL, final exact owner acceptance and Git authorization remain separate.
+The completed Core 2.0.13 quality repair remains historical installation
+evidence. The exact separately reviewed Core 2.0.14 format correction replaces
+the active recognition pins only after a fresh owner-issued normative decision
+and completed protected successor. Its behavioral repair restores the required
+repository Git projection_role quotes with identical parsed values; installed
+Git fixture and argument-transport repairs remain unchanged. Preserve all prior
+decisions and installation chains without rebinding historical approval.
+Re-seal only the finite reviewed output inventory for this exact correction.
+Unrecognized successors remain blocked; current FULL, final exact owner
+acceptance and Git authorization remain separate.
