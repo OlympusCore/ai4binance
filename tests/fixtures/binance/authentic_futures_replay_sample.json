@@ -1,0 +1,4284 @@
+{
+  "as_of": "2026-10-08T18:35:22.298552+00:00",
+  "candles": [
+    {
+      "close": "85771.90",
+      "high": "85850.00",
+      "low": "85710.20",
+      "open": "85717.20",
+      "timestamp": "2026-10-06T00:00:00+00:00",
+      "volume": "591.741"
+    },
+    {
+      "close": "85780.00",
+      "high": "85930.00",
+      "low": "85771.80",
+      "open": "85771.90",
+      "timestamp": "2026-10-06T00:15:00+00:00",
+      "volume": "619.456"
+    },
+    {
+      "close": "85758.30",
+      "high": "85852.80",
+      "low": "85731.70",
+      "open": "85780.00",
+      "timestamp": "2026-10-06T00:30:00+00:00",
+      "volume": "448.938"
+    },
+    {
+      "close": "85872.40",
+      "high": "85872.40",
+      "low": "85731.20",
+      "open": "85758.40",
+      "timestamp": "2026-10-06T00:45:00+00:00",
+      "volume": "428.854"
+    },
+    {
+      "close": "86026.50",
+      "high": "86098.10",
+      "low": "85872.40",
+      "open": "85872.40",
+      "timestamp": "2026-10-06T01:00:00+00:00",
+      "volume": "1280.826"
+    },
+    {
+      "close": "85937.10",
+      "high": "86026.50",
+      "low": "85808.60",
+      "open": "86026.50",
+      "timestamp": "2026-10-06T01:15:00+00:00",
+      "volume": "500.187"
+    },
+    {
+      "close": "85621.90",
+      "high": "85941.90",
+      "low": "85609.20",
+      "open": "85937.10",
+      "timestamp": "2026-10-06T01:30:00+00:00",
+      "volume": "1000.516"
+    },
+    {
+      "close": "85626.50",
+      "high": "85698.70",
+      "low": "85553.10",
+      "open": "85621.90",
+      "timestamp": "2026-10-06T01:45:00+00:00",
+      "volume": "1294.721"
+    },
+    {
+      "close": "85423.10",
+      "high": "85626.50",
+      "low": "85423.00",
+      "open": "85626.40",
+      "timestamp": "2026-10-06T02:00:00+00:00",
+      "volume": "1189.623"
+    },
+    {
+      "close": "85594.90",
+      "high": "85719.90",
+      "low": "85406.10",
+      "open": "85423.10",
+      "timestamp": "2026-10-06T02:15:00+00:00",
+      "volume": "1164.841"
+    },
+    {
+      "close": "85543.90",
+      "high": "85659.60",
+      "low": "85450.00",
+      "open": "85594.90",
+      "timestamp": "2026-10-06T02:30:00+00:00",
+      "volume": "792.517"
+    },
+    {
+      "close": "85492.20",
+      "high": "85553.00",
+      "low": "85468.60",
+      "open": "85544.00",
+      "timestamp": "2026-10-06T02:45:00+00:00",
+      "volume": "386.197"
+    },
+    {
+      "close": "85485.60",
+      "high": "85553.70",
+      "low": "85474.80",
+      "open": "85492.30",
+      "timestamp": "2026-10-06T03:00:00+00:00",
+      "volume": "313.467"
+    },
+    {
+      "close": "85430.00",
+      "high": "85568.10",
+      "low": "85430.00",
+      "open": "85485.60",
+      "timestamp": "2026-10-06T03:15:00+00:00",
+      "volume": "389.028"
+    },
+    {
+      "close": "85433.10",
+      "high": "85441.00",
+      "low": "85264.40",
+      "open": "85430.10",
+      "timestamp": "2026-10-06T03:30:00+00:00",
+      "volume": "1497.035"
+    },
+    {
+      "close": "85475.00",
+      "high": "85553.50",
+      "low": "85423.00",
+      "open": "85433.00",
+      "timestamp": "2026-10-06T03:45:00+00:00",
+      "volume": "651.675"
+    },
+    {
+      "close": "85587.50",
+      "high": "85595.50",
+      "low": "85474.90",
+      "open": "85475.00",
+      "timestamp": "2026-10-06T04:00:00+00:00",
+      "volume": "519.560"
+    },
+    {
+      "close": "85546.60",
+      "high": "85599.00",
+      "low": "85546.20",
+      "open": "85587.50",
+      "timestamp": "2026-10-06T04:15:00+00:00",
+      "volume": "348.082"
+    },
+    {
+      "close": "85552.70",
+      "high": "85595.60",
+      "low": "85518.30",
+      "open": "85546.70",
+      "timestamp": "2026-10-06T04:30:00+00:00",
+      "volume": "496.587"
+    },
+    {
+      "close": "85584.10",
+      "high": "85589.60",
+      "low": "85530.00",
+      "open": "85552.70",
+      "timestamp": "2026-10-06T04:45:00+00:00",
+      "volume": "212.563"
+    },
+    {
+      "close": "85662.90",
+      "high": "85720.80",
+      "low": "85535.30",
+      "open": "85584.10",
+      "timestamp": "2026-10-06T05:00:00+00:00",
+      "volume": "616.096"
+    },
+    {
+      "close": "85644.10",
+      "high": "85680.00",
+      "low": "85601.90",
+      "open": "85662.90",
+      "timestamp": "2026-10-06T05:15:00+00:00",
+      "volume": "304.105"
+    },
+    {
+      "close": "85549.80",
+      "high": "85665.00",
+      "low": "85527.00",
+      "open": "85644.10",
+      "timestamp": "2026-10-06T05:30:00+00:00",
+      "volume": "333.184"
+    },
+    {
+      "close": "85478.30",
+      "high": "85549.90",
+      "low": "85459.90",
+      "open": "85549.80",
+      "timestamp": "2026-10-06T05:45:00+00:00",
+      "volume": "512.279"
+    },
+    {
+      "close": "85112.00",
+      "high": "85478.40",
+      "low": "85088.00",
+      "open": "85478.40",
+      "timestamp": "2026-10-06T06:00:00+00:00",
+      "volume": "3649.196"
+    },
+    {
+      "close": "85212.80",
+      "high": "85248.00",
+      "low": "85072.70",
+      "open": "85112.00",
+      "timestamp": "2026-10-06T06:15:00+00:00",
+      "volume": "1583.944"
+    },
+    {
+      "close": "85299.70",
+      "high": "85315.60",
+      "low": "85208.80",
+      "open": "85212.90",
+      "timestamp": "2026-10-06T06:30:00+00:00",
+      "volume": "762.832"
+    },
+    {
+      "close": "85266.80",
+      "high": "85341.20",
+      "low": "85266.80",
+      "open": "85299.60",
+      "timestamp": "2026-10-06T06:45:00+00:00",
+      "volume": "530.619"
+    },
+    {
+      "close": "85331.40",
+      "high": "85331.50",
+      "low": "85229.50",
+      "open": "85266.80",
+      "timestamp": "2026-10-06T07:00:00+00:00",
+      "volume": "609.976"
+    },
+    {
+      "close": "85253.00",
+      "high": "85368.70",
+      "low": "85245.90",
+      "open": "85331.50",
+      "timestamp": "2026-10-06T07:15:00+00:00",
+      "volume": "562.910"
+    },
+    {
+      "close": "85465.30",
+      "high": "85465.30",
+      "low": "85252.90",
+      "open": "85253.00",
+      "timestamp": "2026-10-06T07:30:00+00:00",
+      "volume": "956.772"
+    },
+    {
+      "close": "85512.40",
+      "high": "85586.60",
+      "low": "85465.30",
+      "open": "85465.30",
+      "timestamp": "2026-10-06T07:45:00+00:00",
+      "volume": "1223.488"
+    },
+    {
+      "close": "85740.00",
+      "high": "85976.90",
+      "low": "85500.10",
+      "open": "85512.30",
+      "timestamp": "2026-10-06T08:00:00+00:00",
+      "volume": "3474.489"
+    },
+    {
+      "close": "85841.00",
+      "high": "85894.40",
+      "low": "85714.10",
+      "open": "85739.80",
+      "timestamp": "2026-10-06T08:15:00+00:00",
+      "volume": "870.988"
+    },
+    {
+      "close": "85912.90",
+      "high": "85917.20",
+      "low": "85752.40",
+      "open": "85841.00",
+      "timestamp": "2026-10-06T08:30:00+00:00",
+      "volume": "1066.504"
+    },
+    {
+      "close": "85970.70",
+      "high": "86010.00",
+      "low": "85862.30",
+      "open": "85912.80",
+      "timestamp": "2026-10-06T08:45:00+00:00",
+      "volume": "1264.977"
+    },
+    {
+      "close": "85887.90",
+      "high": "86016.50",
+      "low": "85833.30",
+      "open": "85970.60",
+      "timestamp": "2026-10-06T09:00:00+00:00",
+      "volume": "1147.343"
+    },
+    {
+      "close": "85744.60",
+      "high": "86086.00",
+      "low": "85618.00",
+      "open": "85888.00",
+      "timestamp": "2026-10-06T09:15:00+00:00",
+      "volume": "2559.435"
+    },
+    {
+      "close": "85863.70",
+      "high": "85928.50",
+      "low": "85705.20",
+      "open": "85744.70",
+      "timestamp": "2026-10-06T09:30:00+00:00",
+      "volume": "1062.465"
+    },
+    {
+      "close": "85949.20",
+      "high": "86199.90",
+      "low": "85824.60",
+      "open": "85863.80",
+      "timestamp": "2026-10-06T09:45:00+00:00",
+      "volume": "1725.593"
+    },
+    {
+      "close": "86120.30",
+      "high": "86129.30",
+      "low": "85907.30",
+      "open": "85949.30",
+      "timestamp": "2026-10-06T10:00:00+00:00",
+      "volume": "928.184"
+    },
+    {
+      "close": "86092.90",
+      "high": "86120.40",
+      "low": "85979.00",
+      "open": "86120.30",
+      "timestamp": "2026-10-06T10:15:00+00:00",
+      "volume": "713.652"
+    },
+    {
+      "close": "86137.20",
+      "high": "86163.10",
+      "low": "85953.00",
+      "open": "86092.80",
+      "timestamp": "2026-10-06T10:30:00+00:00",
+      "volume": "668.528"
+    },
+    {
+      "close": "86119.70",
+      "high": "86217.90",
+      "low": "86079.90",
+      "open": "86137.10",
+      "timestamp": "2026-10-06T10:45:00+00:00",
+      "volume": "1011.334"
+    },
+    {
+      "close": "86138.80",
+      "high": "86170.00",
+      "low": "86024.20",
+      "open": "86119.80",
+      "timestamp": "2026-10-06T11:00:00+00:00",
+      "volume": "751.605"
+    },
+    {
+      "close": "86158.80",
+      "high": "86349.30",
+      "low": "86131.90",
+      "open": "86138.70",
+      "timestamp": "2026-10-06T11:15:00+00:00",
+      "volume": "2471.463"
+    },
+    {
+      "close": "86280.10",
+      "high": "86300.00",
+      "low": "86134.00",
+      "open": "86158.70",
+      "timestamp": "2026-10-06T11:30:00+00:00",
+      "volume": "807.235"
+    },
+    {
+      "close": "86211.00",
+      "high": "86327.80",
+      "low": "86184.70",
+      "open": "86280.00",
+      "timestamp": "2026-10-06T11:45:00+00:00",
+      "volume": "849.266"
+    },
+    {
+      "close": "86340.10",
+      "high": "86371.70",
+      "low": "86188.00",
+      "open": "86211.00",
+      "timestamp": "2026-10-06T12:00:00+00:00",
+      "volume": "1743.355"
+    },
+    {
+      "close": "86113.90",
+      "high": "86371.70",
+      "low": "86085.20",
+      "open": "86340.10",
+      "timestamp": "2026-10-06T12:15:00+00:00",
+      "volume": "1633.274"
+    },
+    {
+      "close": "86229.30",
+      "high": "86247.60",
+      "low": "86083.60",
+      "open": "86114.00",
+      "timestamp": "2026-10-06T12:30:00+00:00",
+      "volume": "841.060"
+    },
+    {
+      "close": "86175.80",
+      "high": "86290.80",
+      "low": "86110.50",
+      "open": "86229.40",
+      "timestamp": "2026-10-06T12:45:00+00:00",
+      "volume": "600.427"
+    },
+    {
+      "close": "86050.30",
+      "high": "86203.70",
+      "low": "86046.80",
+      "open": "86175.80",
+      "timestamp": "2026-10-06T13:00:00+00:00",
+      "volume": "1166.531"
+    },
+    {
+      "close": "85986.60",
+      "high": "86083.60",
+      "low": "85943.40",
+      "open": "86050.40",
+      "timestamp": "2026-10-06T13:15:00+00:00",
+      "volume": "1350.133"
+    },
+    {
+      "close": "86334.70",
+      "high": "86416.30",
+      "low": "85956.50",
+      "open": "85986.70",
+      "timestamp": "2026-10-06T13:30:00+00:00",
+      "volume": "3737.397"
+    },
+    {
+      "close": "86274.40",
+      "high": "86460.00",
+      "low": "86212.40",
+      "open": "86334.80",
+      "timestamp": "2026-10-06T13:45:00+00:00",
+      "volume": "2063.001"
+    },
+    {
+      "close": "86282.00",
+      "high": "86336.80",
+      "low": "86050.00",
+      "open": "86274.40",
+      "timestamp": "2026-10-06T14:00:00+00:00",
+      "volume": "1774.006"
+    },
+    {
+      "close": "85982.30",
+      "high": "86324.70",
+      "low": "85908.80",
+      "open": "86282.00",
+      "timestamp": "2026-10-06T14:15:00+00:00",
+      "volume": "2299.057"
+    },
+    {
+      "close": "86264.40",
+      "high": "86333.30",
+      "low": "85960.00",
+      "open": "85982.40",
+      "timestamp": "2026-10-06T14:30:00+00:00",
+      "volume": "1245.514"
+    },
+    {
+      "close": "86563.30",
+      "high": "86605.10",
+      "low": "86167.00",
+      "open": "86264.30",
+      "timestamp": "2026-10-06T14:45:00+00:00",
+      "volume": "3519.608"
+    },
+    {
+      "close": "86554.10",
+      "high": "86664.90",
+      "low": "86483.70",
+      "open": "86563.30",
+      "timestamp": "2026-10-06T15:00:00+00:00",
+      "volume": "2710.612"
+    },
+    {
+      "close": "86225.90",
+      "high": "86620.00",
+      "low": "86193.70",
+      "open": "86554.10",
+      "timestamp": "2026-10-06T15:15:00+00:00",
+      "volume": "2743.180"
+    },
+    {
+      "close": "86042.90",
+      "high": "86441.30",
+      "low": "86040.20",
+      "open": "86226.00",
+      "timestamp": "2026-10-06T15:30:00+00:00",
+      "volume": "3098.989"
+    },
+    {
+      "close": "85675.10",
+      "high": "86073.80",
+      "low": "85666.60",
+      "open": "86042.80",
+      "timestamp": "2026-10-06T15:45:00+00:00",
+      "volume": "3873.209"
+    },
+    {
+      "close": "85752.90",
+      "high": "85815.40",
+      "low": "85660.00",
+      "open": "85675.10",
+      "timestamp": "2026-10-06T16:00:00+00:00",
+      "volume": "3223.173"
+    },
+    {
+      "close": "85676.50",
+      "high": "85759.90",
+      "low": "85600.00",
+      "open": "85753.00",
+      "timestamp": "2026-10-06T16:15:00+00:00",
+      "volume": "1953.114"
+    },
+    {
+      "close": "85671.00",
+      "high": "85733.20",
+      "low": "85500.10",
+      "open": "85676.50",
+      "timestamp": "2026-10-06T16:30:00+00:00",
+      "volume": "2193.175"
+    },
+    {
+      "close": "85537.20",
+      "high": "85707.80",
+      "low": "85537.10",
+      "open": "85671.00",
+      "timestamp": "2026-10-06T16:45:00+00:00",
+      "volume": "1009.165"
+    },
+    {
+      "close": "85497.50",
+      "high": "85608.20",
+      "low": "85455.20",
+      "open": "85537.20",
+      "timestamp": "2026-10-06T17:00:00+00:00",
+      "volume": "1612.887"
+    },
+    {
+      "close": "85579.60",
+      "high": "85613.00",
+      "low": "85422.50",
+      "open": "85497.60",
+      "timestamp": "2026-10-06T17:15:00+00:00",
+      "volume": "1283.293"
+    },
+    {
+      "close": "85553.70",
+      "high": "85594.70",
+      "low": "85467.50",
+      "open": "85579.50",
+      "timestamp": "2026-10-06T17:30:00+00:00",
+      "volume": "1301.802"
+    },
+    {
+      "close": "85675.10",
+      "high": "85709.60",
+      "low": "85494.00",
+      "open": "85553.70",
+      "timestamp": "2026-10-06T17:45:00+00:00",
+      "volume": "1175.236"
+    },
+    {
+      "close": "85730.10",
+      "high": "85778.50",
+      "low": "85675.10",
+      "open": "85675.10",
+      "timestamp": "2026-10-06T18:00:00+00:00",
+      "volume": "1240.300"
+    },
+    {
+      "close": "85678.10",
+      "high": "85752.30",
+      "low": "85591.20",
+      "open": "85730.00",
+      "timestamp": "2026-10-06T18:15:00+00:00",
+      "volume": "726.553"
+    },
+    {
+      "close": "85583.10",
+      "high": "85678.10",
+      "low": "85502.20",
+      "open": "85678.10",
+      "timestamp": "2026-10-06T18:30:00+00:00",
+      "volume": "689.907"
+    },
+    {
+      "close": "85465.70",
+      "high": "85583.10",
+      "low": "85452.00",
+      "open": "85583.10",
+      "timestamp": "2026-10-06T18:45:00+00:00",
+      "volume": "725.157"
+    },
+    {
+      "close": "85448.80",
+      "high": "85514.90",
+      "low": "85369.00",
+      "open": "85465.80",
+      "timestamp": "2026-10-06T19:00:00+00:00",
+      "volume": "1254.091"
+    },
+    {
+      "close": "85450.60",
+      "high": "85496.40",
+      "low": "85392.50",
+      "open": "85448.80",
+      "timestamp": "2026-10-06T19:15:00+00:00",
+      "volume": "600.501"
+    },
+    {
+      "close": "85450.80",
+      "high": "85562.10",
+      "low": "85450.60",
+      "open": "85450.70",
+      "timestamp": "2026-10-06T19:30:00+00:00",
+      "volume": "544.401"
+    },
+    {
+      "close": "85569.00",
+      "high": "85643.90",
+      "low": "85450.60",
+      "open": "85450.90",
+      "timestamp": "2026-10-06T19:45:00+00:00",
+      "volume": "629.667"
+    },
+    {
+      "close": "85590.90",
+      "high": "85593.90",
+      "low": "85536.30",
+      "open": "85569.10",
+      "timestamp": "2026-10-06T20:00:00+00:00",
+      "volume": "369.387"
+    },
+    {
+      "close": "85569.80",
+      "high": "85639.10",
+      "low": "85551.40",
+      "open": "85590.90",
+      "timestamp": "2026-10-06T20:15:00+00:00",
+      "volume": "734.576"
+    },
+    {
+      "close": "85587.20",
+      "high": "85626.00",
+      "low": "85566.20",
+      "open": "85569.80",
+      "timestamp": "2026-10-06T20:30:00+00:00",
+      "volume": "253.525"
+    },
+    {
+      "close": "85575.80",
+      "high": "85643.20",
+      "low": "85562.30",
+      "open": "85587.30",
+      "timestamp": "2026-10-06T20:45:00+00:00",
+      "volume": "360.451"
+    },
+    {
+      "close": "85528.20",
+      "high": "85586.80",
+      "low": "85477.00",
+      "open": "85575.80",
+      "timestamp": "2026-10-06T21:00:00+00:00",
+      "volume": "300.273"
+    },
+    {
+      "close": "85535.50",
+      "high": "85536.50",
+      "low": "85450.10",
+      "open": "85528.10",
+      "timestamp": "2026-10-06T21:15:00+00:00",
+      "volume": "241.113"
+    },
+    {
+      "close": "85540.30",
+      "high": "85582.30",
+      "low": "85531.20",
+      "open": "85535.50",
+      "timestamp": "2026-10-06T21:30:00+00:00",
+      "volume": "253.129"
+    },
+    {
+      "close": "85571.10",
+      "high": "85575.10",
+      "low": "85500.00",
+      "open": "85540.40",
+      "timestamp": "2026-10-06T21:45:00+00:00",
+      "volume": "359.407"
+    },
+    {
+      "close": "85534.20",
+      "high": "85619.60",
+      "low": "85534.10",
+      "open": "85571.10",
+      "timestamp": "2026-10-06T22:00:00+00:00",
+      "volume": "343.594"
+    },
+    {
+      "close": "85441.70",
+      "high": "85580.90",
+      "low": "85439.50",
+      "open": "85534.20",
+      "timestamp": "2026-10-06T22:15:00+00:00",
+      "volume": "408.032"
+    },
+    {
+      "close": "85517.00",
+      "high": "85517.10",
+      "low": "85427.50",
+      "open": "85441.70",
+      "timestamp": "2026-10-06T22:30:00+00:00",
+      "volume": "268.918"
+    },
+    {
+      "close": "85490.10",
+      "high": "85546.10",
+      "low": "85490.10",
+      "open": "85517.10",
+      "timestamp": "2026-10-06T22:45:00+00:00",
+      "volume": "173.894"
+    },
+    {
+      "close": "85456.10",
+      "high": "85513.40",
+      "low": "85448.80",
+      "open": "85490.10",
+      "timestamp": "2026-10-06T23:00:00+00:00",
+      "volume": "313.437"
+    },
+    {
+      "close": "85456.70",
+      "high": "85493.20",
+      "low": "85403.00",
+      "open": "85456.00",
+      "timestamp": "2026-10-06T23:15:00+00:00",
+      "volume": "403.193"
+    },
+    {
+      "close": "85535.10",
+      "high": "85538.80",
+      "low": "85267.20",
+      "open": "85456.70",
+      "timestamp": "2026-10-06T23:30:00+00:00",
+      "volume": "2071.442"
+    },
+    {
+      "close": "85507.50",
+      "high": "85585.00",
+      "low": "85505.50",
+      "open": "85535.10",
+      "timestamp": "2026-10-06T23:45:00+00:00",
+      "volume": "461.111"
+    }
+  ],
+  "dataset_sha256": "ea4cca07676c5bf271c2583fc5505d4692c08c6a82ab33eb1acb612bf1b55faa",
+  "derivatives": [
+    {
+      "metric": "FUNDING_RATE",
+      "points": [
+        {
+          "attributes": {},
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/fundingRate",
+          "timestamp": "2026-10-06T00:00:00.003000+00:00",
+          "value": "-0.00002485"
+        },
+        {
+          "attributes": {},
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/fundingRate",
+          "timestamp": "2026-10-06T08:00:00.001000+00:00",
+          "value": "-0.00001592"
+        },
+        {
+          "attributes": {},
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/fundingRate",
+          "timestamp": "2026-10-06T16:00:00+00:00",
+          "value": "0.00002245"
+        }
+      ]
+    },
+    {
+      "metric": "MARK_PRICE",
+      "points": [
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85851.63715942",
+            "mark_low": "85718.55362319",
+            "mark_open": "85718.55362319",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T00:00:00+00:00",
+          "value": "85791.67840580"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85930.00000000",
+            "mark_low": "85782.29721889",
+            "mark_open": "85788.37260145",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T00:15:00+00:00",
+          "value": "85784.59386957"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85855.12339855",
+            "mark_low": "85733.87217391",
+            "mark_open": "85784.59452174",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T00:30:00+00:00",
+          "value": "85758.30000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85870.60000000",
+            "mark_low": "85731.20000000",
+            "mark_open": "85758.40000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T00:45:00+00:00",
+          "value": "85870.60000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86094.30000000",
+            "mark_low": "85870.60000000",
+            "mark_open": "85870.60000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T01:00:00+00:00",
+          "value": "86031.02584783"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86031.03889130",
+            "mark_low": "85821.08824638",
+            "mark_open": "86031.03889130",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T01:15:00+00:00",
+          "value": "85937.10000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85941.90000000",
+            "mark_low": "85615.55834783",
+            "mark_open": "85937.10000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T01:30:00+00:00",
+          "value": "85627.99658921"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85698.70000000",
+            "mark_low": "85562.89371739",
+            "mark_open": "85627.99658921",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T01:45:00+00:00",
+          "value": "85581.62314493"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85626.50000000",
+            "mark_low": "85423.00000000",
+            "mark_open": "85626.50000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T02:00:00+00:00",
+          "value": "85423.00000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85719.90000000",
+            "mark_low": "85414.89907796",
+            "mark_open": "85423.00000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T02:15:00+00:00",
+          "value": "85594.90000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85656.00000000",
+            "mark_low": "85455.07262319",
+            "mark_open": "85595.00000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T02:30:00+00:00",
+          "value": "85554.11253623"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85554.11253623",
+            "mark_low": "85468.60000000",
+            "mark_open": "85554.11253623",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T02:45:00+00:00",
+          "value": "85493.82188406"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85553.70000000",
+            "mark_low": "85474.80000000",
+            "mark_open": "85493.46166667",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T03:00:00+00:00",
+          "value": "85485.60000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85568.00000000",
+            "mark_low": "85431.74824638",
+            "mark_open": "85485.60000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T03:15:00+00:00",
+          "value": "85431.74824638"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85462.38939130",
+            "mark_low": "85285.40000000",
+            "mark_open": "85431.26672464",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T03:30:00+00:00",
+          "value": "85445.25679710"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85544.90000000",
+            "mark_low": "85423.23891304",
+            "mark_open": "85445.05462319",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T03:45:00+00:00",
+          "value": "85460.11331884"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85593.80000000",
+            "mark_low": "85474.90000000",
+            "mark_open": "85474.90000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T04:00:00+00:00",
+          "value": "85587.48109445"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85599.90364493",
+            "mark_low": "85546.49485757",
+            "mark_open": "85587.50000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T04:15:00+00:00",
+          "value": "85550.56345652"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85596.08848551",
+            "mark_low": "85518.93017391",
+            "mark_open": "85550.34628261",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T04:30:00+00:00",
+          "value": "85552.84209420"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85589.60000000",
+            "mark_low": "85530.00000000",
+            "mark_open": "85552.84209420",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T04:45:00+00:00",
+          "value": "85585.25229385"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85720.80000000",
+            "mark_low": "85540.02109420",
+            "mark_open": "85585.25164168",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T05:00:00+00:00",
+          "value": "85663.00000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85680.03261594",
+            "mark_low": "85601.98320290",
+            "mark_open": "85662.90000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T05:15:00+00:00",
+          "value": "85644.11776812"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85665.00000000",
+            "mark_low": "85544.50000000",
+            "mark_open": "85644.00000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T05:30:00+00:00",
+          "value": "85550.28418841"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85550.28418841",
+            "mark_low": "85474.40000000",
+            "mark_open": "85550.28418841",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T05:45:00+00:00",
+          "value": "85478.30000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85478.40000000",
+            "mark_low": "85100.80209420",
+            "mark_open": "85478.30000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T06:00:00+00:00",
+          "value": "85111.90000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85249.84071739",
+            "mark_low": "85090.49818116",
+            "mark_open": "85112.00000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T06:15:00+00:00",
+          "value": "85216.80000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85315.60000000",
+            "mark_low": "85210.00000000",
+            "mark_open": "85216.80000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T06:30:00+00:00",
+          "value": "85299.70000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85338.70000000",
+            "mark_low": "85268.84857571",
+            "mark_open": "85299.70000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T06:45:00+00:00",
+          "value": "85268.84857571"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85331.50000000",
+            "mark_low": "85231.40000000",
+            "mark_open": "85268.85509745",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T07:00:00+00:00",
+          "value": "85331.50000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85370.28213768",
+            "mark_low": "85246.40000000",
+            "mark_open": "85331.50000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T07:15:00+00:00",
+          "value": "85259.62300000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85465.49549475",
+            "mark_low": "85253.00000000",
+            "mark_open": "85257.26430435",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T07:30:00+00:00",
+          "value": "85465.49549475"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85585.30000000",
+            "mark_low": "85466.17531884",
+            "mark_open": "85466.17531884",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T07:45:00+00:00",
+          "value": "85515.34853623"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85972.96997101",
+            "mark_low": "85511.15985757",
+            "mark_open": "85515.33114493",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T08:00:00+00:00",
+          "value": "85748.98883333"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85888.33654348",
+            "mark_low": "85715.31966667",
+            "mark_open": "85748.70013768",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T08:15:00+00:00",
+          "value": "85841.00000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85917.20000000",
+            "mark_low": "85758.09212319",
+            "mark_open": "85841.00000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T08:30:00+00:00",
+          "value": "85915.72689655"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86010.00000000",
+            "mark_low": "85876.90000000",
+            "mark_open": "85916.59754873",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T08:45:00+00:00",
+          "value": "85976.46404348"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86020.17245652",
+            "mark_low": "85833.30000000",
+            "mark_open": "85976.80317391",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T09:00:00+00:00",
+          "value": "85888.00000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86086.94981159",
+            "mark_low": "85640.00616667",
+            "mark_open": "85888.00000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T09:15:00+00:00",
+          "value": "85742.80000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85929.13570290",
+            "mark_low": "85716.10270290",
+            "mark_open": "85744.60000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T09:30:00+00:00",
+          "value": "85863.71646377"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86185.63965942",
+            "mark_low": "85830.90000000",
+            "mark_open": "85863.80000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T09:45:00+00:00",
+          "value": "85949.20000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86124.30000000",
+            "mark_low": "85911.30000000",
+            "mark_open": "85949.30000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T10:00:00+00:00",
+          "value": "86123.08375362"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86123.04027536",
+            "mark_low": "85979.40000000",
+            "mark_open": "86123.04027536",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T10:15:00+00:00",
+          "value": "86092.80000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86163.10000000",
+            "mark_low": "85959.48304348",
+            "mark_open": "86092.90000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T10:30:00+00:00",
+          "value": "86155.49755072"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86217.90000000",
+            "mark_low": "86079.90000000",
+            "mark_open": "86154.20607246",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T10:45:00+00:00",
+          "value": "86109.90000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86175.11096377",
+            "mark_low": "86031.58924638",
+            "mark_open": "86119.70000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T11:00:00+00:00",
+          "value": "86159.31233883"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86336.00000000",
+            "mark_low": "86132.58527536",
+            "mark_open": "86152.81648551",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T11:15:00+00:00",
+          "value": "86158.75439855"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86306.12895652",
+            "mark_low": "86135.00000000",
+            "mark_open": "86158.70000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T11:30:00+00:00",
+          "value": "86281.94936232"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86327.80000000",
+            "mark_low": "86200.00000000",
+            "mark_open": "86281.79284058",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T11:45:00+00:00",
+          "value": "86210.90000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86371.70000000",
+            "mark_low": "86195.32116667",
+            "mark_open": "86211.00000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T12:00:00+00:00",
+          "value": "86345.65150000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86371.70000000",
+            "mark_low": "86099.21540580",
+            "mark_open": "86345.65084783",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T12:15:00+00:00",
+          "value": "86114.00000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86247.62279610",
+            "mark_low": "86088.90000000",
+            "mark_open": "86113.90000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T12:30:00+00:00",
+          "value": "86229.30000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86290.80000000",
+            "mark_low": "86111.75259420",
+            "mark_open": "86229.52368841",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T12:45:00+00:00",
+          "value": "86179.72255797"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86203.70000000",
+            "mark_low": "86047.30382609",
+            "mark_open": "86178.88842754",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T13:00:00+00:00",
+          "value": "86052.50252174"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86083.50000000",
+            "mark_low": "85948.04302849",
+            "mark_open": "86052.56121739",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T13:15:00+00:00",
+          "value": "85983.54284783"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86409.79356522",
+            "mark_low": "85961.38581884",
+            "mark_open": "85986.60000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T13:30:00+00:00",
+          "value": "86334.70000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86452.30000000",
+            "mark_low": "86222.40000000",
+            "mark_open": "86334.80000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T13:45:00+00:00",
+          "value": "86276.19630435"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86336.80000000",
+            "mark_low": "86053.88378261",
+            "mark_open": "86276.19630435",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T14:00:00+00:00",
+          "value": "86280.00000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86317.00000000",
+            "mark_low": "85915.46363568",
+            "mark_open": "86287.30000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T14:15:00+00:00",
+          "value": "85989.32109445"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86333.30000000",
+            "mark_low": "85964.93868816",
+            "mark_open": "85986.62174663",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T14:30:00+00:00",
+          "value": "86274.38918116"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86603.26571622",
+            "mark_low": "86172.50000000",
+            "mark_open": "86272.48918116",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T14:45:00+00:00",
+          "value": "86586.43576087"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86664.90000000",
+            "mark_low": "86494.80000000",
+            "mark_open": "86584.82847826",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T15:00:00+00:00",
+          "value": "86555.83307971"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86620.68266667",
+            "mark_low": "86196.23230435",
+            "mark_open": "86555.82155797",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T15:15:00+00:00",
+          "value": "86226.54356522"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86445.78151449",
+            "mark_low": "86047.90000000",
+            "mark_open": "86227.64465217",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T15:30:00+00:00",
+          "value": "86051.30000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "86074.24902899",
+            "mark_low": "85675.10000000",
+            "mark_open": "86050.43877536",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T15:45:00+00:00",
+          "value": "85692.10000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85812.80000000",
+            "mark_low": "85668.29423913",
+            "mark_open": "85684.40721014",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T16:00:00+00:00",
+          "value": "85753.00000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85759.90000000",
+            "mark_low": "85606.50274638",
+            "mark_open": "85752.90000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T16:15:00+00:00",
+          "value": "85676.40000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85727.20000000",
+            "mark_low": "85524.35043478",
+            "mark_open": "85676.40000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T16:30:00+00:00",
+          "value": "85681.94188906"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85701.00000000",
+            "mark_low": "85537.10000000",
+            "mark_open": "85680.25167166",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T16:45:00+00:00",
+          "value": "85537.10000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85608.20000000",
+            "mark_low": "85461.12413768",
+            "mark_open": "85537.20000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T17:00:00+00:00",
+          "value": "85497.60000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85613.83341304",
+            "mark_low": "85439.30598201",
+            "mark_open": "85497.60000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T17:15:00+00:00",
+          "value": "85585.04133333"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85592.23694203",
+            "mark_low": "85469.30000000",
+            "mark_open": "85584.92611594",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T17:30:00+00:00",
+          "value": "85556.13835507"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85705.20000000",
+            "mark_low": "85495.65992029",
+            "mark_open": "85556.13835507",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T17:45:00+00:00",
+          "value": "85673.36444203"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85778.50000000",
+            "mark_low": "85675.10000000",
+            "mark_open": "85675.10000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T18:00:00+00:00",
+          "value": "85735.40760145"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85752.30000000",
+            "mark_low": "85602.47586232",
+            "mark_open": "85735.39021014",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T18:15:00+00:00",
+          "value": "85679.50000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85683.38759420",
+            "mark_low": "85504.31504348",
+            "mark_open": "85683.38759420",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T18:30:00+00:00",
+          "value": "85585.76602899"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85583.65078711",
+            "mark_low": "85459.90000000",
+            "mark_open": "85583.59317841",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T18:45:00+00:00",
+          "value": "85465.80000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85514.95908696",
+            "mark_low": "85372.29500000",
+            "mark_open": "85465.70000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T19:00:00+00:00",
+          "value": "85453.99716667"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85496.40000000",
+            "mark_low": "85392.50000000",
+            "mark_open": "85452.98998551",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T19:15:00+00:00",
+          "value": "85450.92713043"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85557.30000000",
+            "mark_low": "85451.00928986",
+            "mark_open": "85451.01298551",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T19:30:00+00:00",
+          "value": "85452.11018841"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85643.60000000",
+            "mark_low": "85450.60000000",
+            "mark_open": "85451.10147101",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T19:45:00+00:00",
+          "value": "85587.53505072"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85593.90000000",
+            "mark_low": "85536.30000000",
+            "mark_open": "85584.98287681",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T20:00:00+00:00",
+          "value": "85590.80000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85630.50000000",
+            "mark_low": "85557.36995652",
+            "mark_open": "85590.90000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T20:15:00+00:00",
+          "value": "85569.70000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85626.00000000",
+            "mark_low": "85566.21331884",
+            "mark_open": "85569.80000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T20:30:00+00:00",
+          "value": "85587.30000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85625.10000000",
+            "mark_low": "85562.40000000",
+            "mark_open": "85587.20000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T20:45:00+00:00",
+          "value": "85575.97200725"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85589.36847101",
+            "mark_low": "85477.00000000",
+            "mark_open": "85575.97200725",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T21:00:00+00:00",
+          "value": "85528.10000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85536.50000000",
+            "mark_low": "85450.30000000",
+            "mark_open": "85528.10000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T21:15:00+00:00",
+          "value": "85535.50000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85587.66380435",
+            "mark_low": "85535.40000000",
+            "mark_open": "85535.50000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T21:30:00+00:00",
+          "value": "85540.40000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85576.39546477",
+            "mark_low": "85503.03713643",
+            "mark_open": "85540.40000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T21:45:00+00:00",
+          "value": "85571.10000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85619.60000000",
+            "mark_low": "85534.10000000",
+            "mark_open": "85571.10000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T22:00:00+00:00",
+          "value": "85534.20000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85580.90000000",
+            "mark_low": "85442.36747826",
+            "mark_open": "85534.18376812",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T22:15:00+00:00",
+          "value": "85442.36747826"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85517.00000000",
+            "mark_low": "85435.47954348",
+            "mark_open": "85442.36747826",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T22:30:00+00:00",
+          "value": "85517.00000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85546.10000000",
+            "mark_low": "85490.10000000",
+            "mark_open": "85517.00000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T22:45:00+00:00",
+          "value": "85490.20000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85513.40000000",
+            "mark_low": "85451.24761594",
+            "mark_open": "85490.20000000",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T23:00:00+00:00",
+          "value": "85456.52740580"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85495.55407971",
+            "mark_low": "85403.76920290",
+            "mark_open": "85456.36146377",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T23:15:00+00:00",
+          "value": "85459.66460145"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85541.03044928",
+            "mark_low": "85316.85065217",
+            "mark_open": "85459.66025362",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T23:30:00+00:00",
+          "value": "85537.41290580"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "mark_high": "85583.28164168",
+            "mark_low": "85517.00000000",
+            "mark_open": "85537.70964493",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/fapi/v1/markPriceKlines",
+          "timestamp": "2026-10-06T23:45:00+00:00",
+          "value": "85517.10000000"
+        }
+      ]
+    },
+    {
+      "metric": "OPEN_INTEREST",
+      "points": [
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T00:00:00+00:00",
+          "value": "94297.17300000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T00:15:00+00:00",
+          "value": "94344.18800000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T00:30:00+00:00",
+          "value": "94323.09100000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T00:45:00+00:00",
+          "value": "94354.28200000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T01:00:00+00:00",
+          "value": "94439.33600000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T01:15:00+00:00",
+          "value": "94489.46800000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T01:30:00+00:00",
+          "value": "94508.30000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T01:45:00+00:00",
+          "value": "94559.74400000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T02:00:00+00:00",
+          "value": "94535.02700000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T02:15:00+00:00",
+          "value": "94543.79800000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T02:30:00+00:00",
+          "value": "94507.81000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T02:45:00+00:00",
+          "value": "94554.18800000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T03:00:00+00:00",
+          "value": "94562.09700000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T03:15:00+00:00",
+          "value": "94583.44500000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T03:30:00+00:00",
+          "value": "94575.88300000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T03:45:00+00:00",
+          "value": "94870.64600000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T04:00:00+00:00",
+          "value": "94812.79900000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T04:15:00+00:00",
+          "value": "94755.90300000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T04:30:00+00:00",
+          "value": "94737.92700000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T04:45:00+00:00",
+          "value": "94549.23600000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T05:00:00+00:00",
+          "value": "94576.34200000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T05:15:00+00:00",
+          "value": "94470.14200000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T05:30:00+00:00",
+          "value": "94454.19800000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T05:45:00+00:00",
+          "value": "94495.46500000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T06:00:00+00:00",
+          "value": "94597.90600000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T06:15:00+00:00",
+          "value": "95162.73200000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T06:30:00+00:00",
+          "value": "95349.40300000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T06:45:00+00:00",
+          "value": "95361.64700000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T07:00:00+00:00",
+          "value": "95263.40700000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T07:15:00+00:00",
+          "value": "95239.46100000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T07:30:00+00:00",
+          "value": "95321.11500000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T07:45:00+00:00",
+          "value": "95217.53900000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T08:00:00+00:00",
+          "value": "95053.73400000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T08:15:00+00:00",
+          "value": "94417.98200000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T08:30:00+00:00",
+          "value": "94430.31300000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T08:45:00+00:00",
+          "value": "94515.28900000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T09:00:00+00:00",
+          "value": "94465.73000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T09:15:00+00:00",
+          "value": "94528.65100000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T09:30:00+00:00",
+          "value": "94493.17400000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T09:45:00+00:00",
+          "value": "94495.34300000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T10:00:00+00:00",
+          "value": "94347.52500000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T10:15:00+00:00",
+          "value": "94425.51200000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T10:30:00+00:00",
+          "value": "94547.73400000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T10:45:00+00:00",
+          "value": "94609.72900000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T11:00:00+00:00",
+          "value": "94731.04600000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T11:15:00+00:00",
+          "value": "94960.07800000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T11:30:00+00:00",
+          "value": "94580.29900000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T11:45:00+00:00",
+          "value": "94713.01600000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T12:00:00+00:00",
+          "value": "94734.01600000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T12:15:00+00:00",
+          "value": "94455.90900000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T12:30:00+00:00",
+          "value": "94280.86200000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T12:45:00+00:00",
+          "value": "94357.90900000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T13:00:00+00:00",
+          "value": "94385.34500000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T13:15:00+00:00",
+          "value": "94329.49200000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T13:30:00+00:00",
+          "value": "94310.02000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T13:45:00+00:00",
+          "value": "94544.96300000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T14:00:00+00:00",
+          "value": "94673.59000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T14:15:00+00:00",
+          "value": "94577.61500000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T14:30:00+00:00",
+          "value": "94598.31700000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T14:45:00+00:00",
+          "value": "94643.57500000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T15:00:00+00:00",
+          "value": "94907.69000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T15:15:00+00:00",
+          "value": "95271.69600000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T15:30:00+00:00",
+          "value": "95122.98400000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T15:45:00+00:00",
+          "value": "95284.83000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T16:00:00+00:00",
+          "value": "95534.33800000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T16:15:00+00:00",
+          "value": "95574.95600000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T16:30:00+00:00",
+          "value": "95749.16200000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T16:45:00+00:00",
+          "value": "96186.06300000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T17:00:00+00:00",
+          "value": "96094.23500000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T17:15:00+00:00",
+          "value": "96022.48900000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T17:30:00+00:00",
+          "value": "95907.83400000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T17:45:00+00:00",
+          "value": "96144.93200000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T18:00:00+00:00",
+          "value": "96257.54500000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T18:15:00+00:00",
+          "value": "95993.33200000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T18:30:00+00:00",
+          "value": "95846.17900000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T18:45:00+00:00",
+          "value": "95803.19800000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T19:00:00+00:00",
+          "value": "95665.06600000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T19:15:00+00:00",
+          "value": "95538.82700000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T19:30:00+00:00",
+          "value": "95608.87200000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T19:45:00+00:00",
+          "value": "95571.22300000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T20:00:00+00:00",
+          "value": "95540.04100000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T20:15:00+00:00",
+          "value": "95522.02200000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T20:30:00+00:00",
+          "value": "95602.18900000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T20:45:00+00:00",
+          "value": "95519.58100000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T21:00:00+00:00",
+          "value": "95438.04500000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T21:15:00+00:00",
+          "value": "95416.37700000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T21:30:00+00:00",
+          "value": "95380.65200000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T21:45:00+00:00",
+          "value": "95348.58500000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T22:00:00+00:00",
+          "value": "95309.64300000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T22:15:00+00:00",
+          "value": "95342.24900000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T22:30:00+00:00",
+          "value": "95351.53400000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T22:45:00+00:00",
+          "value": "95352.00500000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T23:00:00+00:00",
+          "value": "95372.10600000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T23:15:00+00:00",
+          "value": "95386.43900000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T23:30:00+00:00",
+          "value": "95383.74200000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T23:45:00+00:00",
+          "value": "95717.95200000"
+        }
+      ]
+    },
+    {
+      "metric": "OPEN_INTEREST_VALUE",
+      "points": [
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T00:00:00+00:00",
+          "value": "8083009900.53692600"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T00:15:00+00:00",
+          "value": "8093946236.35233600"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T00:30:00+00:00",
+          "value": "8091468053.95749300"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T00:45:00+00:00",
+          "value": "8091662822.04060000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T01:00:00+00:00",
+          "value": "8109562445.92160000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T01:15:00+00:00",
+          "value": "8129025863.85570500"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T01:30:00+00:00",
+          "value": "8121769227.93000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T01:45:00+00:00",
+          "value": "8096961436.70857050"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T02:00:00+00:00",
+          "value": "8090461054.70978300"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T02:15:00+00:00",
+          "value": "8076214856.55400000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T02:30:00+00:00",
+          "value": "8089386546.16900000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T02:45:00+00:00",
+          "value": "8089499640.92384800"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T03:00:00+00:00",
+          "value": "8084475077.90120400"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T03:15:00+00:00",
+          "value": "8085522545.89200000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T03:30:00+00:00",
+          "value": "8079783026.63509000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T03:45:00+00:00",
+          "value": "8106246709.97676800"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T04:00:00+00:00",
+          "value": "8102712546.61640000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T04:15:00+00:00",
+          "value": "8109919056.60003800"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T04:30:00+00:00",
+          "value": "8104883035.55265900"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T04:45:00+00:00",
+          "value": "8088955857.63525000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T05:00:00+00:00",
+          "value": "8094340091.09944250"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T05:15:00+00:00",
+          "value": "8092595774.14600000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T05:30:00+00:00",
+          "value": "8089446457.20532400"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T05:45:00+00:00",
+          "value": "8084113885.26595000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T06:00:00+00:00",
+          "value": "8086068188.43980000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T06:15:00+00:00",
+          "value": "8099480929.71080000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T06:30:00+00:00",
+          "value": "8125371005.57040000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T06:45:00+00:00",
+          "value": "8134319880.60590000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T07:00:00+00:00",
+          "value": "8123001026.28923200"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T07:15:00+00:00",
+          "value": "8126926066.32150000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T07:30:00+00:00",
+          "value": "8127042328.83964500"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T07:45:00+00:00",
+          "value": "8137814150.42568200"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T08:00:00+00:00",
+          "value": "8128553192.68009600"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T08:15:00+00:00",
+          "value": "8096246484.18355300"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T08:30:00+00:00",
+          "value": "8105992498.23300000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T08:45:00+00:00",
+          "value": "8120349757.27249600"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T09:00:00+00:00",
+          "value": "8121829438.68608950"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T09:15:00+00:00",
+          "value": "8118876777.08800000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T09:30:00+00:00",
+          "value": "8102109319.64720000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T09:45:00+00:00",
+          "value": "8113721338.49869300"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T10:00:00+00:00",
+          "value": "8109094295.73000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T10:15:00+00:00",
+          "value": "8132216278.45445100"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T10:30:00+00:00",
+          "value": "8139879153.71520000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T10:45:00+00:00",
+          "value": "8151148275.13378300"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T11:00:00+00:00",
+          "value": "8157280897.95540000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T11:15:00+00:00",
+          "value": "8181695020.12165900"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T11:30:00+00:00",
+          "value": "8148920752.48242400"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T11:45:00+00:00",
+          "value": "8172023650.46460400"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T12:00:00+00:00",
+          "value": "8167104779.97440000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T12:15:00+00:00",
+          "value": "8155857000.62971300"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T12:30:00+00:00",
+          "value": "8118902150.26800000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T12:45:00+00:00",
+          "value": "8136416442.53370000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T13:00:00+00:00",
+          "value": "8134102845.63828100"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T13:15:00+00:00",
+          "value": "8117288848.20445300"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T13:30:00+00:00",
+          "value": "8109109645.64970400"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T13:45:00+00:00",
+          "value": "8162511017.11610000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T14:00:00+00:00",
+          "value": "8168077235.67754700"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T14:15:00+00:00",
+          "value": "8160156622.20000000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T14:30:00+00:00",
+          "value": "8134445055.50756800"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T14:45:00+00:00",
+          "value": "8165316623.04630500"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T15:00:00+00:00",
+          "value": "8217718603.39756400"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T15:15:00+00:00",
+          "value": "8246321016.19687500"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T15:30:00+00:00",
+          "value": "8202126123.92972500"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T15:45:00+00:00",
+          "value": "8199383491.77900000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T16:00:00+00:00",
+          "value": "8186538045.32980000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T16:15:00+00:00",
+          "value": "8195839201.86800000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T16:30:00+00:00",
+          "value": "8203443503.17680000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T16:45:00+00:00",
+          "value": "8241408660.50346400"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T17:00:00+00:00",
+          "value": "8219622188.61850000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T17:15:00+00:00",
+          "value": "8209692355.52640000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T17:30:00+00:00",
+          "value": "8208275937.08015250"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T17:45:00+00:00",
+          "value": "8225789104.33079700"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T18:00:00+00:00",
+          "value": "8246707733.08010300"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T18:15:00+00:00",
+          "value": "8230027446.04131300"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T18:30:00+00:00",
+          "value": "8212052693.63050000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T18:45:00+00:00",
+          "value": "8199390088.85700200"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T19:00:00+00:00",
+          "value": "8176091397.74280000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T19:15:00+00:00",
+          "value": "8164174651.76497600"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T19:30:00+00:00",
+          "value": "8169866754.29460900"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T19:45:00+00:00",
+          "value": "8166762678.63710400"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T20:00:00+00:00",
+          "value": "8177036607.83472600"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T20:15:00+00:00",
+          "value": "8175806280.59760000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T20:30:00+00:00",
+          "value": "8180650632.07330000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T20:45:00+00:00",
+          "value": "8175263034.92130000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T21:00:00+00:00",
+          "value": "8167203467.34666500"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T21:15:00+00:00",
+          "value": "8160781433.69370000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T21:30:00+00:00",
+          "value": "8158431759.14600000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T21:45:00+00:00",
+          "value": "8156156100.33400000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T22:00:00+00:00",
+          "value": "8155750992.11730000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T22:15:00+00:00",
+          "value": "8155022994.41580000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T22:30:00+00:00",
+          "value": "8147060807.64380300"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T22:45:00+00:00",
+          "value": "8154217411.58500000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T23:00:00+00:00",
+          "value": "8153380416.36120000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T23:15:00+00:00",
+          "value": "8151393838.54517000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T23:30:00+00:00",
+          "value": "8151462599.75124000"
+        },
+        {
+          "attributes": {
+            "alignment": "CLOSED_15M_EXACT_PUBLIC_REST",
+            "ohlcv_source_sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061"
+          },
+          "observed_at": "2026-10-08T18:35:22.298552+00:00",
+          "source_id": "BINANCE_USD_M_PUBLIC_REST",
+          "source_url": "https://fapi.binance.com/futures/data/openInterestHist",
+          "timestamp": "2026-10-06T23:45:00+00:00",
+          "value": "8187465982.72154500"
+        }
+      ]
+    }
+  ],
+  "execution_allowed": false,
+  "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+  "market": "USD_M_FUTURES",
+  "promotion_status": "RESEARCH_ONLY",
+  "schema_version": "1.0",
+  "source": "BINANCE_USD_M_PUBLIC_REST",
+  "symbol": "BTCUSDT",
+  "timeframe": "15m"
+}

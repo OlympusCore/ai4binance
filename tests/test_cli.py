@@ -39,6 +39,26 @@ from ai4binance.reporting import to_primitive
 from ai4binance.schemas import DataQuality, MarketSnapshot, OHLCVCandle
 
 
+@pytest.fixture(autouse=True)
+def isolated_cli_runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep CLI checks independent of credentials and the running collector.
+
+    Individual tests may still override these empty paths explicitly. Missing
+    observations remain unavailable; this fixture supplies no market records.
+    """
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
+    for name in tuple(os.environ):
+        if name.startswith("AI4BINANCE_"):
+            monkeypatch.delenv(name)
+    for name, field in Settings.model_fields.items():
+        default = field.default
+        if isinstance(default, Path) and default.parts[:1] == ("runtime",):
+            monkeypatch.setenv(
+                f"AI4BINANCE_{name.upper()}",
+                str(tmp_path.joinpath(*default.parts[1:])),
+            )
+
+
 def test_cli_module_preserves_package_shim_for_submodules() -> None:
     import ai4binance.cli as cli_module
 

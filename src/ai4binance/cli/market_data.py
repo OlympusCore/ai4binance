@@ -17,7 +17,9 @@ from ai4binance.application.opportunity_monitor import (
 )
 from ai4binance.compatibility.opportunity_monitor import screen_market_opportunities
 from ai4binance.config import Settings
+from ai4binance.data.acquisition import ArchivedMarketSnapshotAcquisition
 from ai4binance.data.archive import ParquetOHLCVArchive
+from ai4binance.data.coin_observations import build_coin_observations
 from ai4binance.data.legacy_1m_cleanup import LegacyOneMinuteCleanup
 from ai4binance.data.market_depth import MarketDepthCollector
 from ai4binance.data.market_history_continuous import (
@@ -38,6 +40,7 @@ from ai4binance.domain.opportunity_observation import (
 )
 from ai4binance.domain.universe import RESEARCH_MARKET_UNIVERSE_SOURCE
 from ai4binance.exchange.rate_limit import RateLimitBands, WeightedRateLimitGovernor
+from ai4binance.infrastructure.persistence.safe_json import write_json_object_verified
 from ai4binance.integrations.binance import (
     BinanceMarketUniverseProvider,
     ReadOnlyBinanceJsonTransport,
@@ -47,6 +50,8 @@ from ai4binance.integrations.research_market_universe import (
     ResearchMarketUniverseProvider,
 )
 from ai4binance.ops.runtime import SingleInstanceLease
+from ai4binance.schemas import DataQuality
+from ai4binance.wire_contracts import market_snapshot_to_wire
 
 _SAFE_STATE: dict[str, object] = {
     "execution_allowed": False,
@@ -656,6 +661,141 @@ def _absolute(path: Path) -> Path:
     return path if path.is_absolute() else Path.cwd() / path
 
 
+def run_archive_snapshot_command(
+    settings: Settings,
+    *,
+    cutoff: datetime,
+    symbol: str | None = None,
+    require_futures_enrichment: bool = False,
+) -> int:
+    """Publish research snapshots through the existing collector's archives."""
+    if cutoff.utcoffset() is None or cutoff > datetime.now(UTC):
+        raise ValueError("snapshot cutoff must be aware and cannot be in the future")
+    synchronizer = build_market_history_synchronizer(settings)
+    universe = synchronizer._eligible_universe(datetime.now(UTC))
+    if universe.blockers:
+        print(json.dumps({"status": "BLOCKED", "blockers": universe.blockers}))
+        return 2
+    selected = symbol.strip().upper() if symbol is not None else None
+    if selected is not None and selected not in (
+        *universe.spot_symbols,
+        *universe.futures_symbols,
+    ):
+        raise ValueError("snapshot symbol must belong to the canonical universe")
+    output_root = Path.cwd() / "runtime/artifacts/data/snapshots"
+    required_lengths = {
+        timeframe: settings.virtual_market_period_lengths[timeframe]
+        for timeframe in ("15m", "1h", "4h", "1d")
+    }
+    results: list[dict[str, object]] = []
+    for market, directory, symbols in (
+        ("SPOT", "spot", universe.spot_symbols),
+        ("USD_M_FUTURES", "usd_m_futures", universe.futures_symbols),
+    ):
+        acquisition = ArchivedMarketSnapshotAcquisition(
+            ParquetOHLCVArchive(synchronizer.archive_root / directory),
+            market,
+            history_limit=max(required_lengths.values()),
+            minimum_closed_candles=settings.minimum_closed_candles,
+            require_futures_enrichment=require_futures_enrichment,
+            local_candle_limits=required_lengths,
+        )
+        for instrument in symbols:
+            if selected is not None and instrument != selected:
+                continue
+            snapshot = acquisition.acquire(
+                instrument, ("15m", "1h", "4h", "1d"), cutoff=cutoff
+            )
+            digest = str(snapshot.market_metadata["semantic_sha256"])
+            path = output_root / f"{directory}-{instrument}-{digest}.json"
+            wire = market_snapshot_to_wire(snapshot)
+            evidence = {
+                "snapshot": wire,
+                "semantic_sha256": digest,
+                "source_lineage": {
+                    key: dict(value)
+                    for key, value in cast(
+                        Mapping[str, Mapping[str, object]],
+                        snapshot.market_metadata["source_lineage"],
+                    ).items()
+                },
+                "blocking_reasons": list(
+                    cast(Sequence[str], snapshot.market_metadata["blocking_reasons"])
+                ),
+                "publication_time_status": "NOT_VERIFIED",
+                "historical_live_availability_verified": False,
+                "requires_futures_enrichment": require_futures_enrichment,
+                "optional_enrichment": {
+                    name: {"status": "NOT_VERIFIED", "required": False}
+                    for name in (
+                        "open_interest",
+                        "settled_funding",
+                        "funding_configuration",
+                        "mark_price",
+                        "index_price",
+                        "premium_index",
+                        "long_short",
+                        "taker_statistics",
+                        "basis",
+                    )
+                },
+                **_SAFE_STATE,
+            }
+            write_json_object_verified(
+                path, evidence, blocker="ARCHIVE_SNAPSHOT_WRITE_FAILED", indent=2
+            )
+            results.append(
+                {
+                    "market": market,
+                    "symbol": instrument,
+                    "snapshot_id": snapshot.snapshot_id,
+                    "semantic_sha256": digest,
+                    "status": "READY"
+                    if snapshot.data_quality is DataQuality.DATA_VALID
+                    else "BLOCKED",
+                    "blocking_reasons": list(
+                        cast(
+                            Sequence[str], snapshot.market_metadata["blocking_reasons"]
+                        )
+                    ),
+                    "artifact_path": str(path),
+                }
+            )
+    coin_path = output_root / "coin-observations-latest.json"
+    coin_report = build_coin_observations(
+        synchronizer.archive_root,
+        Path.cwd() / "runtime/artifacts/data/futures-replay",
+        results,
+        cutoff,
+    )
+    write_json_object_verified(
+        coin_path, coin_report, blocker="COIN_OBSERVATIONS_WRITE_FAILED", indent=2
+    )
+    report = {
+        "command": "market-history-snapshot",
+        "cutoff": cutoff.astimezone(UTC).isoformat(),
+        "status": "READY"
+        if all(r["status"] == "READY" for r in results)
+        else "BLOCKED",
+        "scope": "PILOT" if selected is not None else "CANONICAL_UNIVERSE",
+        "universe_source": universe.source,
+        "results": results,
+        "required_futures_enrichment_verified": False,
+        "requires_futures_enrichment": require_futures_enrichment,
+        "coin_observations_path": str(coin_path),
+        "coin_observations_status": coin_report["status"],
+        **_SAFE_STATE,
+    }
+    write_json_object_verified(
+        output_root / "latest.json",
+        report,
+        blocker="ARCHIVE_SNAPSHOT_REPORT_WRITE_FAILED",
+        indent=2,
+    )
+    print(json.dumps(report, sort_keys=True))
+    return 0 if report["status"] == "READY" else 2
+
+
 def main(arguments: Sequence[str] | None = None) -> int:
     """Run the standalone, research-only market-history command surface."""
 
@@ -664,7 +804,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     )
     parser.add_argument(
         "command",
-        choices=("sync", "status", "daemon", "cleanup-1m", "rank-proposal"),
+        choices=("sync", "status", "daemon", "cleanup-1m", "rank-proposal", "snapshot"),
     )
     parser.add_argument(
         "--as-of",
@@ -673,11 +813,31 @@ def main(arguments: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--max-cycles", type=int, default=None)
     parser.add_argument(
+        "--cutoff", help="Explicit UTC decision cutoff for archived snapshots."
+    )
+    parser.add_argument(
+        "--symbol", help="Optional canonical instrument for a snapshot pilot."
+    )
+    parser.add_argument(
+        "--require-futures-enrichment",
+        action="store_true",
+        help="Fail closed when the consumer requires verified Futures enrichment.",
+    )
+    parser.add_argument(
         "--apply",
         action="store_true",
         help="Remove only legacy 1m files with verified native replacements.",
     )
     parsed = parser.parse_args(arguments)
+    if parsed.command == "snapshot":
+        if parsed.cutoff is None:
+            parser.error("snapshot requires --cutoff")
+        return run_archive_snapshot_command(
+            Settings(),
+            cutoff=datetime.fromisoformat(parsed.cutoff),
+            symbol=parsed.symbol,
+            require_futures_enrichment=parsed.require_futures_enrichment,
+        )
     command = {
         "sync": "market-history-sync",
         "status": "market-history-status",

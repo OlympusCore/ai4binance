@@ -8,6 +8,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from hashlib import sha256
+from itertools import pairwise
 from pathlib import Path
 from typing import cast
 
@@ -24,6 +25,180 @@ from ai4binance.schemas import (
     OHLCVCandle,
     is_spot_market_type,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class ArchivedMarketSnapshotAcquisition:
+    """Validate native archived candles at one explicit research cutoff.
+
+    Retrieval and mutable partition hashes are lineage, not semantic identity.
+    Candle closure does not establish historical source publication time.
+    """
+
+    archive: ParquetOHLCVArchive
+    market_type: str
+    history_limit: int = 250
+    minimum_closed_candles: int = 200
+    require_futures_enrichment: bool = False
+    local_candle_limits: Mapping[str, int] | None = None
+
+    def __post_init__(self) -> None:
+        if self.market_type not in {"SPOT", "USD_M_FUTURES"}:
+            raise ValueError("archived snapshots require an explicit supported market")
+        if not 1 <= self.minimum_closed_candles <= self.history_limit <= 10_000:
+            raise ValueError("archived snapshot candle bounds are invalid")
+        if self.local_candle_limits is not None:
+            for timeframe, limit in self.local_candle_limits.items():
+                timeframe_duration(timeframe)
+                if isinstance(limit, bool) or not (
+                    self.minimum_closed_candles <= limit <= self.history_limit
+                ):
+                    raise ValueError("archived per-timeframe candle limit is invalid")
+
+    def acquire(
+        self,
+        symbol: str,
+        timeframes: tuple[str, ...],
+        *,
+        cutoff: datetime,
+    ) -> MarketSnapshot:
+        """Keep missing, invalid, stale and post-cutoff data fail closed."""
+        if cutoff.utcoffset() is None:
+            raise ValueError("snapshot cutoff must be timezone-aware")
+        cutoff = cutoff.astimezone(UTC)
+        if not timeframes or len(set(timeframes)) != len(timeframes):
+            raise ValueError("timeframes must be non-empty and unique")
+        symbol = ParquetOHLCVArchive._validate_identity(symbol, timeframes[0], "read")
+        candles_by_timeframe: dict[str, tuple[OHLCVCandle, ...]] = {}
+        freshness: dict[str, object] = {}
+        lineage: dict[str, object] = {}
+        blockers: list[str] = (
+            ["FUTURES_ENRICHMENT_UNVERIFIED"] if self.require_futures_enrichment else []
+        )
+        semantic_rows: dict[str, object] = {}
+        for timeframe in timeframes:
+            duration = timeframe_duration(timeframe)
+            limit = (self.local_candle_limits or {}).get(timeframe, self.history_limit)
+            required = (self.local_candle_limits or {}).get(
+                timeframe, self.minimum_closed_candles
+            )
+            candles: tuple[OHLCVCandle, ...] = ()
+            reasons: list[str] = []
+            try:
+                manifest = self.archive.manifest(symbol, timeframe)
+                if not manifest.source.startswith(
+                    ("BINANCE_PUBLIC_REST_", "BINANCE_VISION_")
+                ):
+                    raise ValueError(
+                        "archive source is not verified Binance provenance"
+                    )
+                candles = self.archive.read_window(
+                    symbol,
+                    timeframe,
+                    start_at=cutoff - duration * (limit + 1),
+                    end_at=cutoff - duration,
+                )[-limit:]
+                # A concurrent canonical writer may replace a partition between
+                # reads. Do not bind new rows to an earlier partition checksum.
+                if self.archive.manifest(symbol, timeframe) != manifest:
+                    raise ValueError("archive changed during snapshot acquisition")
+                if any(
+                    following.timestamp - current.timestamp != duration
+                    for current, following in pairwise(candles)
+                ):
+                    reasons.append("DATASET_GAP")
+                lineage[timeframe] = {
+                    "source": manifest.source,
+                    "dataset_sha256": manifest.sha256,
+                    "dataset_row_count": manifest.row_count,
+                    "partition_generated_at": manifest.generated_at,
+                    "publication_time_status": "NOT_VERIFIED",
+                    "volume_unit": "BASE_ASSET",
+                }
+            except OSError, ValueError:
+                candles = ()
+                reasons.append("ARCHIVE_UNAVAILABLE_OR_INVALID")
+            if len(candles) < required:
+                reasons.append("INSUFFICIENT_CLOSED_CANDLES")
+            last_end = candles[-1].timestamp + duration if candles else None
+            age = (cutoff - last_end).total_seconds() if last_end else None
+            stale = age is None or age >= duration.total_seconds()
+            if stale:
+                reasons.append("STALE_OR_MISSING")
+            candles_by_timeframe[timeframe] = candles
+            freshness[timeframe] = {
+                "period_end_exclusive": last_end.isoformat() if last_end else None,
+                "last_open": candles[-1].timestamp.isoformat() if candles else None,
+                "age_seconds": age,
+                "stale": stale,
+                "closed_candle_count": len(candles),
+                "required": True,
+                "required_candle_count": required,
+                "blocking_reasons": reasons,
+            }
+            blockers.extend(f"{timeframe}:{reason}" for reason in reasons)
+            semantic_rows[timeframe] = [
+                [
+                    candle.timestamp.isoformat(),
+                    *(
+                        str(value)
+                        for value in (
+                            candle.open,
+                            candle.high,
+                            candle.low,
+                            candle.close,
+                            candle.volume,
+                        )
+                    ),
+                ]
+                for candle in candles
+            ]
+        semantic = {
+            "version": "1.0",
+            "market": self.market_type,
+            "symbol": symbol,
+            "cutoff": cutoff.isoformat(),
+            "history_limit": self.history_limit,
+            "minimum_closed_candles": self.minimum_closed_candles,
+            "local_candle_limits": dict(self.local_candle_limits or {}),
+            "candles": semantic_rows,
+            "blocking_reasons": blockers,
+        }
+        digest = sha256(
+            json.dumps(
+                semantic, sort_keys=True, separators=(",", ":"), allow_nan=False
+            ).encode("utf-8")
+        ).hexdigest()
+        event_timeframe = min(timeframes, key=timeframe_duration)
+        event_candles = candles_by_timeframe[event_timeframe]
+        return MarketSnapshot(
+            snapshot_id=f"binance:archive:{digest}",
+            created_at=cutoff,
+            exchange="Binance",
+            market_type=self.market_type,
+            symbol=symbol,
+            timeframes=timeframes,
+            ohlcv_by_timeframe=candles_by_timeframe,
+            latest_price=event_candles[-1].close if event_candles else None,
+            bid=None,
+            ask=None,
+            spread=None,
+            data_freshness=freshness,
+            data_quality=DataQuality.DATA_INVALID
+            if blockers
+            else DataQuality.DATA_VALID,
+            provenance_class=MarketDataProvenance.HISTORICAL_REAL,
+            market_metadata={
+                "semantic_sha256": digest,
+                "source_lineage": lineage,
+                "blocking_reasons": blockers,
+                "publication_time_status": "NOT_VERIFIED",
+                "historical_live_availability_verified": False,
+                "execution_allowed": False,
+                "promotion_status": "RESEARCH_ONLY",
+                "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+            },
+        )
 
 
 class LocalMarketSnapshotError(ExchangePayloadError):

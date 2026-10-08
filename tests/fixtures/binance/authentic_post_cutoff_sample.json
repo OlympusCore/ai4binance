@@ -1,0 +1,31 @@
+{
+  "market": "spot",
+  "timeframe": "15m",
+  "source": {
+    "kind": "ohlcv",
+    "key": "data/spot/daily/klines/BTCUSDT/15m/BTCUSDT-15m-2026-10-07.zip",
+    "sha256": "376a3e37e03531b844fdd23eb4adb33d933fa832f84b7242457288ea0b4cdbf6",
+    "byte_count": 5648,
+    "cache_hit": false,
+    "network_request_count": 2,
+    "downloaded_bytes": 5740
+  },
+  "candles": [
+    {
+      "timestamp": "2026-10-07T00:00:00+00:00",
+      "open": "85549.94000000",
+      "high": "85598.22000000",
+      "low": "85471.54000000",
+      "close": "85576.01000000",
+      "volume": "104.90605000"
+    },
+    {
+      "timestamp": "2026-10-07T00:15:00+00:00",
+      "open": "85576.00000000",
+      "high": "85588.01000000",
+      "low": "85414.01000000",
+      "close": "85414.02000000",
+      "volume": "51.10493000"
+    }
+  ]
+}

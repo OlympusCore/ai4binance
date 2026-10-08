@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import StrEnum
 from hashlib import sha256
@@ -317,7 +318,7 @@ def _iter_scannable_files(
     max_file_bytes: int,
 ) -> tuple[Path, ...]:
     files: list[Path] = []
-    for path in root.rglob("*"):
+    for path in _walk_included_files(root):
         if not path.is_file():
             continue
         relative_parts = path.relative_to(root).parts
@@ -335,6 +336,16 @@ def _iter_scannable_files(
             continue
         files.append(path)
     return tuple(files)
+
+
+def _walk_included_files(root: Path) -> Iterator[Path]:
+    """Prune existing excluded directories before visiting their contents."""
+    for directory, subdirectories, filenames in root.walk():
+        subdirectories[:] = [
+            name for name in subdirectories if name not in DEFAULT_EXCLUDED_DIRECTORIES
+        ]
+        for filename in filenames:
+            yield directory / filename
 
 
 def _scan_file(

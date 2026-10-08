@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from hashlib import sha256
 from pathlib import Path
 
@@ -12,9 +13,34 @@ from ai4binance.privacy_boundary import (
     PrivacyBoundaryFinding,
     PrivacyBoundaryReport,
     PrivacyBoundaryStatus,
+    _iter_scannable_files,
     _scan_file,
     scan_privacy_boundary,
 )
+
+
+def test_privacy_scan_does_not_visit_excluded_subtrees(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    excluded = tmp_path / "runtime" / "data"
+    excluded.mkdir(parents=True)
+    (excluded / "records.json").write_text("{}", encoding="utf-8")
+    included = tmp_path / "src"
+    included.mkdir()
+    source = included / "app.py"
+    source.write_text("pass\n", encoding="utf-8")
+    visited: list[Path] = []
+    original_walk = Path.walk
+
+    def tracked_walk(root: Path) -> Iterator[tuple[Path, list[str], list[str]]]:
+        for entry in original_walk(root):
+            visited.append(entry[0])
+            yield entry
+
+    monkeypatch.setattr(Path, "walk", tracked_walk)
+    assert _iter_scannable_files(tmp_path, max_file_bytes=100) == (source,)
+    assert included in visited
+    assert not any(path.is_relative_to(tmp_path / "runtime") for path in visited)
 
 
 def test_privacy_boundary_passes_when_profile_is_only_source(tmp_path: Path) -> None:

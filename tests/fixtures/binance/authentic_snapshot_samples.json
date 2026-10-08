@@ -1,0 +1,234 @@
+[
+  {
+    "market": "spot",
+    "timeframe": "15m",
+    "source": {
+      "kind": "ohlcv",
+      "key": "data/spot/daily/klines/BTCUSDT/15m/BTCUSDT-15m-2026-10-06.zip",
+      "sha256": "7fed785c337e4cc196fe6708e839b96271271549eb56109f267ea77eb7d68f4d",
+      "byte_count": 5531,
+      "cache_hit": false,
+      "network_request_count": 2,
+      "downloaded_bytes": 5623
+    },
+    "candles": [
+      {
+        "timestamp": "2026-10-06T23:30:00+00:00",
+        "open": "85498.69000000",
+        "high": "85575.35000000",
+        "low": "85346.77000000",
+        "close": "85575.35000000",
+        "volume": "145.77765000"
+      },
+      {
+        "timestamp": "2026-10-06T23:45:00+00:00",
+        "open": "85575.34000000",
+        "high": "85619.21000000",
+        "low": "85549.93000000",
+        "close": "85549.93000000",
+        "volume": "102.71223000"
+      }
+    ]
+  },
+  {
+    "market": "spot",
+    "timeframe": "1h",
+    "source": {
+      "kind": "ohlcv",
+      "key": "data/spot/daily/klines/BTCUSDT/1h/BTCUSDT-1h-2026-10-06.zip",
+      "sha256": "9caa3f22ce33cf8ce515dd357543ae198ffb08b32c305aa187ed6b8ca276f269",
+      "byte_count": 1584,
+      "cache_hit": false,
+      "network_request_count": 2,
+      "downloaded_bytes": 1675
+    },
+    "candles": [
+      {
+        "timestamp": "2026-10-06T22:00:00+00:00",
+        "open": "85609.99000000",
+        "high": "85657.01000000",
+        "low": "85469.65000000",
+        "close": "85534.53000000",
+        "volume": "274.20635000"
+      },
+      {
+        "timestamp": "2026-10-06T23:00:00+00:00",
+        "open": "85534.53000000",
+        "high": "85619.21000000",
+        "low": "85346.77000000",
+        "close": "85549.93000000",
+        "volume": "416.47724000"
+      }
+    ]
+  },
+  {
+    "market": "spot",
+    "timeframe": "4h",
+    "source": {
+      "kind": "ohlcv",
+      "key": "data/spot/daily/klines/BTCUSDT/4h/BTCUSDT-4h-2026-10-06.zip",
+      "sha256": "b99bcf7163136d68351aad16d0a84416d5bea0e759100249982e11d52d92a728",
+      "byte_count": 536,
+      "cache_hit": false,
+      "network_request_count": 2,
+      "downloaded_bytes": 627
+    },
+    "candles": [
+      {
+        "timestamp": "2026-10-06T16:00:00+00:00",
+        "open": "85720.65000000",
+        "high": "85854.30000000",
+        "low": "85421.00000000",
+        "close": "85614.00000000",
+        "volume": "2076.20459000"
+      },
+      {
+        "timestamp": "2026-10-06T20:00:00+00:00",
+        "open": "85614.00000000",
+        "high": "85668.01000000",
+        "low": "85346.77000000",
+        "close": "85549.93000000",
+        "volume": "1266.29792000"
+      }
+    ]
+  },
+  {
+    "market": "spot",
+    "timeframe": "1d",
+    "source": {
+      "kind": "ohlcv",
+      "key": "data/spot/daily/klines/BTCUSDT/1d/BTCUSDT-1d-2026-10-06.zip",
+      "sha256": "a9bfe3f7405ad80ca56d0719faf533dd66a405f7cea562b5afeb4ab220ae6982",
+      "byte_count": 240,
+      "cache_hit": false,
+      "network_request_count": 2,
+      "downloaded_bytes": 331
+    },
+    "candles": [
+      {
+        "timestamp": "2026-10-06T00:00:00+00:00",
+        "open": "85766.87000000",
+        "high": "86698.99000000",
+        "low": "85136.11000000",
+        "close": "85549.93000000",
+        "volume": "12614.47572000"
+      }
+    ]
+  },
+  {
+    "market": "um",
+    "timeframe": "15m",
+    "source": {
+      "kind": "ohlcv",
+      "key": "data/futures/um/daily/klines/BTCUSDT/15m/BTCUSDT-15m-2026-10-06.zip",
+      "sha256": "62719a43cf49fba672760224b1d01ae848d1005a78a2e25295a810ac2f60e061",
+      "byte_count": 5033,
+      "cache_hit": true,
+      "network_request_count": 0,
+      "downloaded_bytes": 0
+    },
+    "candles": [
+      {
+        "timestamp": "2026-10-06T23:30:00+00:00",
+        "open": "85456.70",
+        "high": "85538.80",
+        "low": "85267.20",
+        "close": "85535.10",
+        "volume": "2071.442"
+      },
+      {
+        "timestamp": "2026-10-06T23:45:00+00:00",
+        "open": "85535.10",
+        "high": "85585.00",
+        "low": "85505.50",
+        "close": "85507.50",
+        "volume": "461.111"
+      }
+    ]
+  },
+  {
+    "market": "um",
+    "timeframe": "1h",
+    "source": {
+      "kind": "ohlcv",
+      "key": "data/futures/um/daily/klines/BTCUSDT/1h/BTCUSDT-1h-2026-10-06.zip",
+      "sha256": "5de57e03a7eb397ec7cd4917b48e93e472415b026ca97bb76f1789c3f2f9e91f",
+      "byte_count": 1540,
+      "cache_hit": true,
+      "network_request_count": 0,
+      "downloaded_bytes": 0
+    },
+    "candles": [
+      {
+        "timestamp": "2026-10-06T22:00:00+00:00",
+        "open": "85571.10",
+        "high": "85619.60",
+        "low": "85427.50",
+        "close": "85490.10",
+        "volume": "1194.438"
+      },
+      {
+        "timestamp": "2026-10-06T23:00:00+00:00",
+        "open": "85490.10",
+        "high": "85585.00",
+        "low": "85267.20",
+        "close": "85507.50",
+        "volume": "3249.183"
+      }
+    ]
+  },
+  {
+    "market": "um",
+    "timeframe": "4h",
+    "source": {
+      "kind": "ohlcv",
+      "key": "data/futures/um/daily/klines/BTCUSDT/4h/BTCUSDT-4h-2026-10-06.zip",
+      "sha256": "9aa7777584e985e2d311d2717a2d0369ed307af67fa198b20d0dd53e6630c4ec",
+      "byte_count": 634,
+      "cache_hit": true,
+      "network_request_count": 0,
+      "downloaded_bytes": 0
+    },
+    "candles": [
+      {
+        "timestamp": "2026-10-06T16:00:00+00:00",
+        "open": "85675.10",
+        "high": "85815.40",
+        "low": "85369.00",
+        "close": "85569.00",
+        "volume": "20162.422"
+      },
+      {
+        "timestamp": "2026-10-06T20:00:00+00:00",
+        "open": "85569.10",
+        "high": "85643.20",
+        "low": "85267.20",
+        "close": "85507.50",
+        "volume": "7315.482"
+      }
+    ]
+  },
+  {
+    "market": "um",
+    "timeframe": "1d",
+    "source": {
+      "kind": "ohlcv",
+      "key": "data/futures/um/daily/klines/BTCUSDT/1d/BTCUSDT-1d-2026-10-06.zip",
+      "sha256": "1a4582ec06b90cf03be82afbef39f93cfef1325d8b5b8a1b88f6c27b93d9a12c",
+      "byte_count": 356,
+      "cache_hit": false,
+      "network_request_count": 2,
+      "downloaded_bytes": 448
+    },
+    "candles": [
+      {
+        "timestamp": "2026-10-06T00:00:00+00:00",
+        "open": "85717.20",
+        "high": "86664.90",
+        "low": "85072.70",
+        "close": "85507.50",
+        "volume": "109022.133"
+      }
+    ]
+  }
+]
