@@ -7,6 +7,7 @@ import re
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 
 from jsonschema import (  # type: ignore[import-untyped]
@@ -104,6 +105,12 @@ CONTRACT_SCHEMA_MAPPINGS = (
 )
 
 
+@lru_cache(maxsize=128)
+def _check_schema_text(schema_text: str) -> None:
+    """Reuse successful meta-validation only for identical schema contents."""
+    Draft202012Validator.check_schema(json.loads(schema_text))
+
+
 class OfflineSchemaRegistry:
     """Load local Draft 2020-12 schemas without network reference resolution."""
 
@@ -129,7 +136,8 @@ class OfflineSchemaRegistry:
         schemas: list[RegisteredSchema] = []
         for path in schema_paths:
             try:
-                contents = json.loads(path.read_text(encoding="utf-8"))
+                schema_text = path.read_text(encoding="utf-8")
+                contents = json.loads(schema_text)
             except (OSError, json.JSONDecodeError) as error:
                 raise SchemaValidationError(
                     f"invalid JSON schema file: {path}"
@@ -148,7 +156,7 @@ class OfflineSchemaRegistry:
             if contents.get("$schema") != Draft202012Validator.META_SCHEMA["$id"]:
                 raise SchemaValidationError(f"schema must use Draft 2020-12: {path}")
             try:
-                Draft202012Validator.check_schema(contents)
+                _check_schema_text(schema_text)
             except SchemaError as error:
                 raise SchemaValidationError(
                     f"meta-schema validation failed: {path}"
@@ -210,8 +218,9 @@ class OfflineSchemaRegistry:
 
 def validate_local_definition(path: Path, definition: str, instance: object) -> None:
     """Validate a local contract definition without remote reference resolution."""
-    contents = json.loads(path.read_text(encoding="utf-8"))
-    Draft202012Validator.check_schema(contents)
+    schema_text = path.read_text(encoding="utf-8")
+    contents = json.loads(schema_text)
+    _check_schema_text(schema_text)
     _reject_remote_references(contents, path)
     if definition not in contents.get("$defs", {}):
         raise SchemaValidationError(f"unregistered schema definition: {definition}")
