@@ -12,6 +12,7 @@ spot_assets:
   - SOL
   - ZEC
   - XRP
+  - HOT
 usd_m_futures_assets:
   - BTC
   - ETH
