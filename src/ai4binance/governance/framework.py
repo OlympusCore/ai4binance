@@ -154,6 +154,10 @@ class ConstitutionalChangeControl:
     double_approval_change_classes: tuple[ChangeApprovalClass, ...] = (
         ChangeApprovalClass.C3_GOVERNED,
     )
+    # Eligibility requires independently accepted predecessor-policy evidence.
+    sole_owner_approval_change_classes: tuple[ChangeApprovalClass, ...] = (
+        ChangeApprovalClass.C3_GOVERNED,
+    )
     high_assurance_change_classes: tuple[ChangeApprovalClass, ...] = (
         ChangeApprovalClass.C4_CONSEQUENTIAL,
     )
@@ -264,6 +268,10 @@ class ConstitutionalChangeControl:
             raise ValueError("constitution sync must remain required for C3/C4 changes")
         if self.double_approval_change_classes != (ChangeApprovalClass.C3_GOVERNED,):
             raise ValueError("only C3 changes may require double approval")
+        if self.sole_owner_approval_change_classes != (
+            ChangeApprovalClass.C3_GOVERNED,
+        ):
+            raise ValueError("accepted sole-owner selection is restricted to C3")
         if self.high_assurance_change_classes != (
             ChangeApprovalClass.C4_CONSEQUENTIAL,
         ):

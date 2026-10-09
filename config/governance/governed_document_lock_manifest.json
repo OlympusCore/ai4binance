@@ -2077,13 +2077,13 @@
       "authority_scope": "architecture_overview",
       "canonical_path": "docs/architecture/framework_architecture_overview.md",
       "document_status": "ACTIVE",
-      "expected_hash": "48c8b2d71d269698896555fb17e42f9c7bbaf33604f4e18c729be6170352ae64",
+      "expected_hash": "da4931d49d0ae9bbefb754381d4e5ee3b9226e7e0f5816348ecdd8a61be87dd3",
       "lock_state": "LOCKED",
       "path": "docs/architecture/framework_architecture_overview.md",
-      "sha256": "48c8b2d71d269698896555fb17e42f9c7bbaf33604f4e18c729be6170352ae64",
+      "sha256": "da4931d49d0ae9bbefb754381d4e5ee3b9226e7e0f5816348ecdd8a61be87dd3",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "1.11.5"
+      "version": "1.11.6"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -2213,13 +2213,13 @@
       "authority_scope": "cli_command",
       "canonical_path": "docs/contracts/interface_contract_cli_command.md",
       "document_status": "ACTIVE",
-      "expected_hash": "b1555317f2d8a2797215a195abaf05df2fd68914c9d90ac63122c2f9fec9b8e9",
+      "expected_hash": "2f366a9e2eaa2cb6cde163e1f8bbebede5bf676ce3a2ff358815dc6bf1ffaffd",
       "lock_state": "LOCKED",
       "path": "docs/contracts/interface_contract_cli_command.md",
-      "sha256": "b1555317f2d8a2797215a195abaf05df2fd68914c9d90ac63122c2f9fec9b8e9",
+      "sha256": "2f366a9e2eaa2cb6cde163e1f8bbebede5bf676ce3a2ff358815dc6bf1ffaffd",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "1.0.3"
+      "version": "1.0.4"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -4675,12 +4675,12 @@
   "prospective_lock_grant": {
     "contract_version": "DocumentLockRegistration/v3",
     "grant": {
-      "path": "runtime/artifacts/git_consolidation/canonical-baseline-rule-20261007/bounded-owner-amendment/yaml-format-repair-owner-grant.json",
-      "sha256": "5ee07f9b74937667f17d0ab6bbfc456cb957a62e913fe344a4dc7481d120f7a4"
+      "path": "runtime/artifacts/governance/datacore-documentation-update/owner-application-grant.json",
+      "sha256": "649668f4636eaca4bd64e61d363190d75ad3f28a95861260c3e193c498a751a1"
     },
     "predecessor": {
-      "path": "runtime/artifacts/git_consolidation/canonical-baseline-rule-20261007/bounded-owner-amendment/yaml-format-repair-predecessor-context.raw.json",
-      "sha256": "3d313ef2a36f3b895267c73cf26dbce829be43858e9a9a9c3be275ea7dcddf02"
+      "path": "runtime/artifacts/governance/datacore-documentation-update/predecessor-context.json",
+      "sha256": "68ffe0b81feafa043736ee1f6fd122d1df4de790e265ba764d3366350c092dea"
     }
   }
 }

@@ -12,6 +12,30 @@ if TYPE_CHECKING:
     from ai4binance.governance.personal_research import PersonalResearchConfirmation
 
 
+@dataclass(frozen=True, slots=True)
+class SoleOwnerConfirmation:
+    """Exact policy/activation confirmation; never independent human review."""
+
+    owner_person_id: str
+    owner_principal_id: str
+    policy_sha256: str
+    activation_sha256: str
+    independent_human_review: bool = False
+
+    def __post_init__(self) -> None:
+        if (
+            not self.owner_person_id.strip()
+            or not self.owner_principal_id.strip()
+            or any(
+                len(value) != 64
+                or any(char not in "0123456789abcdef" for char in value)
+                for value in (self.policy_sha256, self.activation_sha256)
+            )
+            or self.independent_human_review is not False
+        ):
+            raise ValueError("SOLE_OWNER_CONFIRMATION_INVALID")
+
+
 class DepartmentId(StrEnum):
     EXECUTIVE_OFFICE = "EXECUTIVE_OFFICE"
     BUSINESS_DEVELOPMENT = "BUSINESS_DEVELOPMENT"
@@ -649,6 +673,7 @@ class ApprovalRecord:
     execution_allowed: bool = False
     live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
     research_confirmation: PersonalResearchConfirmation | None = None
+    sole_owner_confirmation: SoleOwnerConfirmation | None = None
 
     def __post_init__(self) -> None:
         _require_identity(
@@ -675,6 +700,7 @@ class ApprovalRecord:
                 self.approved_at is not None,
                 self.expires_at is not None,
                 self.revoked_at is not None,
+                self.sole_owner_confirmation is not None,
             )
         )
         if bound_approval:

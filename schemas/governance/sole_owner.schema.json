@@ -1,0 +1,869 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai4binance.local/schemas/governance/sole_owner.schema.json",
+  "title": "Sole Human Owner C3 Approval Policy",
+  "$ref": "#/$defs/policy",
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "activation_status": {
+            "const": "ACTIVE"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "activation_record": {
+            "type": "string",
+            "minLength": 1
+          },
+          "owner_principal_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "profile",
+        "activation_status",
+        "activation_record",
+        "owner_person_id",
+        "owner_principal_id",
+        "owner_roles",
+        "execution_allowed",
+        "promotion_status",
+        "live_eligibility_status"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "profile": {
+          "const": "SOLE_HUMAN_OWNER"
+        },
+        "activation_status": {
+          "enum": [
+            "INACTIVE",
+            "ACTIVE"
+          ]
+        },
+        "activation_record": {
+          "type": "string"
+        },
+        "owner_person_id": {
+          "const": "Huseyin Cicek"
+        },
+        "owner_principal_id": {
+          "type": "string"
+        },
+        "owner_roles": {
+          "type": "array",
+          "const": [
+            "GovernanceOwner",
+            "ConstitutionOwner"
+          ]
+        },
+        "execution_allowed": {
+          "const": false
+        },
+        "promotion_status": {
+          "const": "RESEARCH_ONLY"
+        },
+        "live_eligibility_status": {
+          "const": "LIVE_ORDER_BLOCKED"
+        }
+      }
+    },
+    "activation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "status",
+        "repository_root",
+        "policy_sha256",
+        "owner_person_id",
+        "owner_principal_id",
+        "owner_roles",
+        "adoption_base_commit",
+        "adoption_commit",
+        "adoption_patch_ref",
+        "adoption_patch_sha256",
+        "adoption_subject_id",
+        "adoption_scope_hash",
+        "adoption_quality_sha256",
+        "adoption_governance_sha256",
+        "adoption_evidence_hash",
+        "adoption_authority_family_sha256",
+        "adoption_lifecycle_sha256",
+        "frozen_gate_ref",
+        "frozen_gate_sha256",
+        "approval_records_ref",
+        "approval_records_sha256",
+        "candidate_files",
+        "issued_at_utc",
+        "revoked_at_utc",
+        "independent_human_review",
+        "execution_allowed",
+        "promotion_status",
+        "live_eligibility_status",
+        "ownership_duration",
+        "adoption_accepted_at_utc",
+        "activation_acceptance"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "SoleHumanOwnerActivation/v2"
+        },
+        "status": {
+          "const": "ACTIVE"
+        },
+        "repository_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "owner_person_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_principal_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_roles": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 2,
+          "items": {
+            "enum": [
+              "GovernanceOwner",
+              "ConstitutionOwner"
+            ]
+          }
+        },
+        "adoption_base_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "adoption_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "adoption_patch_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "adoption_patch_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "adoption_subject_id": {
+          "$ref": "#/$defs/sha256"
+        },
+        "adoption_scope_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "adoption_quality_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "adoption_governance_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "adoption_evidence_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "adoption_authority_family_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "adoption_lifecycle_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "frozen_gate_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "frozen_gate_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "approval_records_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "approval_records_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "candidate_files": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "$ref": "#/$defs/sha256"
+          }
+        },
+        "issued_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "revoked_at_utc": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "format": "date-time"
+        },
+        "independent_human_review": {
+          "const": false
+        },
+        "successor_acceptance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "base_commit",
+            "accepted_commit",
+            "candidate_files",
+            "frozen_gate_ref",
+            "frozen_gate_sha256",
+            "approval_records_ref",
+            "approval_records_sha256",
+            "subject_id",
+            "scope_hash",
+            "quality_sha256",
+            "governance_sha256",
+            "evidence_hash",
+            "authority_family_sha256",
+            "lifecycle_definition_sha256"
+          ],
+          "properties": {
+            "base_commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "accepted_commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "candidate_files": {
+              "type": "object",
+              "minProperties": 1,
+              "additionalProperties": {
+                "$ref": "#/$defs/sha256"
+              }
+            },
+            "frozen_gate_ref": {
+              "type": "string",
+              "minLength": 1
+            },
+            "frozen_gate_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "approval_records_ref": {
+              "type": "string",
+              "minLength": 1
+            },
+            "approval_records_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "subject_id": {
+              "$ref": "#/$defs/sha256"
+            },
+            "scope_hash": {
+              "$ref": "#/$defs/sha256"
+            },
+            "quality_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "governance_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "evidence_hash": {
+              "$ref": "#/$defs/sha256"
+            },
+            "authority_family_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "lifecycle_definition_sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        "execution_allowed": {
+          "const": false
+        },
+        "promotion_status": {
+          "const": "RESEARCH_ONLY"
+        },
+        "live_eligibility_status": {
+          "const": "LIVE_ORDER_BLOCKED"
+        },
+        "activation_acceptance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "accepted_at_utc",
+            "base_commit",
+            "accepted_commit",
+            "candidate_files",
+            "frozen_gate_ref",
+            "frozen_gate_sha256",
+            "approval_records_ref",
+            "approval_records_sha256",
+            "subject_id",
+            "scope_hash",
+            "quality_sha256",
+            "governance_sha256",
+            "evidence_hash",
+            "authority_family_sha256",
+            "lifecycle_definition_sha256"
+          ],
+          "properties": {
+            "accepted_at_utc": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "base_commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "accepted_commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "candidate_files": {
+              "type": "object",
+              "minProperties": 1,
+              "additionalProperties": {
+                "$ref": "#/$defs/sha256"
+              }
+            },
+            "frozen_gate_ref": {
+              "type": "string",
+              "minLength": 1
+            },
+            "frozen_gate_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "approval_records_ref": {
+              "type": "string",
+              "minLength": 1
+            },
+            "approval_records_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "subject_id": {
+              "$ref": "#/$defs/sha256"
+            },
+            "scope_hash": {
+              "$ref": "#/$defs/sha256"
+            },
+            "quality_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "governance_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "evidence_hash": {
+              "$ref": "#/$defs/sha256"
+            },
+            "authority_family_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "lifecycle_definition_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "initial_amendment": {
+              "$ref": "#/$defs/reference"
+            }
+          }
+        },
+        "ownership_duration": {
+          "const": "PERMANENT_UNTIL_REVOKED_OR_SUPERSEDED"
+        },
+        "adoption_accepted_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "initial_amendment": {
+          "$ref": "#/$defs/reference"
+        }
+      }
+    },
+    "confirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner_person_id",
+        "owner_principal_id",
+        "policy_sha256",
+        "activation_sha256",
+        "independent_human_review"
+      ],
+      "properties": {
+        "owner_person_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_principal_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "activation_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "independent_human_review": {
+          "const": false
+        }
+      }
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "initial_owner_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "record_origin",
+        "decision",
+        "decision_id",
+        "owner_person_id",
+        "owner_principal_id",
+        "subject_sha256",
+        "phase",
+        "baseline_commit",
+        "patch_sha256",
+        "primary_owner_source",
+        "independent_human_review",
+        "execution_allowed",
+        "decision_binding_sha256"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "InitialOwnerDecision/v1"
+        },
+        "record_origin": {
+          "const": "OWNER_ISSUED"
+        },
+        "decision": {
+          "const": "ADOPT_EXACT_INITIAL_OWNER_AMENDMENT"
+        },
+        "decision_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_person_id": {
+          "const": "Huseyin Cicek"
+        },
+        "owner_principal_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "phase": {
+          "enum": [
+            "ADOPTION",
+            "ACTIVATION"
+          ]
+        },
+        "baseline_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "patch_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "primary_owner_source": {
+          "$ref": "#/$defs/reference"
+        },
+        "independent_human_review": {
+          "const": false
+        },
+        "execution_allowed": {
+          "const": false
+        },
+        "decision_binding_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "initial_amendment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "record_origin",
+        "status",
+        "decision_id",
+        "repository_root",
+        "owner_person_id",
+        "owner_principal_id",
+        "subject_sha256",
+        "phase",
+        "baseline_commit",
+        "governing_core_version",
+        "governing_core_sha256",
+        "patch_sha256",
+        "candidate_files",
+        "decision_source",
+        "protected_review",
+        "revocations",
+        "custody",
+        "issued_at_utc",
+        "not_before_utc",
+        "expires_at_utc",
+        "revoked_at_utc",
+        "scope",
+        "excluded_effects",
+        "independent_human_review",
+        "execution_allowed",
+        "quality_gate_evidence_sha256",
+        "governance_gate_evidence_sha256",
+        "evidence_hash",
+        "authority_family_sha256",
+        "lifecycle_definition_sha256"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "InitialOwnerAmendment/v1"
+        },
+        "record_origin": {
+          "const": "OWNER_ISSUED"
+        },
+        "status": {
+          "const": "ISSUED"
+        },
+        "decision_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_person_id": {
+          "const": "Huseyin Cicek"
+        },
+        "owner_principal_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "phase": {
+          "enum": [
+            "ADOPTION",
+            "ACTIVATION"
+          ]
+        },
+        "baseline_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "governing_core_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "governing_core_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "patch_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "candidate_files": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "$ref": "#/$defs/sha256"
+          }
+        },
+        "decision_source": {
+          "$ref": "#/$defs/reference"
+        },
+        "protected_review": {
+          "$ref": "#/$defs/reference"
+        },
+        "revocations": {
+          "$ref": "#/$defs/reference"
+        },
+        "adoption_completion": {
+          "$ref": "#/$defs/reference"
+        },
+        "custody": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "custodian_person_id",
+            "checked_at_utc",
+            "decision_channel",
+            "primary_owner_source"
+          ],
+          "properties": {
+            "custodian_person_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "checked_at_utc": {
+              "type": "string",
+              "minLength": 1
+            },
+            "decision_channel": {
+              "type": "string",
+              "minLength": 1
+            },
+            "primary_owner_source": {
+              "$ref": "#/$defs/reference"
+            }
+          }
+        },
+        "issued_at_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "not_before_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expires_at_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revoked_at_utc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scope": {
+          "const": "LOCAL_RESEARCH_PAPER_INITIAL_TRANSITION"
+        },
+        "excluded_effects": {
+          "const": [
+            "LIVE_EXECUTION",
+            "DEPLOYMENT",
+            "CREDENTIALS",
+            "INFRASTRUCTURE",
+            "RISK_OVERRIDE",
+            "PROMOTION",
+            "C4_CONSEQUENTIAL"
+          ]
+        },
+        "independent_human_review": {
+          "const": false
+        },
+        "execution_allowed": {
+          "const": false
+        },
+        "quality_gate_evidence_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "governance_gate_evidence_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "evidence_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "authority_family_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "lifecycle_definition_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "protected_review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "baseline_commit",
+        "superior_authority",
+        "registration_manifest",
+        "documents",
+        "candidate_payloads"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "InitialProtectedReview/v1"
+        },
+        "baseline_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "superior_authority": {
+          "$ref": "#/$defs/reference"
+        },
+        "registration_manifest": {
+          "$ref": "#/$defs/reference"
+        },
+        "documents": {
+          "type": "array",
+          "minItems": 6,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "document_id",
+              "version",
+              "sha256",
+              "reviewed_current_content",
+              "historical_integrity_proved",
+              "content_review",
+              "provenance_status"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "document_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "version": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "reviewed_current_content": {
+                "const": true
+              },
+              "historical_integrity_proved": {
+                "const": false
+              },
+              "content_review": {
+                "$ref": "#/$defs/reference"
+              },
+              "provenance_status": {
+                "enum": [
+                  "UNRESOLVED_PROVENANCE_CONFLICT",
+                  "VERIFIED_CRLF_LF",
+                  "GOVERNING_AMENDMENT"
+                ]
+              }
+            }
+          }
+        },
+        "candidate_payloads": {
+          "type": "array",
+          "minItems": 6,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "source"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "source": {
+                "$ref": "#/$defs/reference"
+              }
+            }
+          }
+        }
+      }
+    },
+    "initial_completion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "status",
+        "phase",
+        "owner_principal_id",
+        "baseline_commit",
+        "accepted_commit",
+        "subject_sha256",
+        "patch_sha256",
+        "candidate_files",
+        "amendment",
+        "protected_review",
+        "completed_at_utc",
+        "execution_allowed"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "InitialOwnerCompletion/v1"
+        },
+        "status": {
+          "const": "COMPLETED"
+        },
+        "phase": {
+          "const": "ADOPTION"
+        },
+        "owner_principal_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "baseline_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "accepted_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "subject_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "patch_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "candidate_files": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "$ref": "#/$defs/sha256"
+          }
+        },
+        "amendment": {
+          "$ref": "#/$defs/reference"
+        },
+        "protected_review": {
+          "$ref": "#/$defs/reference"
+        },
+        "completed_at_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "execution_allowed": {
+          "const": false
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+schema_version: 1
+profile: SOLE_HUMAN_OWNER
+activation_status: INACTIVE
+activation_record: ''
+owner_person_id: Huseyin Cicek
+owner_principal_id: ''
+owner_roles: [GovernanceOwner, ConstitutionOwner]
+execution_allowed: false
+promotion_status: RESEARCH_ONLY
+live_eligibility_status: LIVE_ORDER_BLOCKED

@@ -3233,6 +3233,10 @@ def test_prepare_c3_human_governance_closure_request_writes_bound_template(
     }
     assert len(payload["rollback_plan"]) == 3
     assert len(payload["approval_record_template"]) == 2
+    assert all(
+        record["status"] == "DRAFT_ONLY_NOT_APPROVAL"
+        for record in payload["approval_record_template"]
+    )
     assert (
         payload["approval_record_template"][0]["subject_ref"]
         == payload["source_governance_gate_report"]

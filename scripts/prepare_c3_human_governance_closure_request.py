@@ -173,6 +173,9 @@ def build_closure_request(
         required_roles = ("GovernanceOwner",)
     else:
         required_roles = _required_roles(change_class, required_approval_count)
+    approval_profile = (
+        _optional_text(approval_verification, "approval_profile") or "LEGACY_C3"
+    )
 
     prepared_at = datetime.now(UTC).replace(microsecond=0)
     expires_at = prepared_at + timedelta(days=1)
@@ -220,6 +223,32 @@ def build_closure_request(
         for item in _optional_list(change_set, "changed_paths")
         if str(item).strip()
     ]
+    selected_owner = None
+    initial_owner = approval_profile == "INITIAL_OWNER_AMENDMENT"
+    if initial_owner:
+        if change_class != "C3_GOVERNED" or required_approval_count != 1:
+            raise ValueError("initial owner closure requires one C3 approval")
+        required_roles = (
+            "GovernanceOwner"
+            if changed_paths == ["config/governance/sole_owner_policy.yaml"]
+            else "ConstitutionOwner",
+        )
+    if approval_profile == "SOLE_HUMAN_OWNER":
+        from ai4binance.governance.sole_owner import load_sole_owner_policy
+
+        if change_class != "C3_GOVERNED" or required_approval_count != 1:
+            raise ValueError("sole-owner closure request requires one C3 approval")
+        required_roles = (
+            "ConstitutionOwner"
+            if any(path.startswith("docs/governance/") for path in changed_paths)
+            else "GovernanceOwner",
+        )
+        baseline = _optional_text(change_set, "review_base_commit") or _get_text(
+            change_set, "git_commit"
+        )
+        selected_owner = load_sole_owner_policy(repository_root, policy_commit=baseline)
+        if selected_owner is None:
+            raise ValueError("sole-owner predecessor policy is inactive")
     rollback_plan = [
         (
             "Revert only the reviewed change-set paths and regenerate the "
@@ -259,7 +288,7 @@ def build_closure_request(
                 "principal_id": f"<{role}-principal-id>",
                 "approver_role": role,
                 "subject_ref": source_governance_gate_report,
-                "status": "APPROVED_FOR_IMPLEMENTATION",
+                "status": "DRAFT_ONLY_NOT_APPROVAL",
                 "evidence_refs": [
                     "artifact:governance-report",
                     "artifact:deterministic-quality-gate",
@@ -278,6 +307,19 @@ def build_closure_request(
                 "live_eligibility_status": "LIVE_ORDER_BLOCKED",
             }
         )
+        if selected_owner is not None:
+            template_records[-1]["approval_id"] = "<set-by-owner>"
+            template_records[-1]["approved_at_utc"] = "<set-by-owner-utc>"
+            template_records[-1]["expires_at_utc"] = "<required-owner-expiry-utc>"
+            template_records[-1]["approver_id"] = selected_owner.owner_principal_id
+            template_records[-1]["principal_id"] = selected_owner.owner_principal_id
+            template_records[-1]["sole_owner_confirmation"] = {
+                "owner_person_id": selected_owner.owner_person_id,
+                "owner_principal_id": selected_owner.owner_principal_id,
+                "policy_sha256": selected_owner.policy_sha256,
+                "activation_sha256": selected_owner.activation_sha256,
+                "independent_human_review": False,
+            }
 
     if owner_identity is not None:
         expires_at = min(
@@ -298,6 +340,8 @@ def build_closure_request(
     result = {
         "schema_version": "1.0.0",
         "artifact_origin": "deterministic_governance_closure_request",
+        "approval_status": "DRAFT_ONLY_NOT_APPROVAL",
+        "approval_profile": approval_profile,
         "prepared_at_utc": prepared_at.isoformat().replace("+00:00", "Z"),
         "recommended_expiry_utc": expires_at.isoformat().replace("+00:00", "Z"),
         "repository_root": str(repository_root.resolve()),
@@ -327,20 +371,38 @@ def build_closure_request(
         "live_eligibility_status": "LIVE_ORDER_BLOCKED",
         "instructions": [
             (
-                "Independent human approvers must create the final approval "
+                "The authorized human owner must create the final approval "
+                "record out of band; this template is not an approval."
+                if selected_owner is not None
+                else "Independent human approvers must create the final approval "
                 "records out of band."
             ),
             "Each approval must use a unique approver_id and unique principal_id.",
             (
-                "After independent approval, save the final artifact to "
+                "After the owner's explicit approval, save the final artifact to "
+                f"{CANONICAL_APPROVAL_TARGET}."
+                if selected_owner is not None
+                else "After independent approval, save the final artifact to "
                 f"{CANONICAL_APPROVAL_TARGET}."
             ),
             (
                 "Re-run scripts/quality.ps1 with -ApprovalRecordPath pointing "
+                "to the owner-issued approval artifact."
+                if selected_owner is not None
+                else "Re-run scripts/quality.ps1 with -ApprovalRecordPath pointing "
                 "to the independently prepared approval artifact."
             ),
         ],
-        "approval_checklist": list(APPROVAL_CHECKLIST),
+        "approval_checklist": (
+            [
+                *APPROVAL_CHECKLIST[:3],
+                "Record that one owner decides without independent human review.",
+                "Save the owner-issued approval artifact to the canonical target.",
+                "Re-run scripts/quality.ps1 with the owner-issued approval artifact.",
+            ]
+            if selected_owner is not None
+            else list(APPROVAL_CHECKLIST)
+        ),
         "approval_record_template": template_records,
     }
     if owner_identity is not None:
@@ -362,6 +424,30 @@ def build_closure_request(
                 "existing canonical replay."
             ),
         ]
+    if initial_owner:
+        result["independent_human_review"] = False
+        template_records[0]["approval_id"] = "<set-from-genuine-owner-decision>"
+        template_records[0]["approver_id"] = "<registered-owner-principal>"
+        template_records[0]["principal_id"] = "<registered-owner-principal>"
+        template_records[0]["approved_at_utc"] = (
+            "<actual-owner-decision-recorded-at-utc>"
+        )
+        result["required_human_person_count"] = 1
+        result["instructions"] = [
+            "Record the genuine exact founding decision from the existing human owner.",
+            "Bind the registered principal and source evidence to the owner decision.",
+            "Adoption and activation require distinct exact subjects and phase roles.",
+            f"Save the actual owner record to {CANONICAL_APPROVAL_TARGET}.",
+            "Re-run the canonical quality profile with that owner-issued artifact.",
+        ]
+        result["approval_checklist"] = [
+            *APPROVAL_CHECKLIST[:3],
+            "Bind the genuine decision to the exact recognized founding phase.",
+            "Record one owner without claiming independent human review.",
+        ]
+    if selected_owner is not None:
+        result["independent_human_review"] = False
+        result["required_human_person_count"] = 1
     return result
 
 

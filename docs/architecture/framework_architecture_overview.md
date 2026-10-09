@@ -2,7 +2,7 @@
 document_id: AI4B-ARCH-FRM-001
 title: AI4BINANCE Architecture Overview
 document_type: FRAMEWORK
-version: 1.11.5
+version: 1.11.6
 status: ACTIVE
 owner: Enterprise Knowledge Governance
 authority_level: NORMATIVE
@@ -102,10 +102,48 @@ Spot, USD-M perpetual, and COIN-M perpetual/delivery history collection.
 It reuses `src/ai4binance/data/market_history_sync.py` for checksum-verified
 compressed sources, the canonical eligible universe, single-instance ownership,
 and UTC aggregation, and `src/ai4binance/data/archive.py` for persisted OHLCV.
-The default bootstrap is 30 days; original per-stream progress boundaries
-survive shutdowns. COIN-M contract quantities remain distinct from Spot units.
+The configured initial OHLCV history defaults to 730 days, while optional
+enrichment defaults to 30 days. These requested windows do not prove complete
+provider coverage. Original per-stream progress boundaries survive shutdowns.
+COIN-M contract quantities remain distinct from Spot units.
 Shared pair-index series have one collector owner. Delivery contracts have no
 perpetual funding. Missing or invalid provider history remains explicit.
+
+`ArchivedMarketSnapshotAcquisition` in `src/ai4binance/data/acquisition.py`
+owns bounded historical snapshot assembly from the existing checksum-verified
+Parquet archive. The standalone `snapshot` command in
+`src/ai4binance/cli/market_data.py` selects the canonical current eligible Spot
+and USD-M Futures universe and reads native `15m`, `1h`, `4h`, and `1d` series.
+It uses the configured `virtual_market_period_lengths` and an explicit
+timezone-aware cutoff; only candles closed by that cutoff are included.
+Missing, insufficient, discontinuous, stale, invalid-provenance, or concurrently
+changed archive data produces explicit blockers. Historical bid, ask, and spread
+remain unavailable. Semantic SHA-256 identity binds market, symbol, cutoff,
+candle values, configured bounds, and blockers; retrieval metadata and mutable
+partition hashes remain separate audit lineage. Canonical `MarketSnapshot`
+wire envelopes and reports are written below `runtime/artifacts/data/snapshots/`.
+This archive reader does not introduce a second history collector.
+
+`src/ai4binance/data/coin_observations.py` owns research-only coin projections
+over those separate market artifacts. Grouping uses canonical Binance
+`baseAsset` and `quoteAsset` metadata, preserves contract and margin identities,
+and applies no implicit unit or contract-multiplier conversion. Optional Futures
+references reuse checksum-verified native `15m` replay artifacts for the day
+containing the instant immediately before the cutoff. State observations require
+full native-period closure; settled funding retains its event timestamp. Values
+are not summed across periods. Missing or invalid replay data remains
+`DATA_UNAVAILABLE`; ambiguous instrument mappings block the projection.
+Source references, timestamps, age, units, and artifact hashes remain inspectable.
+Semantic coin identity excludes audit-only retrieval and artifact metadata.
+
+OHLCV readiness does not establish complete Futures decision enrichment.
+Coin projections retain `CROSS_MARKET_DECISION_BINDING_NOT_VERIFIED`, and the
+explicit required-enrichment option blocks snapshots while that binding remains
+unverified. Historical source publication timing and historical live availability
+remain `NOT_VERIFIED`. Proof contracts include
+`tests/test_archived_market_snapshot.py` and `tests/test_coin_observations.py`.
+These capabilities retain `execution_allowed=false`, `RESEARCH_ONLY`, and
+`LIVE_ORDER_BLOCKED`; dataset artifacts cannot grant trading authority.
 
 `src/ai4binance/integrations/research_market_universe.py` owns the research-only
 wallet-plus-manual-selection universe for Spot and USD-M Futures. The editable

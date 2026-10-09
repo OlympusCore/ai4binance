@@ -221,18 +221,35 @@ def validate_local_definition(path: Path, definition: str, instance: object) -> 
     schema_text = path.read_text(encoding="utf-8")
     contents = json.loads(schema_text)
     _check_schema_text(schema_text)
+    validate_schema_definition(contents, definition, instance, source_path=path)
+
+
+def validate_schema_definition(
+    contents: Mapping[str, object],
+    definition: str,
+    instance: object,
+    *,
+    source_path: Path,
+) -> None:
+    """Validate exact in-memory schema bytes through the same offline boundary."""
+    path = source_path
+    _check_schema_text(json.dumps(contents))
     _reject_remote_references(contents, path)
-    if definition not in contents.get("$defs", {}):
+    definitions = contents.get("$defs", {})
+    if not isinstance(definitions, Mapping) or definition not in definitions:
         raise SchemaValidationError(f"unregistered schema definition: {definition}")
+    schema_id = contents["$id"]
+    if not isinstance(schema_id, str):
+        raise SchemaValidationError("schema identifier must be a string")
     selected = {
         "$schema": contents["$schema"],
         "$id": contents["$id"],
         "$defs": contents["$defs"],
         "$ref": f"#/$defs/{definition}",
     }
-    OfflineSchemaRegistry(
-        (RegisteredSchema(selected["$id"], path, selected),)
-    ).validate(selected["$id"], instance)
+    OfflineSchemaRegistry((RegisteredSchema(schema_id, path, selected),)).validate(
+        schema_id, instance
+    )
 
 
 def _walk_references(value: object) -> Iterator[str]:

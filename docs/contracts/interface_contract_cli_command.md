@@ -2,7 +2,7 @@
 document_id: AI4B-CLI-IFC-001
 title: AI4BINANCE CLI Command Contract
 document_type: INTERFACE_CONTRACT
-version: 1.0.3
+version: 1.0.4
 status: ACTIVE
 owner: Enterprise Knowledge Governance
 authority_level: NORMATIVE
@@ -54,6 +54,52 @@ checks this rule at least at command-name and catalog-summary level.
 .\.venv\Scripts\python.exe -m ai4binance.cli commands --format text
 .\.venv\Scripts\python.exe -m ai4binance.cli status --format json
 ```
+
+### Standalone Archived Market Snapshots
+
+`src/ai4binance/cli/market_data.py` owns the standalone research-only
+`python -m ai4binance.cli.market_data snapshot` entry point. It is outside the
+primary `COMMAND_SPECS` dispatcher and reuses the existing history archives.
+Run it from the repository root with the supported repository Python runtime.
+
+| Parameter | Contract |
+| --- | --- |
+| `--cutoff` | Required timezone-aware ISO 8601 decision cutoff, normalized to UTC; future cutoffs are rejected. |
+| `--symbol` | Optional canonical eligible instrument; omission selects the current eligible Spot and USD-M Futures universe. |
+| `--require-futures-enrichment` | Requires verified Futures consumer enrichment; snapshots fail closed while that binding is unverified. |
+
+The command reads native `15m`, `1h`, `4h`, and `1d` candles using
+`Settings.virtual_market_period_lengths`. Only candles closed by the cutoff are
+eligible. Each market remains a separate canonical `MarketSnapshot` wire
+envelope with semantic SHA-256 identity, source lineage, and blocking reasons.
+Missing, invalid, stale, discontinuous, or insufficient required data blocks
+readiness. A historical OHLCV snapshot supplies no bid, ask, or spread.
+
+Outputs are atomically persisted below `runtime/artifacts/data/snapshots/`:
+
+- `<market-directory>-<symbol>-<semantic-sha256>.json`: individual market envelope.
+- `latest.json`: latest invocation report with `PILOT` or `CANONICAL_UNIVERSE` scope.
+- `coin-observations-latest.json`: coin projection with separate market references
+  and optional verified native Futures replay observations.
+
+The latest files describe the most recent invocation, including a limited pilot;
+they do not guarantee complete historical universe coverage. The JSON report is
+also printed to standard output. Exit code `0` means the selected OHLCV snapshots
+are `READY`; exit code `2` means universe validation or required snapshot data is
+`BLOCKED`. Missing `--cutoff` is an argument error. Invalid cutoff or instrument
+inputs are rejected before snapshot publication; runtime exceptions are not a
+readiness result. Coin observations remain `PARTIALLY_VERIFIED` when grouping
+succeeds and can be independently `BLOCKED`; exit code `0` does not establish
+their consumer readiness. `required_futures_enrichment_verified` remains false.
+
+Historical publication timing and historical live availability remain
+`NOT_VERIFIED`. Optional enrichment fields in market envelopes remain
+`NOT_VERIFIED`; separately available coin references do not establish complete
+decision binding. Outputs remain research-only and retain
+`execution_allowed=false` and `LIVE_ORDER_BLOCKED`. Tests in
+`tests/test_archived_market_snapshot.py` and `tests/test_coin_observations.py`
+cover cutoff isolation, provenance, bounded windows, semantic identity, and
+unavailable or required-enrichment failure paths.
 
 ### Continuous Futures Multi-Timeframe Research
 

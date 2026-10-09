@@ -54,6 +54,15 @@ from ai4binance.governance.personal_research import (
     parse_confirmation,
     personal_record_blockers,
 )
+from ai4binance.governance.sole_owner import (
+    INITIAL_AMENDMENT_PATH,
+    SoleOwnerPolicy,
+    load_initial_owner_amendment,
+    load_sole_owner_policy,
+)
+from ai4binance.governance.sole_owner import (
+    parse_confirmation as parse_sole_owner_confirmation,
+)
 from ai4binance.governance_primitives import TECHNICAL_QUALITY_PRIMARY_STATUS
 from ai4binance.ops.quality_gate.telemetry import (
     _quality_execution_blockers,
@@ -1846,6 +1855,17 @@ def resolve_committed_governance_change_set(
     repository_root: Path, base_ref: str, head_ref: str
 ) -> GovernanceChangeSet:
     """Bind an exact ancestor-to-HEAD Git diff without accepting local drift."""
+    return _resolve_committed_change_set(repository_root, base_ref, head_ref)
+
+
+def _resolve_committed_change_set(
+    repository_root: Path,
+    base_ref: str,
+    head_ref: str,
+    *,
+    historical: bool = False,
+) -> GovernanceChangeSet:
+    """Read immutable commit facts; historical mode grants no current approval."""
     root = repository_root.resolve()
     git = _git_executable()
     if _git_repository_root(root) != root or git is None:
@@ -1882,11 +1902,16 @@ def resolve_committed_governance_change_set(
         r"[0-9a-f]{40}", head
     ):
         raise ValueError("COMMITTED_REVIEW_INVALID_COMMIT")
-    if base == head or head != run("rev-parse", "HEAD").decode("ascii").strip():
+    current_head = run("rev-parse", "HEAD").decode("ascii").strip()
+    if base == head or (not historical and head != current_head):
         raise ValueError("COMMITTED_REVIEW_HEAD_MISMATCH")
+    if historical and run("merge-base", head, current_head).decode().strip() != head:
+        raise ValueError("COMMITTED_REVIEW_HEAD_NOT_ANCESTOR")
     if run("merge-base", base, head).decode("ascii").strip() != base:
         raise ValueError("COMMITTED_REVIEW_BASE_NOT_ANCESTOR")
-    if run("status", "--porcelain=v1", "-z", "--untracked-files=all"):
+    if not historical and run(
+        "status", "--porcelain=v1", "-z", "--untracked-files=all"
+    ):
         raise ValueError("COMMITTED_REVIEW_WORKSPACE_DIRTY")
     raw = run(
         "diff",
@@ -1934,6 +1959,49 @@ def verify_committed_review_change_set(change_set: GovernanceChangeSet) -> None:
         raise ValueError("COMMITTED_REVIEW_SCOPE_DRIFT")
 
 
+def verify_historical_committed_review(
+    root: Path,
+    frozen: dict[str, object],
+    *,
+    base: str,
+    accepted: str,
+    patch_sha256: str,
+) -> None:
+    """Bind a historical receipt to the canonical real diff and approval subject."""
+    actual = _resolve_committed_change_set(root, base, accepted, historical=True)
+    change = frozen.get("change_set")
+    subject = frozen.get("subject_digest")
+    if not isinstance(change, dict) or not isinstance(subject, dict):
+        raise ValueError("COMMITTED_REVIEW_FROZEN_BINDING_MISSING")
+    if (
+        actual.review_patch_sha256 != patch_sha256
+        or any(change.get(key) != value for key, value in actual.to_payload().items())
+        or subject.get("git_commit") != accepted
+        or subject.get("change_set_sha256") != actual.change_set_sha256
+        or subject.get("repository_root") != str(root.resolve())
+        or subject.get("subject_scope") != _SUBJECT_DIGEST_SCOPE
+    ):
+        raise ValueError("COMMITTED_REVIEW_FROZEN_BINDING_DRIFT")
+    identity = {
+        key: subject.get(key)
+        for key in (
+            "repository_root",
+            "subject_scope",
+            "authority_family_sha256",
+            "repository_tree_sha256",
+            "git_commit",
+            "change_set_sha256",
+        )
+    }
+    for key in ("authority_family_sha256", "repository_tree_sha256"):
+        value = identity[key]
+        if not isinstance(value, str) or not _SHA256_RE.fullmatch(value):
+            raise ValueError("COMMITTED_REVIEW_SUBJECT_INVALID")
+    digest = _governance_subject_sha256(identity)
+    if subject.get("subject_id") != digest or subject.get("subject_sha256") != digest:
+        raise ValueError("COMMITTED_REVIEW_SUBJECT_DRIFT")
+
+
 def _build_approval_verification(
     *,
     change_set: GovernanceChangeSet | None,
@@ -1947,23 +2015,65 @@ def _build_approval_verification(
         _approval_requirements(change_class)
     )
     research_policy = load_personal_research_policy(governance_gate.repository_root)
-    package_owner = load_package_owner_acceptance(
-        governance_gate.repository_root,
-        () if change_set is None else change_set.changed_paths,
-        change_class.value,
+    policy_commit = (
+        None
+        if change_set is None
+        else (change_set.review_base_commit or change_set.git_commit)
     )
-    if package_owner is not None:
-        if research_policy is not None:
-            raise ValueError("BOUNDED_OWNER_POLICY_OVERLAP")
+    sole_owner_policy = load_sole_owner_policy(
+        governance_gate.repository_root, policy_commit=policy_commit
+    )
+    if research_policy is not None and sole_owner_policy is not None:
+        raise ValueError("CONFLICTING_HUMAN_APPROVAL_PROFILES")
+    changed_paths = () if change_set is None else change_set.changed_paths
+    sole_owner_applies = (
+        sole_owner_policy is not None
+        and change_class in _GOVERNED_RELEASE_CONTROL.sole_owner_approval_change_classes
+        and bool(changed_paths)
+    )
+    if sole_owner_applies and sole_owner_policy is not None:
+        sole_owner_policy.check_scope(changed_paths, change_class.value)
         required_count = 1
+
+    package_owner = None
     if research_policy is not None and required_count:
-        research_policy.check_scope(
-            () if change_set is None else change_set.changed_paths, change_class.value
-        )
+        research_policy.check_scope(changed_paths, change_class.value)
         required_count = 1
     subject_digest = governance_gate.subject_digest
     if subject_digest is None:
         raise ValueError("approval verification requires governance subject digest")
+    initial_owner = None
+    if (
+        not sole_owner_applies
+        and research_policy is None
+        and change_class is ChangeApprovalClass.C3_GOVERNED
+        and change_set is not None
+        and change_set.review_base_commit is not None
+        and (governance_gate.repository_root / INITIAL_AMENDMENT_PATH).is_file()
+    ):
+        initial_owner = load_initial_owner_amendment(
+            governance_gate.repository_root,
+            base=change_set.review_base_commit,
+            subject_id=subject_digest.subject_id,
+            patch_sha256=change_set.review_patch_sha256,
+            candidate_files={
+                path: _sha256(governance_gate.repository_root / path)
+                for path in changed_paths
+            },
+            now=datetime.now(UTC),
+        )
+        if initial_owner is not None:
+            required_count = 1
+    if not sole_owner_applies and initial_owner is None:
+        package_owner = load_package_owner_acceptance(
+            governance_gate.repository_root,
+            () if change_set is None else change_set.changed_paths,
+            change_class.value,
+        )
+        if package_owner is not None:
+            if research_policy is not None or sole_owner_applies:
+                raise ValueError("BOUNDED_OWNER_POLICY_OVERLAP")
+            required_count = 1
     scope_hash = (
         change_set.change_set_sha256
         if change_set is not None
@@ -2006,11 +2116,24 @@ def _build_approval_verification(
     valid_count = 0
     now = datetime.now(UTC)
     for record in approval_records:
+        if initial_owner is not None:
+            initial_blockers = initial_owner.record_blockers(record)
+            if initial_blockers:
+                blockers.extend(initial_blockers)
+                continue
         research_blockers = _personal_record_checks(research_policy, record)
         if package_owner is not None:
             research_blockers += package_owner.record_blockers(record)
         if research_blockers:
             blockers.extend(research_blockers)
+            continue
+        sole_owner_blockers = _sole_owner_record_checks(
+            sole_owner_policy if sole_owner_applies else None,
+            record,
+            changed_paths,
+        )
+        if sole_owner_blockers:
+            blockers.extend(sole_owner_blockers)
             continue
         if record.status not in {
             ApprovalStatus.APPROVED_FOR_RESEARCH,
@@ -2125,16 +2248,32 @@ def _build_approval_verification(
         if package_owner is not None
         else None,
         approval_profile=(
-            BOUNDED_OWNER_PROFILE
+            "INITIAL_OWNER_AMENDMENT"
+            if initial_owner is not None
+            else "SOLE_HUMAN_OWNER"
+            if sole_owner_applies
+            else BOUNDED_OWNER_PROFILE
             if package_owner is not None
             else "PERSONAL_RESEARCH"
             if research_policy
             else "LEGACY_C3"
         ),
-        independent_human_review=False if research_policy or package_owner else None,
-        human_person_count=min(1, valid_count)
-        if research_policy or package_owner
-        else None,
+        independent_human_review=(
+            False
+            if initial_owner is not None
+            or sole_owner_applies
+            or research_policy
+            or package_owner
+            else None
+        ),
+        human_person_count=(
+            min(1, valid_count)
+            if initial_owner is not None
+            or sole_owner_applies
+            or research_policy
+            or package_owner
+            else None
+        ),
         subject_id=subject_digest.subject_id,
         scope_hash=scope_hash,
         deterministic_quality_gate_evidence_sha256=(
@@ -2174,6 +2313,20 @@ def _personal_record_checks(
         record.approved_at,
         record.expires_at,
     )
+
+
+def _sole_owner_record_checks(
+    policy: SoleOwnerPolicy | None,
+    record: ApprovalRecord,
+    paths: tuple[str, ...],
+) -> tuple[str, ...]:
+    if policy is None:
+        return (
+            ("SOLE_OWNER_POLICY_NOT_ACTIVE_OR_SCOPE_INELIGIBLE",)
+            if record.sole_owner_confirmation is not None
+            else ()
+        )
+    return policy.record_blockers(record, paths)
 
 
 def _approval_requirements(
@@ -2347,6 +2500,12 @@ def _classify_change_set(
     return ChangeApprovalClass.C1_LOW_RISK
 
 
+def _governance_subject_sha256(identity: dict[str, object]) -> str:
+    return hashlib.sha256(
+        json.dumps(identity, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+
 def _build_governance_subject_digest(
     repository_root: Path,
     change_set: GovernanceChangeSet | None = None,
@@ -2361,19 +2520,16 @@ def _build_governance_subject_digest(
     change_set_sha256 = (
         _EMPTY_CHANGE_SET_SHA256 if change_set is None else change_set.change_set_sha256
     )
-    subject_sha256 = hashlib.sha256(
-        json.dumps(
-            {
-                "repository_root": str(resolved_repository_root),
-                "subject_scope": _SUBJECT_DIGEST_SCOPE,
-                "authority_family_sha256": authority_family_sha256,
-                "repository_tree_sha256": repository_tree_sha256,
-                "git_commit": git_commit,
-                "change_set_sha256": change_set_sha256,
-            },
-            sort_keys=True,
-        ).encode("utf-8")
-    ).hexdigest()
+    subject_sha256 = _governance_subject_sha256(
+        {
+            "repository_root": str(resolved_repository_root),
+            "subject_scope": _SUBJECT_DIGEST_SCOPE,
+            "authority_family_sha256": authority_family_sha256,
+            "repository_tree_sha256": repository_tree_sha256,
+            "git_commit": git_commit,
+            "change_set_sha256": change_set_sha256,
+        }
+    )
     return GovernanceSubjectDigest(
         repository_root=resolved_repository_root,
         subject_scope=_SUBJECT_DIGEST_SCOPE,
@@ -2924,6 +3080,9 @@ def load_approval_records(report_path: Path) -> tuple[ApprovalRecord, ...]:
                 principal_id=str(item.get("principal_id", item.get("approver_id", ""))),
                 research_confirmation=parse_confirmation(
                     item.get("research_confirmation")
+                ),
+                sole_owner_confirmation=parse_sole_owner_confirmation(
+                    item.get("sole_owner_confirmation")
                 ),
                 execution_allowed=bool(item.get("execution_allowed", False)),
                 live_eligibility_status=str(
