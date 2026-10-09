@@ -7,44 +7,14 @@
 schema_version: "1.0"
 selection_mode: MANUAL_RESEARCH_SELECTION
 spot_assets:
-  - ADA
-  - AVAX
-  - BCH
-  - BNB
   - BTC
-  - DOGE
   - ETH
-  - GRAM
-  - HBAR
-  - HYPE
-  - LINK
-  - LTC
-  - NEAR
   - SOL
-  - SUI
-  - TRX
-  - UNI
-  - XLM
-  - XRP
   - ZEC
+  - XRP
 usd_m_futures_assets:
-  - ADA
-  - AVAX
-  - BCH
-  - BNB
   - BTC
-  - CC
-  - DOGE
   - ETH
-  - HBAR
-  - HYPE
-  - LINK
-  - LTC
-  - NEAR
   - SOL
-  - TRX
-  - UNI
-  - XLM
-  - XMR
-  - XRP
   - ZEC
+  - XRP

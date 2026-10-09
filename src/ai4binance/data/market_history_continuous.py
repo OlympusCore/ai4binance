@@ -509,6 +509,13 @@ class ContinuousMarketHistory:
     on_symbol_screen: SymbolReadyHandler | None = field(default=None, repr=False)
     clock: Callable[[], datetime] = field(default=lambda: datetime.now(UTC), repr=False)
     retention: MarketUniverseRetention | None = field(default=None, repr=False)
+    scoped_selection: Mapping[str, object] | None = field(default=None, repr=False)
+    scoped_window_starts: Mapping[tuple[str, str], datetime] | None = field(
+        default=None, repr=False
+    )
+    scoped_tail_priority: bool = False
+    scoped_details_start: datetime | None = None
+    scoped_retry_settings: Mapping[str, int] | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if (
@@ -551,6 +558,10 @@ class ContinuousMarketHistory:
         if observed_at.utcoffset() is None:
             raise ValueError("observed_at must be timezone-aware")
         now = observed_at.astimezone(UTC)
+        if self.scoped_selection is not None:
+            from ai4binance.data.scoped_history import sync_scoped_history
+
+            return sync_scoped_history(self, cutoff=now)
         before = self._network_totals()
         universe = self.history._eligible_universe(now, force_refresh=True)
         retention_result = None
@@ -2183,6 +2194,7 @@ class ContinuousMarketHistory:
         initial_start: datetime | None = None,
         maximum_cursor: datetime | None = None,
         cursor_tolerance: timedelta = timedelta(0),
+        rolling_window: bool = False,
     ) -> tuple[Path, dict[str, object], datetime]:
         path = directory / "collection-progress.json"
         if path.exists():
@@ -2208,6 +2220,13 @@ class ContinuousMarketHistory:
                 now.replace(hour=0, minute=0, second=0, microsecond=0)
                 - timedelta(days=self.initial_days)
             )
+            if rolling_window and origin < required_start:
+                state["previous_requested_start"] = origin.isoformat()
+                state["requested_start"] = required_start.isoformat()
+                state["next_at"] = max(start, required_start).isoformat()
+                state["rolling_window_advanced_at"] = now.isoformat()
+                _save(path, state)
+                start = max(start, required_start)
             if extend_history and origin > required_start:
                 # Older collectors used a shorter bootstrap window.  Extend it
                 # backwards without dropping verified parquet data, so the
@@ -2706,6 +2725,8 @@ class ContinuousMarketHistory:
         )
         directory = archive.root / dataset_symbol
         progress_directory = directory / timeframe
+        if self.scoped_selection is not None:
+            progress_directory = progress_directory / "profiles" / "top5-1000-month"
         interval_seconds = int(interval.total_seconds())
         end = datetime.fromtimestamp(
             int(now.timestamp()) // interval_seconds * interval_seconds,
@@ -2715,11 +2736,13 @@ class ContinuousMarketHistory:
             progress_directory,
             now,
             extend_history=True,
-            initial_start=self._candle_initial_start(
+            initial_start=(self.scoped_window_starts or {}).get((market, timeframe))
+            or self._candle_initial_start(
                 now, interval, history_days=history_days, timeframe=timeframe
             ),
             maximum_cursor=end,
             cursor_tolerance=interval,
+            rolling_window=self.scoped_selection is not None,
         )
         # Check the durable dataset before trusting progress; never silently reset
         # corrupt/missing storage and thereby skip an offline interval.
@@ -2784,6 +2807,8 @@ class ContinuousMarketHistory:
             manifest_last = datetime.fromisoformat(manifest.last_timestamp)
             manifest_generated = datetime.fromisoformat(manifest.generated_at)
             if manifest_generated < manifest_last + interval:
+                if self.scoped_selection is not None:
+                    raise ValueError("profile cannot truncate unclosed historical data")
                 # Compatibility repair for collectors that persisted the last
                 # still-open candle. Its generation timestamp is durable proof
                 # that the provider value was sampled before the candle closed.
@@ -2802,6 +2827,10 @@ class ContinuousMarketHistory:
                 _save(progress_path, state)
                 manifest = archive.manifest(dataset_symbol, timeframe)
             if datetime.fromisoformat(manifest.last_timestamp) >= end:
+                if self.scoped_selection is not None:
+                    raise ValueError(
+                        "profile cannot truncate post-cutoff historical data"
+                    )
                 manifest = archive.truncate_from(
                     dataset_symbol,
                     timeframe,
@@ -2810,7 +2839,9 @@ class ContinuousMarketHistory:
                     generated_at=now,
                 )
             tail_start = datetime.fromisoformat(manifest.last_timestamp) + interval
-            if tail_start < end:
+            if tail_start < end and (
+                self.scoped_selection is None or self.scoped_tail_priority
+            ):
                 # Historical availability gaps must remain visible, but they must
                 # not prevent the already verified active listing segment from
                 # receiving its latest closed candles. Refresh the contiguous
@@ -2826,7 +2857,9 @@ class ContinuousMarketHistory:
                     dataset_symbol=dataset_symbol,
                     directory=directory,
                     manifest=manifest,
-                    start=tail_start,
+                    start=max(tail_start, end - 499 * interval)
+                    if self.scoped_selection is not None
+                    else tail_start,
                     end=end,
                     interval=interval,
                     now=now,
@@ -2834,6 +2867,8 @@ class ContinuousMarketHistory:
                 )
                 if refreshed is not None:
                     manifest = refreshed
+                if self.scoped_selection is not None:
+                    return {"status": "BACKFILLING", "next_at": state["next_at"]}
             last = datetime.fromisoformat(manifest.last_timestamp) + interval
             if cursor > last:
                 raise ValueError("collection progress exceeds the verified dataset")
@@ -2908,6 +2943,9 @@ class ContinuousMarketHistory:
                 "KLINE_GAP",
             }:
                 return unavailable
+            if self.scoped_selection is not None:
+                # One bounded archive/checksum recovery chunk per stream turn.
+                return {"status": "BACKFILLING", "next_at": state["next_at"]}
         source = f"BINANCE_PUBLIC_REST_{timeframe.upper()}"
         pending_candles: list[OHLCVCandle] = []
 
@@ -3162,7 +3200,17 @@ class ContinuousMarketHistory:
         self, symbol: str, kind: str, now: datetime, *, market: str = "usd_m_futures"
     ) -> dict[str, object]:
         directory = self.history.archive_root / market / symbol / "details" / kind
-        path, state, cursor = self._progress(directory, now)
+        progress_directory = directory
+        if self.scoped_selection is not None:
+            progress_directory = directory / "profiles" / "top5-1000-month"
+            path, state, cursor = self._progress(
+                progress_directory,
+                now,
+                initial_start=self.scoped_details_start,
+                rolling_window=True,
+            )
+        else:
+            path, state, cursor = self._progress(directory, now)
         funding = kind == "funding"
         coin = market == "coin_m_futures"
         if coin and funding and self.coin_m_contracts[symbol][1] != "PERPETUAL":
@@ -3255,6 +3303,8 @@ class ContinuousMarketHistory:
             },
         )
         state["next_at"] = next_at.isoformat()
+        if self.scoped_selection is not None:
+            state["verified_source_next_at"] = next_at.isoformat()
         _save(path, state)
         return {
             "status": "CURRENT" if next_at >= end else "BACKFILLING",
@@ -3334,6 +3384,8 @@ class ContinuousMarketHistory:
             },
         )
         state["next_at"] = next_at.isoformat()
+        if self.scoped_selection is not None:
+            state["verified_source_next_at"] = next_at.isoformat()
         _save(progress_path, state)
         return {"status": "BACKFILLING", "next_at": next_at.isoformat()}
 

@@ -7,6 +7,7 @@ import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, replace
 from datetime import UTC, date, datetime, timedelta
+from functools import partial
 from pathlib import Path
 from threading import BoundedSemaphore
 from typing import cast
@@ -17,6 +18,7 @@ from ai4binance.application.opportunity_monitor import (
 )
 from ai4binance.compatibility.opportunity_monitor import screen_market_opportunities
 from ai4binance.config import Settings
+from ai4binance.core.errors import ExchangeRateLimitError
 from ai4binance.data.acquisition import ArchivedMarketSnapshotAcquisition
 from ai4binance.data.archive import ParquetOHLCVArchive
 from ai4binance.data.coin_observations import build_coin_observations
@@ -35,6 +37,15 @@ from ai4binance.data.market_history_sync import (
     MarketHistorySynchronizer,
 )
 from ai4binance.data.market_universe_retention import MarketUniverseRetention
+from ai4binance.data.scoped_history import profile_health, verified_selection
+from ai4binance.data.weekly_volume import (
+    ScopedRetryPolicy,
+    WeeklyVolumeRanking,
+    active_shared_circuit,
+    load_evidence,
+    record_public_response,
+    record_shared_cooldown,
+)
 from ai4binance.domain.opportunity_observation import (
     has_complete_measurable_opportunity,
 )
@@ -178,7 +189,7 @@ def build_continuous_market_history(
 ) -> ContinuousMarketHistory:
     """Build the one canonical continuous collector used by every runtime."""
 
-    return ContinuousMarketHistory(
+    collector = ContinuousMarketHistory(
         history=synchronizer,
         spot=synchronizer.universe_provider.spot_transport,
         futures=synchronizer.universe_provider.futures_transport,
@@ -238,6 +249,19 @@ def build_continuous_market_history(
             ),
         ),
     )
+    if getattr(settings, "market_history_acquisition_profile", "canonical") == (
+        "top5-1000-month"
+    ):
+        root = synchronizer.source_cache.root / "profiles" / "top5-1000-month"
+        collector.scoped_selection = load_evidence(root / "selection-active.json")
+        collector.pages_per_stream = 1
+        collector.archives_per_stream = 1
+        collector.follow_wall_clock = False
+        collector.on_symbol_ready = None
+        collector.on_symbol_screen = None
+        collector.retention = None
+        collector.scoped_retry_settings = _top5_retry_settings(settings)
+    return collector
 
 
 def _build_canonical_opportunity_pipeline(
@@ -796,6 +820,131 @@ def run_archive_snapshot_command(
     return 0 if report["status"] == "READY" else 2
 
 
+def run_top5_profile_command(
+    settings: Settings, *, command: str, cutoff: datetime | None
+) -> int:
+    """Explicit acquisition profile invocation with unchanged canonical defaults."""
+    settings = settings.model_copy(update={"request_timeout_seconds": 30.0})
+    synchronizer = build_market_history_synchronizer(settings)
+    provider = cast(ResearchMarketUniverseProvider, synchronizer.universe_provider)
+    evidence_root = synchronizer.source_cache.root / "profiles" / "top5-1000-month"
+    for metered in (
+        provider.binance.spot_transport,
+        provider.binance.futures_transport,
+    ):
+        adapter = cast(MeteredPublicTransport, metered)
+        adapter.transport = replace(
+            cast(ReadOnlyBinanceJsonTransport, adapter.transport),
+            response_bytes_observer=partial(record_public_response, evidence_root),
+        )
+    if command == "weekly-rank":
+        ranking = WeeklyVolumeRanking(
+            provider.binance.spot_transport,
+            provider.binance.futures_transport,
+            evidence_root,
+            retry_policy=ScopedRetryPolicy(**_top5_retry_settings(settings)),
+            futures_exclusions=settings.futures_symbol_exclusions,
+        )
+        verified_cutoff = _top5_verified_cutoff(provider, cutoff, evidence_root)
+        ranking_lock = (evidence_root / "ranking.lock").resolve()
+        if ranking_lock.exists():
+            raise ValueError("ranking writer lock must be preserved for owner review")
+        with SingleInstanceLease(ranking_lock):
+            report = ranking.run(cutoff=verified_cutoff)
+    else:
+        selection = load_evidence(evidence_root / "selection-active.json")
+        verified_selection(selection)
+        continuous = build_continuous_market_history(
+            settings, synchronizer, root=Path.cwd(), include_coin_m=False
+        )
+        continuous.scoped_selection = selection
+        continuous.pages_per_stream = 1
+        continuous.archives_per_stream = 1
+        continuous.follow_wall_clock = False
+        continuous.required_candles_by_timeframe = (
+            settings.virtual_market_period_lengths
+        )
+        continuous.on_symbol_ready = None
+        continuous.on_symbol_screen = None
+        continuous.retention = None
+        continuous.scoped_retry_settings = _top5_retry_settings(settings)
+        selected_cutoff = cutoff or datetime.now(UTC)
+        if selected_cutoff.utcoffset() is None or selected_cutoff > datetime.now(UTC):
+            raise ValueError("profile cutoff must be aware and cannot be in the future")
+        if command in {"snapshot", "status"}:
+            report = profile_health(continuous, cutoff=selected_cutoff)
+        elif command == "sync":
+            lock = _absolute(settings.market_history_state_path).with_suffix(".lock")
+            if lock.exists():
+                print(
+                    json.dumps(
+                        {
+                            "status": "BLOCKED",
+                            "blockers": [
+                                "CANONICAL_MARKET_HISTORY_WRITER_LOCK_PRESENT"
+                            ],
+                            "lock_path": str(lock),
+                            **_SAFE_STATE,
+                        }
+                    )
+                )
+                return 2
+            with SingleInstanceLease(lock):
+                report = continuous.sync_cycle(observed_at=selected_cutoff)
+        else:
+            raise ValueError(
+                "TOP5 supports explicit ranking, sync, status and snapshot only"
+            )
+    print(
+        json.dumps(
+            {
+                key: value
+                for key, value in report.items()
+                if key not in {"candidates", "streams"}
+            },
+            ensure_ascii=True,
+            sort_keys=True,
+        )
+    )
+    return 0 if report["status"] in {"VERIFIED", "DATA_READY"} else 2
+
+
+def _top5_retry_settings(settings: Settings) -> dict[str, int]:
+    return {
+        "attempts_per_episode": settings.market_history_retry_episode_attempts,
+        "attempts_per_hour": settings.market_history_retry_hourly_attempts,
+        "cooldown_seconds": settings.market_history_retry_cooldown_seconds,
+    }
+
+
+def _top5_verified_cutoff(
+    provider: ResearchMarketUniverseProvider, cutoff: datetime | None, root: Path
+) -> datetime:
+    times: list[datetime] = []
+    for market, transport, path in (
+        ("spot", provider.binance.spot_transport, "/api/v3/time"),
+        ("usd_m_futures", provider.binance.futures_transport, "/fapi/v1/time"),
+    ):
+        if active_shared_circuit(root, market, datetime.now(UTC)):
+            raise ValueError("SHARED_SOURCE_COOLDOWN")
+        try:
+            payload = transport.get_json(path)
+        except ExchangeRateLimitError as error:
+            record_shared_cooldown(root, market, error)
+            raise
+        if not isinstance(payload, dict) or not isinstance(
+            payload.get("serverTime"), int
+        ):
+            raise ValueError("official server time is not verified")
+        times.append(datetime.fromtimestamp(payload["serverTime"] / 1000, UTC))
+    if abs((times[0] - times[1]).total_seconds()) > 60:
+        raise ValueError("official market clocks are inconsistent")
+    value = cutoff or min(times)
+    if value.utcoffset() is None or value > min(times):
+        raise ValueError("ranking cutoff exceeds a verified official clock")
+    return value
+
+
 def main(arguments: Sequence[str] | None = None) -> int:
     """Run the standalone, research-only market-history command surface."""
 
@@ -804,7 +953,21 @@ def main(arguments: Sequence[str] | None = None) -> int:
     )
     parser.add_argument(
         "command",
-        choices=("sync", "status", "daemon", "cleanup-1m", "rank-proposal", "snapshot"),
+        choices=(
+            "sync",
+            "status",
+            "daemon",
+            "cleanup-1m",
+            "rank-proposal",
+            "snapshot",
+            "weekly-rank",
+        ),
+    )
+    parser.add_argument(
+        "--profile",
+        choices=("canonical", "top5-1000-month"),
+        default="canonical",
+        help="Public acquisition scope; strategy warmup and live gates stay intact.",
     )
     parser.add_argument(
         "--as-of",
@@ -829,6 +992,12 @@ def main(arguments: Sequence[str] | None = None) -> int:
         help="Remove only legacy 1m files with verified native replacements.",
     )
     parsed = parser.parse_args(arguments)
+    if parsed.command == "weekly-rank" or parsed.profile == "top5-1000-month":
+        return run_top5_profile_command(
+            Settings(),
+            command=parsed.command,
+            cutoff=datetime.fromisoformat(parsed.cutoff) if parsed.cutoff else None,
+        )
     if parsed.command == "snapshot":
         if parsed.cutoff is None:
             parser.error("snapshot requires --cutoff")

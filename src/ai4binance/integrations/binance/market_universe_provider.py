@@ -163,6 +163,9 @@ class ReadOnlyBinanceJsonTransport:
     response_headers_observer: Callable[[Mapping[str, str]], None] | None = field(
         default=None, repr=False, compare=False
     )
+    response_bytes_observer: Callable[[str, bytes], None] | None = field(
+        default=None, repr=False, compare=False
+    )
 
     def __post_init__(self) -> None:
         normalized_url = self.base_url.strip().rstrip("/")
@@ -222,6 +225,7 @@ class ReadOnlyBinanceJsonTransport:
         raise ExchangeTransportError(f"public Binance request failed at {path}")
 
     def _request_once(self, url: str, path: str) -> object:
+        deadline = time.monotonic() + self.timeout_seconds
         request = Request(  # noqa: S310  # nosec B310
             url,
             headers={"Accept": "application/json", "User-Agent": "AI4Binance/0.1"},
@@ -231,11 +235,28 @@ class ReadOnlyBinanceJsonTransport:
             request,
             timeout=self.timeout_seconds,
         ) as response:
-            payload = response.read(self.max_response_bytes + 1)
+            chunks: list[bytes] = []
+            total = 0
+            while total <= self.max_response_bytes:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("public response deadline exceeded")
+                requested = min(65_536, self.max_response_bytes + 1 - total)
+                chunk = response.read(requested)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                total += len(chunk)
+                if len(chunk) < requested:
+                    break
+            payload = b"".join(chunks)
             if self.response_headers_observer is not None:
                 self.response_headers_observer(dict(response.headers.items()))
         if len(payload) > self.max_response_bytes:
             raise ExchangePayloadError(f"public Binance payload too large at {path}")
+        if time.monotonic() >= deadline:
+            raise TimeoutError("public response deadline exceeded")
+        if self.response_bytes_observer is not None:
+            self.response_bytes_observer(url, payload)
         try:
             return json.loads(payload.decode("utf-8"))
         except UnicodeDecodeError, JSONDecodeError:
