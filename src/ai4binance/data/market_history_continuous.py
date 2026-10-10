@@ -516,8 +516,20 @@ class ContinuousMarketHistory:
     scoped_tail_priority: bool = False
     scoped_details_start: datetime | None = None
     scoped_retry_settings: Mapping[str, int] | None = field(default=None, repr=False)
+    scoped_arrival_grace_seconds: int = 0
+    scoped_clock_resolver: Callable[[datetime], datetime] | None = field(
+        default=None, repr=False
+    )
+    scoped_clock_offset_seconds: float = 0.0
+    scoped_clock_verified: bool = False
+    scoped_turn_deadline_seconds: float = 30.0
 
     def __post_init__(self) -> None:
+        if (
+            not 0 <= self.scoped_arrival_grace_seconds <= 120
+            or not 1 <= self.scoped_turn_deadline_seconds <= 120
+        ):
+            raise ValueError("scoped acquisition scheduling bounds are invalid")
         if (
             not 1 <= self.initial_days <= 3650
             or not 1 <= self.enrichment_days <= 3650
@@ -2777,6 +2789,11 @@ class ContinuousMarketHistory:
             if seeded is not None:
                 state["first_available_at"] = seeded.first_timestamp
                 _save(progress_path, state)
+                if self.scoped_selection is not None:
+                    return {
+                        "status": "BACKFILLING",
+                        "source": "BINANCE_PUBLIC_REST_NATIVE_TAIL",
+                    }
         if parquet.exists():
             manifest = archive.manifest(dataset_symbol, timeframe)
             manifest_first = datetime.fromisoformat(manifest.first_timestamp)
@@ -2794,7 +2811,7 @@ class ContinuousMarketHistory:
             if known_first_available is None or manifest_first < known_first_available:
                 state["first_available_at"] = manifest.first_timestamp
                 _save(progress_path, state)
-            if manifest.gaps and not tail_only:
+            if manifest.gaps and not tail_only and self.scoped_selection is None:
                 # Collapse identical legacy rows through the canonical merge;
                 # conflicting values remain an integrity failure.
                 manifest = archive.update(
@@ -2976,6 +2993,8 @@ class ContinuousMarketHistory:
             cursor, request_end = missing_window(cursor)
             if cursor >= end:
                 break
+            if self.scoped_selection is not None:
+                request_end = min(request_end, cursor + 499 * interval)
             rows: list[object]
             prefix = _prefix(market)
             remaining_intervals = max(

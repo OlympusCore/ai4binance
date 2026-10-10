@@ -8,6 +8,7 @@ from decimal import Decimal
 from hashlib import sha256
 from pathlib import Path
 from typing import cast
+from urllib.parse import urlencode
 
 from ai4binance.core.errors import ExchangeError, ExchangeRateLimitError
 from ai4binance.data.acquisition_profile import (
@@ -59,18 +60,31 @@ def record_public_response(root: Path, url: str, payload: bytes) -> None:
         BinanceVisionArchiveCache._atomic_write(raw_path, payload)
     if sha256(raw_path.read_bytes()).hexdigest() != digest:
         raise ValueError("raw public response integrity failed")
-    save_evidence(
-        root / "responses" / f"{sha256(url.encode()).hexdigest()}.json",
-        {
-            "source_url": url,
-            "observed_at": datetime.now(UTC).isoformat(),
-            "raw_path": str(raw_path),
-            "raw_response_sha256": digest,
-            "hash_scope": "LOCAL_RESPONSE_INTEGRITY_NOT_BINANCE_CHECKSUM",
-            "parser_version": "TOP5_NATIVE_KLINE_V1",
-            **SAFE_STATE,
-        },
-    )
+    alias = root / "responses" / f"{sha256(url.encode()).hexdigest()}.json"
+    previous = load_evidence(alias)
+    if previous:
+        _retain_response_receipt(root, previous)
+    receipt: dict[str, object] = {
+        "source_url": url,
+        "observed_at": datetime.now(UTC).isoformat(),
+        "raw_path": str(raw_path),
+        "raw_response_sha256": digest,
+        "hash_scope": "LOCAL_RESPONSE_INTEGRITY_NOT_BINANCE_CHECKSUM",
+        "parser_version": "TOP5_NATIVE_KLINE_V1",
+        **SAFE_STATE,
+    }
+    _retain_response_receipt(root, receipt)
+    save_evidence(alias, receipt)
+
+
+def _retain_response_receipt(root: Path, receipt: Mapping[str, object]) -> None:
+    digest = content_digest(receipt)
+    path = root / "responses" / "history" / f"{digest}.json"
+    if path.exists():
+        if content_digest(load_evidence(path)) != digest:
+            raise ValueError("immutable public response receipt integrity failed")
+        return
+    save_evidence(path, receipt)
 
 
 def save_evidence(path: Path, payload: Mapping[str, object]) -> None:
@@ -88,6 +102,202 @@ def load_evidence(path: Path) -> dict[str, object]:
     if not isinstance(payload, dict):
         raise ValueError("profile evidence must be an object")
     return cast(dict[str, object], payload)
+
+
+def _verify_reconstructed_packet(
+    root: Path,
+    packet: Mapping[str, object],
+    market: str,
+    symbol: str,
+    start: datetime,
+    end: datetime,
+) -> list[list[str]]:
+    body = {key: value for key, value in packet.items() if key != "content_sha256"}
+    if (
+        content_digest(body) != packet.get("content_sha256")
+        or packet.get("market") != market
+        or packet.get("symbol") != symbol
+        or packet.get("start") != start.isoformat()
+        or packet.get("end") != end.isoformat()
+    ):
+        raise ValueError("reconstructed packet binding mismatch")
+    rows = validate_native_rows(packet["rows"], start=start, end=end, timeframe="1h")
+    exact_quote_volume(rows, start, end)
+    digest = str(packet["raw_response_sha256"])
+    if len(digest) != 64 or any(value not in "0123456789abcdef" for value in digest):
+        raise ValueError("reconstructed raw digest is invalid")
+    raw_path = root / "raw" / f"{digest}.json"
+    if raw_path.is_symlink():
+        raise ValueError("reconstructed raw response cannot be a symlink")
+    raw = raw_path.read_bytes()
+    receipt = cast(Mapping[str, object], packet["receipt"])
+    params = {
+        "symbol": symbol,
+        "interval": "1h",
+        "startTime": int(start.timestamp() * 1000),
+        "endTime": int(end.timestamp() * 1000) - 1,
+        "limit": 168,
+    }
+    prefix = (
+        "https://api.binance.com/api/v3/"
+        if market == "spot"
+        else "https://fapi.binance.com/fapi/v1/"
+    )
+    if (
+        sha256(raw).hexdigest() != digest
+        or receipt.get("raw_response_sha256") != digest
+        or receipt.get("source_url")
+        != prefix + "klines?" + urlencode(sorted(params.items()))
+        or content_digest(rows) != packet["decoded_rows_sha256"]
+        or validate_native_rows(json.loads(raw), start=start, end=end, timeframe="1h")
+        != rows
+    ):
+        raise ValueError("reconstructed raw source receipt integrity failed")
+    if (
+        datetime.fromisoformat(str(receipt["observed_at"])).utcoffset() is None
+        or datetime.fromisoformat(str(packet["recovered_at"])).utcoffset() is None
+    ):
+        raise ValueError("reconstruction receipt timestamps must be aware")
+    if packet.get("recovery_mode") == "RECOVERED_ORIGINAL_HASH_BOUND_PACKET":
+        original = cast(Mapping[str, object], packet["original_packet"])
+        if (
+            content_digest(original) != packet["original_expected_packet_sha256"]
+            or original.get("rows") != rows
+        ):
+            raise ValueError("recovered original packet integrity failed")
+    elif packet.get("recovery_mode") != "LATER_RETRIEVAL_NOT_PIT_AT_ORIGINAL_CUTOFF":
+        raise ValueError("reconstruction recovery mode is invalid")
+    return rows
+
+
+def verify_frozen_reconstruction(
+    root: Path, manifest: Mapping[str, object]
+) -> dict[str, object]:
+    """Reload and order every declared candidate without network access."""
+    body = {key: value for key, value in manifest.items() if key != "evidence_revision"}
+    if (
+        content_digest(body) != manifest.get("evidence_revision")
+        or manifest.get("status") != "RECONSTRUCTED"
+        or manifest.get("failures")
+    ):
+        raise ValueError("full reconstructed manifest is required")
+    original = load_evidence(root / "original-selection.json")
+    original_body = {
+        key: value
+        for key, value in original.items()
+        if key not in {"selection_version", "observed_at"}
+    }
+    if (
+        content_digest(original_body) != original.get("selection_version")
+        or original.get("selection_version") != manifest["original_selection_version"]
+    ):
+        raise ValueError("original selection binding failed")
+    start, end = (
+        datetime.fromisoformat(str(original[key]))
+        for key in ("ranking_start_utc", "ranking_end_utc")
+    )
+    metadata = cast(Mapping[str, object], original["metadata"])
+    for market in ("spot", "usd_m_futures"):
+        if (
+            content_digest(
+                load_evidence(root / "metadata" / f"{market}.json").get("payload")
+            )
+            != metadata[market]
+        ):
+            raise ValueError("durable original metadata integrity failed")
+    references = cast(list[dict[str, object]], manifest["packet_references"])
+    by_identity = {
+        (str(ref["asset_id"]), str(ref["market"])): ref for ref in references
+    }
+    if len(by_identity) != len(references):
+        raise ValueError("reconstruction contains duplicate references")
+    ranking: list[dict[str, object]] = []
+    expected_keys: set[tuple[str, str]] = set()
+    recovered = 0
+    for candidate in cast(list[dict[str, object]], original["candidates"]):
+        if candidate["status"] == "INELIGIBLE":
+            continue
+        result, original_count = _recompute_candidate(
+            root, candidate, by_identity, start, end
+        )
+        ranking.append(result)
+        recovered += original_count
+        expected_keys.update(
+            (str(candidate["asset_id"]), market) for market in ("spot", "usd_m_futures")
+        )
+    if set(by_identity) != expected_keys or len(ranking) < 5:
+        raise ValueError("reconstruction does not cover exactly its declared universe")
+    ranking.sort(
+        key=lambda row: (
+            Decimal(str(row["weekly_combined_quote_volume"])).copy_negate(),
+            str(row["asset_id"]),
+        )
+    )
+    return {
+        "status": "VERIFIED_FULL_RECONSTRUCTION",
+        "original_selection_version": original["selection_version"],
+        "evidence_revision": manifest["evidence_revision"],
+        "recomputed_candidates": ranking,
+        "verified_packet_count": len(references),
+        "original_packets_recovered": recovered,
+        "later_retrieved_packets": len(references) - recovered,
+        "top5_matches_original": [row["asset_id"] for row in ranking[:5]]
+        == [
+            row["asset_id"]
+            for row in cast(list[dict[str, object]], original["selected"])
+        ],
+        "historical_availability": "ORIGINAL_AND_LATER_RETRIEVALS_REMAIN_DISTINCT",
+        "selection_activation": "NOT_APPLIED",
+        **SAFE_STATE,
+    }
+
+
+def _recompute_candidate(
+    root: Path,
+    candidate: Mapping[str, object],
+    by_identity: Mapping[tuple[str, str], dict[str, object]],
+    start: datetime,
+    end: datetime,
+) -> tuple[dict[str, object], int]:
+    recovered = 0
+    volumes: list[str] = []
+    for market, symbol_key in (
+        ("spot", "spot_symbol"),
+        ("usd_m_futures", "futures_symbol"),
+    ):
+        identity = (str(candidate["asset_id"]), market)
+
+        if identity not in by_identity:
+            raise ValueError("reconstruction is missing declared candidate evidence")
+        reference = by_identity[identity]
+        relative = Path(str(reference["path"]))
+        if (
+            relative.is_absolute()
+            or ".." in relative.parts
+            or not relative.parts
+            or relative.parts[0] != "packets"
+        ):
+            raise ValueError("reconstruction reference escapes durable packets")
+        packet = load_evidence(root / relative)
+        if packet.get("content_sha256") != reference["content_sha256"]:
+            raise ValueError("reconstruction reference integrity failed")
+        rows = _verify_reconstructed_packet(
+            root, packet, market, str(candidate[symbol_key]), start, end
+        )
+        expected = cast(Mapping[str, Mapping[str, object]], candidate["markets"])[
+            market
+        ]["source_evidence_sha256"]
+        if packet["original_expected_packet_sha256"] != expected:
+            raise ValueError("reconstruction original packet reference changed")
+        volumes.append(exact_quote_volume(rows, start, end))
+        recovered += packet["recovery_mode"] == "RECOVERED_ORIGINAL_HASH_BOUND_PACKET"
+    result = {
+        "asset_id": candidate["asset_id"],
+        "weekly_spot_quote_volume": volumes[0],
+        "weekly_futures_quote_volume": volumes[1],
+        "weekly_combined_quote_volume": sum_decimal_strings(volumes),
+    }
+    return result, recovered
 
 
 def candidate_inventory(
@@ -253,6 +463,287 @@ class WeeklyVolumeRanking:
     evidence_root: Path
     retry_policy: ScopedRetryPolicy = ScopedRetryPolicy()
     futures_exclusions: tuple[str, ...] = ()
+
+    def reconstruct_frozen(
+        self, frozen: Mapping[str, object], destination: Path
+    ) -> dict[str, object]:
+        """Restore the historical interval without replacing active selection."""
+        version = str(frozen.get("selection_version", ""))
+        root, start, end, declared = self._reconstruction_context(frozen, destination)
+        references: list[dict[str, object]] = []
+        failures: list[dict[str, object]] = []
+        for candidate in declared:
+            if candidate["status"] == "INELIGIBLE":
+                continue
+            for market, transport, prefix, symbol_key in (
+                ("spot", self.spot, "/api/v3/", "spot_symbol"),
+                ("usd_m_futures", self.futures, "/fapi/v1/", "futures_symbol"),
+            ):
+                symbol = str(candidate[symbol_key])
+                key = f"{market}-{symbol}-{int(end.timestamp())}"
+                path = root / "packets" / f"{key}.json"
+                try:
+                    packet = self._reconstruct_packet(
+                        root, candidate, market, transport, prefix, symbol, start, end
+                    )
+                    references.append(
+                        {
+                            "asset_id": candidate["asset_id"],
+                            "market": market,
+                            "symbol": symbol,
+                            "path": path.relative_to(root).as_posix(),
+                            "content_sha256": packet["content_sha256"],
+                        }
+                    )
+                except (ExchangeError, OSError, ValueError, ArithmeticError) as error:
+                    if isinstance(error, OSError) and error.errno in {13, 28, 30}:
+                        raise
+                    failures.append(
+                        {
+                            "asset_id": candidate["asset_id"],
+                            "market": market,
+                            "reason": type(error).__name__,
+                        }
+                    )
+                save_evidence(
+                    root / "progress.json",
+                    {
+                        "original_selection_version": version,
+                        "completed_packets": len(references),
+                        "failures": failures,
+                        "observed_at": datetime.now(UTC).isoformat(),
+                        **SAFE_STATE,
+                    },
+                )
+        manifest: dict[str, object] = {
+            "original_selection_version": version,
+            "status": "NOT_VERIFIED" if failures else "RECONSTRUCTED",
+            "ranking_start_utc": start.isoformat(),
+            "ranking_end_utc": end.isoformat(),
+            "packet_references": references,
+            "failures": failures,
+            "observed_at": datetime.now(UTC).isoformat(),
+            "retention": "DURABLE_NO_AUTOMATIC_CLEANUP_OWNER_REVIEW_REQUIRED",
+            "selection_activation": "NOT_APPLIED",
+            **SAFE_STATE,
+        }
+        manifest["evidence_revision"] = content_digest(manifest)
+        save_evidence(
+            root / "revisions" / f"{manifest['evidence_revision']}.json", manifest
+        )
+        if not failures:
+            result = verify_frozen_reconstruction(root, manifest)
+            save_evidence(root / "verification-latest.json", result)
+            return {**manifest, "verification": result}
+        return manifest
+
+    def _reconstruction_context(
+        self, frozen: Mapping[str, object], destination: Path
+    ) -> tuple[Path, datetime, datetime, list[dict[str, object]]]:
+        version = str(frozen.get("selection_version", ""))
+        body = {
+            key: value
+            for key, value in frozen.items()
+            if key not in {"observed_at", "selection_version"}
+        }
+        if frozen.get("status") != "VERIFIED" or content_digest(body) != version:
+            raise ValueError("frozen ranking manifest integrity failed")
+        start, end = (
+            datetime.fromisoformat(str(frozen[key]))
+            for key in ("ranking_start_utc", "ranking_end_utc")
+        )
+        if end - start != timedelta(hours=168) or completed_boundary(end, "1h") != end:
+            raise ValueError("frozen ranking interval is invalid")
+        root = destination / version
+        original_path = root / "original-selection.json"
+        if original_path.exists() and content_digest(
+            load_evidence(original_path)
+        ) != content_digest(frozen):
+            raise ValueError("reconstruction original manifest changed")
+        if not original_path.exists():
+            save_evidence(original_path, frozen)
+        metadata: dict[str, Mapping[str, object]] = {}
+        expected_metadata = cast(Mapping[str, object], frozen["metadata"])
+        for market in ("spot", "usd_m_futures"):
+            packet = load_evidence(self.evidence_root / "metadata" / f"{market}.json")
+            if content_digest(packet.get("payload")) != expected_metadata[market]:
+                raise ValueError("original identity metadata is missing or changed")
+            metadata[market] = cast(Mapping[str, object], packet["payload"])
+            save_evidence(root / "metadata" / f"{market}.json", packet)
+        inventory, _ = candidate_inventory(
+            metadata["spot"],
+            metadata["usd_m_futures"],
+            futures_exclusions=self.futures_exclusions,
+        )
+        declared = cast(list[dict[str, object]], frozen["candidates"])
+
+        def identities(items: list[dict[str, object]]) -> list[tuple[str, str, str]]:
+            return sorted(
+                (
+                    str(item["asset_id"]),
+                    str(item["spot_symbol"]),
+                    str(item["futures_symbol"]),
+                )
+                for item in items
+            )
+
+        if (
+            identities(inventory) != identities(declared)
+            or len(declared) != frozen["candidate_count"]
+        ):
+            raise ValueError(
+                "frozen candidate identities disagree with original metadata"
+            )
+        return root, start, end, declared
+
+    def _retrieve_reconstruction_wire(
+        self,
+        key: str,
+        market: str,
+        transport: PublicJsonTransport,
+        prefix: str,
+        params: dict[str, str | int],
+        url: str,
+        start: datetime,
+        end: datetime,
+    ) -> tuple[list[list[str]], bytes, dict[str, object]]:
+        now = datetime.now(UTC)
+        retry_path = self.evidence_root / "retry" / f"reconstruction-{key}.json"
+        if active_shared_circuit(
+            self.evidence_root, market, now
+        ) or not self.retry_policy.reserve(retry_path, now):
+            raise ValueError("RECONSTRUCTION_RETRY_DEFERRED")
+        try:
+            payload = transport.get_json(prefix + "klines", params)
+        except ExchangeRateLimitError as error:
+            record_shared_cooldown(self.evidence_root, market, error)
+            raise
+        rows = validate_native_rows(payload, start=start, end=end, timeframe="1h")
+        exact_quote_volume(rows, start, end)
+        receipt = load_evidence(
+            self.evidence_root
+            / "responses"
+            / f"{sha256(url.encode()).hexdigest()}.json"
+        )
+        raw = (
+            self.evidence_root
+            / "raw"
+            / f"{receipt.get('raw_response_sha256', '')}.json"
+        ).read_bytes()
+        if (
+            sha256(raw).hexdigest() != receipt.get("raw_response_sha256")
+            or receipt.get("source_url") != url
+            or validate_native_rows(
+                json.loads(raw),
+                start=start,
+                end=end,
+                timeframe="1h",
+            )
+            != rows
+        ):
+            raise ValueError("ranking reconstruction requires a wire receipt")
+        self.retry_policy.succeed(retry_path, datetime.now(UTC))
+        return rows, raw, receipt
+
+    def _reconstruct_packet(
+        self,
+        root: Path,
+        candidate: Mapping[str, object],
+        market: str,
+        transport: PublicJsonTransport,
+        prefix: str,
+        symbol: str,
+        start: datetime,
+        end: datetime,
+    ) -> dict[str, object]:
+        key = f"{market}-{symbol}-{int(end.timestamp())}"
+        path = root / "packets" / f"{key}.json"
+        if path.exists():
+            packet = load_evidence(path)
+            _verify_reconstructed_packet(root, packet, market, symbol, start, end)
+            return packet
+        original = load_evidence(self.evidence_root / "ranking-bars" / f"{key}.json")
+        markets = cast(Mapping[str, Mapping[str, object]], candidate["markets"])
+        expected = str(markets[market]["source_evidence_sha256"])
+        params: dict[str, str | int] = {
+            "symbol": symbol,
+            "interval": "1h",
+            "startTime": int(start.timestamp() * 1000),
+            "endTime": int(end.timestamp() * 1000) - 1,
+            "limit": 168,
+        }
+        host = (
+            "https://api.binance.com"
+            if market == "spot"
+            else "https://fapi.binance.com"
+        )
+        url = host + prefix + "klines?" + urlencode(sorted(params.items()))
+        receipt = load_evidence(
+            self.evidence_root
+            / "responses"
+            / f"{sha256(url.encode()).hexdigest()}.json"
+        )
+        if receipt:
+            retained_receipt = (
+                root / "original-receipts" / f"{content_digest(receipt)}.json"
+            )
+            if not retained_receipt.exists():
+                save_evidence(retained_receipt, receipt)
+        raw_path = (
+            self.evidence_root
+            / "raw"
+            / f"{receipt.get('raw_response_sha256', '')}.json"
+        )
+        recovered = bool(
+            original and content_digest(original) == expected and raw_path.is_file()
+        )
+        if recovered:
+            raw = raw_path.read_bytes()
+            recovered = (
+                sha256(raw).hexdigest() == receipt.get("raw_response_sha256")
+                and receipt.get("source_url") == url
+                and validate_native_rows(
+                    json.loads(raw),
+                    start=start,
+                    end=end,
+                    timeframe="1h",
+                )
+                == original["rows"]
+            )
+        if not recovered:
+            rows, raw, receipt = self._retrieve_reconstruction_wire(
+                key, market, transport, prefix, params, url, start, end
+            )
+        else:
+            rows = validate_native_rows(
+                original["rows"], start=start, end=end, timeframe="1h"
+            )
+        digest = sha256(raw).hexdigest()
+        durable_raw = root / "raw" / f"{digest}.json"
+        durable_raw.parent.mkdir(parents=True, exist_ok=True)
+        if not durable_raw.exists():
+            BinanceVisionArchiveCache._atomic_write(durable_raw, raw)
+        packet = {
+            "market": market,
+            "symbol": symbol,
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "rows": rows,
+            "decoded_rows_sha256": content_digest(rows),
+            "raw_response_sha256": digest,
+            "receipt": receipt,
+            "original_expected_packet_sha256": expected,
+            "original_packet": original if recovered else None,
+            "recovery_mode": "RECOVERED_ORIGINAL_HASH_BOUND_PACKET"
+            if recovered
+            else "LATER_RETRIEVAL_NOT_PIT_AT_ORIGINAL_CUTOFF",
+            "recovered_at": datetime.now(UTC).isoformat(),
+            **SAFE_STATE,
+        }
+        packet["content_sha256"] = content_digest(packet)
+        _verify_reconstructed_packet(root, packet, market, symbol, start, end)
+        save_evidence(path, packet)
+        return packet
 
     def run(self, *, cutoff: datetime) -> dict[str, object]:
         now = datetime.now(UTC)

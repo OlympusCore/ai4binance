@@ -66,6 +66,8 @@ class Settings(BaseSettings):
     market_history_retry_episode_attempts: int = Field(default=3, ge=1, le=3)
     market_history_retry_hourly_attempts: int = Field(default=6, ge=3, le=12)
     market_history_retry_cooldown_seconds: int = Field(default=900, ge=60, le=3600)
+    # Acquisition scheduling only; this does not relax strategy freshness gates.
+    market_history_source_arrival_grace_seconds: int = Field(default=0, ge=0, le=120)
     market_history_interval_seconds: float = 21_600.0
     market_history_live_interval_seconds: float = 180.0
     # Include daily feature warm-up before the governed 365-day OOS floor.

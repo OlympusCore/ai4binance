@@ -777,7 +777,7 @@ class MarketHistorySupervisor:
                 now = self.clock()
                 attempts += 1
                 fast_retry = False
-                result: object
+                result: object = None
                 try:
                     if self.cycle is None:
                         result = self.synchronizer.sync_day(
@@ -798,8 +798,19 @@ class MarketHistorySupervisor:
                         delay = max(1, delay - (time.monotonic() - started))
                     if fast_retry:
                         delay = min(delay, 30)
+                    delay = _scoped_wakeup_delay(result, self.clock(), delay)
                     self.sleeper(delay)
         return completed
+
+
+def _scoped_wakeup_delay(result: object, now: datetime, fallback: float) -> float:
+    """Wait to an absolute scoped deadline; work duration cannot shift UTC cadence."""
+    if not isinstance(result, Mapping) or "local_next_wakeup_at" not in result:
+        return fallback
+    due = datetime.fromisoformat(str(result["local_next_wakeup_at"]))
+    if due.utcoffset() is None or now.utcoffset() is None:
+        raise ValueError("scoped wakeup must be timezone-aware")
+    return max(1.0, (due - now).total_seconds())
 
 
 def _requires_fast_retry(result: object) -> bool:

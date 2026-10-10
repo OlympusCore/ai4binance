@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, replace
 from datetime import UTC, date, datetime, timedelta
@@ -261,6 +262,7 @@ def build_continuous_market_history(
         collector.on_symbol_screen = None
         collector.retention = None
         collector.scoped_retry_settings = _top5_retry_settings(settings)
+        _configure_top5_clock(collector, settings, synchronizer, root)
     return collector
 
 
@@ -837,7 +839,7 @@ def run_top5_profile_command(
             cast(ReadOnlyBinanceJsonTransport, adapter.transport),
             response_bytes_observer=partial(record_public_response, evidence_root),
         )
-    if command == "weekly-rank":
+    if command in {"weekly-rank", "ranking-reconstruct"}:
         ranking = WeeklyVolumeRanking(
             provider.binance.spot_transport,
             provider.binance.futures_transport,
@@ -850,7 +852,18 @@ def run_top5_profile_command(
         if ranking_lock.exists():
             raise ValueError("ranking writer lock must be preserved for owner review")
         with SingleInstanceLease(ranking_lock):
-            report = ranking.run(cutoff=verified_cutoff)
+            report = (
+                ranking.run(cutoff=verified_cutoff)
+                if command == "weekly-rank"
+                else ranking.reconstruct_frozen(
+                    load_evidence(evidence_root / "selection-active.json"),
+                    _absolute(settings.market_history_state_path).parent.parent
+                    / "artifacts"
+                    / "data"
+                    / "top5"
+                    / "ranking-evidence",
+                )
+            )
     else:
         selection = load_evidence(evidence_root / "selection-active.json")
         verified_selection(selection)
@@ -890,6 +903,9 @@ def run_top5_profile_command(
                 )
                 return 2
             with SingleInstanceLease(lock):
+                _configure_top5_clock(
+                    continuous, settings, synchronizer, evidence_root, cutoff=cutoff
+                )
                 report = continuous.sync_cycle(observed_at=selected_cutoff)
         else:
             raise ValueError(
@@ -900,13 +916,14 @@ def run_top5_profile_command(
             {
                 key: value
                 for key, value in report.items()
-                if key not in {"candidates", "streams"}
+                if key
+                not in {"candidates", "streams", "packet_references", "verification"}
             },
             ensure_ascii=True,
             sort_keys=True,
         )
     )
-    return 0 if report["status"] in {"VERIFIED", "DATA_READY"} else 2
+    return 0 if report["status"] in {"VERIFIED", "DATA_READY", "RECONSTRUCTED"} else 2
 
 
 def _top5_retry_settings(settings: Settings) -> dict[str, int]:
@@ -921,6 +938,7 @@ def _top5_verified_cutoff(
     provider: ResearchMarketUniverseProvider, cutoff: datetime | None, root: Path
 ) -> datetime:
     times: list[datetime] = []
+    observations: list[dict[str, object]] = []
     for market, transport, path in (
         ("spot", provider.binance.spot_transport, "/api/v3/time"),
         ("usd_m_futures", provider.binance.futures_transport, "/fapi/v1/time"),
@@ -928,6 +946,8 @@ def _top5_verified_cutoff(
         if active_shared_circuit(root, market, datetime.now(UTC)):
             raise ValueError("SHARED_SOURCE_COOLDOWN")
         try:
+            local_started = datetime.now(UTC)
+            started = time.monotonic()
             payload = transport.get_json(path)
         except ExchangeRateLimitError as error:
             record_shared_cooldown(root, market, error)
@@ -937,12 +957,82 @@ def _top5_verified_cutoff(
         ):
             raise ValueError("official server time is not verified")
         times.append(datetime.fromtimestamp(payload["serverTime"] / 1000, UTC))
+        elapsed = time.monotonic() - started
+        if elapsed > 10:
+            raise ValueError("official clock round trip exceeds its verification bound")
+        observations.append(
+            {
+                "market": market,
+                "source": path,
+                "local_started_at": local_started.isoformat(),
+                "server_time": times[-1].isoformat(),
+                "round_trip_seconds": elapsed,
+                "offset_seconds": (times[-1] - local_started).total_seconds()
+                - elapsed / 2,
+            }
+        )
     if abs((times[0] - times[1]).total_seconds()) > 60:
         raise ValueError("official market clocks are inconsistent")
     value = cutoff or min(times)
     if value.utcoffset() is None or value > min(times):
         raise ValueError("ranking cutoff exceeds a verified official clock")
+    from ai4binance.data.weekly_volume import save_evidence
+
+    save_evidence(
+        root / "clock-latest.json",
+        {
+            "observed_at": datetime.now(UTC).isoformat(),
+            "observations": observations,
+            "status": "OFFICIAL_CLOCK_VERIFIED",
+            **_SAFE_STATE,
+        },
+    )
     return value
+
+
+def _configure_top5_clock(
+    collector: ContinuousMarketHistory,
+    settings: Settings,
+    synchronizer: MarketHistorySynchronizer,
+    root: Path,
+    *,
+    cutoff: datetime | None = None,
+) -> None:
+    """Cache verified exchange time briefly and advance it with a monotonic clock."""
+    provider = cast(ResearchMarketUniverseProvider, synchronizer.universe_provider)
+    collector.scoped_arrival_grace_seconds = (
+        settings.market_history_source_arrival_grace_seconds
+    )
+    collector.scoped_turn_deadline_seconds = 30.0
+    for metered in (
+        provider.binance.spot_transport,
+        provider.binance.futures_transport,
+    ):
+        adapter = cast(MeteredPublicTransport, metered)
+        adapter.transport = replace(
+            cast(ReadOnlyBinanceJsonTransport, adapter.transport),
+            response_bytes_observer=partial(record_public_response, root),
+        )
+    anchor: datetime | None = None
+    verified_at = 0.0
+
+    def resolve(_: datetime) -> datetime:
+        nonlocal anchor, verified_at
+        current = time.monotonic()
+        if anchor is None or current - verified_at >= 300:
+            anchor = _top5_verified_cutoff(provider, cutoff, root)
+            verified_at = time.monotonic()
+            collector.scoped_clock_verified = True
+            collector.scoped_clock_offset_seconds = (
+                (anchor - datetime.now(UTC)).total_seconds() if cutoff is None else 0.0
+            )
+        return (
+            anchor
+            if cutoff is not None
+            else anchor + timedelta(seconds=time.monotonic() - verified_at)
+        )
+
+    collector.scoped_clock_resolver = resolve
 
 
 def main(arguments: Sequence[str] | None = None) -> int:
@@ -961,6 +1051,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
             "rank-proposal",
             "snapshot",
             "weekly-rank",
+            "ranking-reconstruct",
         ),
     )
     parser.add_argument(
@@ -992,7 +1083,10 @@ def main(arguments: Sequence[str] | None = None) -> int:
         help="Remove only legacy 1m files with verified native replacements.",
     )
     parsed = parser.parse_args(arguments)
-    if parsed.command == "weekly-rank" or parsed.profile == "top5-1000-month":
+    if (
+        parsed.command in {"weekly-rank", "ranking-reconstruct"}
+        or parsed.profile == "top5-1000-month"
+    ):
         return run_top5_profile_command(
             Settings(),
             command=parsed.command,

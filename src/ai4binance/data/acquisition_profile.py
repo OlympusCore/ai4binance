@@ -39,6 +39,27 @@ def completed_boundary(cutoff: datetime, timeframe: str) -> datetime:
     return datetime.fromtimestamp(int(cutoff.timestamp()) // seconds * seconds, UTC)
 
 
+def native_schedule(
+    cutoff: datetime, timeframe: str, *, arrival_grace_seconds: int
+) -> dict[str, object]:
+    """Keep the expected boundary visible while delaying its acquisition deadline."""
+    if isinstance(arrival_grace_seconds, bool) or not 0 <= arrival_grace_seconds <= 120:
+        raise ValueError("source arrival grace must be between 0 and 120 seconds")
+    boundary = completed_boundary(cutoff, timeframe)
+    grace = timedelta(seconds=arrival_grace_seconds)
+    return {
+        "expected_closed_boundary": boundary.isoformat(),
+        "source_arrival_grace_seconds": arrival_grace_seconds,
+        "arrival_deadline": (boundary + grace).isoformat(),
+        "next_native_due_at": (
+            boundary + timeframe_duration(timeframe) + grace
+        ).isoformat(),
+        "acquisition_closed_boundary": completed_boundary(
+            cutoff - grace, timeframe
+        ).isoformat(),
+    }
+
+
 def previous_calendar_month(value: datetime) -> datetime:
     """Subtract one calendar month with explicit month-end clamping."""
     value = value.astimezone(UTC)

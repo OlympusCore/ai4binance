@@ -19,11 +19,12 @@ from ai4binance.data.acquisition_profile import (
     acquisition_window,
     content_digest,
     exact_quote_volume,
+    native_schedule,
     previous_calendar_month,
     stream_health,
     validate_native_rows,
 )
-from ai4binance.data.archive import ParquetOHLCVArchive
+from ai4binance.data.archive import DatasetManifest, ParquetOHLCVArchive
 from ai4binance.data.market_history_continuous import ContinuousMarketHistory
 from ai4binance.data.market_history_sync import (
     BinanceVisionArchiveCache,
@@ -31,7 +32,10 @@ from ai4binance.data.market_history_sync import (
 )
 from ai4binance.data.scoped_history import (
     _collect_turn,
+    _job,
+    _job_path,
     _merge_retained_pages,
+    _scheduled_turn,
     _stream_health,
     profile_health,
     profile_root,
@@ -45,8 +49,10 @@ from ai4binance.data.weekly_volume import (
     load_evidence,
     record_public_response,
     save_evidence,
+    verify_frozen_reconstruction,
 )
 from ai4binance.integrations.binance import BinanceMarketUniverseProvider
+from ai4binance.schemas import OHLCVCandle
 
 NOW = datetime(2026, 9, 2, 12, 4, tzinfo=UTC)
 ASSETS = ("AAA", "BBB", "CCC", "DDD", "EEE", "FFF")
@@ -639,3 +645,545 @@ def test_staged_hash_failure_preserves_prior_archive(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="binding"):
         _merge_retained_pages(collector, "spot", "AAAUSDT", "klines", "5m", NOW)
     assert not (collector.history.archive_root / "spot" / "AAAUSDT").exists()
+
+
+@pytest.mark.parametrize("timeframe", PROFILE_TIMEFRAMES)
+def test_native_due_grace_has_no_work_duration_drift(timeframe: str) -> None:
+    from ai4binance.data.timeframes import timeframe_duration
+
+    boundary = acquisition_window("spot", timeframe, NOW).end
+    duration = timeframe_duration(timeframe)
+    before = native_schedule(
+        boundary + timedelta(seconds=2), timeframe, arrival_grace_seconds=7
+    )
+    after = native_schedule(
+        boundary + timedelta(seconds=50), timeframe, arrival_grace_seconds=7
+    )
+    assert before["acquisition_closed_boundary"] == (boundary - duration).isoformat()
+    assert after["acquisition_closed_boundary"] == boundary.isoformat()
+    assert (
+        before["expected_closed_boundary"]
+        == after["expected_closed_boundary"]
+        == boundary.isoformat()
+    )
+    assert (
+        before["next_native_due_at"]
+        == after["next_native_due_at"]
+        == (boundary + duration + timedelta(seconds=7)).isoformat()
+    )
+    from ai4binance.data.market_history_sync import _scoped_wakeup_delay
+
+    assert (
+        _scoped_wakeup_delay(
+            {"local_next_wakeup_at": after["next_native_due_at"]},
+            boundary + timedelta(seconds=50),
+            180,
+        )
+        == duration.total_seconds() - 43
+    )
+
+
+@pytest.mark.parametrize("timeframe", PROFILE_TIMEFRAMES)
+def test_receipts_count_only_missing_bars_and_survive_reload(
+    tmp_path: Path, timeframe: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from ai4binance.data.timeframes import timeframe_duration
+
+    collector = fixture_collector(tmp_path)
+    window = acquisition_window("spot", timeframe, NOW)
+    duration = timeframe_duration(timeframe)
+    rows = [
+        native_row(
+            int((window.start + index * duration).timestamp() * 1000),
+            int(duration.total_seconds() * 1000),
+        )
+        for index in range(1000)
+    ]
+    candles = collector._parse_rows(
+        cast(list[object], rows), window.start, window.end, interval=duration
+    )
+    archive = ParquetOHLCVArchive(collector.history.archive_root / "spot")
+    archive.update(
+        "AAAUSDT",
+        timeframe,
+        candles,
+        source=f"BINANCE_PUBLIC_REST_{timeframe.upper()}",
+        generated_at=NOW,
+    )
+    collector.scoped_window_starts = {("spot", timeframe): window.start}
+    transport = cast(FixtureTransport, collector.spot)
+    transport.calls.clear()
+    row: dict[str, object] = {
+        "market": "spot",
+        "symbol": "AAAUSDT",
+        "timeframe": timeframe,
+    }
+    updates: list[str] = []
+    original_update = ParquetOHLCVArchive.update
+
+    def watched_update(
+        self: ParquetOHLCVArchive,
+        symbol: str,
+        timeframe: str,
+        candles: tuple[OHLCVCandle, ...],
+        *,
+        source: str,
+        generated_at: datetime | None = None,
+        replace_conflicts_from_sources: tuple[str, ...] = (),
+    ) -> DatasetManifest:
+        updates.append("TEST_ONLY write")
+        return original_update(
+            self,
+            symbol,
+            timeframe,
+            candles,
+            source=source,
+            generated_at=generated_at,
+            replace_conflicts_from_sources=replace_conflicts_from_sources,
+        )
+
+    monkeypatch.setattr(ParquetOHLCVArchive, "update", watched_update)
+    before = archive.manifest("AAAUSDT", timeframe)
+    assert (
+        _collect_turn(collector, row, NOW, ScopedRetryPolicy())["reason"]
+        == "INSUFFICIENT_CANDLES"
+    )
+    assert (
+        _collect_turn(collector, row, NOW, ScopedRetryPolicy())["reason"]
+        == "INSUFFICIENT_CANDLES"
+    )
+    assert transport.calls == []
+    assert updates == []
+    assert (
+        _stream_health(collector, "spot", "AAAUSDT", timeframe, NOW)["warmup_ready"]
+        is False
+    )
+    assert archive.manifest("AAAUSDT", timeframe) == before
+    later = window.end + duration + timedelta(seconds=1)
+    assert (
+        _collect_turn(collector, row, later, ScopedRetryPolicy())["status"]
+        == "PROGRESS"
+    )
+    assert len(transport.calls) == 1
+    assert transport.calls[0]["limit"] == 1
+    state = _job(collector, row)
+    counters = cast(dict[str, int], state["counters"])
+    assert (
+        counters["get_attempts"]
+        == counters["completed_responses"]
+        == counters["canonical_inserts"]
+        == counters["requested_missing_bars"]
+        == 1
+    )
+    assert counters["duplicate_overlap_rows"] == 0
+    assert len(archive.read("AAAUSDT", timeframe)) == 1001
+    assert not _merge_retained_pages(
+        collector, "spot", "AAAUSDT", "klines", timeframe, later
+    )
+    assert _job(collector, row)["counters"] == counters
+    assert load_evidence(_job_path(collector, row))["last_useful_commit_at"]
+
+
+def test_pending_response_replays_after_commit_failure_without_get(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    collector = fixture_collector(tmp_path)
+    window = acquisition_window("spot", "5m", NOW)
+    collector.scoped_window_starts = {("spot", "5m"): window.start}
+    row: dict[str, object] = {"market": "spot", "symbol": "AAAUSDT", "timeframe": "5m"}
+    original = ParquetOHLCVArchive.update
+
+    def unavailable(*args: object, **kwargs: object) -> object:
+        raise ExchangeTransportError("TEST_ONLY interrupted canonical publication")
+
+    monkeypatch.setattr(ParquetOHLCVArchive, "update", unavailable)
+    assert (
+        _collect_turn(collector, row, NOW, ScopedRetryPolicy())["status"] == "BLOCKED"
+    )
+    state = _job(collector, row)
+    assert state["deferred_publish_rows"] == 499
+    assert cast(dict[str, int], state["counters"])["canonical_inserts"] == 0
+    monkeypatch.setattr(ParquetOHLCVArchive, "update", original)
+    transport = cast(FixtureTransport, collector.spot)
+    calls = len(transport.calls)
+    assert (
+        _collect_turn(collector, row, NOW, ScopedRetryPolicy())["status"] == "PROGRESS"
+    )
+    assert len(transport.calls) == calls
+    state = _job(collector, row)
+    assert state["deferred_publish_rows"] == 0
+    assert cast(dict[str, int], state["counters"])["canonical_inserts"] == 499
+    assert not _merge_retained_pages(collector, "spot", "AAAUSDT", "klines", "5m", NOW)
+    assert _job(collector, row)["counters"] == state["counters"]
+
+
+def test_foreign_writer_lease_is_preserved_without_requests(tmp_path: Path) -> None:
+    collector = fixture_collector(tmp_path)
+    lock = collector.history.state_path.with_suffix(".lock")
+    save_evidence(
+        lock, {"pid": 2147483647, "process_marker": "TEST_ONLY unknown owner"}
+    )
+    before = lock.read_bytes()
+    transport = cast(FixtureTransport, collector.spot)
+    transport.calls.clear()
+    assert collector.sync_cycle(observed_at=NOW)["reason"] == "CANONICAL_WRITER_BUSY"
+    assert lock.read_bytes() == before
+    assert transport.calls == []
+    assert not collector.history.state_path.exists()
+
+
+def test_reconstruction_full_reload_and_partial_rejection(tmp_path: Path) -> None:
+    root = tmp_path / "TEST_ONLY-source"
+
+    class ReceiptedFixture(FixtureTransport):
+        def get_json(
+            self, path: str, params: Mapping[str, str | int] | None = None
+        ) -> object:
+            payload = super().get_json(path, params)
+            host = (
+                "https://api.binance.com"
+                if self.market == "spot"
+                else "https://fapi.binance.com"
+            )
+            if params is not None and path.endswith("klines"):
+                record_public_response(
+                    root,
+                    host + path + "?" + urlencode(sorted(params.items())),
+                    json.dumps(payload).encode(),
+                )
+            return payload
+
+    ranking = WeeklyVolumeRanking(
+        ReceiptedFixture(), ReceiptedFixture(market="usd_m_futures"), root
+    )
+    frozen = ranking.run(cutoff=NOW)
+    # TEST_ONLY remove one decoded fixture packet to force later retrieval.
+    lost_packet = next((root / "ranking-bars").glob("spot-AAAUSDT-*.json"))
+    lost_packet.unlink()
+    before = (root / "selection-active.json").read_bytes()
+    manifest = ranking.reconstruct_frozen(frozen, tmp_path / "TEST_ONLY-durable")
+    bound_root = tmp_path / "TEST_ONLY-durable" / str(frozen["selection_version"])
+    result = verify_frozen_reconstruction(
+        bound_root,
+        {key: value for key, value in manifest.items() if key != "verification"},
+    )
+    assert result["verified_packet_count"] == 12
+    assert result["original_packets_recovered"] == 11
+    assert result["later_retrieved_packets"] == 1
+    assert len(list((bound_root / "original-receipts").glob("*.json"))) == 12
+    assert result["top5_matches_original"] is True
+    assert (root / "selection-active.json").read_bytes() == before
+    partial = {
+        key: value
+        for key, value in manifest.items()
+        if key not in {"verification", "evidence_revision"}
+    }
+    partial["packet_references"] = cast(list[object], partial["packet_references"])[:-1]
+    partial["evidence_revision"] = content_digest(partial)
+    with pytest.raises(ValueError, match="missing declared"):
+        verify_frozen_reconstruction(bound_root, partial)
+
+
+def test_persisted_due_jobs_honor_grace_and_failed_a_yields_to_b(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import ai4binance.data.scoped_history as scoped
+
+    collector = fixture_collector(tmp_path)
+    collector.scoped_arrival_grace_seconds = 7
+    boundary = acquisition_window("spot", "5m", NOW).end
+    jobs: list[dict[str, object]] = [
+        {
+            "market": "spot",
+            "symbol": symbol,
+            "timeframe": "5m",
+            "status": "PARTIAL",
+            "tail_ready": False,
+            "missing_open_times": [(boundary - timedelta(minutes=5)).isoformat()],
+        }
+        for symbol in ("AAAUSDT", "BBBUSDT")
+    ]
+
+    def health(*args: object, **kwargs: object) -> dict[str, object]:
+        return {
+            "streams": jobs.copy(),
+            "status": "PARTIAL",
+            "blockers": ["TEST_ONLY_MISSING"],
+        }
+
+    called: list[str] = []
+
+    def collect(
+        collector: ContinuousMarketHistory,
+        row: dict[str, object],
+        cutoff: datetime,
+        policy: ScopedRetryPolicy,
+        *,
+        allow_fetch: bool = True,
+    ) -> dict[str, object]:
+        if not allow_fetch:
+            return {"status": "NO_RETAINED_PROGRESS"}
+        called.append(str(row["symbol"]))
+        return {"status": "BLOCKED" if row["symbol"] == "AAAUSDT" else "PROGRESS"}
+
+    monkeypatch.setattr(scoped, "profile_health", health)
+    monkeypatch.setattr(scoped, "_collect_turn", collect)
+    monkeypatch.setattr(scoped, "_enrichment_turns", lambda *args: [])
+    first = collector.sync_cycle(observed_at=boundary + timedelta(seconds=2))
+    assert called == []
+    assert (
+        first["local_next_wakeup_at"] == (boundary + timedelta(seconds=7)).isoformat()
+    )
+    saved_a = _job(collector, jobs[0])
+    saved_a["next_due_at"] = (boundary + timedelta(minutes=10)).isoformat()
+    save_evidence(_job_path(collector, jobs[0]), saved_a)
+    reloaded = fixture_collector(tmp_path)
+    reloaded.scoped_arrival_grace_seconds = 7
+    reloaded.clock = lambda: boundary + timedelta(seconds=8)
+    second = reloaded.sync_cycle(observed_at=boundary + timedelta(seconds=8))
+    assert called == ["BBBUSDT"]
+    assert second["useful_progress_count"] == 1
+    assert _job(reloaded, jobs[0])["expected_closed_boundary"] == boundary.isoformat()
+    assert (
+        _job(reloaded, jobs[1])["last_actual_run_at"]
+        == (boundary + timedelta(seconds=8)).isoformat()
+    )
+
+
+def test_actual_start_lag_and_schedule_survive_delayed_local_replay(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """TEST_ONLY verified-clock stub and delayed replay; no real runtime claim."""
+    collector = fixture_collector(tmp_path)
+    requests_before = list(cast(FixtureTransport, collector.spot).calls)
+    started = NOW + timedelta(seconds=45)
+    collector.clock = lambda: started
+    collector.scoped_clock_verified = True
+    collector.scoped_clock_offset_seconds = 10
+    row: dict[str, object] = {
+        "market": "spot",
+        "symbol": "AAAUSDT",
+        "timeframe": "5m",
+        "status": "DATA_READY_1000",
+    }
+    state = _job(collector, row)
+    state["next_due_at"] = NOW.isoformat()
+    save_evidence(_job_path(collector, row), state)
+    _scheduled_turn(collector, row, NOW, ScopedRetryPolicy())
+    assert _job(collector, row)["scheduling_lag_seconds"] == 55
+    row["status"] = "MISSING"
+    state = _job(collector, row)
+    state["next_due_at"] = NOW.isoformat()
+    for key in ("expected_closed_boundary", "arrival_deadline"):
+        state.pop(key)
+    save_evidence(_job_path(collector, row), state)
+
+    def delayed_replay(*args: object, **kwargs: object) -> dict[str, object]:
+        collector.clock = lambda: NOW + timedelta(seconds=90)
+        return {"status": "PROGRESS"}
+
+    monkeypatch.setattr("ai4binance.data.scoped_history._collect_turn", delayed_replay)
+    assert (
+        _scheduled_turn(collector, row, NOW, ScopedRetryPolicy())["status"]
+        == "PROGRESS"
+    )
+    persisted = _job(collector, row)
+    assert persisted["scheduling_lag_seconds"] == 55
+    assert persisted["last_actual_run_at"] == started.isoformat()
+    assert persisted["expected_closed_boundary"] == "2026-09-02T12:00:00+00:00"
+    assert persisted["arrival_deadline"] == "2026-09-02T12:00:00+00:00"
+    assert cast(FixtureTransport, collector.spot).calls == requests_before
+
+
+def test_multiple_internal_gaps_fetch_only_missing_intervals(tmp_path: Path) -> None:
+    collector = fixture_collector(tmp_path)
+    collector.clock = lambda: NOW
+    window = acquisition_window("spot", "5m", NOW)
+    rows = [
+        native_row(
+            int((window.start + timedelta(minutes=5 * index)).timestamp() * 1000),
+            300000,
+        )
+        for index in range(1000)
+    ]
+    candles = collector._parse_rows(
+        cast(list[object], rows),
+        window.start,
+        window.end,
+        interval=timedelta(minutes=5),
+    )
+    candles = tuple(
+        item for index, item in enumerate(candles) if index not in {200, 301, 302}
+    )
+    archive = ParquetOHLCVArchive(collector.history.archive_root / "spot")
+    archive.update(
+        "AAAUSDT", "5m", candles, source="BINANCE_PUBLIC_REST_5M", generated_at=NOW
+    )
+    collector.scoped_window_starts = {("spot", "5m"): window.start}
+    transport = cast(FixtureTransport, collector.spot)
+    transport.calls.clear()
+    row: dict[str, object] = {
+        "market": "spot",
+        "symbol": "AAAUSDT",
+        "timeframe": "5m",
+        "tail_ready": True,
+    }
+    for _ in range(2):
+        assert (
+            _collect_turn(collector, row, NOW, ScopedRetryPolicy())["status"]
+            == "PROGRESS"
+        )
+    assert [query["limit"] for query in transport.calls] == [1, 2]
+    assert [query["startTime"] for query in transport.calls] == [
+        int((window.start + timedelta(minutes=5 * index)).timestamp() * 1000)
+        for index in (200, 301)
+    ]
+    assert len(archive.read("AAAUSDT", "5m")) == 1000
+    counters = cast(dict[str, int], _job(collector, row)["counters"])
+    assert counters["requested_missing_bars"] == counters["canonical_inserts"] == 3
+    later = NOW + timedelta(minutes=15)
+    assert (
+        _collect_turn(collector, row, later, ScopedRetryPolicy())["status"]
+        == "PROGRESS"
+    )
+    assert transport.calls[-1]["limit"] == 3
+    assert len(archive.read("AAAUSDT", "5m")) == 1003
+
+
+def test_late_response_is_retained_and_replayed_with_owner_released(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    collector = fixture_collector(tmp_path)
+    window = acquisition_window("spot", "5m", NOW)
+    collector.scoped_window_starts = {("spot", "5m"): window.start}
+    row: dict[str, object] = {"market": "spot", "symbol": "AAAUSDT", "timeframe": "5m"}
+    clock_values = iter((100.0, 101.0, 131.0))
+    monkeypatch.setattr(
+        "ai4binance.data.scoped_history.time.monotonic", lambda: next(clock_values)
+    )
+    result = _collect_turn(collector, row, NOW, ScopedRetryPolicy())
+    assert result["status"] == "BLOCKED"
+    assert _job(collector, row)["deferred_publish_rows"] == 499
+    assert not _job_path(collector, row).with_suffix(".lock").exists()
+    assert not collector.history.state_path.with_suffix(".lock").exists()
+    assert cast(dict[str, int], _job(collector, row)["counters"])["late_responses"] == 1
+    monkeypatch.undo()
+    transport = cast(FixtureTransport, collector.spot)
+    calls = len(transport.calls)
+    assert (
+        _collect_turn(collector, row, NOW, ScopedRetryPolicy())["status"] == "PROGRESS"
+    )
+    assert len(transport.calls) == calls
+
+
+def test_counter_settlement_crash_reconciles_canonical_commit_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import ai4binance.data.scoped_history as scoped
+
+    collector = fixture_collector(tmp_path)
+    window = acquisition_window("spot", "5m", NOW)
+    collector.scoped_window_starts = {("spot", "5m"): window.start}
+    row: dict[str, object] = {"market": "spot", "symbol": "AAAUSDT", "timeframe": "5m"}
+    original = scoped._settle_effect
+    calls = 0
+
+    def interrupted(
+        collector: ContinuousMarketHistory, row: Mapping[str, object], cutoff: datetime
+    ) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            raise KeyboardInterrupt("TEST_ONLY crash after canonical commit")
+        original(collector, row, cutoff)
+
+    monkeypatch.setattr(scoped, "_settle_effect", interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        _collect_turn(collector, row, NOW, ScopedRetryPolicy())
+    archive = ParquetOHLCVArchive(collector.history.archive_root / "spot")
+    before = archive.manifest("AAAUSDT", "5m")
+    assert before.row_count == 499
+    monkeypatch.setattr(scoped, "_settle_effect", original)
+    assert not _merge_retained_pages(collector, "spot", "AAAUSDT", "klines", "5m", NOW)
+    assert archive.manifest("AAAUSDT", "5m") == before
+    counters = cast(dict[str, int], _job(collector, row)["counters"])
+    assert counters["canonical_inserts"] == 499
+    assert counters["get_attempts"] == 1
+    assert not _merge_retained_pages(collector, "spot", "AAAUSDT", "klines", "5m", NOW)
+    assert _job(collector, row)["counters"] == counters
+
+
+def test_response_alias_replacement_preserves_original_receipt(tmp_path: Path) -> None:
+    url = "https://api.binance.com/api/v3/time"
+    record_public_response(tmp_path, url, b'{"serverTime": 1000}')
+    alias = tmp_path / "responses" / f"{sha256(url.encode()).hexdigest()}.json"
+    original = load_evidence(alias)
+    original_path = (
+        tmp_path / "responses" / "history" / f"{content_digest(original)}.json"
+    )
+    before = original_path.read_bytes()
+    record_public_response(tmp_path, url, b'{"serverTime": 2000}')
+    assert (
+        load_evidence(alias)["raw_response_sha256"] != original["raw_response_sha256"]
+    )
+    assert original_path.read_bytes() == before
+    assert load_evidence(original_path) == original
+    assert (tmp_path / "raw" / f"{original['raw_response_sha256']}.json").exists()
+
+
+def test_pending_receipt_cannot_escape_stream_directory(tmp_path: Path) -> None:
+    collector = fixture_collector(tmp_path)
+    row: dict[str, object] = {"market": "spot", "symbol": "AAAUSDT", "timeframe": "5m"}
+    outside = tmp_path / "TEST_ONLY-unrelated.json"
+    save_evidence(outside, {"status": "TEST_ONLY_NOT_SOURCE_DATA"})
+    state = _job(collector, row)
+    state["active_request"] = {"phase": "PUBLISH_PENDING", "packet_path": str(outside)}
+    save_evidence(_job_path(collector, row), state)
+    with pytest.raises(ValueError, match="escapes its stream"):
+        _merge_retained_pages(collector, "spot", "AAAUSDT", "klines", "5m", NOW)
+    assert not (collector.history.archive_root / "spot" / "AAAUSDT").exists()
+
+
+def test_raw_source_receipt_without_pending_page_prevents_another_get(
+    tmp_path: Path,
+) -> None:
+    collector = fixture_collector(tmp_path)
+    staged = stage_fixture_page(collector)
+    staged.unlink()  # TEST_ONLY simulate a crash before the decoded publication packet.
+    transport = cast(FixtureTransport, collector.spot)
+    transport.calls.clear()
+    row: dict[str, object] = {"market": "spot", "symbol": "AAAUSDT", "timeframe": "5m"}
+    assert (
+        _collect_turn(collector, row, NOW, ScopedRetryPolicy())["status"] == "PROGRESS"
+    )
+    assert transport.calls == []
+    counters = cast(dict[str, int], _job(collector, row)["counters"])
+    assert counters["get_attempts"] == 0
+    assert counters["canonical_inserts"] == counters["retained_page_reuses"] == 1
+
+
+def test_pending_publication_does_not_wait_for_network_retry_due(
+    tmp_path: Path,
+) -> None:
+    collector = fixture_collector(tmp_path)
+    stage_fixture_page(collector)
+    row: dict[str, object] = {
+        "market": "spot",
+        "symbol": "AAAUSDT",
+        "timeframe": "5m",
+        "status": "PARTIAL",
+        "tail_ready": False,
+    }
+    state = _job(collector, row)
+    state["next_due_at"] = (NOW + timedelta(hours=1)).isoformat()
+    save_evidence(_job_path(collector, row), state)
+    transport = cast(FixtureTransport, collector.spot)
+    transport.calls.clear()
+    assert (
+        _scheduled_turn(collector, row, NOW, ScopedRetryPolicy())["status"]
+        == "PROGRESS"
+    )
+    assert transport.calls == []
+    assert (
+        cast(dict[str, int], _job(collector, row)["counters"])["canonical_inserts"] == 1
+    )
