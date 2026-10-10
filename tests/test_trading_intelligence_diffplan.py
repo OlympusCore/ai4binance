@@ -718,6 +718,7 @@ def write_local_sources(tmp_path: Path) -> LocalMarketSnapshotTransport:
     stamp = int(NOW.timestamp() * 1000)
     sources: dict[str, dict[str, object]] = {
         "premiumIndex.json": {
+            "source": "/fapi/v1/premiumIndex",
             "rows": [
                 {
                     "symbol": "HOTUSDT",
@@ -726,10 +727,18 @@ def write_local_sources(tmp_path: Path) -> LocalMarketSnapshotTransport:
                     "indexPrice": "1.1",
                     "lastFundingRate": ".001",
                 }
-            ]
+            ],
         },
         "ticker-bookTicker.json": {
-            "rows": [{"symbol": "HOTUSDT", "bidPrice": "1.09", "askPrice": "1.11"}]
+            "source": "/fapi/v1/ticker/bookTicker",
+            "rows": [
+                {
+                    "symbol": "HOTUSDT",
+                    "time": stamp,
+                    "bidPrice": "1.09",
+                    "askPrice": "1.11",
+                }
+            ],
         },
         "exchange-info.json": {
             "payload": {
@@ -781,3 +790,82 @@ def test_local_futures_sources_are_fresh_symbol_bound_and_replay_safe(
     payload["rows"][0]["symbol"] = "BTCUSDT"
     premium.write_text(json.dumps(payload))
     assert not transport.attach_futures_context(snapshot).derivatives_snapshot
+
+
+def test_futures_liquidity_survives_missing_derivatives_and_reaches_gate(
+    tmp_path: Path,
+) -> None:
+    from ai4binance.agents.catalog import build_default_registry
+    from ai4binance.agents.universe_liquidity_gate import UniverseLiquidityGate
+    from ai4binance.schemas import AgentStatus
+
+    transport = write_local_sources(tmp_path)
+    # Test-only source intentionally lacks current open-interest observations.
+    (tmp_path / "HOTUSDT/details/open_interest/1.json").write_text(
+        json.dumps({"source": "/futures/data/openInterestHist", "rows": []}),
+        encoding="utf-8",
+    )
+    book_path = transport.directory / "ticker-bookTicker.json"
+    payload = json.loads(book_path.read_text(encoding="utf-8"))
+    payload["rows"][0].update(bidPrice="1.099", askPrice="1.101")
+    book_path.write_text(json.dumps(payload), encoding="utf-8")
+    source = replace(technical_snapshot(), market_type="USD_M_FUTURES")
+    snapshot = transport.attach_futures_context(source)
+    assert snapshot.market_metadata["trading_status"] == "TRADING"
+    assert snapshot.exchange_filters["PRICE_FILTER"] is not None
+    assert snapshot.spread == D(".002")
+    assert not snapshot.derivatives_snapshot
+    gate = UniverseLiquidityGate(build_default_registry().get("universe_liquidity"))
+    assert gate.evaluate_snapshot(snapshot).status is AgentStatus.SUCCESS
+    assert not gate.evaluate_snapshot(snapshot).hard_gate_eligible
+    assert source.bid != snapshot.bid
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "stale",
+        "wrong_symbol",
+        "crossed",
+        "filters",
+        "wrong_source",
+        "stale_book",
+        "future_book",
+    ],
+)
+def test_futures_liquidity_invalid_sources_remove_prior_evidence(
+    tmp_path: Path,
+    failure: str,
+) -> None:
+    from ai4binance.agents.catalog import build_default_registry
+    from ai4binance.agents.universe_liquidity_gate import UniverseLiquidityGate
+    from ai4binance.schemas import AgentStatus
+
+    transport = write_local_sources(tmp_path)
+    source = transport.attach_futures_context(
+        replace(technical_snapshot(), market_type="USD_M_FUTURES")
+    )
+    path = transport.directory / (
+        "exchange-info.json" if failure == "filters" else "ticker-bookTicker.json"
+    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if failure == "stale":
+        payload["observed_at"] = (NOW - timedelta(days=2)).isoformat()
+    elif failure == "wrong_symbol":
+        payload["rows"][0]["symbol"] = "BTCUSDT"
+    elif failure == "crossed":
+        payload["rows"][0]["bidPrice"] = "2"
+    elif failure == "wrong_source":
+        payload["source"] = "/api/v3/ticker/bookTicker"
+    elif failure in {"stale_book", "future_book"}:
+        offset = timedelta(days=-2 if failure == "stale_book" else 1)
+        payload["rows"][0]["time"] = int((NOW + offset).timestamp() * 1000)
+    else:
+        payload["payload"]["symbols"][0]["filters"] = []
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    snapshot = transport.attach_futures_context(source)
+    gate = UniverseLiquidityGate(build_default_registry().get("universe_liquidity"))
+    assert gate.evaluate_snapshot(snapshot).status is AgentStatus.BLOCKED
+    assert snapshot.bid is None
+    assert not snapshot.exchange_filters
+    assert "trading_status" not in snapshot.market_metadata

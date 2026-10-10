@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import ctypes
+import os
 from dataclasses import dataclass
 from enum import StrEnum
+from math import isfinite
+from pathlib import Path
 
 
 class WorkPriority(StrEnum):
@@ -12,6 +16,20 @@ class WorkPriority(StrEnum):
     P2_USER_WORK_ORDER = "P2_USER_WORK_ORDER"
     P3_BACKTEST_QUALITY_AUDIT = "P3_BACKTEST_QUALITY_AUDIT"
     P4_TUNING_KNOWLEDGE_REFRESH = "P4_TUNING_KNOWLEDGE_REFRESH"
+
+
+class ResourceAdmissionError(RuntimeError):
+    """Expose a fixed, non-sensitive resource refusal to canonical health stores."""
+
+    def __init__(self, blocker: str) -> None:
+        if blocker not in {
+            "RESOURCE_RAM_NOT_VERIFIED",
+            "RESOURCE_RAM_HARD_LIMIT",
+            "RESOURCE_RAM_SOFT_LIMIT",
+        }:
+            raise ValueError("unsupported resource admission blocker")
+        self.blocker = blocker
+        super().__init__(blocker)
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +65,54 @@ class ResourcePolicy:
             or self.live_eligibility_status != "LIVE_ORDER_BLOCKED"
         ):
             raise ValueError("resource policy cannot authorize execution")
+
+    def memory_blocker(
+        self, used_gb: float | None, *, discretionary: bool
+    ) -> str | None:
+        """Admit work against host physical RAM, leaving the OS reserve intact."""
+        if used_gb is None or not isfinite(used_gb) or used_gb < 0:
+            return "RESOURCE_RAM_NOT_VERIFIED"
+        if used_gb >= self.ram_hard_limit_gb:
+            return "RESOURCE_RAM_HARD_LIMIT"
+        if discretionary and used_gb >= self.ram_soft_limit_gb:
+            return "RESOURCE_RAM_SOFT_LIMIT"
+        return None
+
+
+def physical_ram_used_gb() -> float | None:
+    """Read host physical RAM without installing a monitoring dependency."""
+    try:
+        if os.name == "nt":
+
+            class MemoryStatus(ctypes.Structure):
+                _fields_ = [
+                    ("length", ctypes.c_ulong),
+                    ("load", ctypes.c_ulong),
+                    ("total", ctypes.c_ulonglong),
+                    ("available", ctypes.c_ulonglong),
+                    ("page_total", ctypes.c_ulonglong),
+                    ("page_available", ctypes.c_ulonglong),
+                    ("virtual_total", ctypes.c_ulonglong),
+                    ("virtual_available", ctypes.c_ulonglong),
+                    ("extended_available", ctypes.c_ulonglong),
+                ]
+
+            status = MemoryStatus()
+            status.length = ctypes.sizeof(status)
+            probe = ctypes.WinDLL("kernel32", use_last_error=True).GlobalMemoryStatusEx
+            probe.argtypes = [ctypes.POINTER(MemoryStatus)]
+            probe.restype = ctypes.c_int
+            if not probe(ctypes.byref(status)):
+                return None
+            return float(status.total - status.available) / (1024**3)
+        values = {
+            key: int(value.split()[0])
+            for line in Path("/proc/meminfo").read_text(encoding="ascii").splitlines()
+            for key, value in (line.split(":", 1),)
+        }
+        return (values["MemTotal"] - values["MemAvailable"]) / (1024**2)
+    except OSError, ValueError, KeyError, AttributeError:
+        return None
 
 
 def _bounded(name: str, value: int, lower: int, upper: int) -> None:

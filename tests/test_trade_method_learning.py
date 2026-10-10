@@ -45,6 +45,172 @@ def recorded_result(*, rejected: bool = False) -> BacktestResult:
     )
 
 
+def test_verified_closed_result_seeds_bound_research_candidates() -> None:
+    result = recorded_result()
+    summary = ControlledLearningEngine().analyze(
+        created_at=NOW + timedelta(hours=2), backtests=(result,)
+    )
+    assert summary.experiments
+    refs = {case.evidence_ref for case in summary.evidence_cases}
+    assert all(
+        set(item.evidence_refs) <= refs and item.evidence_refs
+        for item in summary.experiments
+    )
+    assert all(
+        item.required_validation == ("backtest", "walk_forward", "multi_regime_oos")
+        for item in summary.experiments
+    )
+    assert not summary.execution_allowed
+    assert not summary.risk_change_allowed
+
+
+def test_verified_regime_results_produce_traceable_research_candidate() -> None:
+    original = recorded_result()
+    prototype = original.trades[0]
+    trades = tuple(
+        replace(
+            prototype,
+            trade_id=f"test-only-{index}",
+            attribution=replace(
+                prototype.attribution, strategy_id="test-only-strategy", regime=regime
+            ),
+            realized_r_multiple=Decimal(realized_r),
+            net_pnl_usdt=Decimal(pnl),
+            gross_pnl_usdt=Decimal(pnl)
+            + prototype.fee_cost_usdt
+            + prototype.slippage_cost_usdt
+            + prototype.funding_cost_usdt,
+        )
+        for index, (regime, realized_r, pnl) in enumerate(
+            (
+                ("TREND_UP", "1.2", "12"),
+                ("TREND_UP", "1.8", "18"),
+                ("RANGE", "-0.8", "-8"),
+                ("RANGE", "-1.2", "-12"),
+            )
+        )
+    )
+    summary = ControlledLearningEngine().analyze(
+        created_at=NOW + timedelta(hours=2),
+        backtests=(replace(original, trades=trades),),
+    )
+    loop = summary.profitability_loop
+    assert loop is not None
+    assert len(loop.experiment_candidates) == 1
+    candidate = loop.experiment_candidates[0]
+    assert candidate.regime == "RANGE"
+    assert candidate.baseline_expectancy_r == pytest.approx(-1)
+    refs = {case.evidence_ref for case in summary.evidence_cases}
+    assert len(candidate.evidence_refs) == 4
+    assert set(candidate.evidence_refs) <= refs
+    assert candidate.human_review_required
+    assert not candidate.execution_allowed
+
+
+@pytest.mark.parametrize("invalid", ["reconstructed", "future", "accounting"])
+def test_unverified_closure_remains_diagnostic_without_candidates(invalid: str) -> None:
+    outcome = recorded_result().trade_outcomes[0]
+    if invalid == "reconstructed":
+        outcome = replace(
+            outcome,
+            decision_evidence=replace(
+                outcome.decision_evidence, status="RECONSTRUCTED_FROM_ARCHIVE"
+            ),
+        )
+    elif invalid == "future":
+        outcome = replace(outcome, exit_time=NOW + timedelta(days=1))
+    else:
+        outcome = replace(outcome, gross_pnl=outcome.gross_pnl + Decimal("1"))
+    summary = ControlledLearningEngine().analyze(
+        created_at=NOW + timedelta(hours=2), trade_outcomes=(outcome,)
+    )
+    assert summary.evidence_cases
+    assert summary.lessons
+    assert summary.experiments == ()
+    assert not summary.execution_allowed
+
+
+def test_learning_only_recomputes_when_evidence_changes_or_refresh_is_due(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[object] = []
+    original = ControlledLearningEngine.analyze
+
+    def observed(self: ControlledLearningEngine, **artifacts: object) -> object:
+        calls.append(artifacts)
+        return original(self, **artifacts)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(ControlledLearningEngine, "analyze", observed)
+    loop = ControlledLearningLoop(
+        LearningStore(tmp_path / "summary.json", tmp_path / "events.jsonl"),
+        ControlledLearningEngine(),
+    )
+    result = recorded_result()
+    first = loop.run(created_at=NOW + timedelta(hours=2), backtests=(result,))
+    repeated = loop.run(created_at=NOW + timedelta(hours=3), backtests=(result,))
+    assert len(calls) == 1
+    assert not repeated.saved
+    assert repeated.summary.created_at == first.summary.created_at
+    loop.run(created_at=NOW + timedelta(hours=4), backtests=())
+    assert len(calls) == 2
+
+
+def test_virtual_market_learning_consumes_closures_and_defers_on_ram(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    import ai4binance.cli.runtime as runtime
+    from ai4binance.config import Settings
+    from ai4binance.virtual_wallet_journal import VirtualWalletJournalError
+
+    settings = Settings(
+        learning_summary_path=tmp_path / "summary.json",
+        learning_audit_path=tmp_path / "events.jsonl",
+    )
+    loop = ControlledLearningLoop(
+        LearningStore(settings.learning_summary_path, settings.learning_audit_path),
+        ControlledLearningEngine(),
+    )
+    outcomes = recorded_result().trade_outcomes
+    monkeypatch.setattr(
+        runtime,
+        "_virtual_wallet_journal",
+        lambda settings: SimpleNamespace(learning_outcomes=lambda: outcomes),
+    )
+    monkeypatch.setattr(runtime, "physical_ram_used_gb", lambda: 1.0)
+    observed = NOW + timedelta(hours=2)
+    first = runtime._virtual_market_learning(settings, loop, observed)
+    assert first["status"] == "READY"
+    assert first["source_closure_count"] == 1
+    count = first["experiment_count"]
+    assert isinstance(count, int)
+    assert count > 0
+    assert first["execution_allowed"] is False
+    assert first["application_state"] == "NOT_APPLIED"
+    assert runtime._virtual_market_learning(settings, loop, observed)["saved"] is False
+
+    monkeypatch.setattr(runtime, "physical_ram_used_gb", lambda: 30.0)
+    monkeypatch.setattr(
+        runtime,
+        "_virtual_wallet_journal",
+        lambda settings: pytest.fail("deferred learning must not load a ledger"),
+    )
+    deferred = runtime._virtual_market_learning(settings, loop, observed)
+    assert deferred["status"] == "DEFERRED"
+    assert deferred["blockers"] == ["RESOURCE_RAM_SOFT_LIMIT"]
+
+    def invalid_journal(settings: Settings) -> None:
+        raise VirtualWalletJournalError("test-only invalid evidence")
+
+    monkeypatch.setattr(runtime, "physical_ram_used_gb", lambda: 1.0)
+    monkeypatch.setattr(runtime, "_virtual_wallet_journal", invalid_journal)
+    assert (
+        runtime._virtual_market_learning(settings, loop, observed)["status"]
+        == "BLOCKED"
+    )
+
+
 @pytest.mark.parametrize("payload", [{"entry": None}, {"quantity": 3}, {"pnl": ""}])
 def test_parameter_method_decoder_rejects_false_provenance(
     payload: dict[str, object],

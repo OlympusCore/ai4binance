@@ -262,6 +262,12 @@ class LocalMarketSnapshotTransport:
             payload = json.loads(
                 (self.directory / filenames[path]).read_text(encoding="utf-8")
             )
+            if (
+                path.startswith("/fapi/")
+                and not path.endswith("exchangeInfo")
+                and payload.get("source") != path
+            ):
+                raise ValueError("LOCAL_MARKET_SNAPSHOT_SOURCE_INVALID")
             observed = datetime.fromisoformat(payload["observed_at"])
             if observed.utcoffset() is None:
                 raise ValueError("LOCAL_MARKET_SNAPSHOT_TIMESTAMP_INVALID")
@@ -294,6 +300,7 @@ class LocalMarketSnapshotTransport:
                 "LOCAL_MARKET_SNAPSHOT_TIMESTAMP_INVALID",
                 "LOCAL_MARKET_SNAPSHOT_STALE",
                 "LOCAL_MARKET_SNAPSHOT_SYMBOL_INVALID",
+                "LOCAL_MARKET_SNAPSHOT_SOURCE_INVALID",
             }
             code = (
                 "LOCAL_MARKET_SNAPSHOT_MISSING"
@@ -317,22 +324,13 @@ class LocalMarketSnapshotTransport:
             raise ValueError(
                 "local Futures context cannot enrich a historical snapshot"
             )
+        snapshot = self._attach_futures_liquidity(snapshot)
         try:
             premium = self.get_json(
                 "/fapi/v1/premiumIndex", {"symbol": snapshot.symbol}
             )
-            book = self.get_json(
-                "/fapi/v1/ticker/bookTicker", {"symbol": snapshot.symbol}
-            )
-            exchange = self.get_json(
-                "/fapi/v1/exchangeInfo", {"symbol": snapshot.symbol}
-            )
-            if not isinstance(premium, Mapping) or not isinstance(book, Mapping):
+            if not isinstance(premium, Mapping):
                 raise ValueError("local Futures market evidence is invalid")
-            if not isinstance(exchange, Mapping):
-                raise ValueError("local Futures exchange evidence is invalid")
-            symbol_info = exchange["symbols"][0]
-            filters = {item["filterType"]: item for item in symbol_info["filters"]}
             as_of = datetime.fromtimestamp(int(str(premium["time"])) / 1000, tz=UTC)
             if (
                 not 0
@@ -341,19 +339,8 @@ class LocalMarketSnapshotTransport:
             ):
                 raise ValueError("local Futures mark-price evidence is stale")
             oi, oi_time = self._latest_open_interest(snapshot)
-            bid, ask = Decimal(str(book["bidPrice"])), Decimal(str(book["askPrice"]))
-            if not bid.is_finite() or not ask.is_finite() or not 0 < bid <= ask:
-                raise ValueError("local Futures spread is invalid")
             return replace(
                 snapshot,
-                bid=bid,
-                ask=ask,
-                spread=ask - bid,
-                exchange_filters=filters,
-                market_metadata={
-                    **snapshot.market_metadata,
-                    "trading_status": symbol_info["status"],
-                },
                 derivatives_snapshot={
                     "symbol": snapshot.symbol,
                     "market": "USD_M_FUTURES",
@@ -377,6 +364,70 @@ class LocalMarketSnapshotTransport:
             ArithmeticError,
         ):
             return replace(snapshot, derivatives_snapshot={})
+
+    def _attach_futures_liquidity(self, snapshot: MarketSnapshot) -> MarketSnapshot:
+        """Validate listing and book evidence independently from derivatives.
+
+        Missing open interest must not discard independently verified liquidity.
+        Invalid liquidity removes any previous listing, filters, and spread.
+        """
+        metadata = dict(snapshot.market_metadata)
+        metadata.pop("trading_status", None)
+        empty = replace(
+            snapshot,
+            bid=None,
+            ask=None,
+            spread=None,
+            exchange_filters={},
+            market_metadata=metadata,
+        )
+        try:
+            exchange = self.get_json(
+                "/fapi/v1/exchangeInfo", {"symbol": snapshot.symbol}
+            )
+            book = self.get_json(
+                "/fapi/v1/ticker/bookTicker", {"symbol": snapshot.symbol}
+            )
+            if not isinstance(exchange, Mapping) or not isinstance(book, Mapping):
+                raise ValueError("local Futures liquidity evidence is invalid")
+            symbol_info = exchange["symbols"][0]
+            if symbol_info["symbol"] != snapshot.symbol:
+                raise ValueError("local Futures listing identity is invalid")
+            raw_filters = symbol_info["filters"]
+            filters = {item["filterType"]: item for item in raw_filters}
+            if not filters or len(filters) != len(raw_filters):
+                raise ValueError("local Futures filters are missing or duplicated")
+            if not isinstance(symbol_info["status"], str):
+                raise ValueError("local Futures trading status is invalid")
+            book_time = datetime.fromtimestamp(int(str(book["time"])) / 1000, tz=UTC)
+            if (
+                not 0
+                <= (snapshot.created_at - book_time).total_seconds()
+                <= self.maximum_age_seconds
+            ):
+                raise ValueError("local Futures book evidence is stale")
+            bid, ask = Decimal(str(book["bidPrice"])), Decimal(str(book["askPrice"]))
+            if not bid.is_finite() or not ask.is_finite() or not 0 < bid <= ask:
+                raise ValueError("local Futures spread is invalid")
+            return replace(
+                empty,
+                bid=bid,
+                ask=ask,
+                spread=ask - bid,
+                exchange_filters=filters,
+                market_metadata={**metadata, "trading_status": symbol_info["status"]},
+            )
+        except (
+            ExchangePayloadError,
+            OSError,
+            ValueError,
+            KeyError,
+            TypeError,
+            AttributeError,
+            IndexError,
+            ArithmeticError,
+        ):
+            return empty
 
     def _latest_open_interest(
         self, snapshot: MarketSnapshot

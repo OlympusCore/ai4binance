@@ -53,6 +53,31 @@ NOW = datetime(2026, 7, 19, tzinfo=UTC)
 HASH = "a" * 64
 
 
+@pytest.fixture(autouse=True)
+def deterministic_resource_telemetry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test-only host telemetry; provider tests must not depend on workstation load."""
+    monkeypatch.setattr("ai4binance.rag.physical_ram_used_gb", lambda: 1.0)
+
+
+@pytest.fixture
+def resource_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Test-only admission and lock storage; never occupy the resident runtime lane."""
+    from ai4binance.governance.local_model_roles import load_local_model_role
+
+    root = Path(__file__).resolve().parents[1]
+    monkeypatch.setattr(
+        "ai4binance.rag.load_local_model_role",
+        lambda *args: load_local_model_role(root, "PRIMARY_LOCAL_REASONING_AGENT"),
+    )
+    monkeypatch.setattr(
+        "ai4binance.rag.ModelGateway.admit_advisory",
+        lambda *args: ModelGatewayDecision(
+            "local-llamacpp-qwen3-8b", "llama.cpp", True, ()
+        ),
+    )
+    return tmp_path
+
+
 def context_source(
     source_uri: str = "runtime/artifacts/context/market-outlook.json",
     *,
@@ -845,6 +870,89 @@ class ResponseStub:
         return self.payload
 
 
+def test_llama_resource_pressure_prevents_http(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "ai4binance.rag.urllib.request.urlopen",
+        lambda *args, **kwargs: pytest.fail(
+            "resource-deferred inference must not call HTTP"
+        ),
+    )
+    result = LlamaCppAdvisoryRunner(memory_probe=lambda: 30.0).run(
+        "test-only prompt", ()
+    )
+    assert result.blockers == ("RESOURCE_RAM_SOFT_LIMIT", "ADVISORY_ONLY")
+    assert not result.execution_allowed
+
+
+def test_llama_queue_deadline_prevents_http(
+    monkeypatch: pytest.MonkeyPatch, resource_root: Path
+) -> None:
+    from ai4binance.events.file_lock import exclusive_file_lock
+
+    root = resource_root
+    monkeypatch.setattr(
+        "ai4binance.rag.urllib.request.urlopen",
+        lambda *args, **kwargs: pytest.fail("occupied lane must not call HTTP"),
+    )
+    with exclusive_file_lock(root / "runtime/state/resources/llm.lock"):
+        result = LlamaCppAdvisoryRunner(timeout_seconds=0.01, repository_root=root).run(
+            "test-only prompt", ()
+        )
+    assert result.blockers == ("LOCAL_LLM_QUEUE_TIMEOUT", "ADVISORY_ONLY")
+    assert not result.execution_allowed
+
+
+def test_llama_provider_timeout_is_distinct_from_queue_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    resource_root: Path,
+) -> None:
+    def timed_out(*args: object, **kwargs: object) -> None:
+        raise TimeoutError("test-only provider deadline")
+
+    monkeypatch.setattr("ai4binance.rag.urllib.request.urlopen", timed_out)
+    result = LlamaCppAdvisoryRunner(
+        timeout_seconds=3, repository_root=resource_root
+    ).run("test-only prompt", ())
+    assert result.blockers == ("LOCAL_LLM_PROVIDER_TIMEOUT", "ADVISORY_ONLY")
+
+
+def test_llama_requests_hold_shared_lane_and_release(
+    monkeypatch: pytest.MonkeyPatch,
+    resource_root: Path,
+) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    from ai4binance.events.file_lock import exclusive_file_lock
+
+    root = resource_root
+
+    def http(request: Request, timeout: float) -> ResponseStub:
+        del request
+        assert 0 < timeout <= 3
+
+        def contender() -> None:
+            with exclusive_file_lock(
+                root / "runtime/state/resources/llm.lock", timeout_seconds=0.01
+            ):
+                pytest.fail("HTTP request must own the canonical lane")
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with pytest.raises(TimeoutError):
+                pool.submit(contender).result(timeout=3)
+        return ResponseStub(b'{"content":"test-only advisory"}')
+
+    monkeypatch.setattr("ai4binance.rag.urllib.request.urlopen", http)
+    result = LlamaCppAdvisoryRunner(
+        timeout_seconds=3, memory_probe=lambda: 1.0, repository_root=root
+    ).run("test-only prompt", ())
+    assert result.response_text == "test-only advisory"
+    assert result.blockers == ("ADVISORY_ONLY",)
+    with exclusive_file_lock(
+        root / "runtime/state/resources/llm.lock", timeout_seconds=0.01
+    ):
+        pass
+
+
 @pytest.mark.parametrize("tokens", [0, -1, 2049, True])
 def test_llama_output_budget_rejects_invalid_limits(tokens: int) -> None:
     with pytest.raises(ValueError, match="token limit"):
@@ -858,7 +966,7 @@ def test_assistant_bridge_preserves_completion_limits_and_denies_empty_response(
 
     def test_only_response(request: Request, timeout: float) -> ResponseStub:
         assert request.full_url == "http://127.0.0.1:8080/completion"
-        assert timeout == 3.0
+        assert 0 < timeout <= 3.0
         assert isinstance(request.data, bytes)
         body = json.loads(request.data)
         assert body["n_predict"] == 768

@@ -356,10 +356,14 @@ def test_virtual_wallet_journal_detects_tampering_and_missing_ledger(
 
     with pytest.raises(VirtualWalletJournalError):
         journal.initialize(NOW)
+    with pytest.raises(VirtualWalletJournalError, match="LEARNING_EVIDENCE_INVALID"):
+        journal.learning_outcomes()
 
     clean = _journal(tmp_path / "missing")
     clean.initialize(NOW)
     clean.ledger_path.unlink()
+    with pytest.raises(VirtualWalletJournalError, match="LEARNING_EVIDENCE_INVALID"):
+        clean.learning_outcomes()
     with pytest.raises(
         VirtualWalletJournalError,
         match="VIRTUAL_WALLET_LEDGER_MISSING_FOR_EXISTING_STATE",
@@ -473,6 +477,10 @@ def test_managed_wallet_restores_symbol_processes_closed_candles_once_and_closes
         "movement"
     ]
     assert last["closed_trade"] is not None
+    outcomes = _journal(tmp_path).learning_outcomes()
+    assert len(outcomes) == 1
+    assert outcomes[0].trade_id == last["closed_trade"]["trade_id"]
+    assert outcomes[0].net_pnl == Decimal(last["closed_trade"]["net_pnl_usdt"])
     assert last["execution_allowed"] is False
     assert last["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
 

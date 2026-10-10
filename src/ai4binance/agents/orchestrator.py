@@ -45,6 +45,7 @@ from ai4binance.agents.validation_gate import ValidationGate
 from ai4binance.core.contracts.execution_surface import ExecutionSurface
 from ai4binance.core.contracts.memory import CompiledCycleContext
 from ai4binance.domain import TradeCandidate
+from ai4binance.enterprise.resources import ResourcePolicy
 from ai4binance.intelligence.contracts import TradingIntelligenceState
 from ai4binance.intelligence.trading import TradingIntelligenceEngine
 from ai4binance.schemas import AgentResult, AgentStatus, AnalysisState, MarketSnapshot
@@ -78,6 +79,7 @@ class EnterpriseOrchestrator:
     telemetry_sink: AgentTelemetrySink | None = None
     agent_latency_budget_ms: float = 1_000.0
     execution_surface: ExecutionSurface = ExecutionSurface.VIRTUAL_MARKET
+    resource_policy: ResourcePolicy = field(default_factory=ResourcePolicy)
 
     def __post_init__(self) -> None:
         """Bound concurrency and minimum-history configuration."""
@@ -194,7 +196,9 @@ class EnterpriseOrchestrator:
         scheduled_capability_count = len(preflight_plan.decisions)
         specialists_started_ns = perf_counter_ns()
         with ThreadPoolExecutor(
-            max_workers=self.max_workers,
+            max_workers=min(
+                self.max_workers, self.resource_policy.deterministic_cpu_workers
+            ),
             thread_name_prefix="ai4binance-agent",
         ) as executor:
             scheduler_overhead_ms, bundle_task_count = self._run_dependency_layers(

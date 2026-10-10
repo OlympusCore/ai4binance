@@ -23,6 +23,12 @@ from ai4binance.storage import DestinationVerificationError
 from tests.test_runtime_cycle import NOW, cycle
 
 
+@pytest.fixture(autouse=True)
+def deterministic_resource_telemetry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test-only host telemetry; resource refusal tests supply explicit probes."""
+    monkeypatch.setattr("ai4binance.ops.runtime.physical_ram_used_gb", lambda: 1.0)
+
+
 def test_runtime_store_excludes_private_account_payloads(tmp_path: Path) -> None:
     path = tmp_path / "state" / "runtime.json"
     report = cycle().run(NOW)
@@ -196,6 +202,46 @@ def test_supervisor_runs_bounded_cycles_without_sleeping_after_last(
     ]
     assert events[0]["payload"]["opportunity_count"] > 0
     assert events[0]["payload"]["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_supervisor_defers_hard_ram_then_recovers(tmp_path: Path) -> None:
+    readings = iter((36.0, 30.0))
+    calls: list[str] = []
+    sleeps: list[float] = []
+    report = cycle().run(NOW)
+
+    def execute() -> DualMarketAdvisoryReport:
+        calls.append("executed")
+        return report
+
+    store = RuntimeStatusStore(tmp_path / "resource-runtime.json")
+    supervisor = RuntimeSupervisor(
+        cycle=execute,
+        store=store,
+        memory_probe=lambda: next(readings),
+        sleeper=sleeps.append,
+    )
+    assert supervisor.run(max_cycles=2) == 1
+    assert calls == ["executed"]
+    assert sleeps == [5.0]
+    assert (
+        json.loads(store.path.read_text(encoding="utf-8"))["execution_allowed"] is False
+    )
+
+
+def test_supervisor_reports_resource_refusal_without_running_cycle(
+    tmp_path: Path,
+) -> None:
+    store = RuntimeStatusStore(tmp_path / "resource-refused.json")
+    supervisor = RuntimeSupervisor(
+        cycle=lambda: pytest.fail("test-only refused cycle must not execute"),
+        store=store,
+        memory_probe=lambda: None,
+    )
+    assert supervisor.run(max_cycles=1) == 0
+    payload = json.loads(store.path.read_text(encoding="utf-8"))
+    assert payload["blockers"] == ["RUNTIME_CYCLE_FAILED", "RESOURCE_RAM_NOT_VERIFIED"]
+    assert payload["execution_allowed"] is False
 
 
 def test_single_instance_lease_rejects_duplicate_and_cleans_up(

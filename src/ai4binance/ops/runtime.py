@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from ai4binance.accounting import BinanceAccountLedger
 from ai4binance.application.runtime import DualMarketAdvisoryReport
@@ -19,6 +19,22 @@ from ai4binance.portfolio.reconciliation import OpenOrderView, reconcile_open_or
 from ai4binance.reporting import to_primitive
 from ai4binance.storage import AuditEvent, JsonlAuditStore
 from ai4binance.storage.destination_verification import fail_verification
+
+if TYPE_CHECKING:
+    from ai4binance.enterprise.resources import ResourcePolicy
+
+
+def _default_resource_policy() -> ResourcePolicy:
+    """Resolve the canonical policy after operational package initialization."""
+    from ai4binance.enterprise.resources import ResourcePolicy
+
+    return ResourcePolicy()
+
+
+def physical_ram_used_gb() -> float | None:
+    from ai4binance.enterprise.resources import physical_ram_used_gb as probe
+
+    return probe()
 
 
 def _replace_file_with_retry(
@@ -72,6 +88,8 @@ class RuntimeStatusStore:
 
     def save_failure(self, error: Exception, attempted_at: datetime) -> None:
         """Persist a bounded, secret-safe cycle failure without exception text."""
+        from ai4binance.enterprise.resources import ResourceAdmissionError
+
         if attempted_at.tzinfo is None or attempted_at.utcoffset() is None:
             raise ValueError("runtime health timestamp must be timezone-aware")
         previous = self._read_previous_health()
@@ -88,7 +106,14 @@ class RuntimeStatusStore:
             "spot": None,
             "futures": None,
             "investment_management": None,
-            "blockers": ("RUNTIME_CYCLE_FAILED",),
+            "blockers": (
+                "RUNTIME_CYCLE_FAILED",
+                *(
+                    (error.blocker,)
+                    if isinstance(error, ResourceAdmissionError)
+                    else ()
+                ),
+            ),
             "execution_allowed": False,
             "live_eligibility_status": "LIVE_ORDER_BLOCKED",
             "health": {
@@ -550,6 +575,10 @@ class RuntimeSupervisor:
     failure_backoff_seconds: float = 5.0
     max_failure_backoff_seconds: float = 300.0
     clock: Callable[[], datetime] = field(default=lambda: datetime.now(UTC), repr=False)
+    resource_policy: ResourcePolicy = field(default_factory=_default_resource_policy)
+    memory_probe: Callable[[], float | None] = field(
+        default=lambda: physical_ram_used_gb(), repr=False
+    )
 
     def __post_init__(self) -> None:
         if not 5.0 <= self.interval_seconds <= 3600.0:
@@ -568,12 +597,7 @@ class RuntimeSupervisor:
         while max_cycles is None or attempts < max_cycles:
             attempts += 1
             try:
-                report = self.cycle()
-                self.store.save(report)
-                if self.private_store is not None:
-                    self.private_store.save(report)
-                if self.management_ledger is not None:
-                    self.management_ledger.append(report)
+                self._run_cycle()
             except Exception as error:
                 consecutive_failures += 1
                 self.store.save_failure(error, self.clock())
@@ -592,6 +616,21 @@ class RuntimeSupervisor:
                 )
             self.sleeper(delay)
         return completed
+
+    def _run_cycle(self) -> None:
+        from ai4binance.enterprise.resources import ResourceAdmissionError
+
+        blocker = self.resource_policy.memory_blocker(
+            self.memory_probe(), discretionary=False
+        )
+        if blocker is not None:
+            raise ResourceAdmissionError(blocker)
+        report = self.cycle()
+        self.store.save(report)
+        if self.private_store is not None:
+            self.private_store.save(report)
+        if self.management_ledger is not None:
+            self.management_ledger.append(report)
 
 
 def _controlled_learning_payload(report: DualMarketAdvisoryReport) -> dict[str, object]:

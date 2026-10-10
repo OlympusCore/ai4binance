@@ -35,6 +35,7 @@ from ai4binance.cli.bootstrap.shared import virtual_market_gate_payload
 from ai4binance.config import Settings
 from ai4binance.core.errors import ExchangeError
 from ai4binance.enterprise import GpuResourceGovernor
+from ai4binance.enterprise.resources import ResourcePolicy, physical_ram_used_gb
 from ai4binance.exchange import (
     BinancePrivateAccountReader,
     BinanceUsdMPrivateAccountReader,
@@ -93,7 +94,10 @@ from ai4binance.validation.futures_oos import (
     FuturesOosEvidenceResolver,
     runtime_futures_strategy_sha256,
 )
-from ai4binance.virtual_wallet_journal import VirtualWalletJournal
+from ai4binance.virtual_wallet_journal import (
+    VirtualWalletJournal,
+    VirtualWalletJournalError,
+)
 from ai4binance.whale_fusion.derivatives import BinanceUsdMClient
 from ai4binance.whale_fusion.features import DerivativesFeatureEngine
 from ai4binance.whale_fusion.models import DerivativesMetric, PriceOiRegime
@@ -605,6 +609,15 @@ def run_virtual_market_daemon(
     if max_cycles is not None and max_cycles < 1:
         raise ValueError("max_cycles must be positive")
     acquisition = public_acquisition or _build_virtual_market_acquisition(settings)
+    learning_loop = ControlledLearningLoop(
+        LearningStore(settings.learning_summary_path, settings.learning_audit_path),
+        ControlledLearningEngine(),
+        lifecycle_worker=GovernedLessonLifecycleWorker(
+            GovernedLessonLifecycleStore(
+                settings.governed_lessons_path, settings.governed_lessons_audit_path
+            )
+        ),
+    )
     state_path = settings.runtime_state_path.with_name(_VIRTUAL_MARKET_STATE_NAME)
     lock_path = settings.runtime_state_path.with_name(_VIRTUAL_MARKET_LOCK_NAME)
     refresh_request_path = settings.runtime_state_path.with_name(
@@ -654,6 +667,12 @@ def run_virtual_market_daemon(
             manual_request: dict[str, object] | None = None
             eligible_symbols: tuple[str, ...] = ()
             try:
+                resource_blocker = ResourcePolicy().memory_blocker(
+                    physical_ram_used_gb(), discretionary=False
+                )
+                if resource_blocker is not None:
+                    cycle_report["research_blockers"] = [resource_blocker]
+                    raise RuntimeError(resource_blocker)
                 if cycle_runner is not None:
                     exit_code = cycle_runner(settings, acquisition)
                 else:
@@ -886,6 +905,14 @@ def run_virtual_market_daemon(
             if observed_at.tzinfo is None or observed_at.utcoffset() is None:
                 raise ValueError("virtual market daemon clock must be timezone-aware")
             observed_at = observed_at.astimezone(UTC)
+            cycle_report["controlled_learning"] = (
+                _virtual_market_learning(settings, learning_loop, observed_at)
+                if cycle_runner is None
+                else {
+                    "status": "EXTERNAL_CYCLE_NO_BOUND_CLOSURES",
+                    "execution_allowed": False,
+                }
+            )
             if exit_code == 0:
                 last_success_at = observed_at
                 consecutive_failures = 0
@@ -1180,6 +1207,38 @@ def _request_market_history_refresh_if_stale(
         }
         return
     cycle_report["market_history_refresh"] = refresh
+
+
+def _virtual_market_learning(
+    settings: Settings, learning_loop: ControlledLearningLoop, observed_at: datetime
+) -> dict[str, object]:
+    """Propose research only from verified closures, never start model training."""
+    blocker = ResourcePolicy().memory_blocker(
+        physical_ram_used_gb(), discretionary=True
+    )
+    if blocker is not None:
+        return {"status": "DEFERRED", "blockers": [blocker], "execution_allowed": False}
+    try:
+        outcomes = _virtual_wallet_journal(settings).learning_outcomes()
+        if not outcomes:
+            return {"status": "WAITING_FOR_CLOSED_RESULTS", "execution_allowed": False}
+        result = learning_loop.run(created_at=observed_at, trade_outcomes=outcomes)
+    except VirtualWalletJournalError, OSError, ValueError:
+        return {
+            "status": "BLOCKED",
+            "blockers": ["VIRTUAL_LEARNING_EVIDENCE_INVALID"],
+            "execution_allowed": False,
+        }
+    return {
+        "status": "READY",
+        "summary_id": result.summary.summary_id,
+        "saved": result.saved,
+        "source_closure_count": len(outcomes),
+        "experiment_count": len(result.summary.experiments),
+        "execution_allowed": False,
+        "promotion_status": "RESEARCH_ONLY",
+        "application_state": "NOT_APPLIED",
+    }
 
 
 def _virtual_wallet_journal(settings: Settings) -> VirtualWalletJournal:

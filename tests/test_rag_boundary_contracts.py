@@ -13,6 +13,7 @@ from unittest.mock import Mock
 import pytest
 
 from ai4binance import rag as r
+from ai4binance.governance.local_model_roles import load_local_model_role
 from ai4binance.governance.model_registry import ModelGateway
 from ai4binance.multiops.llmops.contracts import TaskClass, TaskCriticality
 
@@ -260,8 +261,13 @@ def test_indexer_rejects_escapes_empty_sources_and_naive_time(
     ],
 )
 def test_llama_provider_response_paths_are_offline(
-    monkeypatch: pytest.MonkeyPatch, payload: object, blocker: str
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, payload: object, blocker: str
 ) -> None:
+    # Test-only provider admission and telemetry; retain the canonical role contract.
+    role = load_local_model_role(
+        Path(__file__).resolve().parents[1], "PRIMARY_LOCAL_REASONING_AGENT"
+    )
+    monkeypatch.setattr(r, "load_local_model_role", lambda *args: role)
     gateway = SimpleNamespace(
         admit_advisory=Mock(
             return_value=SimpleNamespace(allowed=True, blockers=(), route_decision=None)
@@ -273,9 +279,11 @@ def test_llama_provider_response_paths_are_offline(
         else Mock(return_value=io.BytesIO(json.dumps(payload).encode()))
     )
     monkeypatch.setattr(urllib.request, "urlopen", opener)
-    result = r.LlamaCppAdvisoryRunner(model_gateway=cast(ModelGateway, gateway)).run(
-        "Summarize research.", ()
-    )
+    result = r.LlamaCppAdvisoryRunner(
+        model_gateway=cast(ModelGateway, gateway),
+        repository_root=tmp_path,
+        memory_probe=lambda: 1.0,
+    ).run("Summarize research.", ())
     assert blocker in result.blockers
     assert result.execution_allowed is False
     assert result.live_eligibility_status == "LIVE_ORDER_BLOCKED"

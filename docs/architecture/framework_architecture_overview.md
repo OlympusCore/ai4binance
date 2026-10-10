@@ -2,7 +2,7 @@
 document_id: AI4B-ARCH-FRM-001
 title: AI4BINANCE Architecture Overview
 document_type: FRAMEWORK
-version: 1.11.6
+version: 1.11.7
 status: ACTIVE
 owner: Enterprise Knowledge Governance
 authority_level: NORMATIVE
@@ -108,6 +108,57 @@ provider coverage. Original per-stream progress boundaries survive shutdowns.
 COIN-M contract quantities remain distinct from Spot units.
 Shared pair-index series have one collector owner. Delivery contracts have no
 perpetual funding. Missing or invalid provider history remains explicit.
+
+The opt-in `top5-1000-month` path is a public acquisition profile within this
+existing DataCore owner. `src/ai4binance/data/acquisition_profile.py` owns pure
+native UTC window calculation, one-calendar-month clamping, exact Decimal quote
+notional and closed-grid validation. `src/ai4binance/data/weekly_volume.py` owns
+public metadata/ranking orchestration, a frozen 168-hour common Spot/USD-M USDT
+perpetual selection, raw-response provenance and persisted scoped retry state.
+It applies canonical eligibility/exclusions and only verified asset mappings;
+missing candidate observations cannot become zero volume or a current TOP5.
+
+`src/ai4binance/data/scoped_history.py` orchestrates the existing continuous
+collector and Parquet archive for these identities. Spot requests exactly
+1000 closed native bars for each of `5m`, `15m`, `1h`, `4h`, and `1d`; Futures
+uses each timeframe's completed UTC endpoint minus one calendar month.
+Archive retention, idempotent overlap checks, one bounded source/chunk turn per
+due stream, fresh-tail priority, persisted failure budgets and typed shared
+source cooldowns remain explicit. Ranking, metadata, clock and collection GETs
+share the profile's market-specific cooldown. Cancellation and mandatory fatal
+storage failures propagate. No new service, global worker policy or archive
+trimming is introduced. These are Python 3.14 orchestration/validation modules
+reusing approved transports and persistence, not a new networking service.
+
+This public acquisition inventory does not replace the admitted wallet-grounded
+research universe below. Existing wallet, eligibility, validation, risk, OOS and
+governance consumers retain their canonical vetoes. Closed-window acquisition,
+strategy warmup, complete required Futures enrichment, historical arrival-time
+validity and loaded-runtime progress are separate claims. A snapshot without
+arrival evidence cannot establish point-in-time availability. Disk changes and
+controlled fixtures cannot establish runtime activation. Proof contracts include
+`tests/test_top5_acquisition_profile.py`, `tests/test_market_history_continuous.py`
+and `tests/test_market_history_boundary_contracts.py`. All artifacts remain
+research-only with `execution_allowed=false` and `LIVE_ORDER_BLOCKED`.
+
+Per-stream UTC due checkpoints in this owner persist the expected completed
+boundary, configurable source-arrival grace, next due time and scheduling lag.
+The existing supervisor waits to an absolute native deadline; verified public
+exchange clock observations are advanced with a monotonic clock. Grace changes
+acquisition timing only and cannot relax strategy freshness or warmup gates.
+Known pending source receipts are reconciled before another GET, under the
+canonical writer lease. Durable measured request, response, replay and canonical
+effect counters distinguish network completion from publication and prevent
+duplicate effects after restart. No separate scheduler or writer is admitted.
+
+Frozen-ranking reconstruction retains all declared candidate packets, actual
+wire receipts and original identity metadata under durable runtime artifacts.
+Later retrievals receive their true timestamps and a new evidence revision;
+they cannot establish historical point-in-time availability. Reconstruction
+neither replaces a manual universe nor activates a new selection. A full
+fresh-process reload must recompute every declared candidate and reject partial
+evidence. Retention is explicit owner review with no automatic cleanup.
+
 
 `ArchivedMarketSnapshotAcquisition` in `src/ai4binance/data/acquisition.py`
 owns bounded historical snapshot assembly from the existing checksum-verified

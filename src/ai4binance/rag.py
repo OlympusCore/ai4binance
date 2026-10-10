@@ -10,13 +10,17 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections import Counter
-from dataclasses import asdict, dataclass
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from hashlib import sha256
 from pathlib import Path
+from time import monotonic
 
 from ai4binance.agents.context_budget import TokenBudgetGuard
+from ai4binance.enterprise.resources import ResourcePolicy, physical_ram_used_gb
+from ai4binance.events.file_lock import exclusive_file_lock
 from ai4binance.governance.local_model_roles import (
     load_local_model_role,
     validate_role_runtime,
@@ -1125,6 +1129,10 @@ class LlamaCppAdvisoryRunner:
     advisory_task: str = "ADVISORY_RESEARCH_SYNTHESIS"
     num_predict: int = 384
     stop_sequences: tuple[str, ...] = ("</s>",)
+    resource_policy: ResourcePolicy = field(default_factory=ResourcePolicy)
+    memory_probe: Callable[[], float | None] = field(
+        default=lambda: physical_ram_used_gb(), repr=False
+    )
 
     def __post_init__(self) -> None:
         if type(self.num_predict) is not int or not 1 <= self.num_predict <= 2_048:
@@ -1211,13 +1219,53 @@ class LlamaCppAdvisoryRunner:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
+        resource_blocker = self.resource_policy.memory_blocker(
+            self.memory_probe(), discretionary=True
+        )
+        started = monotonic()
+        inference_started = False
         try:
-            with urllib.request.urlopen(  # noqa: S310  # nosec B310
-                request,
-                timeout=self.timeout_seconds,
-            ) as response:
-                payload = json.loads(response.read(self.guard.max_response_bytes))
-        except OSError, urllib.error.URLError, TimeoutError, json.JSONDecodeError:
+            if resource_blocker is not None:
+                raise RuntimeError(resource_blocker)
+            root = self.repository_root or Path(__file__).resolve().parents[2]
+            with exclusive_file_lock(
+                root / "runtime/state/resources/llm.lock",
+                timeout_seconds=self.timeout_seconds,
+            ):
+                resource_blocker = self.resource_policy.memory_blocker(
+                    self.memory_probe(), discretionary=True
+                )
+                if resource_blocker is not None:
+                    raise RuntimeError(resource_blocker)
+                remaining = self.timeout_seconds - (monotonic() - started)
+                if remaining <= 0:
+                    raise TimeoutError("local LLM queue deadline exhausted")
+                inference_started = True
+                with urllib.request.urlopen(  # noqa: S310  # nosec B310
+                    request,
+                    timeout=remaining,
+                ) as response:
+                    payload = json.loads(response.read(self.guard.max_response_bytes))
+        except RuntimeError, TimeoutError:
+            return AdvisoryProviderResult(
+                "llama.cpp",
+                self.model,
+                prompt_hash,
+                "",
+                citations,
+                (
+                    resource_blocker
+                    or (
+                        "LOCAL_LLM_PROVIDER_TIMEOUT"
+                        if inference_started
+                        else "LOCAL_LLM_QUEUE_TIMEOUT"
+                    ),
+                    "ADVISORY_ONLY",
+                ),
+                inference_envelope=envelope,
+                route_decision=decision.route_decision,
+            )
+        except OSError, urllib.error.URLError, json.JSONDecodeError:
             return AdvisoryProviderResult(
                 "llama.cpp",
                 self.model,

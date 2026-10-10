@@ -14,6 +14,7 @@ from typing import cast
 
 from ai4binance.application import IndependentVirtualPortfolios, VirtualPortfolioState
 from ai4binance.data.timeframes import timeframe_duration
+from ai4binance.domain.research.backtest_models import TradeOutcome
 from ai4binance.ops.user_reports import (
     render_professional_summary,
     user_report_paths,
@@ -58,6 +59,35 @@ class VirtualWalletJournal:
             durable=True,
             tamper_evident=True,
         )
+
+    def learning_outcomes(self) -> tuple[TradeOutcome, ...]:
+        """Read actual closures only after canonical journal and payload validation."""
+        from ai4binance.historical_replay_state import _closed_trade_from_payload
+
+        outcomes: dict[str, TradeOutcome] = {}
+        try:
+            if self.state_path.exists() and not self.ledger_path.exists():
+                raise ValueError("VIRTUAL_WALLET_LEDGER_MISSING_FOR_EXISTING_STATE")
+            for movement in self._read_movements():
+                raw = movement.get("closed_trade")
+                if raw is None:
+                    continue
+                if not isinstance(raw, Mapping):
+                    raise ValueError("VIRTUAL_WALLET_CLOSURE_INVALID")
+                outcome = VirtualMarketRuntime._trade_outcome(
+                    _closed_trade_from_payload(raw)
+                )
+                if (
+                    outcome.trade_id in outcomes
+                    and outcomes[outcome.trade_id] != outcome
+                ):
+                    raise ValueError("VIRTUAL_WALLET_CLOSURE_CONFLICT")
+                outcomes[outcome.trade_id] = outcome
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise VirtualWalletJournalError(
+                "VIRTUAL_WALLET_LEARNING_EVIDENCE_INVALID"
+            ) from error
+        return tuple(outcomes[key] for key in sorted(outcomes))
 
     def initialize(self, observed_at: datetime) -> IndependentVirtualPortfolios:
         """Create each wallet once, then reconstruct current state from the journal."""

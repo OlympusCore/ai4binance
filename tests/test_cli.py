@@ -46,6 +46,8 @@ def isolated_cli_runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     Individual tests may still override these empty paths explicitly. Missing
     observations remain unavailable; this fixture supplies no market records.
     """
+    # Test-only host telemetry; keep daemon fixtures independent of workstation load.
+    monkeypatch.setattr(runtime_cli, "physical_ram_used_gb", lambda: 1.0)
     monkeypatch.setitem(Settings.model_config, "env_file", None)
     for name in tuple(os.environ):
         if name.startswith("AI4BINANCE_"):

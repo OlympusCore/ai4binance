@@ -2077,13 +2077,13 @@
       "authority_scope": "architecture_overview",
       "canonical_path": "docs/architecture/framework_architecture_overview.md",
       "document_status": "ACTIVE",
-      "expected_hash": "da4931d49d0ae9bbefb754381d4e5ee3b9226e7e0f5816348ecdd8a61be87dd3",
+      "expected_hash": "dc31f1474c20aaa5247dec99babe1db9515b99590c4481b8e9773cb2b7b6f2ab",
       "lock_state": "LOCKED",
       "path": "docs/architecture/framework_architecture_overview.md",
-      "sha256": "da4931d49d0ae9bbefb754381d4e5ee3b9226e7e0f5816348ecdd8a61be87dd3",
+      "sha256": "dc31f1474c20aaa5247dec99babe1db9515b99590c4481b8e9773cb2b7b6f2ab",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "1.11.6"
+      "version": "1.11.7"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -4675,12 +4675,12 @@
   "prospective_lock_grant": {
     "contract_version": "DocumentLockRegistration/v3",
     "grant": {
-      "path": "runtime/artifacts/governance/datacore-documentation-update/owner-application-grant.json",
-      "sha256": "649668f4636eaca4bd64e61d363190d75ad3f28a95861260c3e193c498a751a1"
+      "path": "runtime/artifacts/data/top5/written-rule-application/owner-application-grant.json",
+      "sha256": "ff3a20ff07a86450915e3fd8184ac37800be233fa0ddf368cacadd424bd4c5db"
     },
     "predecessor": {
-      "path": "runtime/artifacts/governance/datacore-documentation-update/predecessor-context.json",
-      "sha256": "68ffe0b81feafa043736ee1f6fd122d1df4de790e265ba764d3366350c092dea"
+      "path": "runtime/artifacts/data/top5/written-rule-application/predecessor-context.json",
+      "sha256": "e18df181a94150645911fc8d6db780c9b3b08c702ff57ec3b509fb9e85903f01"
     }
   }
 }

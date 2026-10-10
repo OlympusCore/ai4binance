@@ -1,10 +1,13 @@
 """Idempotent controlled-learning application boundary."""
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from hashlib import sha256
 from pathlib import Path
 from typing import Any, Protocol
+
+from ai4binance.core.serialization import to_primitive
 
 
 class LessonStatusLike(Protocol):
@@ -49,12 +52,44 @@ class ControlledLearningLoop:
     store: Any
     engine: Any
     lifecycle_worker: Any | None = None
+    _analysis_cache: dict[str, Any] = field(
+        default_factory=dict, repr=False, compare=False
+    )
 
     def run(self, **artifacts: object) -> LearningLoopResult:
         raw_transitions = artifacts.pop("lesson_transitions", ())
         if not isinstance(raw_transitions, tuple):
             raise ValueError("lesson transitions must be an immutable tuple")
-        summary = self.engine.analyze(**artifacts)
+        at = artifacts.get("created_at")
+        try:
+            input_hash = sha256(
+                json.dumps(
+                    to_primitive(
+                        {
+                            key: value
+                            for key, value in artifacts.items()
+                            if key != "created_at"
+                        }
+                    ),
+                    sort_keys=True,
+                    allow_nan=False,
+                ).encode()
+            ).hexdigest()
+        except TypeError, ValueError:
+            input_hash = None
+        previous = self._analysis_cache.get("summary")
+        previous_at = getattr(previous, "created_at", None)
+        reuse = (
+            input_hash is not None
+            and self._analysis_cache.get("input_hash") == input_hash
+            and isinstance(at, datetime)
+            and isinstance(previous_at, datetime)
+            and timedelta(0) <= at - previous_at < timedelta(days=1)
+        )
+        summary: Any = previous if reuse else self.engine.analyze(**artifacts)
+        if not reuse and input_hash is not None:
+            self._analysis_cache.clear()
+            self._analysis_cache.update(input_hash=input_hash, summary=summary)
         save_cases = getattr(self.store, "save_cases", None)
         if callable(save_cases):
             save_cases(summary)

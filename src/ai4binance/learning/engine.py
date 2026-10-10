@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime
+from decimal import Decimal
 from hashlib import sha256
 from itertools import pairwise
 from math import isfinite
-from typing import TYPE_CHECKING
 
+from ai4binance.domain.evidence.decision_telemetry import (
+    PerformanceEvidenceSnapshot,
+    evaluate_lineage_completeness,
+)
 from ai4binance.domain.research.virtual_runtime_attribution import (
     TradeClosureAssessment,
 )
@@ -37,9 +41,6 @@ from ai4binance.research.backtesting.robustness import BacktestRobustnessReport
 from ai4binance.tuning.models import TuningReport
 from ai4binance.validation.models import WalkForwardReport
 
-if TYPE_CHECKING:
-    from ai4binance.ops.decision_telemetry import PerformanceEvidenceSnapshot
-
 
 @dataclass(frozen=True, slots=True)
 class ControlledLearningEngine:
@@ -60,6 +61,8 @@ class ControlledLearningEngine:
     ) -> LearningSummary:
         counts: dict[str, int] = {}
         cases: dict[str, LearningEvidenceCase] = {}
+        verified_refs: set[str] = set()
+        performance_refs: dict[str, list[str]] = {}
         outcomes = (
             *trade_outcomes,
             *(
@@ -80,23 +83,10 @@ class ControlledLearningEngine:
             ),
         )
         for outcome in outcomes:
-            tags = list(self._closure_tags(outcome.closure_assessment))
-            if outcome.decision_evidence.status != "RECORDED_AT_DECISION":
-                tags.append("DECISION_TIME_EVIDENCE_MISSING")
-            if outcome.net_pnl < 0:
-                tags.append("CLOSED_TRADE_LOSS")
-                if outcome.entry_time == outcome.exit_time:
-                    tags.append("LOSS_ON_ENTRY_CANDLE")
-                if (
-                    outcome.risk_at_entry > 0
-                    and outcome.fee_cost + outcome.slippage_cost
-                    >= outcome.risk_at_entry
-                ):
-                    tags.append("REALIZED_COST_EXCEEDS_INITIAL_PRICE_RISK")
-            case = LearningEvidenceCase(
-                "CLOSED_TRADE", json.dumps(to_primitive(outcome)), tuple(tags)
-            )
+            case = self._outcome_case(outcome)
             cases[case.sha256] = case
+            if self._verified_outcome(outcome, created_at):
+                verified_refs.add(case.evidence_ref)
         for record in missed:
             category = str(record.counterfactual_result)
             tags = [f"MISSED_{category}"]
@@ -112,6 +102,14 @@ class ControlledLearningEngine:
                     "MISSED_OPPORTUNITY", json.dumps(to_primitive(record)), tuple(tags)
                 )
                 cases[case.sha256] = case
+                if (
+                    record.decision_evidence.status == "RECORDED_AT_DECISION"
+                    and record.decision_evidence.as_of is not None
+                    and record.decision_evidence.as_of <= record.rejected_at
+                    and record.forward_trade_outcome is not None
+                    and self._verified_outcome(record.forward_trade_outcome, created_at)
+                ):
+                    verified_refs.add(case.evidence_ref)
             else:
                 # Legacy aggregate evidence cannot claim a complete trade case.
                 for tag in tags:
@@ -147,26 +145,37 @@ class ControlledLearningEngine:
                     (position.closure_review.lesson_candidate, *closure_tags),
                 )
                 cases[case.sha256] = case
-        for snapshot in performance_snapshots:
-            if not snapshot.auto_learn_consumable:
-                continue
-            for candidate in snapshot.improvement_candidates:
-                self._add(
-                    counts,
-                    _performance_candidate_code(candidate.affected_component),
-                    max(1, candidate.sample_size),
-                )
-            for root_cause_tag in getattr(snapshot, "root_cause_tags", ()):
-                self._add(counts, _performance_root_cause_code(root_cause_tag), 1)
+                if (
+                    position.closure_assessment is not None
+                    and position.closure_assessment.decision_lineage_status
+                    == "CAUSAL_DECISION_EVIDENCE"
+                    and bool(position.exits)
+                    and all(
+                        position.opened_at <= item.timestamp <= created_at
+                        for item in position.exits
+                    )
+                    and sum(item.quantity for item in position.exits)
+                    == position.initial_quantity
+                ):
+                    verified_refs.add(case.evidence_ref)
+        performance_counts, performance_refs, performance_verified = (
+            self._performance_evidence(performance_snapshots, created_at)
+        )
+        verified_refs.update(performance_verified)
+        for code, count in performance_counts.items():
+            self._add(counts, code, count)
         lessons = tuple(
             LessonCandidate(
                 code,
                 count,
                 self._rationale(code),
-                tuple(
-                    case.evidence_ref
-                    for case in sorted(cases.values(), key=lambda item: item.sha256)
-                    if code in case.tags
+                (
+                    *tuple(
+                        case.evidence_ref
+                        for case in sorted(cases.values(), key=lambda item: item.sha256)
+                        if code in case.tags
+                    ),
+                    *performance_refs.get(code, ()),
                 ),
             )
             for code, count in sorted(
@@ -181,16 +190,31 @@ class ControlledLearningEngine:
                 experiment_id=f"experiment:{lesson.code.lower()}",
                 objective=f"Validate mitigation for {lesson.code}",
                 required_validation=("backtest", "walk_forward", "multi_regime_oos"),
+                evidence_refs=tuple(
+                    ref for ref in lesson.evidence_refs if ref in verified_refs
+                ),
             )
-            for index, lesson in enumerate(lessons, start=1)
+            for index, lesson in enumerate(
+                (
+                    lesson
+                    for lesson in lessons
+                    if any(ref in verified_refs for ref in lesson.evidence_refs)
+                ),
+                start=1,
+            )
         )
         payload = "|".join(f"{item.code}:{item.evidence_count}" for item in lessons)
         payload += "|" + "|".join(sorted(cases))
+        payload += "|" + "|".join(
+            ref for lesson in lessons for ref in lesson.evidence_refs
+        )
+        payload += "|" + "|".join(item.experiment_id for item in experiments)
         profitability_loop = self._profitability_loop(
             backtests=backtests,
             walk_forward_reports=walk_forward_reports,
             tuning_reports=tuning_reports,
             robustness_reports=robustness_reports,
+            created_at=created_at,
         )
         if profitability_loop is not None:
             payload = "|".join(
@@ -211,6 +235,94 @@ class ControlledLearningEngine:
             experiments=experiments,
             profitability_loop=profitability_loop,
             evidence_cases=tuple(cases[key] for key in sorted(cases)),
+        )
+
+    @staticmethod
+    def _outcome_case(outcome: TradeOutcome) -> LearningEvidenceCase:
+        tags = list(ControlledLearningEngine._closure_tags(outcome.closure_assessment))
+        if outcome.decision_evidence.status != "RECORDED_AT_DECISION":
+            tags.append("DECISION_TIME_EVIDENCE_MISSING")
+        if outcome.net_pnl < 0:
+            tags.append("CLOSED_TRADE_LOSS")
+            if outcome.entry_time == outcome.exit_time:
+                tags.append("LOSS_ON_ENTRY_CANDLE")
+            if (
+                outcome.risk_at_entry > 0
+                and outcome.fee_cost + outcome.slippage_cost >= outcome.risk_at_entry
+            ):
+                tags.append("REALIZED_COST_EXCEEDS_INITIAL_PRICE_RISK")
+        return LearningEvidenceCase(
+            "CLOSED_TRADE", json.dumps(to_primitive(outcome)), tuple(tags)
+        )
+
+    @classmethod
+    def _performance_evidence(
+        cls, snapshots: tuple[PerformanceEvidenceSnapshot, ...], created_at: datetime
+    ) -> tuple[dict[str, int], dict[str, list[str]], set[str]]:
+        counts: dict[str, int] = {}
+        refs: dict[str, list[str]] = {}
+        verified_refs: set[str] = set()
+        for snapshot in snapshots:
+            if not snapshot.auto_learn_consumable:
+                continue
+            verified = (
+                isinstance(snapshot, PerformanceEvidenceSnapshot)
+                and snapshot.observed_at <= created_at
+                and evaluate_lineage_completeness(
+                    snapshot.decision_input,
+                    snapshot.decision_process,
+                    snapshot.decision_outcome,
+                ).complete
+                and snapshot.lineage.complete
+            )
+            if verified:
+                digest = sha256(
+                    json.dumps(snapshot.to_payload(), sort_keys=True).encode()
+                ).hexdigest()
+                source_ref = f"performance:{snapshot.snapshot_id}:{digest}"
+                verified_refs.add(source_ref)
+            for candidate in snapshot.improvement_candidates:
+                code = _performance_candidate_code(candidate.affected_component)
+                cls._add(counts, code, max(1, candidate.sample_size))
+                if verified:
+                    refs.setdefault(code, []).append(source_ref)
+            for root_cause_tag in getattr(snapshot, "root_cause_tags", ()):
+                code = _performance_root_cause_code(root_cause_tag)
+                cls._add(counts, code, 1)
+                if verified:
+                    refs.setdefault(code, []).append(source_ref)
+        return counts, refs, verified_refs
+
+    @staticmethod
+    def _verified_outcome(outcome: TradeOutcome, created_at: datetime) -> bool:
+        """Require causal decision evidence and coherent, finite closure accounting."""
+        values = (
+            outcome.net_pnl,
+            outcome.gross_pnl,
+            outcome.fee_cost,
+            outcome.slippage_cost,
+            outcome.funding_cost,
+        )
+        return (
+            outcome.closure_assessment.decision_lineage_status
+            == "CAUSAL_DECISION_EVIDENCE"
+            and outcome.entry_time <= outcome.exit_time <= created_at
+            and outcome.quantity is not None
+            and outcome.quantity.is_finite()
+            and outcome.quantity > 0
+            and all(value.is_finite() for value in values)
+            and outcome.fee_cost >= 0
+            and outcome.slippage_cost >= 0
+            and abs(
+                outcome.net_pnl
+                - (
+                    outcome.gross_pnl
+                    - outcome.fee_cost
+                    - outcome.slippage_cost
+                    - outcome.funding_cost
+                )
+            )
+            <= Decimal("0.00000001")
         )
 
     @staticmethod
@@ -238,6 +350,7 @@ class ControlledLearningEngine:
         walk_forward_reports: tuple[WalkForwardReport, ...],
         tuning_reports: tuple[TuningReport, ...],
         robustness_reports: tuple[BacktestRobustnessReport, ...],
+        created_at: datetime,
     ) -> ProfitabilityOptimizationLoop | None:
         trades = tuple(
             trade for result in backtests for trade in getattr(result, "trades", ())
@@ -322,11 +435,30 @@ class ControlledLearningEngine:
         )
         attribution = cls._strategy_regime_attribution(trades)
         failures = cls._failure_analyses(trades)
-        experiment_candidates = cls._experiment_candidates(attribution)
+        verified_trades = tuple(
+            trade
+            for trade in trades
+            if isinstance(trade, TradeRecord)
+            and cls._verified_outcome(trade.trade_outcome, created_at)
+        )
+        verified_failures = cls._failure_analyses(verified_trades)
+        verified_trade_refs = tuple(
+            LearningEvidenceCase(
+                "CLOSED_TRADE", json.dumps(to_primitive(trade.trade_outcome))
+            ).evidence_ref
+            for trade in verified_trades
+        )
+        experiment_candidates = tuple(
+            replace(candidate, evidence_refs=verified_trade_refs)
+            for candidate in cls._experiment_candidates(
+                cls._strategy_regime_attribution(verified_trades)
+            )
+        )
         experiments = tuple(
             ProfitabilityExperiment(
                 experiment_id=f"profitability:{analysis.improvement_candidate_id}",
                 objective=analysis.rationale,
+                evidence_refs=verified_trade_refs,
                 required_validation=(
                     "bounded_experiment",
                     "walk_forward",
@@ -336,7 +468,7 @@ class ControlledLearningEngine:
                     "paper_candidate",
                 ),
             )
-            for analysis in failures
+            for analysis in verified_failures
         )
         loop_payload = "|".join(
             (

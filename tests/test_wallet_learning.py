@@ -125,7 +125,7 @@ def test_learning_ranks_lessons_without_execution_or_risk_authority() -> None:
 
     assert summary.lessons[0].code == "REVIEW_PREMATURE_TRAILING"
     assert summary.lessons[0].evidence_count == 2
-    assert summary.experiments[0].rank == 1
+    assert summary.experiments == ()  # Test-only legacy closure lacks causal evidence.
     assert summary.promotion_status is ValidationStatus.RESEARCH_ONLY
     assert summary.execution_allowed is False
     assert summary.risk_change_allowed is False
@@ -376,7 +376,7 @@ def test_learning_aggregates_backtest_walkforward_and_tuning_evidence() -> None:
     assert by_code["TUNING_PARAMETER_INSTABILITY"].evidence_count == 1
     assert by_code["REVIEW_PREMATURE_TRAILING"].evidence_count == 1
     assert all(exp.rank >= 1 for exp in summary.experiments)
-    assert summary.experiments[0].experiment_id.startswith("experiment:")
+    assert summary.experiments == ()  # Aggregate counts cannot seed experiments.
 
 
 def test_learning_consumes_performance_improvement_candidates_report_only() -> None:
@@ -404,9 +404,7 @@ def test_learning_consumes_performance_improvement_candidates_report_only() -> N
     by_code = {lesson.code: lesson for lesson in summary.lessons}
     assert by_code["PERFORMANCE_IMPROVEMENT_DGE"].evidence_count == 7
     assert by_code["ROOT_CAUSE_ENTRY_GATING_REVIEW"].evidence_count == 1
-    assert summary.experiments[0].experiment_id == (
-        "experiment:performance_improvement_dge"
-    )
+    assert summary.experiments == ()  # Test-only untyped telemetry is diagnostic only.
     assert summary.promotion_status is ValidationStatus.RESEARCH_ONLY
     assert summary.execution_allowed is False
     assert summary.risk_change_allowed is False
@@ -534,14 +532,7 @@ def test_learning_builds_profitability_optimization_loop_from_trade_evidence() -
     assert loop.failure_analyses[0].classification == "EXIT_MANAGEMENT_GIVEBACK"
     assert loop.failure_analyses[0].average_mfe_r == pytest.approx(2.4)
     assert loop.failure_analyses[0].average_mae_r == pytest.approx(1.2)
-    assert loop.experiments[0].required_validation == (
-        "bounded_experiment",
-        "walk_forward",
-        "oos",
-        "cost_stress",
-        "human_review",
-        "paper_candidate",
-    )
+    assert loop.experiments == ()  # Untyped aggregates lack decision-time provenance.
     assert loop.experiment_candidates == ()
     assert summary.execution_allowed is False
     assert summary.risk_change_allowed is False
@@ -645,8 +636,13 @@ def test_learning_proposes_regime_disable_experiment_candidate_report_only() -> 
 
     loop = summary.profitability_loop
     assert loop is not None
-    assert len(loop.experiment_candidates) == 1
-    candidate = loop.experiment_candidates[0]
+    assert loop.experiment_candidates == ()
+    # Test-only ranking calculation remains covered; it is not an admitted candidate.
+    calculated = ControlledLearningEngine._experiment_candidates(
+        loop.strategy_regime_attribution
+    )
+    assert len(calculated) == 1
+    candidate = calculated[0]
     assert candidate.status == "EXPERIMENT_CANDIDATE"
     assert candidate.strategy_id == "strategy_a"
     assert candidate.regime == "RANGE"

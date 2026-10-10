@@ -54,6 +54,7 @@ class ExperimentRecommendation:
     experiment_id: str
     objective: str
     required_validation: tuple[str, ...]
+    evidence_refs: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,6 +147,7 @@ class ProfitabilityExperiment:
     application_state: str = _NOT_APPLIED
     promotion_evidence_required: bool = True
     closure_evidence_required: bool = True
+    evidence_refs: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.experiment_id.strip() or not self.objective.strip():
@@ -198,6 +200,7 @@ class ExperimentCandidate:
     application_state: str = _NOT_APPLIED
     promotion_evidence_required: bool = True
     closure_evidence_required: bool = True
+    evidence_refs: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         for name, value in (
