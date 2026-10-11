@@ -81,23 +81,26 @@ def test_local_public_snapshot_can_read_wallet_price_coverage(tmp_path: Path) ->
 
 
 def test_local_transport_serves_futures_gateway_metadata(tmp_path: Path) -> None:
-    for filename, rows in (
+    for filename, endpoint, rows in (
         (
             "ticker-24hr.json",
+            "/fapi/v1/ticker/24hr",
             [{"symbol": "BTCUSDT", "lastPrice": "60000"}],
         ),
         (
             "ticker-bookTicker.json",
+            "/fapi/v1/ticker/bookTicker",
             [{"symbol": "BTCUSDT", "bidPrice": "59999", "askPrice": "60001"}],
         ),
         (
             "premium-index.json",
+            "/fapi/v1/premiumIndex",
             [{"symbol": "BTCUSDT", "lastFundingRate": "0.0001"}],
         ),
     ):
         write_json_object_verified(
             tmp_path / filename,
-            {"observed_at": NOW.isoformat(), "rows": rows},
+            {"observed_at": NOW.isoformat(), "source": endpoint, "rows": rows},
             blocker="FIXTURE_WRITE_FAILED",
         )
     transport = LocalMarketSnapshotTransport(tmp_path, clock=lambda: NOW)
