@@ -152,6 +152,14 @@ vm.runInContext(stripTypeScriptTypes(source), context);
 const evaluate = expression => vm.runInContext(expression, context);
 assert.equal(evaluate('commandSummary(null).decision'), 'DATA_UNAVAILABLE');
 assert.equal(evaluate('commandSummary(null).findingCount'), undefined);
+context.state.mode='local';context.state.page='overview';
+assert.equal(evaluate('commandShouldLoadMarket()'),true);
+assert.equal(evaluate('commandShouldRefreshMarket()'),false);
+context.state.page='virtual-market';
+assert.equal(evaluate('commandShouldRefreshMarket()'),true);
+context.state.mode='sample';
+assert.equal(evaluate('commandShouldLoadMarket()'),false);
+assert.equal(evaluate('commandShouldRefreshMarket()'),false);
 assert.equal(evaluate('ccRatioPercent(null)'), 'DATA_UNAVAILABLE');
 assert.equal(evaluate('ccRatioPercent(undefined)'), 'DATA_UNAVAILABLE');
 assert.equal(evaluate('ccRatioPercent(0)'), '0.00%');
@@ -163,6 +171,41 @@ assert.equal(evaluate('commandOpportunityVisible(undefined)'), false);
 assert.equal(evaluate('commandOpportunityVisible({measurable_plan:true})'), true);
 assert.equal(evaluate('commandOpportunityVisible({measurable_plan:false,score:99})'),
   false);
+// Test-only reports distinguish retrieval, verification, and symbol association.
+assert.equal(evaluate('commandNewsSummary({}).count'), '—');
+assert.equal(evaluate('commandNewsSummary({items:[]}).count'), '0');
+assert.equal(evaluate(`commandNewsSummary({items:[
+  {verification_status:'UNVERIFIED'},
+  {asset:'TEST_ONLY',verification_status:'PARTIALLY_VERIFIED'},
+  {verification_status:'VERIFIED'},
+  {symbol:'  ',verification_status:'VERIFIED'},
+  {symbol:'TEST_ONLY',verification_status:'VERIFIED'}]}).count`), '1');
+// Test-only DOM: hostile feed titles and URLs must not become executable content.
+class NewsElement {
+  constructor(tag) { this.tagName=tag; this.children=[]; this.dataset={}; }
+  append(...nodes) { this.children.push(...nodes); }
+  replaceChildren(...nodes) { this.children=nodes; }
+}
+context.document={createElement: tag => new NewsElement(tag)};
+context.URL=URL;
+context.observedTime=value => value || '—';
+context.newsFixture={articles:[
+  {title:'<script>test-only</script>',canonical_uri:'https://example.com/news',
+   provider_id:'test-only',published_at:'test-only-time'},
+  {title:'Test-only hostile URL',canonical_uri:'javascript:alert(1)'},
+  {title:'Test-only credentials',canonical_uri:'https://user:secret@example.com/'},
+  {title:'Test-only invalid URL',canonical_uri:'broken'}]};
+const articlePanel=evaluate('commandNewsArticles(newsFixture)');
+const rows=articlePanel.children.slice(2);
+assert.equal(rows.length,4);
+const link=rows[0].children[0].children[0];
+assert.equal(link.tagName,'a');
+assert.equal(link.textContent,'<script>test-only</script>');
+assert.equal(link.href,'https://example.com/news');
+assert.equal(link.rel,'noopener noreferrer');
+assert.equal(rows[0].children[1].textContent,'test-only · test-only-time');
+for (const row of rows.slice(1)) assert.equal(row.children[0].children.length,0);
+assert.equal(evaluate('commandNewsArticles({})').children.length,3);
 assert.equal(JSON.stringify(evaluate(`commandTablePage([['-10.00'],['-2.00'],['1.00']],
   {query:'',column:0,descending:false,page:0})`)), '[0,1,2]');
 assert.equal(JSON.stringify(evaluate(`commandTablePage([['1.09'],['1.1'],['1.2']],
@@ -170,6 +213,7 @@ assert.equal(JSON.stringify(evaluate(`commandTablePage([['1.09'],['1.1'],['1.2']
 assert.equal(evaluate("commandCompare('9007199254740993.01','9007199254740993.02')"),
   -1);
 evaluate("state.language='tr'");
+assert.match(evaluate('commandNewsSummary({}).coverage'), /sembol baz/);
 assert.equal(evaluate("commandCompare('1.234,09','1.234,1')"), -1);
 assert.equal(evaluate("commandCompare('-10,00','-2,00')"), -1);
 evaluate("state.language='en'");
@@ -248,6 +292,36 @@ evaluate("commandDecisionId='TEST_ONLY_2'");
 assert.equal(evaluate('selectedDecision().decision_id'),'TEST_ONLY_2');
 context.localData.decision_history.records.pop();
 assert.equal(evaluate('selectedDecision()'),undefined);
+// Exercise the real loader seam with explicitly test-only API responses.
+const legacy=readFileSync('src/ai4binance/local_dashboard/local_views.js','utf8');
+const loader=legacy.slice(legacy.indexOf('  async function loadMarket('),
+  legacy.indexOf('  async function runMarketRefresh('));
+vm.runInContext(loader,context);
+context.marketSelections={SPOT:'',USD_M_FUTURES:''};context.marketCache={};
+context.marketLoading=new Set();context.marketAttempts={};
+context.selectedMarket=()=>context.state.market==='Spot'?'SPOT':'USD_M_FUTURES';
+context.marketKey=market=>market+'|'+context.marketSelections[market];
+context.finishCommandMarketRefresh=()=>{};
+let marketReads=0,marketWrites=0;
+context.runMarketRefresh=async()=>{marketWrites++;};
+context.fetch=async()=>{marketReads++;return {ok:true,json:async()=>({
+  symbol:'TEST_ONLY_BTCUSDT',symbols:['TEST_ONLY_BTCUSDT'],stale:true,
+  execution_allowed:false,live_eligibility_status:'LIVE_ORDER_BLOCKED'})};};
+context.state.mode='local';context.state.page='overview';context.state.market='Spot';
+await evaluate('loadMarket(true)');
+assert.equal(context.marketSelections.SPOT,'TEST_ONLY_BTCUSDT');
+assert.equal(context.marketCache['SPOT|TEST_ONLY_BTCUSDT'].symbols.length,1);
+assert.equal(marketReads,1);assert.equal(marketWrites,0);
+context.state.market='Futures';
+await evaluate('loadMarket(true)');
+assert.equal(context.marketSelections.USD_M_FUTURES,'TEST_ONLY_BTCUSDT');
+assert.equal(marketReads,2);assert.equal(marketWrites,0);
+context.state.page='virtual-market';
+await evaluate('loadMarket(true)');
+assert.equal(marketWrites,1);
+context.state.mode='sample';
+await evaluate('loadMarket(true)');
+assert.equal(marketReads,3);assert.equal(marketWrites,1);
 let renders=0, schedules=0;
 context.localData=null;
 context.refreshLocal=async()=>{};
@@ -272,6 +346,87 @@ console.log('PRESENTATION_INVARIANTS_PASS');
     )
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "PRESENTATION_INVARIANTS_PASS"
+
+
+def test_opportunity_all_symbol_filter_preserves_single_symbol_requests() -> None:
+    """ALL is a test-only display selection, never an exchange symbol or job."""
+    node = shutil.which("node")
+    assert node is not None
+    script = r"""
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {stripTypeScriptTypes} from 'node:module';
+import vm from 'node:vm';
+class Element {
+  constructor(tag) { this.tagName=tag;this.children=[];this.events={};this.dataset={}; }
+  append(child) { this.children.push(child); }
+  setAttribute(key,value) { this[key]=value; }
+  addEventListener(key,callback) { this.events[key]=callback; }
+}
+let reads=0,writes=0;
+const context=vm.createContext({
+  document:{createElement:tag=>new Element(tag)},
+  state:{mode:'local',page:'opportunities',market:'Spot',language:'en'},
+  marketSelections:{SPOT:'TEST_ONLY_A',USD_M_FUTURES:'TEST_ONLY_F'},
+  loadMarket:async()=>{reads++;},
+  runMarketRefresh:async(market,symbol)=>{
+    assert.equal(market,'SPOT');assert.equal(symbol,'TEST_ONLY_B');writes++;
+  },render:()=>{},
+});
+vm.runInContext(stripTypeScriptTypes(
+  readFileSync('frontend/src/command_center.ts','utf8')),context);
+const evaluate=expression=>vm.runInContext(expression,context);
+const select=evaluate(
+  "commandMarketSymbolControl('SPOT',['TEST_ONLY_A','TEST_ONLY_B'],false)");
+assert.deepEqual(select.children.map(item=>item.value),['ALL','TEST_ONLY_A','TEST_ONLY_B']);
+assert.equal(select.children.find(item=>item.selected).value,'TEST_ONLY_A');
+select.value='ALL';select.events.change();
+assert.equal(context.marketSelections.SPOT,'TEST_ONLY_A');
+assert.equal(context.marketSelections.USD_M_FUTURES,'TEST_ONLY_F');
+assert.equal(reads,0);assert.equal(writes,0);
+assert.equal(evaluate("commandOpportunitySymbolMatches({symbol:'TEST_ONLY_B'},'SPOT')"),true);
+assert.equal(evaluate('commandShouldRefreshMarket()'),false);
+await evaluate("commandRefreshMarketSelection('SPOT')");
+assert.equal(reads,1);assert.equal(writes,0);
+select.value='TEST_ONLY_B';select.events.change();
+assert.equal(context.marketSelections.SPOT,'TEST_ONLY_B');
+assert.equal(evaluate("commandOpportunitySymbolMatches({symbol:'TEST_ONLY_A'},'SPOT')"),false);
+assert.equal(evaluate("commandOpportunitySymbolMatches({symbol:'TEST_ONLY_B'},'SPOT')"),true);
+assert.equal(evaluate('commandShouldRefreshMarket()'),true);
+await evaluate("commandRefreshMarketSelection('SPOT')");
+assert.equal(writes,1);
+context.state.market='Futures';
+assert.equal(evaluate("commandOpportunityAllSymbols('USD_M_FUTURES')"),false);
+const futures=evaluate(
+  "commandMarketSymbolControl('USD_M_FUTURES',['TEST_ONLY_F'],false)");
+futures.value='ALL';futures.events.change();
+assert.equal(context.marketSelections.USD_M_FUTURES,'TEST_ONLY_F');
+assert.equal(context.marketSelections.SPOT,'TEST_ONLY_B');
+context.state.page='virtual-market';
+const virtual=evaluate(
+  "commandMarketSymbolControl('SPOT',['TEST_ONLY_A','TEST_ONLY_B'],true)");
+assert.equal(virtual.children.some(item=>item.value==='ALL'),false);
+assert.equal(evaluate("commandOpportunityAllSymbols('USD_M_FUTURES')"),false);
+virtual.value='TEST_ONLY_A';virtual.events.change();
+context.state.page='opportunities';
+assert.equal(evaluate("commandOpportunitySymbolMatches({symbol:'TEST_ONLY_A'},'SPOT')"),true);
+assert.equal(evaluate("commandOpportunitySymbolMatches({symbol:'TEST_ONLY_B'},'SPOT')"),false);
+context.state.language='tr';
+const localized=evaluate("commandMarketSymbolControl('SPOT',[],false)");
+assert.equal(localized['aria-label'],'Sembol');
+assert.equal(localized.children[0].value,'ALL');
+console.log('OPPORTUNITY_SYMBOL_FILTER_PASS');
+"""
+    completed = subprocess.run(  # noqa: S603
+        [node, "--input-type=module", "-e", script],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "OPPORTUNITY_SYMBOL_FILTER_PASS"
 
 
 def test_localized_and_missing_row_values_remain_dom_nodes() -> None:

@@ -245,6 +245,19 @@ def radar_result_summary(radar: str, result_path: Path) -> dict:
         result["item_count"] = len(result["items"])
         result["blockers"] = reasons(payload.get("blockers"))
     elif radar == "news":
+        observations = report.get("observations")
+        result["articles"] = records(
+            [
+                observation
+                for observation in observations[:12]
+                if isinstance(observation, dict)
+                and observation.get("source_type") == "NEWS_ARTICLE"
+            ]
+            if isinstance(observations, list)
+            else [],
+            ("title", "canonical_uri", "published_at", "retrieved_at", "provider_id"),
+            limit=12,
+        )
         result["items"] = records(
             report.get("findings"),
             (

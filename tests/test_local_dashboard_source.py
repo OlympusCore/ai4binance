@@ -42,7 +42,7 @@ def test_canonical_dashboard_source_builds_deterministic_offline_assets(
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "DASHBOARD_PACKAGE_BUILT"
     assert _sha256(stage / "app.js") == (
-        "454edddde6b663b5c6ea96397f9d9f4632b931b50bedbd9616a7331ac610b18c"
+        "b3e8b21fb0282ecd4502ada30403a50d47e9596e62d8df766a0be7fe5c59e5ba"
     )
     assert _sha256(stage / "app.css") == (
         "d457b4b0bce41e50a9eece8a3dcc0356e90ade6797d7ddaa05ce7fe7d1dc07d1"
@@ -239,6 +239,73 @@ def test_dashboard_degrades_for_high_priority_health_findings() -> None:
     assert projection["required_service_ready_count"] == 0
 
 
+@pytest.mark.parametrize("observations", [None, {}, [], [None]])
+def test_news_article_projection_withholds_missing_metadata(
+    tmp_path: Path, observations: object
+) -> None:
+    result_path = tmp_path / "test-only-news.json"
+    result_path.write_text(
+        json.dumps({"report": {"observations": observations}}), encoding="utf-8"
+    )
+    module = runpy.run_path(str(SOURCE / "server.py.in"))
+    result = module["radar_result_summary"]("news", result_path)
+    assert result["articles"] == []
+    assert result["items"] == []
+
+
+def test_news_article_projection_preserves_provenance_without_inventing_events(
+    tmp_path: Path,
+) -> None:
+    observation = {
+        "source_type": "NEWS_ARTICLE",
+        "title": "Test-only public news title",
+        "canonical_uri": "https://example.com/test-only-news",
+        "published_at": "2026-10-12T12:00:00+00:00",
+        "retrieved_at": "2026-10-12T13:00:00+00:00",
+        "provider_id": "test-only-provider",
+        "summary": "Test-only article text withheld from dashboard",
+    }
+    result_path = tmp_path / "test-only-news.json"
+    result_path.write_text(
+        json.dumps(
+            {
+                "status": "READY",
+                "execution_allowed": False,
+                "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+                "report": {
+                    "observations": [
+                        observation,
+                        {**observation, "source_type": "OFFICIAL_DOCUMENT"},
+                    ],
+                    "findings": [{"verification_status": "UNVERIFIED"}],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    module = runpy.run_path(str(SOURCE / "server.py.in"))
+    result = module["radar_result_summary"]("news", result_path)
+    assert result["articles"] == [
+        {
+            key: value
+            for key, value in observation.items()
+            if key not in {"summary", "source_type"}
+        }
+    ]
+    assert result["items"] == [
+        {
+            "asset": None,
+            "symbol": None,
+            "event_type": None,
+            "claim": None,
+            "verification_status": "UNVERIFIED",
+            "confidence": None,
+        }
+    ]
+    assert result["execution_allowed"] is False
+    assert result["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
 def test_dashboard_classifies_futures_research_progress_and_failures() -> None:
     module = runpy.run_path(str(SOURCE / "server.py.in"))
     classify = module["futures_research_readiness_status"]
@@ -260,7 +327,8 @@ def test_virtual_market_separates_trade_records_from_potential_opportunities() -
     )
 
     assert "if(virtual)return;" in views
-    assert "potential all-coin opportunities" in views
+    assert "potential opportunities" in views
+    assert "commandOpportunitySymbolMatches(r,market)" in views
     assert "Virtual trade records" in views
     assert "payload.trade_records" in views
     assert "completeOpportunityPlan" in views

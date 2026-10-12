@@ -50,6 +50,44 @@ from tests.test_cli import public_snapshot
 from tests.test_wallet_learning import closed_position
 
 
+@pytest.mark.parametrize(
+    ("status", "blockers", "expected"),
+    [
+        (None, (), ResearchStageStatus.NOT_RUN),
+        (ValidationStatus.UNVALIDATED, (), ResearchStageStatus.BLOCKED),
+        (
+            ValidationStatus.REJECTED,
+            ("TEST_ONLY_OOS_MISSING",),
+            ResearchStageStatus.BLOCKED,
+        ),
+        (ValidationStatus.PAPER_APPROVED, (), ResearchStageStatus.COMPLETED),
+        (
+            ValidationStatus.PAPER_APPROVED,
+            ("TEST_ONLY_RISK_VETO",),
+            ResearchStageStatus.BLOCKED,
+        ),
+    ],
+)
+def test_validation_stage_reports_only_the_existing_verdict(
+    status: ValidationStatus | None,
+    blockers: tuple[str, ...],
+    expected: ResearchStageStatus,
+) -> None:
+    analysis = SimpleNamespace(
+        final_decision=None
+        if status is None
+        else SimpleNamespace(validation_status=status, blockers=blockers)
+    )
+    stage = ResearchApplicationService._validation_stage(analysis)
+    assert stage.name == "validation"
+    assert stage.status is expected
+    assert bool(stage.blockers) is (expected is ResearchStageStatus.BLOCKED)
+    # Reporting does not change the verdict or remove its original vetoes.
+    if analysis.final_decision is not None:
+        assert analysis.final_decision.validation_status is status
+        assert analysis.final_decision.blockers == blockers
+
+
 def test_cycle_snapshot_hash_binds_prices_and_matches_audit(tmp_path: Path) -> None:
     service = build_research_application_service()
     original = public_snapshot()
@@ -124,6 +162,7 @@ def test_research_service_runs_all_safe_stages_and_persists_audit(
         "analysis",
         "strategy",
         "risk",
+        "validation",
         "virtual_market_execution",
         "learning",
     ]
@@ -135,6 +174,11 @@ def test_research_service_runs_all_safe_stages_and_persists_audit(
     assert workflow.stages[-1].status is ResearchStageStatus.NOT_RUN
     assert workflow.execution_allowed is False
     assert workflow.live_eligibility_status == "LIVE_ORDER_BLOCKED"
+    validation = next(stage for stage in workflow.stages if stage.name == "validation")
+    assert validation.status is ResearchStageStatus.BLOCKED
+    assert validation.blockers == (
+        f"VALIDATION_STATUS:{workflow.analysis.final_decision.validation_status.value}",
+    )
     assert workflow.canonical_cycle is not None
     cycle = workflow.canonical_cycle
     assert cycle.cycle_id == "research:public-snapshot-1"

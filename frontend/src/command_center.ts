@@ -72,6 +72,7 @@ declare function render(): void;
 declare function renderLocal(content: HTMLElement): void;
 declare function go(page: string): void;
 declare function loadMarket(suppressRender?: boolean): Promise<void>;
+declare function runMarketRefresh(market?: string, symbol?: string): Promise<void>;
 declare function refreshLocal(): Promise<void>;
 declare function refreshLearning(): Promise<void>;
 declare function sourceInfo(name: string): SourceMeta;
@@ -148,6 +149,58 @@ function selectedDecision(): DecisionRecord | undefined {
 function decisionStage(item: DecisionRecord | undefined, name: string): string {
   return ccValue(item?.stages.find(stage => stage.name === name)?.status);
 }
+function commandShouldLoadMarket(): boolean {
+  // The persistent selector needs verified context on every local page.
+  return state.mode === 'local';
+}
+function commandShouldRefreshMarket(): boolean {
+  return state.mode === 'local' && ['opportunities', 'virtual-market'].includes(state.page)
+    && (state.page !== 'opportunities'
+      || !commandOpportunityAllSymbols(state.market === 'Spot' ? 'SPOT' : 'USD_M_FUTURES'));
+}
+const commandOpportunitySymbolSelections: Record<string, string> = {};
+function commandOpportunityAllSymbols(market: string): boolean {
+  return state.page === 'opportunities' && commandOpportunitySymbolSelections[market] === 'ALL';
+}
+function commandOpportunitySymbolMatches(item: { symbol?: string }, market: string): boolean {
+  const symbol = commandOpportunitySymbolSelections[market] || marketSelections[market];
+  return !symbol || symbol === 'ALL' || item.symbol === symbol;
+}
+function commandMarketSymbolControl(market: string, symbols: string[], virtual: boolean): HTMLSelectElement {
+  const control = ccNode('select', '', 'aw-button');
+  control.setAttribute('aria-label', state.language === 'tr' ? 'Sembol' : 'Symbol');
+  const selected = virtual ? marketSelections[market]
+    : commandOpportunitySymbolSelections[market] || marketSelections[market];
+  const values = virtual ? symbols : ['ALL', ...symbols.filter(symbol => symbol !== 'ALL')];
+  values.forEach(symbol => {
+    const option = ccNode('option', symbol || (state.language === 'tr' ? 'Yükleniyor…' : 'Loading…'));
+    option.value = symbol; option.selected = symbol === selected; control.append(option);
+  });
+  control.addEventListener('change', () => {
+    if (!virtual) commandOpportunitySymbolSelections[market] = control.value === 'ALL' ? 'ALL' : '';
+    if (virtual || control.value !== 'ALL') {
+      marketSelections[market] = control.value; void loadMarket();
+    }
+    marketFilter = 'All'; render();
+  });
+  return control;
+}
+function commandMarketRefreshLabel(market: string): string[] {
+  return commandOpportunityAllSymbols(market)
+    ? ['Refresh opportunity view', 'Fırsat görünümünü yenile']
+    : ['Refresh data and opportunities', 'Veri ve fırsatları yenile'];
+}
+async function commandRefreshMarketSelection(market: string): Promise<void> {
+  if (commandOpportunityAllSymbols(market)) await loadMarket();
+  else await runMarketRefresh(market, marketSelections[market]);
+}
+function commandMarketScopeNote(market: string): string[] {
+  return commandOpportunityAllSymbols(market)
+    ? ['Showing published opportunities for all eligible symbols in this market. Select a symbol for its data quality and history.',
+      'Bu piyasadaki uygun tüm sembollerin yayınlanmış fırsatları gösteriliyor. Veri kalitesi ve geçmiş için bir sembol seçin.']
+    : ['The selected coin is scanned across every listed timeframe. Price-path performance is not trading profit.',
+      'Seçili koin listelenen tüm zaman dilimlerinde taranır. Fiyat hareketi performansı işlem kârı değildir.'];
+}
 function ccNode<K extends keyof HTMLElementTagNameMap>(
   tag: K, value = '', className = '',
 ): HTMLElementTagNameMap[K] {
@@ -174,6 +227,48 @@ function ccReportedCount(value: unknown): string {
 }
 function commandOpportunityVisible(row: {measurable_plan?: boolean} | undefined): boolean {
   return row?.measurable_plan === true;
+}
+interface NewsRadarResult {
+  items?: {asset?: string | null; symbol?: string | null; verification_status?: string}[];
+  articles?: {title?: string; canonical_uri?: string; published_at?: string; retrieved_at?: string; provider_id?: string}[];
+}
+function commandNewsSummary(result: NewsRadarResult) {
+  const count = Array.isArray(result.items)
+    ? String(result.items.filter(item => item.verification_status === 'VERIFIED'
+      && Boolean(item.asset?.trim() || item.symbol?.trim())).length) : '—';
+  return {
+    count,
+    note: ccLabel('Only verified findings associated with an asset or symbol are counted.',
+      'Yalnızca bir varlık veya sembolle ilişkilendirilmiş doğrulanmış bulgular sayılır.'),
+    coverage: ccLabel('Per-symbol coverage is not supplied by this bounded general-news feed.',
+      'Bu sınırlı genel haber akışı sembol bazında kapsam bilgisi sağlamıyor.'),
+    findings: ccLabel('Reported findings are listed below with their verification status. Fetched articles are not verified coin events.',
+      'Bildirilen bulgular doğrulama durumlarıyla aşağıda listelenir. Alınan yazılar doğrulanmış koin olayları değildir.'),
+  };
+}
+function commandNewsArticles(result: NewsRadarResult): HTMLElement {
+  const section = ccNode('section', '', 'aw-panel');
+  section.append(ccNode('h3', ccLabel('Fetched source articles', 'Kaynaklardan alınan yazılar')));
+  section.append(ccNode('p', ccLabel('These public articles have not been classified or independently verified as eligible-coin news.',
+    'Bu genel yazılar uygun koin haberi olarak sınıflandırılmadı veya bağımsız doğrulanmadı.'), 'aw-status'));
+  const articles = Array.isArray(result.articles) ? result.articles.slice(0, 12) : [];
+  if (!articles.length) section.append(ccNode('p', ccLabel('No source article metadata was supplied.',
+    'Kaynak yazı bilgisi sağlanmadı.'), 'aw-empty'));
+  articles.forEach(article => {
+    const entry = ccNode('div', '', 'aw-row');
+    const title = ccNode('span', article.title || ccLabel('Untitled article', 'Başlıksız yazı'));
+    try {
+      const url = new URL(article.canonical_uri || '');
+      if (url.protocol === 'https:' && !url.username && !url.password) {
+        const link = ccNode('a', title.textContent || '');
+        link.href = url.href; link.target = '_blank'; link.rel = 'noopener noreferrer';
+        title.replaceChildren(link);
+      }
+    } catch { /* Missing or invalid source URLs remain plain text. */ }
+    entry.append(title, ccNode('span', `${article.provider_id || '—'} · ${observedTime(article.published_at || article.retrieved_at)}`));
+    section.append(entry);
+  });
+  return section;
 }
 function commandLevel(value: unknown): {display: string; sortValue: string; toString(): string} | string {
   if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return 'DATA_UNAVAILABLE';
@@ -600,7 +695,7 @@ function enhanceCommandShell(focusKey?: string): void {
   if (local && state.page === 'opportunities') root.querySelector('#aw-subtitle')!.textContent = ccText('marketHelp');
   root.querySelector('#aw-status')!.textContent = root.querySelector('#aw-title')!.textContent;
   root.querySelector('.cc-context')?.remove();
-  if (local) {
+  if (local && !['overview', 'opportunities', 'research', 'news', 'recommendations'].includes(state.page)) {
     const context = ccNode('div', '', 'cc-context');
     const field = (key: CopyKey, values: string[], selected: string, change: (value: string) => void) => {
       const label = ccNode('label', ccText(key));
@@ -610,7 +705,7 @@ function enhanceCommandShell(focusKey?: string): void {
       label.append(select); context.append(label);
     };
     field('market', ['Spot', 'Futures'], state.market, value => {
-      state.market = value; render();
+      state.market = value; void loadMarket(); render();
     });
     const market = state.market === 'Spot' ? 'SPOT' : 'USD_M_FUTURES';
     const symbol = marketSelections[market];
@@ -624,9 +719,9 @@ function enhanceCommandShell(focusKey?: string): void {
     });
     field('language', ['en', 'tr'], state.language, value => { state.language = value; render(); });
     safety.after(context);
-    if (commandFailure && !['overview', 'decision', 'evidence', 'system'].includes(state.page)) {
-      root.querySelector('#aw-content')!.prepend(commandConnectionPanel());
-    }
+  }
+  if (local && commandFailure && !['overview', 'decision', 'evidence', 'system'].includes(state.page)) {
+    root.querySelector('#aw-content')!.prepend(commandConnectionPanel());
   }
   root.querySelectorAll<HTMLTableCellElement>('th').forEach(cell => { cell.scope = 'col'; });
   root.querySelectorAll<HTMLElement>('.aw-tablewrap').forEach(wrap => {

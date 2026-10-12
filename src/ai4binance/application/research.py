@@ -528,6 +528,7 @@ class ResearchApplicationService:
             ResearchApplicationService._stage("analysis", tuple(analysis.blockers)),
             ResearchApplicationService._stage("strategy", strategy_blockers),
             ResearchApplicationService._stage("risk", risk_blockers),
+            ResearchApplicationService._validation_stage(analysis),
             ResearchApplicationService._stage(
                 "virtual_market_execution",
                 virtual_market_blockers,
@@ -538,6 +539,26 @@ class ResearchApplicationService:
                 if learning is not None
                 else ResearchStageStatus.NOT_RUN,
             ),
+        )
+
+    @staticmethod
+    def _validation_stage(analysis: Any) -> ResearchStage:
+        """Report the existing gate verdict, never infer approval from data health."""
+        decision = getattr(analysis, "final_decision", None)
+        validation = getattr(decision, "validation_status", None)
+        if validation is None:
+            return ResearchStage("validation", ResearchStageStatus.NOT_RUN)
+        blockers = tuple(getattr(decision, "blockers", ()))
+        status = getattr(validation, "value", None)
+        if not blockers and status in {"PAPER_APPROVED", "LIVE_ELIGIBLE"}:
+            return ResearchStage("validation", ResearchStageStatus.COMPLETED)
+        # Detailed vetoes remain in analysis_ref and the decision body. Repeat
+        # the reported verdict, not every veto, inside the bounded audit event.
+        return ResearchApplicationService._stage(
+            "validation",
+            ("VALIDATION_BLOCKERS_PRESENT",)
+            if status in {"PAPER_APPROVED", "LIVE_ELIGIBLE"}
+            else (f"VALIDATION_STATUS:{status or 'UNKNOWN'}",),
         )
 
     @staticmethod

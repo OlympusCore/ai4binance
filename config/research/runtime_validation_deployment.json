@@ -2,45 +2,45 @@
   "execution_allowed": false,
   "live_eligibility_status": "LIVE_ORDER_BLOCKED",
   "promotion_status": "RESEARCH_ONLY",
-  "runtime_source_sha256": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
+  "runtime_source_sha256": "adfd4157d6a0b23f1e4b249e26235a716bbea79c9959fea6312a781ae2757c20",
   "schema_version": "1.0",
   "subjects": [
     {
       "bundle": {
-        "path": "oos_runtime/542ca70809c81c41839c003d50c8e83f14227eba302031e8d72a9c2320193902/bundle.json",
-        "sha256": "0ea2b993bdb38844ec882a70d0704bdda0e3ea4ca68590834af3388c03a2188d"
+        "path": "oos_runtime/fa03b58fec246c909f10164460e278749c6940fb1d2e9afefde2d70ca49a6798/bundle.json",
+        "sha256": "52181211e3f1b8b47fe2392f84ae492910b0413e33f1e7c3c9d0ed6fdd09e782"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
-        "feature_definition_sha256": "63f712ab32697b7a9c67ee81847bcdc9f7171002e2f7e4e6a213ae2e12edd979",
+        "feature_definition_sha256": "2ab14a2fd49374cb3a0f63ff4e60d248b3f0a4ff9325e7fa2082560936ac3589",
         "promotion": {
-          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
-          "dataset_sha256": "670c3909a381f375b0a99fcef256378c5b3892b2eefbde3167300dc91ed561b5",
+          "code_revision": "adfd4157d6a0b23f1e4b249e26235a716bbea79c9959fea6312a781ae2757c20",
+          "dataset_sha256": "d6fd22c70098d432134de511e99bd2133b951539d3d0318e07abce2970d1e924",
           "market_type": "SPOT",
-          "parameter_set_sha256": "4bd1c4a9aa115e27998e0721c7700ae6a1d8a8cf09af95d34b3ce624edda1ac9",
+          "parameter_set_sha256": "3bb2a9208ae1f0f587d632151ab57909244eb34e1500010d9be5b90f68f37fec",
           "strategy_id": "trend_continuation",
-          "strategy_sha256": "63f712ab32697b7a9c67ee81847bcdc9f7171002e2f7e4e6a213ae2e12edd979",
+          "strategy_sha256": "2ab14a2fd49374cb3a0f63ff4e60d248b3f0a4ff9325e7fa2082560936ac3589",
           "strategy_version": "1",
           "symbol": "BTCUSDT",
           "timeframe": "15m"
         },
         "setup_type": "trend_continuation",
-        "validation_config_sha256": "41f2ae9107a79985e46f8522323133261f99fb4ec9d9d4265b0f57c3d3956cd4"
+        "validation_config_sha256": "08eb7c8e0f88bffc82d21b825d972d5536e719b7785a30992b13cddccdd733b1"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/0c17e1a8754613e9607e63e434e93349b83f0dd6da00a044165ad532eae358e0/bundle.json",
-        "sha256": "c082ac3615f22fdb10f8662a45cc357d642e87fbb39c94730034184d2fa774bc"
+        "path": "oos_runtime/75f2a76123a1483bb03dc2af79030067acf9fd60e41e3a49cc84d5b069337134/bundle.json",
+        "sha256": "7dc2c565ca16c43f663b3424ea3ac79a117a6f61ee2528bf2e38cc2198bf42b0"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "acfb727377466011e73a0b3782f76bc445b3dc7d7fbddda33c8b0811370dc852",
         "promotion": {
-          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
-          "dataset_sha256": "670c3909a381f375b0a99fcef256378c5b3892b2eefbde3167300dc91ed561b5",
+          "code_revision": "adfd4157d6a0b23f1e4b249e26235a716bbea79c9959fea6312a781ae2757c20",
+          "dataset_sha256": "d6fd22c70098d432134de511e99bd2133b951539d3d0318e07abce2970d1e924",
           "market_type": "SPOT",
-          "parameter_set_sha256": "4bd1c4a9aa115e27998e0721c7700ae6a1d8a8cf09af95d34b3ce624edda1ac9",
+          "parameter_set_sha256": "3bb2a9208ae1f0f587d632151ab57909244eb34e1500010d9be5b90f68f37fec",
           "strategy_id": "pullback_continuation",
           "strategy_sha256": "acfb727377466011e73a0b3782f76bc445b3dc7d7fbddda33c8b0811370dc852",
           "strategy_version": "1",
@@ -48,68 +48,68 @@
           "timeframe": "15m"
         },
         "setup_type": "pullback_continuation",
-        "validation_config_sha256": "3fc299291cbb97b9cc53bd413af44289eb93da55ec2733ad415c82f871865a2f"
+        "validation_config_sha256": "a459d94fbce64d14e36d61025d741d111352b94a734b7d79156faa6855e08b79"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/1cd1f756c2dfe2e6e5b72ad580f250a1f5c6f10038e9a51acc41a74a966c204e/bundle.json",
-        "sha256": "03f1c4e0d8e776bb758f255c3945694a2ce33b722d43f21de485b007f3edebc0"
+        "path": "oos_runtime/72b20f4918f23d985797b398ffbbe6021cb2cffd78c370ace00c7257f400d265/bundle.json",
+        "sha256": "638fe288b432693f343ee2bd06c053ff14e562bb6ca531c1f0150d9fcd2b2da5"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
-        "feature_definition_sha256": "2a7e0ad5ccc7292a0b06b76b233fa93552d34bfe993a0db4976e3404b1ff7486",
+        "feature_definition_sha256": "d6183e0c953d92a12f78970728ea66c45b79758c463fc9c3bfa7a22d61cd6a7b",
         "promotion": {
-          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
-          "dataset_sha256": "670c3909a381f375b0a99fcef256378c5b3892b2eefbde3167300dc91ed561b5",
+          "code_revision": "adfd4157d6a0b23f1e4b249e26235a716bbea79c9959fea6312a781ae2757c20",
+          "dataset_sha256": "d6fd22c70098d432134de511e99bd2133b951539d3d0318e07abce2970d1e924",
           "market_type": "SPOT",
-          "parameter_set_sha256": "4bd1c4a9aa115e27998e0721c7700ae6a1d8a8cf09af95d34b3ce624edda1ac9",
+          "parameter_set_sha256": "3bb2a9208ae1f0f587d632151ab57909244eb34e1500010d9be5b90f68f37fec",
           "strategy_id": "breakout_retest",
-          "strategy_sha256": "2a7e0ad5ccc7292a0b06b76b233fa93552d34bfe993a0db4976e3404b1ff7486",
+          "strategy_sha256": "d6183e0c953d92a12f78970728ea66c45b79758c463fc9c3bfa7a22d61cd6a7b",
           "strategy_version": "1",
           "symbol": "BTCUSDT",
           "timeframe": "15m"
         },
         "setup_type": "breakout_retest",
-        "validation_config_sha256": "3580cd32f763b70502b44c2d474bc935e0bfe1c85b4401341de1f063ce6d5562"
+        "validation_config_sha256": "e88eda4b434160744e5d219b8796d747522ddf890fc1b2702f241a407b035bb7"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/8262f89da3dece8463ff55097d2933306fa4aca927d58c0383b2288156f2f5ad/bundle.json",
-        "sha256": "8126174a6f065fb927444983023d7ec9dcb76928147de1e18465555fe8d0bb39"
+        "path": "oos_runtime/e5ed2b5b6920b1ece3ee067d40559337bdce63af34e45dbaea0dec590f5cf3bd/bundle.json",
+        "sha256": "112321aebbddb37e7871947f96a32528f7727cabd6ff003130f50cb00d63eebc"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
-        "feature_definition_sha256": "7cfbd10b251a8e6acfa0656247e9f99f56c4b6e24849c8a36d66fce734f746a3",
+        "feature_definition_sha256": "ab8ad8719e8ae46a24c00a9fa61b06b65ec081f6282f532f3e6fd5922d517a07",
         "promotion": {
-          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
-          "dataset_sha256": "670c3909a381f375b0a99fcef256378c5b3892b2eefbde3167300dc91ed561b5",
+          "code_revision": "adfd4157d6a0b23f1e4b249e26235a716bbea79c9959fea6312a781ae2757c20",
+          "dataset_sha256": "d6fd22c70098d432134de511e99bd2133b951539d3d0318e07abce2970d1e924",
           "market_type": "SPOT",
-          "parameter_set_sha256": "4bd1c4a9aa115e27998e0721c7700ae6a1d8a8cf09af95d34b3ce624edda1ac9",
+          "parameter_set_sha256": "3bb2a9208ae1f0f587d632151ab57909244eb34e1500010d9be5b90f68f37fec",
           "strategy_id": "support_reclaim",
-          "strategy_sha256": "7cfbd10b251a8e6acfa0656247e9f99f56c4b6e24849c8a36d66fce734f746a3",
+          "strategy_sha256": "ab8ad8719e8ae46a24c00a9fa61b06b65ec081f6282f532f3e6fd5922d517a07",
           "strategy_version": "1",
           "symbol": "BTCUSDT",
           "timeframe": "15m"
         },
         "setup_type": "support_reclaim",
-        "validation_config_sha256": "5bfc944927f384c71d5a567195d4f9f3fab658cf15ef634a4009b6ca0d8276b7"
+        "validation_config_sha256": "232ff31a7861320723d4d2f5a9953e9da99f4deae0febe5720f9a8e7b13eac6d"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/a2cd1cdce2adf647174ca45f03075535c7fcb9b0c05313b27f9f3ae7ed9a4d42/bundle.json",
-        "sha256": "1f87af0f67f5250fc737428dd9cfa34e6fde3571a1df5af0f85665fc273bf1b5"
+        "path": "oos_runtime/964e52686b8e1eea888b0f055829ca377d9bb5e71996e40d045bc6e0ff99ada6/bundle.json",
+        "sha256": "9f765a5048abe0885e29572de78b4b349723038c0be83398e76afd24885e784f"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "4f33ee776ac3b463420d6a0f2c08352a0673d16633d2a32765d861fcb8e144ea",
         "promotion": {
-          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
-          "dataset_sha256": "670c3909a381f375b0a99fcef256378c5b3892b2eefbde3167300dc91ed561b5",
+          "code_revision": "adfd4157d6a0b23f1e4b249e26235a716bbea79c9959fea6312a781ae2757c20",
+          "dataset_sha256": "d6fd22c70098d432134de511e99bd2133b951539d3d0318e07abce2970d1e924",
           "market_type": "SPOT",
-          "parameter_set_sha256": "4bd1c4a9aa115e27998e0721c7700ae6a1d8a8cf09af95d34b3ce624edda1ac9",
+          "parameter_set_sha256": "3bb2a9208ae1f0f587d632151ab57909244eb34e1500010d9be5b90f68f37fec",
           "strategy_id": "failed_breakout_reversal",
           "strategy_sha256": "4f33ee776ac3b463420d6a0f2c08352a0673d16633d2a32765d861fcb8e144ea",
           "strategy_version": "1",
@@ -117,91 +117,91 @@
           "timeframe": "15m"
         },
         "setup_type": "failed_breakout_reversal",
-        "validation_config_sha256": "af093bbf27c520339541d1f4dc6cbd416cb7d370216e64e70164e02ce9a64582"
+        "validation_config_sha256": "0ae75acc8e27ab132bd09c299867c7ce5890b9b9339d03f577baa40abbc41794"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/fcfc4e58d7a510d8a7598d4006dd736d3538480696988e509653d589b254feba/bundle.json",
-        "sha256": "ac989b936304b50caad60375adff155c1cc6567568a20cf92c3d236f9fa217fb"
+        "path": "oos_runtime/ea1fbb3d4bf996cbff912a1eb48ca35f6dd12c856895848dce644efc1ac16801/bundle.json",
+        "sha256": "a189d753f43d2bbb70a75b979188ad09e618a9c252e30a2187c4b12af1fd5b2b"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
-        "feature_definition_sha256": "63f712ab32697b7a9c67ee81847bcdc9f7171002e2f7e4e6a213ae2e12edd979",
+        "feature_definition_sha256": "2ab14a2fd49374cb3a0f63ff4e60d248b3f0a4ff9325e7fa2082560936ac3589",
         "promotion": {
-          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
-          "dataset_sha256": "a331860e84a646b5fca88d9e3cd0b0741e48eb9a1012cb127d4dbee636a59dfa",
+          "code_revision": "adfd4157d6a0b23f1e4b249e26235a716bbea79c9959fea6312a781ae2757c20",
+          "dataset_sha256": "a18be717d78b2f02d7c51caac39bbec0461195d8ad6bdfef7ebd3730d40fea7c",
           "market_type": "SPOT",
-          "parameter_set_sha256": "054e2cde500c74e3de0cf53a0ea4cc187d205f1cbcdad5598459081a5c6e6be4",
+          "parameter_set_sha256": "4b9da967256f7380d613c763635e363bf5f569b43745e26594ba3a4d4a65fc1a",
           "strategy_id": "trend_continuation",
-          "strategy_sha256": "63f712ab32697b7a9c67ee81847bcdc9f7171002e2f7e4e6a213ae2e12edd979",
+          "strategy_sha256": "2ab14a2fd49374cb3a0f63ff4e60d248b3f0a4ff9325e7fa2082560936ac3589",
           "strategy_version": "1",
           "symbol": "BTCUSDT",
           "timeframe": "1h"
         },
         "setup_type": "trend_continuation",
-        "validation_config_sha256": "ffb237f4724bd11617cf1bfbf21c900542a5e42f7c2a4cea9a15c036ae01be0a"
+        "validation_config_sha256": "a4b350b96f00724039e791f2ea44e22e219da65c57df63cffe8a4ec8e9ffa257"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/c8ca129ca37d86dbba6f7e084565b52b9376c57f56a21ee327d73860b9f0d8e4/bundle.json",
-        "sha256": "b6180f55d27849bce4647b353e6468771eedd73e596b406399051dc594d2a9e4"
+        "path": "oos_runtime/9ddb3f50a00c05696e8c7106172b8a0363ff491781daaf9b842d6a470eb9025e/bundle.json",
+        "sha256": "06802eacff39b78e801ccda2064155de813edb35a78aad2b912d5728cd01cf04"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
-        "feature_definition_sha256": "d676e5ee3551bed7965e95cb421ae999225b9b6c0e2662468065506836fe5fc7",
+        "feature_definition_sha256": "acfb727377466011e73a0b3782f76bc445b3dc7d7fbddda33c8b0811370dc852",
         "promotion": {
-          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
-          "dataset_sha256": "a331860e84a646b5fca88d9e3cd0b0741e48eb9a1012cb127d4dbee636a59dfa",
+          "code_revision": "adfd4157d6a0b23f1e4b249e26235a716bbea79c9959fea6312a781ae2757c20",
+          "dataset_sha256": "a18be717d78b2f02d7c51caac39bbec0461195d8ad6bdfef7ebd3730d40fea7c",
           "market_type": "SPOT",
-          "parameter_set_sha256": "054e2cde500c74e3de0cf53a0ea4cc187d205f1cbcdad5598459081a5c6e6be4",
+          "parameter_set_sha256": "4b9da967256f7380d613c763635e363bf5f569b43745e26594ba3a4d4a65fc1a",
           "strategy_id": "pullback_continuation",
-          "strategy_sha256": "d676e5ee3551bed7965e95cb421ae999225b9b6c0e2662468065506836fe5fc7",
+          "strategy_sha256": "acfb727377466011e73a0b3782f76bc445b3dc7d7fbddda33c8b0811370dc852",
           "strategy_version": "1",
           "symbol": "BTCUSDT",
           "timeframe": "1h"
         },
         "setup_type": "pullback_continuation",
-        "validation_config_sha256": "136713eaba26dde6d5dd4394f075b7961334b6bb5b58d3a4b64b32002083ed21"
+        "validation_config_sha256": "22ab848f1b7306af612451c224d362641480d611208a484a50147a4d4aef68d1"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/d46c8a4d6034d44bcf58ed60c82fd61afcb835273bb524bff27ce46073503baf/bundle.json",
-        "sha256": "fcd53ac8b8ac14b71a49b8b91d7ccb9c51db0ee98684ff1904d059da68c0f86b"
+        "path": "oos_runtime/bcfef4d94b74c5f16ce6768ffeebbddb01f67328374d6193146b68c75b4970e1/bundle.json",
+        "sha256": "da1585acf14ddf7c65651e15e56732123b0964e8887c6ef79d915bcb4c985d4e"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
-        "feature_definition_sha256": "2a7e0ad5ccc7292a0b06b76b233fa93552d34bfe993a0db4976e3404b1ff7486",
+        "feature_definition_sha256": "d6183e0c953d92a12f78970728ea66c45b79758c463fc9c3bfa7a22d61cd6a7b",
         "promotion": {
-          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
-          "dataset_sha256": "a331860e84a646b5fca88d9e3cd0b0741e48eb9a1012cb127d4dbee636a59dfa",
+          "code_revision": "adfd4157d6a0b23f1e4b249e26235a716bbea79c9959fea6312a781ae2757c20",
+          "dataset_sha256": "a18be717d78b2f02d7c51caac39bbec0461195d8ad6bdfef7ebd3730d40fea7c",
           "market_type": "SPOT",
-          "parameter_set_sha256": "054e2cde500c74e3de0cf53a0ea4cc187d205f1cbcdad5598459081a5c6e6be4",
+          "parameter_set_sha256": "4b9da967256f7380d613c763635e363bf5f569b43745e26594ba3a4d4a65fc1a",
           "strategy_id": "breakout_retest",
-          "strategy_sha256": "2a7e0ad5ccc7292a0b06b76b233fa93552d34bfe993a0db4976e3404b1ff7486",
+          "strategy_sha256": "d6183e0c953d92a12f78970728ea66c45b79758c463fc9c3bfa7a22d61cd6a7b",
           "strategy_version": "1",
           "symbol": "BTCUSDT",
           "timeframe": "1h"
         },
         "setup_type": "breakout_retest",
-        "validation_config_sha256": "4299b3871fba400b20b27f75d4d8754093ba57d7ac249cf0b579eb0f863a4eb4"
+        "validation_config_sha256": "8cc751739de1285997a7658ea5993e51b95071ce323fd374d3a641d2d5dd0dd9"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/8ec344bbae4e35b0f3b76947b74364300ad628f8a8136d795daab00ce187dfe4/bundle.json",
-        "sha256": "59ca38f180e393abec1f6bc419384d35e54456fd61c1fd4652eb370b3170c917"
+        "path": "oos_runtime/a5b07a0b9658df2952788f4bee21c84048bbea990dd575bf9111882663fbe38a/bundle.json",
+        "sha256": "6d4e8363ed728bbfe59ef29e2d3e467eb81082e67df3cc27b6da0e63aedbb7a4"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "7cfbd10b251a8e6acfa0656247e9f99f56c4b6e24849c8a36d66fce734f746a3",
         "promotion": {
-          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
-          "dataset_sha256": "a331860e84a646b5fca88d9e3cd0b0741e48eb9a1012cb127d4dbee636a59dfa",
+          "code_revision": "adfd4157d6a0b23f1e4b249e26235a716bbea79c9959fea6312a781ae2757c20",
+          "dataset_sha256": "a18be717d78b2f02d7c51caac39bbec0461195d8ad6bdfef7ebd3730d40fea7c",
           "market_type": "SPOT",
-          "parameter_set_sha256": "054e2cde500c74e3de0cf53a0ea4cc187d205f1cbcdad5598459081a5c6e6be4",
+          "parameter_set_sha256": "4b9da967256f7380d613c763635e363bf5f569b43745e26594ba3a4d4a65fc1a",
           "strategy_id": "support_reclaim",
           "strategy_sha256": "7cfbd10b251a8e6acfa0656247e9f99f56c4b6e24849c8a36d66fce734f746a3",
           "strategy_version": "1",
@@ -209,22 +209,22 @@
           "timeframe": "1h"
         },
         "setup_type": "support_reclaim",
-        "validation_config_sha256": "c77f1ef41b693700b54a48e9eef88b3563aa0d059d524c75f96fee1a7cd511e9"
+        "validation_config_sha256": "a6a6751f250812061a7468accf13d4c28d6ad119e752f8d74a26ea880201deff"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/64cfbb8bd90688a6617f6c71f4bf20db19f57c150edaff178903fe3db5f9126c/bundle.json",
-        "sha256": "d3007d8bc5a29fb4a5e8be97c3c34aaa25ed072800dfc5d9b0706d2b31578514"
+        "path": "oos_runtime/32f7b1a60ba3f81de6ffd9eebcd853f48fa069d869adf26c2196564ee6fa3b9d/bundle.json",
+        "sha256": "841f40d2bd9a43cf3aef02e598a96e6fa41c4494f40f768fa3527fd69b3db75f"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "4f33ee776ac3b463420d6a0f2c08352a0673d16633d2a32765d861fcb8e144ea",
         "promotion": {
-          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
-          "dataset_sha256": "a331860e84a646b5fca88d9e3cd0b0741e48eb9a1012cb127d4dbee636a59dfa",
+          "code_revision": "adfd4157d6a0b23f1e4b249e26235a716bbea79c9959fea6312a781ae2757c20",
+          "dataset_sha256": "a18be717d78b2f02d7c51caac39bbec0461195d8ad6bdfef7ebd3730d40fea7c",
           "market_type": "SPOT",
-          "parameter_set_sha256": "054e2cde500c74e3de0cf53a0ea4cc187d205f1cbcdad5598459081a5c6e6be4",
+          "parameter_set_sha256": "4b9da967256f7380d613c763635e363bf5f569b43745e26594ba3a4d4a65fc1a",
           "strategy_id": "failed_breakout_reversal",
           "strategy_sha256": "4f33ee776ac3b463420d6a0f2c08352a0673d16633d2a32765d861fcb8e144ea",
           "strategy_version": "1",
@@ -232,68 +232,68 @@
           "timeframe": "1h"
         },
         "setup_type": "failed_breakout_reversal",
-        "validation_config_sha256": "7893795b4a3991b17d69e613eb88150fcbbcaf251a41931315c0b30c31a6f5df"
+        "validation_config_sha256": "a468c94b8e9a83c13e01b0be0cec5a5c847d6384f64245d4297448c3caafe0f6"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/f2d1caf9eb552061c08e1b528ad612077e9e0d2976f6a92fc5397edbcd3606dc/bundle.json",
-        "sha256": "be158e4bb59097fabe96054cacd07b9e414146eb6593256e58e262a12295e209"
+        "path": "oos_runtime/2001ff7d57530cfe15e53e4356c1634e3d5bb5b4d77cddbb5c5bf39fefaa263e/bundle.json",
+        "sha256": "c7c2f270de3d5517abc0a9d68aff50bb069876fe6e2a8d6cdc497552e8b9ac51"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
-        "feature_definition_sha256": "63f712ab32697b7a9c67ee81847bcdc9f7171002e2f7e4e6a213ae2e12edd979",
+        "feature_definition_sha256": "2ab14a2fd49374cb3a0f63ff4e60d248b3f0a4ff9325e7fa2082560936ac3589",
         "promotion": {
-          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
-          "dataset_sha256": "058e3458745e76d6202a762be480eec089e6949040cff4f391f89378129a84fc",
+          "code_revision": "adfd4157d6a0b23f1e4b249e26235a716bbea79c9959fea6312a781ae2757c20",
+          "dataset_sha256": "64e7556a3a4cbf01bbc6fdd4d749ff920c21328a8e802f6b7ac9188ccde8750d",
           "market_type": "SPOT",
-          "parameter_set_sha256": "0aa632ce16ad795f3fd5e594e0b0658b4c89c6d2c7266c25f322f5730b651b37",
+          "parameter_set_sha256": "73171ce5bce48fc60b2728e49ed8ff11c4124710ae22c58f03e42108e77602e3",
           "strategy_id": "trend_continuation",
-          "strategy_sha256": "63f712ab32697b7a9c67ee81847bcdc9f7171002e2f7e4e6a213ae2e12edd979",
+          "strategy_sha256": "2ab14a2fd49374cb3a0f63ff4e60d248b3f0a4ff9325e7fa2082560936ac3589",
           "strategy_version": "1",
           "symbol": "BTCUSDT",
           "timeframe": "4h"
         },
         "setup_type": "trend_continuation",
-        "validation_config_sha256": "ecf31c5205fcfa07c47ba7ae8dd2c243a9f8a23d41c802d651ee4d0e0dc04600"
+        "validation_config_sha256": "11965a08f2cd4eac346309bbfc1b80e6b95277e2002cc938b5268acc1a280674"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/b71f4edf1f000796eed60b671d542fb9dfe6ba9543df35a018aa102d02fd26b2/bundle.json",
-        "sha256": "ffafd48a9fc66d94a7aaa9ee5cc365426878bdf6baa6d080dd5add1016913f12"
+        "path": "oos_runtime/8ab5a55531fe69dbf4acbef2ac4ba39891a58e62814b81ac834a9dd3f0fec464/bundle.json",
+        "sha256": "814f49b14dd1288dc62776510830587be6ccba91f527c53b87477c495fffa583"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
-        "feature_definition_sha256": "d676e5ee3551bed7965e95cb421ae999225b9b6c0e2662468065506836fe5fc7",
+        "feature_definition_sha256": "acfb727377466011e73a0b3782f76bc445b3dc7d7fbddda33c8b0811370dc852",
         "promotion": {
-          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
-          "dataset_sha256": "058e3458745e76d6202a762be480eec089e6949040cff4f391f89378129a84fc",
+          "code_revision": "adfd4157d6a0b23f1e4b249e26235a716bbea79c9959fea6312a781ae2757c20",
+          "dataset_sha256": "64e7556a3a4cbf01bbc6fdd4d749ff920c21328a8e802f6b7ac9188ccde8750d",
           "market_type": "SPOT",
-          "parameter_set_sha256": "0aa632ce16ad795f3fd5e594e0b0658b4c89c6d2c7266c25f322f5730b651b37",
+          "parameter_set_sha256": "73171ce5bce48fc60b2728e49ed8ff11c4124710ae22c58f03e42108e77602e3",
           "strategy_id": "pullback_continuation",
-          "strategy_sha256": "d676e5ee3551bed7965e95cb421ae999225b9b6c0e2662468065506836fe5fc7",
+          "strategy_sha256": "acfb727377466011e73a0b3782f76bc445b3dc7d7fbddda33c8b0811370dc852",
           "strategy_version": "1",
           "symbol": "BTCUSDT",
           "timeframe": "4h"
         },
         "setup_type": "pullback_continuation",
-        "validation_config_sha256": "957010c5cd007f49b8b3c2c88b470e2c7fd7271bba128f9182c785e318351323"
+        "validation_config_sha256": "63e871df20ccd70e93d50599d1767e68ab4255abefd78530f74cd4c4ee1d1683"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/d84376c1324fe18339bd18a593973a573a8e0e89301838a485821498f3193deb/bundle.json",
-        "sha256": "397e7678228fd78376414cd4d28f559c56103c5e49c63dab4ff4e342b899f9a6"
+        "path": "oos_runtime/30392ab553b7a21ab3544b3f1f221a67ce058dfc4cb7434cdd95ed34dc4048d0/bundle.json",
+        "sha256": "cf890ead3433b61f276c5d4e4721c68d01c5e473d690710726dfb27dd9a2a4b0"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "81ed5bdf546ea4521d379049a78ecd0c518945f72b7414517439d2e976d59c40",
         "promotion": {
-          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
-          "dataset_sha256": "058e3458745e76d6202a762be480eec089e6949040cff4f391f89378129a84fc",
+          "code_revision": "adfd4157d6a0b23f1e4b249e26235a716bbea79c9959fea6312a781ae2757c20",
+          "dataset_sha256": "64e7556a3a4cbf01bbc6fdd4d749ff920c21328a8e802f6b7ac9188ccde8750d",
           "market_type": "SPOT",
-          "parameter_set_sha256": "0aa632ce16ad795f3fd5e594e0b0658b4c89c6d2c7266c25f322f5730b651b37",
+          "parameter_set_sha256": "73171ce5bce48fc60b2728e49ed8ff11c4124710ae22c58f03e42108e77602e3",
           "strategy_id": "breakout_retest",
           "strategy_sha256": "81ed5bdf546ea4521d379049a78ecd0c518945f72b7414517439d2e976d59c40",
           "strategy_version": "1",
@@ -301,45 +301,45 @@
           "timeframe": "4h"
         },
         "setup_type": "breakout_retest",
-        "validation_config_sha256": "1acd73838e91895ec9338686015db2fc482100d95b9050b3b0badebfefa99711"
+        "validation_config_sha256": "b884c2aca70bcecb1f81af7aa9e13bee08bf4cee87cb77ad2abc168dc4def8c4"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/f6a8dd030e25e1c6462c4d73d9174cc46e9ab5888b0e24b3bfbda167332bc205/bundle.json",
-        "sha256": "5835a4f21b547c509aff9a593dd031fc6807136726738fcd4cde52a578df4b4e"
+        "path": "oos_runtime/efb58bae3d3c56b62372dfb40f47ba6aa39e19f73412d10385bfa2507b298268/bundle.json",
+        "sha256": "de5bd974448c22291fb22a3bc3a8c36c7ec5f9be1685397c44f502d301aeaa1f"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
-        "feature_definition_sha256": "ab8ad8719e8ae46a24c00a9fa61b06b65ec081f6282f532f3e6fd5922d517a07",
+        "feature_definition_sha256": "7cfbd10b251a8e6acfa0656247e9f99f56c4b6e24849c8a36d66fce734f746a3",
         "promotion": {
-          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
-          "dataset_sha256": "058e3458745e76d6202a762be480eec089e6949040cff4f391f89378129a84fc",
+          "code_revision": "adfd4157d6a0b23f1e4b249e26235a716bbea79c9959fea6312a781ae2757c20",
+          "dataset_sha256": "64e7556a3a4cbf01bbc6fdd4d749ff920c21328a8e802f6b7ac9188ccde8750d",
           "market_type": "SPOT",
-          "parameter_set_sha256": "0aa632ce16ad795f3fd5e594e0b0658b4c89c6d2c7266c25f322f5730b651b37",
+          "parameter_set_sha256": "73171ce5bce48fc60b2728e49ed8ff11c4124710ae22c58f03e42108e77602e3",
           "strategy_id": "support_reclaim",
-          "strategy_sha256": "ab8ad8719e8ae46a24c00a9fa61b06b65ec081f6282f532f3e6fd5922d517a07",
+          "strategy_sha256": "7cfbd10b251a8e6acfa0656247e9f99f56c4b6e24849c8a36d66fce734f746a3",
           "strategy_version": "1",
           "symbol": "BTCUSDT",
           "timeframe": "4h"
         },
         "setup_type": "support_reclaim",
-        "validation_config_sha256": "18a642dcfb07e6a88492bbd3f653860c32147a51283052a13cdfe6878fc9e581"
+        "validation_config_sha256": "2b13b8b22dadbf965fe23c57a969d1aa1f2985230d96680159505a3f164d577a"
       }
     },
     {
       "bundle": {
-        "path": "oos_runtime/c9ee64e48fadb8e3a48fc2623a82bbf4e4a411a2e82babd8c6a7fca01ba55530/bundle.json",
-        "sha256": "627089c7b2d78787ad34b41e683b33caa9e7d160e85184d65811435169fe7ca2"
+        "path": "oos_runtime/7f533adb481fcc39654afe831d5f64da213ebaa7d8e47392a5f8bbe2d9ee642a/bundle.json",
+        "sha256": "9281aad5488844bd80b08efb13ac53ba0a65e013a7b7673d3718d274e3bc8345"
       },
       "subject": {
         "cost_model_sha256": "61ee39e5fcb94757b65d633a3e10185a94809a326c076daa4c0a7c8574301804",
         "feature_definition_sha256": "4f33ee776ac3b463420d6a0f2c08352a0673d16633d2a32765d861fcb8e144ea",
         "promotion": {
-          "code_revision": "bcfbc13c104caa2fbcde590252b262e5c0133b38f1bfe9493574f32cb79220a9",
-          "dataset_sha256": "058e3458745e76d6202a762be480eec089e6949040cff4f391f89378129a84fc",
+          "code_revision": "adfd4157d6a0b23f1e4b249e26235a716bbea79c9959fea6312a781ae2757c20",
+          "dataset_sha256": "64e7556a3a4cbf01bbc6fdd4d749ff920c21328a8e802f6b7ac9188ccde8750d",
           "market_type": "SPOT",
-          "parameter_set_sha256": "0aa632ce16ad795f3fd5e594e0b0658b4c89c6d2c7266c25f322f5730b651b37",
+          "parameter_set_sha256": "73171ce5bce48fc60b2728e49ed8ff11c4124710ae22c58f03e42108e77602e3",
           "strategy_id": "failed_breakout_reversal",
           "strategy_sha256": "4f33ee776ac3b463420d6a0f2c08352a0673d16633d2a32765d861fcb8e144ea",
           "strategy_version": "1",
@@ -347,7 +347,7 @@
           "timeframe": "4h"
         },
         "setup_type": "failed_breakout_reversal",
-        "validation_config_sha256": "ef9f58aad8bec69122a1a7741a40a3f15d189a8496d63da8e4b65b095f1e9d77"
+        "validation_config_sha256": "e700a5582d06499ed3e7be47eb82e656c3a3c027bcb3aa5075654493f11e14c2"
       }
     }
   ]

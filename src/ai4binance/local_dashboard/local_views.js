@@ -12,7 +12,7 @@ const marketSelections = {SPOT:'',USD_M_FUTURES:''};
   const completeOpportunityPlan = commandOpportunityVisible;
   const signedPercent = value => value===null||value===undefined||!Number.isFinite(Number(value))?'—':(Number(value)>0?'+':'')+Number(value).toLocaleString(state.language==='tr'?'tr-TR':'en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'%';
   async function loadMarket(suppressRender=false){
-    if(!['opportunities','virtual-market'].includes(state.page)||state.mode!=='local')return;
+    if(!commandShouldLoadMarket())return;
     const market=selectedMarket(),key=marketKey(market);if(marketLoading.has(key))return;marketLoading.add(key);
     try{
       const response=await fetch('/api/markets?market='+encodeURIComponent(market)+'&symbol='+encodeURIComponent(marketSelections[market]),{cache:'no-store',signal:AbortSignal.timeout(12000)});
@@ -20,7 +20,7 @@ const marketSelections = {SPOT:'',USD_M_FUTURES:''};
       const data=await response.json();if(data.execution_allowed!==false||data.live_eligibility_status!=='LIVE_ORDER_BLOCKED')throw new Error('MARKET_AUTHORITY_INVALID');
       if(!marketSelections[market])marketSelections[market]=data.symbol||'';
       marketCache[market+'|'+(data.symbol||'')]=data;
-      if(data.symbol && data.stale && !['RUNNING','PENDING'].includes(data.refresh?.state) && Date.now()-(marketAttempts[market+'|'+data.symbol]||0)>300000)await runMarketRefresh(market,data.symbol);
+      if(commandShouldRefreshMarket() && data.symbol && data.stale && !['RUNNING','PENDING'].includes(data.refresh?.state) && Date.now()-(marketAttempts[market+'|'+data.symbol]||0)>300000)await runMarketRefresh(market,data.symbol);
     }catch{marketCache[key]={error:true,symbol:marketSelections[market],timeframes:market==='SPOT'?['5m','15m','1h','4h','1d']:['5m','15m','1h']};}
     finally{marketLoading.delete(key);finishCommandMarketRefresh(suppressRender);}
   }
@@ -40,14 +40,12 @@ const marketSelections = {SPOT:'',USD_M_FUTURES:''};
     const switcher=segment(virtual?'virtualMarket':'market',['Spot','Futures']);
     const selected=data||{timeframes:market==='SPOT'?['5m','15m','1h','4h','1d']:['5m','15m','1h']};
     const job=selected.refresh||{},running=job.state==='RUNNING',pending=job.state==='PENDING';
-    const coin=el('select','aw-button');coin.setAttribute('aria-label',t('Coin','Koin'));
-    for(const symbol of selected.symbols||[selected.symbol||'']){const option=el('option','',symbol||t('Loading coins…','Koinler yükleniyor…'));option.value=symbol;option.selected=symbol===marketSelections[market];coin.appendChild(option);}
-    coin.addEventListener('change',()=>{marketSelections[market]=coin.value;marketFilter='All';loadMarket();render();});
-    const action=button(running||pending?['Refreshing…','Yenileniyor…']:['Refresh data and opportunities','Veri ve fırsatları yenile'],()=>runMarketRefresh());
+    const coin=commandMarketSymbolControl(market,selected.symbols||[selected.symbol||''],virtual);
+    const action=button(running||pending?['Refreshing…','Yenileniyor…']:commandMarketRefreshLabel(market),()=>commandRefreshMarketSelection(market));
     action.disabled=running||pending;
     action.disabled=running||!marketSelections[market];
     append(content,append(el('div','aw-toolbar'),switcher,coin,action));
-    const message=selected.error?['Data could not be read. Retry refresh.','Veriler okunamadı. Yenilemeyi tekrar deneyin.']:job.state==='DATA_BLOCKED'?['Market data is unavailable or invalid; this is not a no-opportunity result.','Piyasa verisi kullanılamıyor veya geçersiz; bu fırsat yok sonucu değildir.']:job.state==='FAILED'?['Refresh failed; previous evidence retains its original date.','Yenileme başarısız; önceki kanıtın tarihi korunuyor.']:job.state==='BUSY'?['Another coin is refreshing. Try again when it completes.','Başka bir koin yenileniyor. Tamamlanınca tekrar deneyin.']:pending?['The canonical market-history collector is preparing verified candles.','Kanonik market-history toplayıcısı doğrulanmış mumları hazırlıyor.']:running?['Validating canonical local candles and updating research observations…','Kanonik yerel mumlar doğrulanıyor ve araştırma kayıtları güncelleniyor…']:['The selected coin is scanned across every listed timeframe. Price-path performance is not trading profit.','Seçili koin listelenen tüm zaman dilimlerinde taranır. Fiyat hareketi performansı işlem kârı değildir.'];
+    const message=selected.error?['Data could not be read. Retry refresh.','Veriler okunamadı. Yenilemeyi tekrar deneyin.']:job.state==='DATA_BLOCKED'?['Market data is unavailable or invalid; this is not a no-opportunity result.','Piyasa verisi kullanılamıyor veya geçersiz; bu fırsat yok sonucu değildir.']:job.state==='FAILED'?['Refresh failed; previous evidence retains its original date.','Yenileme başarısız; önceki kanıtın tarihi korunuyor.']:job.state==='BUSY'?['Another coin is refreshing. Try again when it completes.','Başka bir koin yenileniyor. Tamamlanınca tekrar deneyin.']:pending?['The canonical market-history collector is preparing verified candles.','Kanonik market-history toplayıcısı doğrulanmış mumları hazırlıyor.']:running?['Validating canonical local candles and updating research observations…','Kanonik yerel mumlar doğrulanıyor ve araştırma kayıtları güncelleniyor…']:commandMarketScopeNote(market);
     const note=el('div','aw-status',message);note.setAttribute('role','status');content.appendChild(note);
     const viewKey=state.page+'|'+market;
     if(marketVisiblePage!==viewKey || (!data&&!marketLoading.has(key))){marketVisiblePage=viewKey;queueMicrotask(loadMarket);}
@@ -62,7 +60,7 @@ const marketSelections = {SPOT:'',USD_M_FUTURES:''};
     const qualityLabel=value=>value==='DATA_VALID'?t('Valid','Geçerli'):value==='DATA_DEGRADED'?t('Degraded','Bozulmuş'):value==='DATA_INVALID'?t('Invalid','Geçersiz'):value==='DATA_UNAVAILABLE'?t('Data unavailable','Veri kullanılamıyor'):monitorLabel(value);
     const selectedQuality=panel(['Selected coin data quality','Seçili koinin veri kalitesi'],badge(qualityLabel(selectedQualityState),selectedQualityState==='DATA_VALID'?'neutral':'warn'));
     selectedQuality.appendChild(table([['TF','TF'],['Freshness','Güncellik'],['Data quality','Veri kalitesi'],['Closed / required bars','Kapalı / gereken mum'],['Total stored bars','Kayıtlı toplam mum'],['Last closed candle','Son mum kapanışı'],['Window gaps','Pencere boşlukları'],['Dataset gaps','Veri kümesi boşlukları'],['Source','Kaynak'],['Checksum','Sağlama'],['Blockers','Engeller'],['Warnings','Uyarılar']],tfs.map(tf=>{const row=quality.find(r=>r.timeframe===tf)||{};const digest=String(row.dataset_sha256||'');return [tf,monitorLabel(row.status||'NOT_SCANNED'),qualityLabel(row.data_quality||'DATA_UNAVAILABLE'),String(row.candle_count??'—')+' / '+String(row.required_candles??'—'),String(row.total_candles??'—'),observedTime(row.last_close),String(row.window_gap_count??'—'),String(row.gap_count??'—'),String(row.source||'—'),row.checksum_verified?t('Verified','Doğrulandı')+(digest?' · '+digest.slice(0,12):''):'—',(row.blockers||[]).join(' · ')||'—',(row.quality_warnings||[]).join(' · ')||'—'];})));
-    selectedQuality.appendChild(row(['Last selected-coin analysis','Son seçili-koin analizi'],observedTime(selected.generated_at)));content.appendChild(selectedQuality);
+    selectedQuality.appendChild(row(['Last selected-coin analysis','Son seçili-koin analizi'],observedTime(selected.generated_at)));if(!commandOpportunityAllSymbols(market))content.appendChild(selectedQuality);
     if(virtual)return;
     const generation=universe.generation_health||{},generationPanel=panel(['Opportunity generation health','Fırsat üretim sağlığı'],badge(String(generation.rejected_attempt_count??'DATA_UNAVAILABLE')+' '+t('rejected attempts','reddedilen deneme'),Number(generation.rejected_attempt_count||0)?'warn':'neutral'));
     generationPanel.appendChild(kpis([[['Evaluated attempts','Değerlendirilen deneme'],String(generation.evaluated_attempt_count??'DATA_UNAVAILABLE'),['All bounded generation attempts','Tüm sınırlı üretim denemeleri']],[['Published opportunities','Yayınlanan fırsat'],String(generation.published_opportunity_count??'DATA_UNAVAILABLE'),['Complete measurable contracts only','Yalnızca tam ve ölçülebilir sözleşmeler']],[['Rejected attempts','Reddedilen deneme'],String(generation.rejected_attempt_count??'DATA_UNAVAILABLE'),['Excluded from opportunity performance','Fırsat performansına dahil değildir']]]));
@@ -75,8 +73,8 @@ const marketSelections = {SPOT:'',USD_M_FUTURES:''};
     const filters=el('div','aw-toolbar');['All',...tfs].forEach(tf=>{const b=button(tf==='All'?['All timeframes','Tüm zaman dilimleri']:tf,()=>{marketFilter=tf;render();});b.setAttribute('aria-pressed',String(marketFilter===tf));filters.appendChild(b);});content.appendChild(filters);
     const visible=tfs.includes(marketFilter)?[marketFilter]:tfs;
     for(const tf of visible){
-      const p=panel(tf+' '+t('potential all-coin opportunities','potansiyel tüm-koin fırsatları'));
-      const candidates=(universe.opportunities||[]).filter(r=>r.timeframe===tf&&completeOpportunityPlan(r));
+      const p=panel(tf+' '+t('potential opportunities','potansiyel fırsatlar'));
+      const candidates=(universe.opportunities||[]).filter(r=>r.timeframe===tf&&commandOpportunitySymbolMatches(r,market)&&completeOpportunityPlan(r));
       const headers=[['Observed at','Gözlem zamanı'],['Coin symbol','Koin simge'],['Side','Taraf'],['State','Durum'],['Quantity','Miktar'],['Reference','Referans'],['Entry','Giriş'],['Stop','Stop'],['TP1 / TP2 / TP3','TP1 / TP2 / TP3'],['R/R','R/R']];
       if(market==='USD_M_FUTURES')headers.push(['Leverage','Kaldıraç']);
       p.appendChild(table(headers,candidates.map(r=>{const values=[observedTime(r.observed_at),r.symbol,r.side,monitorLabel(r.status),level(r.quantity),level(r.reference_price),level(r.entry),level(r.stop_loss),[r.tp1,r.tp2,r.tp3].map(level).join(' / '),level(r.target_risk_reward)];if(market==='USD_M_FUTURES')values.push(level(r.leverage));return values;})));
@@ -88,6 +86,7 @@ const marketSelections = {SPOT:'',USD_M_FUTURES:''};
       candidates.forEach(r=>p.appendChild(detail([[['Setup','Kurulum'],r.setup_name||'—'],[['Observed','Gözlem'],observedTime(r.observed_at)],[['Evidence / blockers','Kanıt / engeller'],(r.blockers||[]).join(' · ')||'—'],[['Record ID','Kayıt kimliği'],r.opportunity_id||'—']],['Observation details','Gözlem ayrıntıları'])));
       content.appendChild(p);
     }
+    if(commandOpportunityAllSymbols(market))return;
     const history=(selected.history||[]).filter(r=>visible.includes(r.timeframe)&&completeOpportunityPlan(r));
     for(const potential of [false,true]){
       const p=panel(potential?['Potential opportunity records and performance','Potansiyel fırsat kayıtları ve performansı']:['Past observations and performance','Geçmiş fırsatlar ve performansı']);
@@ -271,11 +270,11 @@ const marketSelections = {SPOT:'',USD_M_FUTURES:''};
       content.appendChild(coverage);const futuresResearch=localData.futures_research||{},monitor=futuresResearch.opportunity_monitor||{},learning=futuresResearch.learning||{};const futuresPanel=panel(['Futures background opportunity review','Futures arka plan fırsat incelemesi'],sourceBadge('futures_research'));append(futuresPanel,row(['Current monitor coin','Güncel izleme koini'],monitor.symbol||futuresResearch.monitor_symbol||'—'),row(['Candidates / evaluated','Aday / değerlendirilen'],String(monitor.candidate_count??'—')+' / '+String(monitor.evaluated_outcome_count??'—')),row(['Favorable / adverse outcomes','Olumlu / olumsuz sonuçlar'],String(monitor.favorable_outcome_count??'—')+' / '+String(monitor.adverse_outcome_count??'—')),row(['Research lessons / experiments','Araştırma dersi / deneyi'],String(learning.lesson_count??'—')+' / '+String(learning.experiment_count??'—')));if((learning.lesson_codes||[]).length)futuresPanel.appendChild(el('div','aw-status',(learning.lesson_codes||[]).join(' · ')));content.appendChild(futuresPanel);content.appendChild(sourceNote('market_history'));blockerList(content,collection.blockers);content.appendChild(sourceNote('virtual'));blockerList(content,v.blockers);return;
     }
     if(state.page==='news'){
-      const info=radarInfo('Haber Radarı');const result=info.result||{};
-      append(content,kpis([[['Verified news','Doğrulanmış haber'],result.item_count===undefined?'—':String(result.item_count),result.result_status||t('Not run','Çalıştırılmadı')],[['Universe coverage','Evren kapsamı'],'—',['Classification is applied only when supplied by the canonical result','Sınıflama yalnızca kanonik sonuçta sunulduğunda uygulanır']],[['Last scan','Son tarama'],observedTime(info.completed_at),radarStateLabel(info.state)]]));
+      const info=radarInfo('Haber Radarı');const result=info.result||{};const summary=commandNewsSummary(result);
+      append(content,kpis([[['Verified news','Doğrulanmış haber'],summary.count,summary.note],[['Universe coverage','Evren kapsamı'],'—',summary.coverage],[['Last scan','Son tarama'],observedTime(info.completed_at),radarStateLabel(info.state)]]));
       const action=button(info.state==='RUNNING'?['Refreshing…','Yenileniyor…']:['Refresh news radar','Haber radarını yenile'],()=>runRadar('Haber Radarı'));action.disabled=info.state==='RUNNING';append(content,append(el('div','aw-toolbar'),el('div','aw-status',t('Eligible-coin news scan','Uygun koin haber taraması')),append(el('div','aw-toolbar'),badge(radarStateLabel(info.state),info.state==='COMPLETED'?'':'warn'),action)));
       const p=panel(['Coin news','Koin haberleri'],badge(result.result_status||radarStateLabel(info.state),info.state==='COMPLETED'?'':'warn'));append(p,badge(['Stablecoins excluded by universe policy','Evren politikasında stablecoin hariç']),badge(['Wrapped excluded by universe policy','Evren politikasında wrapped hariç']),badge(['Leveraged tokens excluded by universe policy','Evren politikasında kaldıraçlı token hariç']));
-      p.appendChild(el('div','aw-empty',info.state==='NOT_RUN'?['Select Refresh to run the configured allowlisted public-news source.','Yapılandırılmış izinli genel haber kaynağını çalıştırmak için Yenile seçin.']:result.item_count?['Verified findings are listed below.','Doğrulanmış bulgular aşağıda listelenir.']:['No verified eligible finding was returned. Reported blockers remain visible below.','Doğrulanmış uygun bulgu dönmedi. Bildirilen engeller aşağıda görünür.']));content.appendChild(p);content.appendChild(radarResultPanel('Haber Radarı'));return;
+      p.appendChild(el('div','aw-empty',summary.findings));content.appendChild(p);content.appendChild(commandNewsArticles(result));content.appendChild(radarResultPanel('Haber Radarı'));return;
     }
     if(state.page==='kaizen'){
       content.appendChild(learningToolbar());

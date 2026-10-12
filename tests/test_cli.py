@@ -1223,6 +1223,7 @@ def test_research_public_reports_stages_and_writes_workflow_audit(
         "analysis",
         "strategy",
         "risk",
+        "validation",
         "virtual_market_execution",
         "learning",
     ]
