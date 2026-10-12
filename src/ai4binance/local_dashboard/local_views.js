@@ -280,7 +280,7 @@ const marketSelections = {SPOT:'',USD_M_FUTURES:''};
       content.appendChild(learningToolbar());
       const learning=localData.learning||{},findings=localData.health_findings||[];
       append(content,kpis([[['Actionable Kaizen signals','Eyleme dönük Kaizen sinyali'],ccReportedCount(localData?.health_findings),['Deterministically derived from canonical health evidence','Kanonik sağlık kanıtından deterministik türetilir']],[['Recorded lessons','Kaydedilen öğrenimler'],String(learning.lesson_count??'—'),['Canonical learning summary','Kanonik öğrenim özeti']],[['Recorded experiments','Kaydedilen deneyler'],String(learning.experiment_count??'—'),['No measured-benefit claim','Ölçülmüş fayda iddiası yok']]]));
-      content.appendChild(healthFindingsPanel(['Current Kaizen backlog','Güncel Kaizen kuyruğu']));return;
+      content.appendChild(commandKaizenPanel());return;
     }
     if(state.page==='recommendations'){
       content.appendChild(learningToolbar());

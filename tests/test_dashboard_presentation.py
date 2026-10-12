@@ -10,6 +10,89 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_kaizen_apply_preview_and_result_preserve_human_click_boundary() -> None:
+    """Disposable DOM and responses only; no real dashboard or service operation."""
+    node = shutil.which("node")
+    assert node is not None
+    script = r"""
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {stripTypeScriptTypes} from 'node:module';
+import vm from 'node:vm';
+class Element {
+  constructor(tag) {this.tagName=tag;this.children=[];this.dataset={};this.attributes={};this.listeners={};}
+  append(...nodes) {this.children.push(...nodes);}
+  setAttribute(key,value) {this.attributes[key]=value;}
+  addEventListener(key,value) {this.listeners[key]=value;}
+  get cells() {return this.children;}
+}
+const findings=[
+  {finding_id:'MARKET_HISTORY_INCOMPLETE',evidence:'TEST_ONLY_1'},
+  {finding_id:'SERVICE_NOT_READY',evidence:'TEST_ONLY_2',facts:{service:'market-history'}},
+  {finding_id:'LEARNING_SUMMARY_EMPTY',evidence:'TEST_ONLY_3'},
+  {finding_id:'SERVICE_NOT_READY',evidence:'TEST_ONLY_4',facts:{service:'runtime'}}];
+const safe={execution_allowed:false,live_eligibility_status:'LIVE_ORDER_BLOCKED'};
+const data={...safe,actions:findings.map((item,i)=>({...item,token:String(i+1).repeat(64),
+  action:['REFRESH_CANDLES','RESTART_MARKET_HISTORY','REFRESH_LEARNING',null][i]})),
+  targets:{SPOT:['TESTUSDT'],USD_M_FUTURES:['OTHERUSDT']},job:{state:'NOT_RUN',...safe}};
+let posts=[];
+const context=vm.createContext({state:{market:'Spot',language:'en',mode:'local',page:'kaizen'},
+  localData:{health_findings:findings},document:{createElement:tag=>new Element(tag)},
+  render:()=>{},refreshLocal:async()=>{},AbortSignal:{timeout:()=>undefined},
+  findingCopy:item=>({severity:'P1',title:[item.finding_id,item.finding_id],
+    explanation:['TEST_ONLY','TEST_ONLY'],action:['TEST_ONLY','TEST_ONLY'],evidence:item.evidence}),
+  fetch:async(path,options)=>{
+    if(options.method==='POST'){posts.push(JSON.parse(options.body));
+      data.job={state:'COMPLETED',action:'REFRESH_LEARNING',finding_present:true,...safe};}
+    return {ok:true,json:async()=>data};
+  }});
+vm.runInContext(stripTypeScriptTypes(readFileSync('frontend/src/command_center.ts','utf8')),context);
+const evaluate=source=>vm.runInContext(source,context);
+context.data=data;context.findings=findings;
+assert.equal(evaluate('commandKaizenResponse(data)'),true);
+for(const value of [null,{...data,execution_allowed:true},{...data,actions:[null]},
+  {...data,targets:{SPOT:['ALL','../../test']}},{...data,job:{state:'COMPLETED',execution_allowed:true}}]){
+  context.bad=value;assert.equal(evaluate('commandKaizenResponse(bad)'),false);
+}
+const panel=evaluate('commandKaizenPanel()');
+const rows=panel.children[1].children[0].children[1].children;
+assert.equal(rows.length,4);
+assert.equal(rows[3].cells[5].children[0].disabled,true);
+await evaluate('commandChooseKaizen(findings[0])');
+assert.equal(posts.length,0);
+const preview=evaluate('commandKaizenPanel()').children.at(-1);
+assert.equal(preview.attributes['aria-label'],'Apply action preview');
+const selectors=preview.children.filter(node=>node.tagName==='label');
+assert.equal(selectors[1].children[0].children.length,1);
+assert.equal(selectors[1].children[0].children[0].value,'TESTUSDT');
+await evaluate('commandChooseKaizen(findings[2])');
+assert.equal(posts.length,0);
+await evaluate('commandApplyKaizen()');
+assert.equal(posts.length,1);
+assert.equal(posts[0].confirmed,true);
+assert.equal(posts[0].token,'3'.repeat(64));
+assert.deepEqual(Object.keys(posts[0]).sort(),['confirmed','token']);
+const result=evaluate('commandKaizenPanel()').children.at(-1);
+assert.equal(result.attributes.role,'status');
+assert.match(result.children[0].textContent,/Finding remains/);
+assert.match(result.textContent,/COMPLETED/);
+assert.equal(evaluate("commandKaizenLabel('REFRESH_LEARNING')"),'Refresh the canonical learning summary');
+context.state.language='tr';
+assert.equal(evaluate("commandKaizenLabel('REFRESH_LEARNING')"),'Kanonik öğrenim özetini yenile');
+console.log('KAIZEN_CLICK_BOUNDARY_PASS');
+"""
+    completed = subprocess.run(  # noqa: S603 - fixed test-only local script.
+        [node, "--input-type=module", "-e", script],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert "KAIZEN_CLICK_BOUNDARY_PASS" in completed.stdout
+
+
 def test_dashboard_types_are_strictly_checked() -> None:
     completed = subprocess.run(
         [sys.executable, "-B", "scripts/check_dashboard_types.py"],

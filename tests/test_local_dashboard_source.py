@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import runpy
 import shutil
@@ -8,6 +9,7 @@ import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from threading import Thread
 from types import SimpleNamespace
 
 import pytest
@@ -237,6 +239,231 @@ def test_dashboard_degrades_for_high_priority_health_findings() -> None:
     assert projection["status"] == "DEGRADED"
     assert projection["high_priority_finding_count"] == 1
     assert projection["required_service_ready_count"] == 0
+
+
+@pytest.fixture
+def kaizen_host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
+    """Only disposable local inputs; no service, market network, or credentials."""
+    module = runpy.run_path(str(SOURCE / "server.py.in"))
+    namespace = module["start_kaizen_action"].__globals__
+    monkeypatch.setitem(namespace, "APP", tmp_path / "test-only-dashboard")
+    root = tmp_path / "test-only-repository"
+    (root / "config/operations").mkdir(parents=True)
+    shutil.copyfile(
+        ROOT / "config/operations/services.json",
+        root / "config/operations/services.json",
+    )
+    finding = {
+        "finding_id": "MARKET_HISTORY_INCOMPLETE",
+        "status": "DEGRADED",
+        "evidence": "TEST_ONLY_SOURCE_FAILURE",
+        "facts": {},
+    }
+    observed = {"health_findings": [finding]}
+    monkeypatch.setitem(namespace, "snapshot", lambda _: observed)
+    monkeypatch.setitem(
+        sys.modules,
+        "market_views",
+        SimpleNamespace(selection=lambda *_: (root, ("TESTUSDT",), "TESTUSDT")),
+    )
+    return {
+        "module": module,
+        "namespace": namespace,
+        "root": root,
+        "config": {"repository_root": str(root)},
+        "observed": observed,
+    }
+
+
+def test_kaizen_candle_apply_uses_canonical_queue_without_simulation(
+    kaizen_host: dict,
+) -> None:
+    module, config = kaizen_host["module"], kaizen_host["config"]
+    actions = module["kaizen_actions"](config)
+    request = {
+        "token": actions["actions"][0]["token"],
+        "confirmed": True,
+        "market": "SPOT",
+        "symbol": "TESTUSDT",
+    }
+    first = module["start_kaizen_action"](config, request)
+    assert first["state"] == "PENDING"
+    duplicate = module["start_kaizen_action"](config, request)
+    assert duplicate["state"] == "BUSY"
+    assert duplicate["request_id"] == first["request_id"]
+    path = kaizen_host["root"] / "runtime/state/market-history-refresh-request.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["symbol"] == "TESTUSDT"
+    assert payload["execution_allowed"] is False
+    assert not (path.parent / "virtual-market-refresh-request.json").exists()
+    payload["status"] = "DATA_READY"
+    payload["completed_at"] = datetime.now(UTC).isoformat()
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    status = module["kaizen_actions"](config)["job"]
+    assert status["state"] == "COMPLETED"
+    assert status["finding_present"] is True
+    assert status["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"confirmed": False},
+        {"confirmed": 1},
+        {"token": "0" * 64},
+        {"symbol": "ALL"},
+        {"market": "INVALID"},
+        {"symbol": "../../test"},
+        {"command": "TEST_ONLY_FORBIDDEN"},
+    ],
+)
+def test_kaizen_rejects_unconfirmed_stale_and_arbitrary_targets(
+    kaizen_host: dict,
+    change: dict,
+) -> None:
+    module, config = kaizen_host["module"], kaizen_host["config"]
+    token = module["kaizen_actions"](config)["actions"][0]["token"]
+    request = {
+        "token": token,
+        "confirmed": True,
+        "market": "SPOT",
+        "symbol": "TESTUSDT",
+    }
+    request.update(change)
+    with pytest.raises(ValueError):
+        module["start_kaizen_action"](config, request)
+    assert not (
+        kaizen_host["root"] / "runtime/state/market-history-refresh-request.json"
+    ).exists()
+
+
+def test_kaizen_rechecks_finding_and_withholds_unsupported_service(
+    kaizen_host: dict,
+) -> None:
+    module, config = kaizen_host["module"], kaizen_host["config"]
+    old = module["kaizen_actions"](config)["actions"][0]["token"]
+    kaizen_host["observed"]["health_findings"][0]["evidence"] = "TEST_ONLY_CHANGED"
+    with pytest.raises(ValueError, match="FINDING_UNAVAILABLE"):
+        module["start_kaizen_action"](config, {"token": old, "confirmed": True})
+    kaizen_host["observed"]["health_findings"] = [
+        {"finding_id": "SERVICE_NOT_READY", "facts": {"service": "runtime"}}
+    ]
+    item = module["kaizen_actions"](config)["actions"][0]
+    assert item["action"] is None
+    with pytest.raises(ValueError, match="FINDING_UNAVAILABLE"):
+        module["start_kaizen_action"](
+            config, {"token": item["token"], "confirmed": True}
+        )
+
+
+def test_kaizen_learning_dispatch_does_not_invent_lessons(
+    kaizen_host: dict,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module, config = kaizen_host["module"], kaizen_host["config"]
+    kaizen_host["observed"]["health_findings"] = [
+        {"finding_id": "LEARNING_SUMMARY_EMPTY"}
+    ]
+    calls = []
+
+    def start(_config: dict, radar: str) -> dict:
+        calls.append(radar)
+        return {"state": "RUNNING"}
+
+    monkeypatch.setitem(kaizen_host["namespace"], "start_radar", start)
+    monkeypatch.setitem(
+        kaizen_host["namespace"], "radar_status", lambda *_: {"state": "COMPLETED"}
+    )
+    token = module["kaizen_actions"](config)["actions"][0]["token"]
+    module["start_kaizen_action"](config, {"token": token, "confirmed": True})
+    status = module["kaizen_actions"](config)["job"]
+    assert calls == ["learning"]
+    assert status["state"] == "COMPLETED" and status["finding_present"] is True
+
+
+def test_kaizen_http_requires_same_origin_and_explicit_confirmation(
+    kaizen_host: dict,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module, config = kaizen_host["module"], kaizen_host["config"]
+    config.update(port=0, installation_id="TEST_ONLY_KAIZEN")
+    kaizen_host["observed"]["health_findings"] = [
+        {"finding_id": "LEARNING_SUMMARY_EMPTY"}
+    ]
+    calls: list[str] = []
+
+    def start(_config: dict, radar: str) -> dict:
+        calls.append(radar)
+        return {"state": "RUNNING"}
+
+    monkeypatch.setitem(kaizen_host["namespace"], "start_radar", start)
+    server = module["create_server"](config)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        token = module["kaizen_actions"](config)["actions"][0]["token"]
+        for origin, confirmed, expected in [
+            ("https://example.invalid", True, 403),
+            (None, False, 400),
+            (None, True, 202),
+        ]:
+            connection = http.client.HTTPConnection(
+                "127.0.0.1", server.server_port, timeout=5
+            )
+            headers = {"Content-Type": "application/json"}
+            if origin:
+                headers["Origin"] = origin
+            connection.request(
+                "POST",
+                "/api/kaizen/apply",
+                json.dumps({"token": token, "confirmed": confirmed}),
+                headers,
+            )
+            response = connection.getresponse()
+            assert response.status == expected
+            payload = json.loads(response.read())
+            if expected == 202:
+                assert payload["execution_allowed"] is False
+                assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+            connection.close()
+        assert calls == ["learning"]
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+        server.server_close()
+    assert not (kaizen_host["root"] / "runtime/state/learning_summary.json").exists()
+
+
+def test_kaizen_restart_dispatch_is_fixed_to_canonical_market_history_owner(
+    kaizen_host: dict,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import os
+
+    module, config = kaizen_host["module"], kaizen_host["config"]
+    namespace = kaizen_host["namespace"]
+    kaizen_host["observed"]["health_findings"] = [
+        {"finding_id": "SERVICE_NOT_READY", "facts": {"service": "market-history"}}
+    ]
+    calls = []
+
+    def launch(command: list[str], **kwargs: object) -> SimpleNamespace:
+        calls.append((command, kwargs))
+        return SimpleNamespace(poll=lambda: 0)
+
+    monkeypatch.setitem(namespace, "os", SimpleNamespace(name="nt", replace=os.replace))
+    monkeypatch.setattr(namespace["subprocess"], "Popen", launch)
+    token = module["kaizen_actions"](config)["actions"][0]["token"]
+    module["start_kaizen_action"](config, {"token": token, "confirmed": True})
+    assert len(calls) == 1
+    command, kwargs = calls[0]
+    assert command[-2:] == ["-Mode", "RestartMarketHistory"]
+    assert command[command.index("-File") + 1] == str(
+        kaizen_host["root"] / "scripts/install_startup_task.ps1"
+    )
+    assert kwargs["shell"] is False
+    status = module["kaizen_actions"](config)["job"]
+    assert status["state"] == "COMPLETED" and status["finding_present"] is True
 
 
 @pytest.mark.parametrize("observations", [None, {}, [], [None]])

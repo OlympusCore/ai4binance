@@ -33,6 +33,16 @@ interface HealthFinding {
   severity?: string;
   status?: string;
   evidence?: string;
+  facts?: Record<string, unknown>;
+}
+interface KaizenFinding extends HealthFinding { token: string; action: string | null }
+interface KaizenJob {
+  state: string; action?: string; finding_present?: boolean; blockers?: string[];
+  execution_allowed: false; live_eligibility_status: 'LIVE_ORDER_BLOCKED';
+}
+interface KaizenActions {
+  actions: KaizenFinding[]; targets: Record<string, string[]>; job: KaizenJob;
+  execution_allowed: false; live_eligibility_status: 'LIVE_ORDER_BLOCKED';
 }
 interface DashboardSnapshot {
   schema_version: 'DashboardSnapshot/v1';
@@ -80,6 +90,9 @@ declare const lastLearningAttempt: number;
 declare function observedTime(value?: string | null): string;
 declare function auditObserverPanel(): HTMLElement;
 declare function healthFindingsPanel(title: string[], limit?: number): HTMLElement;
+declare function findingCopy(item: HealthFinding): {
+  title: string[]; explanation: string[]; action: string[]; evidence: string; severity: string;
+};
 
 const commandCopy = {
   en: {
@@ -695,7 +708,7 @@ function enhanceCommandShell(focusKey?: string): void {
   if (local && state.page === 'opportunities') root.querySelector('#aw-subtitle')!.textContent = ccText('marketHelp');
   root.querySelector('#aw-status')!.textContent = root.querySelector('#aw-title')!.textContent;
   root.querySelector('.cc-context')?.remove();
-  if (local && !['overview', 'opportunities', 'research', 'news', 'recommendations'].includes(state.page)) {
+  if (local && !['overview', 'opportunities', 'research', 'news', 'recommendations', 'kaizen'].includes(state.page)) {
     const context = ccNode('div', '', 'cc-context');
     const field = (key: CopyKey, values: string[], selected: string, change: (value: string) => void) => {
       const label = ccNode('label', ccText(key));
@@ -744,6 +757,136 @@ function enhanceCommandShell(focusKey?: string): void {
       }
     });
   }
+}
+
+let commandKaizenSelection: KaizenFinding | undefined;
+let commandKaizenActions: KaizenActions | undefined;
+let commandKaizenPending = false;
+let commandKaizenError = '';
+let commandKaizenMarket = 'SPOT';
+let commandKaizenSymbol = '';
+function commandKaizenLabel(action: string | null): string {
+  if (action === 'REFRESH_CANDLES') return ccLabel('Refresh native candles for one eligible symbol', 'Uygun bir sembolün yerel mum verisini yenile');
+  if (action === 'RESTART_MARKET_HISTORY') return ccLabel('Restart only the existing market-history service', 'Yalnızca mevcut market-history servisini yeniden başlat');
+  if (action === 'REFRESH_LEARNING') return ccLabel('Refresh the canonical learning summary', 'Kanonik öğrenim özetini yenile');
+  return ccLabel('No bounded apply operation is available for this finding.', 'Bu bulgu için sınırlı bir uygulama işlemi mevcut değil.');
+}
+function commandKaizenResponse(value: unknown): value is KaizenActions {
+  const data = value as Partial<KaizenActions> | null;
+  return !!data && data.execution_allowed === false && data.live_eligibility_status === 'LIVE_ORDER_BLOCKED'
+    && Array.isArray(data.actions) && !!data.targets && typeof data.targets === 'object' && !Array.isArray(data.targets)
+    && !!data.job && typeof data.job.state === 'string' && data.job.execution_allowed === false
+    && data.job.live_eligibility_status === 'LIVE_ORDER_BLOCKED'
+    && data.actions.every(item => !!item && typeof item === 'object' && typeof item.token === 'string' && /^[a-f0-9]{64}$/.test(item.token)
+      && (item.action === null || ['REFRESH_CANDLES', 'RESTART_MARKET_HISTORY', 'REFRESH_LEARNING'].includes(item.action)))
+    && Object.entries(data.targets).every(([market, symbols]) => ['SPOT', 'USD_M_FUTURES'].includes(market)
+      && Array.isArray(symbols) && symbols.every(symbol => typeof symbol === 'string' && /^[A-Z0-9]{2,30}$/.test(symbol)));
+}
+async function commandLoadKaizen(): Promise<void> {
+  const response = await fetch('/api/kaizen/actions', {cache: 'no-store', signal: AbortSignal.timeout(8000)});
+  const data: unknown = await response.json();
+  if (!response.ok || !commandKaizenResponse(data)) throw new Error('KAIZEN_ACTIONS_UNAVAILABLE');
+  commandKaizenActions = data;
+}
+async function commandChooseKaizen(item: HealthFinding): Promise<void> {
+  if (commandKaizenPending) return;
+  commandKaizenPending = true; commandKaizenError = ''; render();
+  try {
+    await commandLoadKaizen();
+    commandKaizenSelection = commandKaizenActions?.actions.find(value => commandFindingKey(value) === commandFindingKey(item));
+    if (!commandKaizenSelection?.action) throw new Error('KAIZEN_FINDING_UNAVAILABLE');
+    const targets = commandKaizenActions!.targets;
+    commandKaizenMarket = targets.SPOT?.length ? 'SPOT' : 'USD_M_FUTURES';
+    commandKaizenSymbol = targets[commandKaizenMarket]?.[0] || '';
+  } catch { commandKaizenSelection = undefined; commandKaizenError = 'KAIZEN_FINDING_UNAVAILABLE'; }
+  finally { commandKaizenPending = false; render(); }
+}
+async function commandApplyKaizen(): Promise<void> {
+  const selected = commandKaizenSelection;
+  if (!selected?.action || commandKaizenPending) return;
+  commandKaizenPending = true; commandKaizenError = ''; render();
+  try {
+    const request: Record<string, unknown> = {token: selected.token, confirmed: true};
+    if (selected.action === 'REFRESH_CANDLES') Object.assign(request, {market: commandKaizenMarket, symbol: commandKaizenSymbol});
+    const response = await fetch('/api/kaizen/apply', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(request), cache: 'no-store', signal: AbortSignal.timeout(8000)});
+    if (!response.ok) throw new Error('KAIZEN_APPLY_REJECTED');
+    // Acknowledgement is not proof of resolution; display the canonical job and fresh finding.
+    for (let attempt = 0; attempt < 60; attempt++) {
+      await commandLoadKaizen();
+      render();
+      if (!['RUNNING', 'PENDING'].includes(commandKaizenActions!.job.state)) break;
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    await refreshLocal();
+  } catch { commandKaizenError = 'KAIZEN_APPLY_REJECTED_OR_RESULT_UNAVAILABLE'; }
+  finally { commandKaizenPending = false; render(); }
+}
+function commandKaizenPanel(): HTMLElement {
+  const panel = ccNode('article', '', 'aw-panel');
+  panel.dataset.panelKey = 'Current Kaizen backlog';
+  panel.append(ccNode('h2', ccLabel('Current Kaizen backlog', 'Güncel Kaizen kuyruğu')));
+  const wrap = ccNode('div', '', 'aw-tablewrap'); const table = ccNode('table');
+  const head = ccNode('thead'); const headings = ccNode('tr');
+  [['Priority', 'Öncelik'], ['Finding', 'Bulgu'], ['Why it matters', 'Neden önemli'],
+    ['Safe next action', 'Güvenli sonraki adım'], ['Evidence', 'Kanıt'], ['Apply', 'Uygula']]
+    .forEach(([en, tr]) => headings.append(ccNode('th', ccLabel(en, tr))));
+  head.append(headings); const body = ccNode('tbody');
+  const findings = localData?.health_findings || [];
+  findings.slice(0, 20).forEach(item => {
+    const copy = findingCopy(item); const row = ccNode('tr');
+    [copy.severity, copy.title[state.language === 'tr' ? 1 : 0], copy.explanation[state.language === 'tr' ? 1 : 0],
+      copy.action[state.language === 'tr' ? 1 : 0], copy.evidence].forEach(value => row.append(ccNode('td', value)));
+    const cell = ccNode('td'); const button = ccNode('button', ccLabel('Apply', 'Uygula'), 'aw-button'); button.type = 'button';
+    const supported = ['MARKET_HISTORY_INCOMPLETE', 'LEARNING_SUMMARY_EMPTY'].includes(item.finding_id || '')
+      || (item.finding_id === 'SERVICE_NOT_READY' && item.facts?.service === 'market-history');
+    button.disabled = !supported || commandKaizenPending;
+    button.setAttribute('aria-label', `${ccLabel('Apply', 'Uygula')}: ${row.cells[1].textContent}`);
+    button.dataset.commandKey = `kaizen-apply-${commandFindingKey(item)}`;
+    if (!supported) button.title = commandKaizenLabel(null);
+    button.addEventListener('click', () => { void commandChooseKaizen(item); }); cell.append(button); row.append(cell); body.append(row);
+  });
+  table.append(head, body); wrap.append(table); panel.append(wrap);
+  if (!findings.length) panel.append(ccNode('p', ccLabel('No current finding is reported.', 'Güncel bulgu bildirilmedi.')));
+  if (commandKaizenError) panel.append(ccNode('p', ccLabel(
+    'The action or its result is unavailable. Refresh the summary and select the current finding again.',
+    'İşlem veya sonucu kullanılamıyor. Özeti yenileyip güncel bulguyu yeniden seçin.'), 'cc-blockers'));
+  const selected = commandKaizenSelection;
+  if (selected) {
+    const detail = ccNode('section'); detail.setAttribute('aria-label', ccLabel('Apply action preview', 'Uygulama önizlemesi'));
+    detail.append(ccNode('h3', commandKaizenLabel(selected.action)), ccNode('p', ccLabel(
+      'This applies the displayed local operation. Data, risk, validation, and live-order vetoes remain active. A completed operation may leave the finding unresolved.',
+      'Gösterilen yerel işlem uygulanır. Veri, risk, doğrulama ve canlı emir engelleri korunur. İşlem tamamlansa bile bulgu devam edebilir.')));
+    if (selected.action === 'REFRESH_CANDLES') {
+      const marketLabel = ccNode('label', ccLabel('Target market', 'Hedef piyasa')); const market = ccNode('select', '', 'aw-button');
+      for (const [value, label] of [['SPOT', 'Spot'], ['USD_M_FUTURES', 'Futures']]) {
+        const option = ccNode('option', label); option.value = value; option.selected = value === commandKaizenMarket; market.append(option);
+      }
+      market.addEventListener('change', () => { commandKaizenMarket = market.value; commandKaizenSymbol = commandKaizenActions?.targets[market.value]?.[0] || ''; render(); });
+      const symbolLabel = ccNode('label', ccLabel('Target symbol', 'Hedef sembol')); const symbol = ccNode('select', '', 'aw-button');
+      (commandKaizenActions?.targets[commandKaizenMarket] || []).forEach(value => {
+        const option = ccNode('option', value); option.value = value; option.selected = value === commandKaizenSymbol; symbol.append(option);
+      });
+      symbol.addEventListener('change', () => { commandKaizenSymbol = symbol.value; });
+      market.disabled = commandKaizenPending; symbol.disabled = commandKaizenPending;
+      marketLabel.append(market); symbolLabel.append(symbol); detail.append(marketLabel, symbolLabel);
+    }
+    const apply = ccNode('button', commandKaizenPending ? ccLabel('Applying…', 'Uygulanıyor…') : ccLabel('Confirm and apply', 'Onayla ve uygula'), 'aw-button');
+    apply.type = 'button'; apply.disabled = commandKaizenPending || (selected.action === 'REFRESH_CANDLES' && !commandKaizenSymbol);
+    apply.addEventListener('click', () => { void commandApplyKaizen(); });
+    const cancel = ccNode('button', ccLabel('Close', 'Kapat'), 'aw-button'); cancel.type = 'button';
+    cancel.addEventListener('click', () => { commandKaizenSelection = undefined; render(); }); detail.append(apply, cancel);
+    panel.append(detail);
+  }
+  const job = commandKaizenActions?.job;
+  if (job && job.state !== 'NOT_RUN') {
+    const status = ccNode('p', `${commandKaizenLabel(job.action || null)} · ${job.state}`); status.setAttribute('role', 'status');
+    if (job.finding_present !== undefined) status.append(ccNode('span', job.finding_present
+      ? ccLabel(' · Finding remains; resolution is not verified.', ' · Bulgu devam ediyor; çözüm doğrulanmadı.')
+      : ccLabel(' · Original finding is absent from the latest snapshot.', ' · Son görüntüde önceki bulgu bulunmuyor.')));
+    if (job.blockers?.length) status.append(ccNode('span', ` · ${job.blockers.join(' · ')}`)); panel.append(status);
+  }
+  return panel;
 }
 
 // Both legacy market workspaces now share the same non-authoritative selection.

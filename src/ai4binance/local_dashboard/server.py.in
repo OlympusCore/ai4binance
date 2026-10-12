@@ -34,6 +34,12 @@ RADAR_NAMES = frozenset({"web", "github", "news", "learning"})
 WALLET_REFRESH_LOCK = threading.RLock()
 WALLET_REFRESH_JOB: dict[str, object] | None = None
 WALLET_REFRESH_TIMEOUT_SECONDS = 120
+KAIZEN_LOCK = threading.RLock()
+KAIZEN_PROCESS = None
+KAIZEN_SAFE_STATE = {
+    "execution_allowed": False,
+    "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+}
 GITHUB_RESEARCH_TOPIC_CAPABILITIES = (
     "R05-C03",
     "R01-C03",
@@ -1643,6 +1649,200 @@ def snapshot(config):
     return result
 
 
+def kaizen_action(finding):
+    """Map observed findings to existing bounded owners, never arbitrary commands."""
+    finding_id = finding.get("finding_id")
+    if finding_id == "MARKET_HISTORY_INCOMPLETE":
+        return "REFRESH_CANDLES"
+    if finding_id == "LEARNING_SUMMARY_EMPTY":
+        return "REFRESH_LEARNING"
+    if finding_id == "SERVICE_NOT_READY" and (
+        finding.get("facts") or {}
+    ).get("service") == "market-history":
+        return "RESTART_MARKET_HISTORY"
+    return None
+
+
+def kaizen_token(finding):
+    return hashlib.sha256(
+        json.dumps(finding, sort_keys=True, allow_nan=False).encode("utf-8")
+    ).hexdigest()
+
+
+def kaizen_status(config):
+    """Report dispatch separately from measured resolution of the original finding."""
+    global KAIZEN_PROCESS
+    with KAIZEN_LOCK:
+        try:
+            job = load_json(APP / "kaizen-status.json")
+        except (OSError, ValueError):
+            return {"state": "NOT_RUN", **KAIZEN_SAFE_STATE}
+        if (
+            job.get("execution_allowed") is not False
+            or job.get("live_eligibility_status") != "LIVE_ORDER_BLOCKED"
+            or job.get("action") not in {
+                "REFRESH_CANDLES", "REFRESH_LEARNING", "RESTART_MARKET_HISTORY"
+            }
+        ):
+            return {"state": "BLOCKED", "blockers": ["KAIZEN_STATUS_INVALID"], **KAIZEN_SAFE_STATE}
+        if job.get("state") in {"PENDING", "RUNNING"}:
+            action = job.get("action")
+            if action == "REFRESH_CANDLES":
+                from ai4binance.data.market_history_continuous import (
+                    market_history_refresh_status,
+                )
+
+                result = market_history_refresh_status(
+                    Path(config["repository_root"])
+                    / "runtime/state/market-history-refresh-request.json"
+                )
+                if result.get("request_id") != job.get("request_id"):
+                    job.update(state="BLOCKED", blockers=["KAIZEN_REQUEST_REPLACED"])
+                else:
+                    job["state"] = {
+                        "DATA_READY": "COMPLETED", "DATA_BLOCKED": "BLOCKED"
+                    }.get(result["state"], result["state"])
+                    job["blockers"] = result.get("blockers", [])
+            elif action == "REFRESH_LEARNING":
+                result = radar_status(config, "learning")
+                job["state"] = result["state"]
+                job["blockers"] = result.get("result", {}).get("blockers", [])
+            elif KAIZEN_PROCESS is None:
+                job.update(state="BLOCKED", blockers=["KAIZEN_RESTART_INTERRUPTED"])
+            else:
+                code = KAIZEN_PROCESS.poll()
+                if code is not None:
+                    job.update(
+                        state="COMPLETED" if code == 0 else "BLOCKED",
+                        exit_code=code,
+                        blockers=[] if code == 0 else ["KAIZEN_SERVICE_RESTART_FAILED"],
+                    )
+                    KAIZEN_PROCESS = None
+                elif (
+                    datetime.now(UTC) - datetime.fromisoformat(job["started_at"])
+                ).total_seconds() > 90:
+                    # Kill only the exact bounded wrapper created by this action.
+                    KAIZEN_PROCESS.kill()
+                    KAIZEN_PROCESS.wait(timeout=5)
+                    KAIZEN_PROCESS = None
+                    job.update(state="BLOCKED", blockers=["KAIZEN_RESTART_TIMEOUT"])
+            write_json(APP / "kaizen-status.json", job)
+        return {**job, **KAIZEN_SAFE_STATE}
+
+
+def kaizen_actions(config):
+    observed = snapshot(config)
+    actions = [
+        {**item, "action": kaizen_action(item), "token": kaizen_token(item)}
+        for item in observed["health_findings"]
+    ]
+    targets = {}
+    if any(item["action"] == "REFRESH_CANDLES" for item in actions):
+        import market_views
+
+        for market in ("SPOT", "USD_M_FUTURES"):
+            try:
+                _, symbols, _ = market_views.selection(config, market, "")
+                targets[market] = list(symbols)
+            except (OSError, ValueError):
+                targets[market] = []
+    job = kaizen_status(config)
+    if job.get("token"):
+        job["finding_present"] = any(
+            item["finding_id"] == job.get("finding_id")
+            and (item.get("facts") or {}).get("service") == job.get("service")
+            for item in actions
+        )
+    return {"actions": actions, "targets": targets, "job": job, **KAIZEN_SAFE_STATE}
+
+
+def start_kaizen_action(config, request):
+    """Require a current finding and explicit click before bounded local mutation."""
+    global KAIZEN_PROCESS
+    if (
+        not isinstance(request, dict)
+        or set(request) not in (
+            {"token", "confirmed"}, {"token", "confirmed", "market", "symbol"}
+        )
+        or request.get("confirmed") is not True
+        or not isinstance(request.get("token"), str)
+        or len(request["token"]) != 64
+    ):
+        raise ValueError("KAIZEN_REQUEST_INVALID")
+    with KAIZEN_LOCK:
+        current = kaizen_actions(config)
+        item = next(
+            (item for item in current["actions"] if item["token"] == request["token"]),
+            None,
+        )
+        if item is None or item["action"] is None:
+            raise ValueError("KAIZEN_FINDING_UNAVAILABLE")
+        previous = current["job"]
+        if previous["state"] in {"PENDING", "RUNNING"}:
+            return {**previous, "state": "BUSY"}
+        if previous.get("started_at") and (
+            datetime.now(UTC) - datetime.fromisoformat(previous["started_at"])
+        ).total_seconds() < 60:
+            return {**previous, "state": "COOLDOWN"}
+        action = item["action"]
+        if action != "REFRESH_CANDLES" and set(request) != {"token", "confirmed"}:
+            raise ValueError("KAIZEN_REQUEST_INVALID")
+        root = Path(config["repository_root"])
+        now = datetime.now(UTC)
+        job = {
+            "action": action, "token": item["token"],
+            "finding_id": item["finding_id"],
+            "service": (item.get("facts") or {}).get("service"),
+            "started_at": now.isoformat(), "blockers": [], **KAIZEN_SAFE_STATE,
+        }
+        if action == "REFRESH_CANDLES":
+            from ai4binance.data.market_history_continuous import (
+                enqueue_market_history_refresh_request,
+            )
+
+            market, symbol = request.get("market"), request.get("symbol")
+            if (
+                not isinstance(market, str) or not isinstance(symbol, str)
+                or symbol not in current["targets"].get(market, [])
+            ):
+                raise ValueError("KAIZEN_TARGET_INELIGIBLE")
+            write_json(APP / "kaizen-status.json", {**job, "state": "DISPATCHING"})
+            result = enqueue_market_history_refresh_request(
+                root / "runtime/state/market-history-refresh-request.json",
+                market=market, symbol=symbol,
+                eligible_symbols=tuple(current["targets"][market]), requested_at=now,
+            )
+            job.update(
+                state=result["state"], request_id=result.get("request_id"),
+                market=market, symbol=symbol, blockers=result.get("blockers", []),
+            )
+        elif action == "REFRESH_LEARNING":
+            write_json(APP / "kaizen-status.json", {**job, "state": "DISPATCHING"})
+            job["state"] = start_radar(config, "learning")["state"]
+        else:
+            from ai4binance.ops.service_health import load_service_manifest
+
+            spec = next(
+                spec for spec in load_service_manifest(root / "config/operations/services.json")
+                if spec.service == "market-history"
+            )
+            if not spec.enabled or spec.order_writing_authority or os.name != "nt":
+                raise ValueError("KAIZEN_SERVICE_RESTART_UNAVAILABLE")
+            write_json(APP / "kaizen-status.json", {**job, "state": "DISPATCHING"})
+            # The canonical Windows owner checks exact process commands and fresh lock PID.
+            KAIZEN_PROCESS = subprocess.Popen(
+                ["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden",
+                 "-File", str(root / "scripts/install_startup_task.ps1"),
+                 "-Mode", "RestartMarketHistory"],
+                cwd=root, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL, shell=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            job["state"] = "RUNNING"
+        write_json(APP / "kaizen-status.json", job)
+        return job
+
+
 def create_server(config, port=None):
     selected_port = config["port"] if port is None else port
     loaded_server_sha256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
@@ -1720,6 +1920,8 @@ def create_server(config, port=None):
                     return
             elif path == "/api/wallet/refresh":
                 payload = wallet_refresh_status(config)
+            elif path == "/api/kaizen/actions":
+                payload = kaizen_actions(config)
             elif path in PUBLIC_FILES:
                 file = APP / PUBLIC_FILES[path]
                 kind = mimetypes.guess_type(file.name)[0] or "application/octet-stream"
@@ -1756,6 +1958,7 @@ def create_server(config, port=None):
                 "/api/radars/run",
                 "/api/markets/refresh",
                 "/api/wallet/refresh",
+                "/api/kaizen/apply",
             }:
                 self.send_body(405, b'{"error":"READ_ONLY"}')
                 return
@@ -1764,6 +1967,10 @@ def create_server(config, port=None):
                 if not 1 <= length <= 512:
                     raise ValueError("REQUEST_INVALID")
                 request = json.loads(self.rfile.read(length).decode("utf-8"))
+                if path == "/api/kaizen/apply":
+                    payload = start_kaizen_action(config, request)
+                    self.send_body(202, json.dumps(payload, allow_nan=False).encode("utf-8"))
+                    return
                 if path == "/api/markets/refresh":
                     import market_views
 
