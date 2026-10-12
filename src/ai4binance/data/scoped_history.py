@@ -294,6 +294,7 @@ def _sync_owned(
         native_stream_count=len(rows),
         enrichment_stream_count=len(enrichment),
         futures_enrichment_results=enrichment,
+        current_open_interest=dict(collector._current_open_interest_results),
         futures_enrichment_status="PARTIAL_REQUIRED_CONSUMERS_MUST_VERIFY_INPUTS",
         stream_jobs=jobs,
         clock_status="OFFICIAL_CLOCK_VERIFIED"
@@ -1326,6 +1327,8 @@ def _enrichment_turns(
 ) -> list[dict[str, object]]:
     """Retain supported enrichment through the same bounded canonical adapters."""
     selected = verified_selection(collector.scoped_selection or {})
+    for asset in selected:
+        collector._refresh_current_open_interest(str(asset["futures_symbol"]), cutoff)
     collector.scoped_details_start = previous_calendar_month(cutoff)
     jobs: list[dict[str, object]] = []
     for kind, timeframe in collector._collection_kinds("usd_m_futures"):

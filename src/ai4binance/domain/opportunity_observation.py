@@ -14,6 +14,62 @@ ZERO = Decimal("0")
 MEASURABLE_DIRECTIONS = frozenset(
     {"BULLISH", "BEARISH", "BULLISH_CAUTION", "BEARISH_CAUTION"}
 )
+_SOURCE_BLOCKER_PREFIXES = (
+    "DATA_",
+    "DATASET_",
+    "DERIVATIVES_DATA_",
+    "FUTURES_OPEN_INTEREST_",
+    "FUTURES_MARK_PRICE_",
+    "FUTURES_LIQUIDITY_",
+    "FUTURES_CONTEXT_",
+    "FUTURES_DERIVATIVES_",
+    "LOCAL_MARKET_SNAPSHOT_",
+    "SNAPSHOT_DATA_",
+    "MARKET_DATA_PROVENANCE_",
+    "VALIDATION_DATA_",
+)
+_SOURCE_BLOCKERS = frozenset(
+    {
+        "SYMBOL_NOT_CONFIRMED_TRADING",
+        "EXCHANGE_FILTERS_MISSING",
+        "EXCHANGE_FILTERS_INVALID",
+        "LATEST_PRICE_MISSING",
+        "BID_ASK_SPREAD_MISSING",
+    }
+)
+_SETUP_BLOCKERS = frozenset(
+    {
+        "MACRO_STRUCTURE_CONFLICT",
+        "DIRECTIONAL_STRUCTURE_UNRESOLVED",
+        "MULTI_TIMEFRAME_DIRECTION_CONFLICT",
+        "TRIGGER_DIRECTION_CONFLICT",
+        "SCENARIO_SEPARATION_INSUFFICIENT",
+        "ENTRY_TRIGGER_CONFLICT",
+    }
+)
+
+
+def _opportunity_source_blockers(blockers: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(
+        code
+        for code in blockers
+        if code in _SOURCE_BLOCKERS or code.startswith(_SOURCE_BLOCKER_PREFIXES)
+    )
+
+
+def opportunity_blocker_status(blockers: tuple[str, ...]) -> str:
+    """Classify observation diagnostics only; never grant eligibility or authority."""
+    if _opportunity_source_blockers(blockers):
+        return "DATA_BLOCKED"
+    if any(code in _SETUP_BLOCKERS for code in blockers):
+        return "NO_SETUP"
+    if any(
+        code.endswith("_APPROVAL_MISSING")
+        or code.startswith(("OOS_RUNTIME_", "FUTURES_OOS_"))
+        for code in blockers
+    ):
+        return "VALIDATION_PENDING"
+    return "BLOCKED" if blockers else "NO_SETUP"
 
 
 class OpportunityBias(StrEnum):
@@ -52,6 +108,7 @@ class OpportunityGenerationOutcome(StrEnum):
     COMPLETE = "COMPLETE"
     NO_SETUP = "NO_SETUP"
     DATA_BLOCKED = "DATA_BLOCKED"
+    VALIDATION_BLOCKED = "VALIDATION_BLOCKED"
     INCOMPLETE_PLAN = "INCOMPLETE_PLAN"
 
 
@@ -61,6 +118,7 @@ class OpportunityGenerationStage(StrEnum):
     COMPLETE = "COMPLETE"
     DATA_QUALITY = "DATA_QUALITY"
     SIGNAL_QUALIFICATION = "SIGNAL_QUALIFICATION"
+    VALIDATION = "VALIDATION"
     TRADE_PLAN = "TRADE_PLAN"
     POSITION_SIZING = "POSITION_SIZING"
 
@@ -180,12 +238,17 @@ def diagnose_opportunity_generation(
         if isinstance(raw_blockers, (list, tuple))
         else ()
     )
-    data_reasons = tuple(
-        blocker
-        for blocker in blockers
-        if blocker.startswith(("DATA_", "DATASET_", "DERIVATIVES_DATA_"))
+    data_reasons = _opportunity_source_blockers(blockers)
+    classified_status = opportunity_blocker_status(blockers)
+    data_blocked = (
+        bool(data_reasons)
+        or data_status in {"STALE", "INVALID", "UNAVAILABLE"}
+        or (
+            status == "DATA_BLOCKED"
+            and (not blockers or classified_status == "BLOCKED")
+        )
     )
-    if status == "DATA_BLOCKED" or data_status in {"STALE", "INVALID", "UNAVAILABLE"}:
+    if data_blocked:
         reason_codes.extend(data_reasons or ("OPPORTUNITY_INPUT_DATA_UNAVAILABLE",))
 
     symbol = candidate.get("symbol")
@@ -276,7 +339,7 @@ def diagnose_opportunity_generation(
         )
     unique_reasons = tuple(dict.fromkeys(reason_codes))
     unique_missing = tuple(dict.fromkeys(missing_fields))
-    if status == "DATA_BLOCKED" or data_status in {"STALE", "INVALID", "UNAVAILABLE"}:
+    if data_blocked:
         outcome = OpportunityGenerationOutcome.DATA_BLOCKED
         stage = OpportunityGenerationStage.DATA_QUALITY
         retryability = "NEEDS_DATA_RECOVERY"
@@ -291,6 +354,11 @@ def diagnose_opportunity_generation(
                 "MARKET_UNSUPPORTED",
             }
         )
+    elif classified_status == "VALIDATION_PENDING" or status == "VALIDATION_PENDING":
+        outcome = OpportunityGenerationOutcome.VALIDATION_BLOCKED
+        stage = OpportunityGenerationStage.VALIDATION
+        retryability = "NEEDS_VALIDATION_REVIEW"
+        final_reasons = ("VALIDATION_EVIDENCE_REQUIRED",)
     elif direction not in MEASURABLE_DIRECTIONS:
         outcome = OpportunityGenerationOutcome.NO_SETUP
         stage = OpportunityGenerationStage.SIGNAL_QUALIFICATION
@@ -328,7 +396,8 @@ def diagnose_opportunity_generation(
     return OpportunityGenerationDiagnostic(
         outcome=outcome,
         failed_stage=stage,
-        reason_codes=final_reasons or ("OPPORTUNITY_CONTRACT_INCOMPLETE",),
+        reason_codes=tuple(dict.fromkeys((*blockers, *final_reasons)))
+        or ("OPPORTUNITY_CONTRACT_INCOMPLETE",),
         missing_fields=unique_missing,
         retryability=retryability,
     )

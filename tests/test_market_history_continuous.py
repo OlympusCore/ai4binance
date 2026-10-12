@@ -71,6 +71,15 @@ class Transport:
     ) -> object:
         query = dict(params or {})
         self.calls.append((path, query))
+        if path == "/futures/data/openInterestHist":
+            return [
+                {
+                    "symbol": query["symbol"],
+                    "timestamp": int(query["endTime"]) // 300_000 * 300_000,
+                    "sumOpenInterest": "12",
+                    "sumOpenInterestValue": "1200",
+                }
+            ]
         if path.endswith(("bookTicker", "24hr")):
             return [{"symbol": "BTCUSDT"}]
         start = int(query["startTime"])
@@ -2621,6 +2630,81 @@ def test_missing_old_open_interest_archive_retains_offline_gap(tmp_path: Path) -
     assert result["status"] == "UNAVAILABLE"
     assert _load(path)["next_at"] == start.isoformat()
     assert transport.calls == []
+
+
+def test_current_open_interest_refresh_keeps_gap_and_uses_own_cadence(
+    tmp_path: Path,
+) -> None:
+    transport = Transport()
+    instance = collector(tmp_path, transport)
+    path = (
+        tmp_path
+        / "market/usd_m_futures/BTCUSDT/details/open_interest/collection-progress.json"
+    )
+    start = NOW - timedelta(days=45)
+    _save(path, {"requested_start": start.isoformat(), "next_at": start.isoformat()})
+    original = path.read_bytes()
+    first = instance._refresh_current_open_interest("BTCUSDT", NOW)
+    assert first["status"] == "CURRENT"
+    instance._refresh_current_open_interest("BTCUSDT", NOW + timedelta(seconds=239))
+    assert len(transport.calls) == 1
+    instance._refresh_current_open_interest("BTCUSDT", NOW + timedelta(seconds=240))
+    assert len(transport.calls) == 2
+    assert path.read_bytes() == original
+    assert transport.calls[0][1]["limit"] == 4
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ["missing", "wrong_symbol", "future", "stale", "zero", "duplicate", "gap"],
+)
+def test_current_open_interest_failed_refresh_revokes_old_current_evidence(
+    tmp_path: Path, failure: str
+) -> None:
+    class InterestTransport(Transport):
+        invalid = False
+
+        def get_json(
+            self, path: str, params: Mapping[str, str | int] | None = None
+        ) -> object:
+            raw = cast(list[dict[str, object]], super().get_json(path, params))
+            if not self.invalid:
+                return raw
+            row = raw[0]
+            if failure == "missing":
+                return []
+            if failure == "wrong_symbol":
+                row["symbol"] = "ETHUSDT"
+            elif failure in {"future", "stale"}:
+                row["timestamp"] = int(str(row["timestamp"])) + (
+                    3_600_000 if failure == "future" else -3_600_000
+                )
+            elif failure == "zero":
+                row["sumOpenInterest"] = "0"
+            elif failure == "duplicate":
+                raw.append(dict(row))
+            elif failure == "gap":
+                raw.insert(
+                    0, {**row, "timestamp": int(str(row["timestamp"])) - 600_000}
+                )
+            return raw
+
+    transport = InterestTransport()
+    instance = collector(tmp_path, transport)
+    assert (
+        instance._refresh_current_open_interest("BTCUSDT", NOW)["status"] == "CURRENT"
+    )
+    transport.invalid = True
+    result = instance._refresh_current_open_interest(
+        "BTCUSDT", NOW + timedelta(minutes=5)
+    )
+    assert result["status"] == "BLOCKED"
+    current = _load(
+        tmp_path / "market/usd_m_futures/BTCUSDT/details/open_interest/current.json"
+    )
+    assert current["rows"] == []
+    assert current["blockers"] == ["FUTURES_OPEN_INTEREST_UNAVAILABLE_OR_INVALID"]
+    assert current["promotion_status"] == "RESEARCH_ONLY"
 
 
 def test_compressed_history_bootstrap_preserves_checksum_and_all_timeframes(

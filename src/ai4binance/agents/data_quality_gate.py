@@ -61,6 +61,7 @@ class DataQualityGate:
         candle_counts: dict[str, int] = {}
 
         blockers.extend(self._provenance_blockers(snapshot))
+        blockers.extend(self._futures_context_blockers(snapshot))
 
         if snapshot.data_quality is DataQuality.DATA_INVALID:
             blockers.append("SNAPSHOT_DATA_QUALITY_INVALID")
@@ -121,6 +122,25 @@ class DataQualityGate:
                 "provenance_class": snapshot.provenance_class.value,
             },
         )
+
+    @staticmethod
+    def _futures_context_blockers(snapshot: MarketSnapshot) -> tuple[str, ...]:
+        """Retain explicit Futures source vetoes without changing Spot checks."""
+        if snapshot.market_type != "USD_M_FUTURES":
+            return ()
+        blockers: list[str] = []
+        for key, prefix in (
+            ("futures_context_blockers", "FUTURES_CONTEXT"),
+            ("futures_liquidity_blockers", "FUTURES_LIQUIDITY"),
+        ):
+            codes = snapshot.market_metadata.get(key, ())
+            if isinstance(codes, (tuple, list)) and all(
+                isinstance(code, str) and code.startswith("FUTURES_") for code in codes
+            ):
+                blockers.extend(codes)
+            else:
+                blockers.append(f"{prefix}_DIAGNOSTICS_INVALID")
+        return tuple(dict.fromkeys(blockers))
 
     def _provenance_blockers(self, snapshot: MarketSnapshot) -> tuple[str, ...]:
         """Keep unknown origins closed and simulation origins off Binance."""

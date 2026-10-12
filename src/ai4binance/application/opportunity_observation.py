@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import Protocol
 
 from ai4binance.domain import Action, TradeCandidate
+from ai4binance.domain.opportunity_observation import opportunity_blocker_status
 
 
 class FuturesSnapshotLike(Protocol):
@@ -69,7 +70,7 @@ def project_futures_opportunity(
         )
     )
     result: dict[str, object] = {
-        "status": "DATA_BLOCKED" if blockers else "NO_SETUP",
+        "status": opportunity_blocker_status(blockers),
         "blockers": list(blockers),
         "direction": "WATCH_ONLY",
         "execution_allowed": False,
@@ -86,7 +87,7 @@ def project_futures_opportunity(
     candidate = candidates[0]
     if "STRUCTURAL_PLAN_V2" not in candidate.evidence:
         result.update(
-            status="DATA_BLOCKED",
+            status="INCOMPLETE_PLAN",
             blockers=list(
                 dict.fromkeys(
                     (

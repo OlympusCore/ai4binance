@@ -815,10 +815,120 @@ def test_futures_liquidity_survives_missing_derivatives_and_reaches_gate(
     assert snapshot.exchange_filters["PRICE_FILTER"] is not None
     assert snapshot.spread == D(".002")
     assert not snapshot.derivatives_snapshot
+    assert snapshot.market_metadata["futures_context_blockers"] == (
+        "FUTURES_OPEN_INTEREST_UNAVAILABLE",
+    )
+    from ai4binance.agents.data_quality_gate import DataQualityGate
+
+    quality = DataQualityGate(build_default_registry().get("data_quality")).evaluate(
+        snapshot
+    )
+    assert "FUTURES_OPEN_INTEREST_UNAVAILABLE" in quality.blockers
+    assert quality.status is AgentStatus.BLOCKED
     gate = UniverseLiquidityGate(build_default_registry().get("universe_liquidity"))
     assert gate.evaluate_snapshot(snapshot).status is AgentStatus.SUCCESS
     assert not gate.evaluate_snapshot(snapshot).hard_gate_eligible
     assert source.bid != snapshot.bid
+
+
+@pytest.mark.parametrize(
+    "failure", ["valid", "blocked", "stale", "future", "wrong_symbol"]
+)
+def test_current_oi_receipt_blocks_without_discarding_verified_liquidity(
+    tmp_path: Path, failure: str
+) -> None:
+    transport = write_local_sources(tmp_path)
+    current = tmp_path / "HOTUSDT/details/open_interest/current.json"
+    legacy = json.loads((current.parent / "1.json").read_text())
+    payload = {
+        **legacy,
+        "symbol": "HOTUSDT",
+        "status": "CURRENT",
+        "observed_at": NOW.isoformat(),
+        "execution_allowed": False,
+        "promotion_status": "RESEARCH_ONLY",
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+    }
+    if failure == "blocked":
+        payload.update(status="BLOCKED", rows=[])
+    elif failure in {"stale", "future"}:
+        offset = timedelta(hours=-1 if failure == "stale" else 1)
+        payload["observed_at"] = (NOW + offset).isoformat()
+    elif failure == "wrong_symbol":
+        payload["symbol"] = "BTCUSDT"
+    current.write_text(json.dumps(payload), encoding="utf-8")
+    snapshot = transport.attach_futures_context(
+        replace(technical_snapshot(), market_type="USD_M_FUTURES")
+    )
+    assert snapshot.market_metadata["trading_status"] == "TRADING"
+    assert snapshot.exchange_filters
+    assert snapshot.bid is not None
+    if failure == "valid":
+        assert snapshot.derivatives_snapshot["open_interest"] == "1000"
+        assert "futures_context_blockers" not in snapshot.market_metadata
+    else:
+        assert not snapshot.derivatives_snapshot
+        assert snapshot.market_metadata["futures_context_blockers"]
+
+
+@pytest.mark.parametrize(
+    "failure", ["valid", "stale", "future", "gap", "wrong_symbol", "zero"]
+)
+def test_current_oi_window_uses_freshest_point_without_accepting_invalid_rows(
+    tmp_path: Path, failure: str
+) -> None:
+    transport = write_local_sources(tmp_path)
+    current = tmp_path / "HOTUSDT/details/open_interest/current.json"
+    rows = [
+        {
+            "symbol": "HOTUSDT",
+            "timestamp": int((NOW - timedelta(minutes=minutes)).timestamp() * 1000),
+            "sumOpenInterest": str(1000 + index),
+        }
+        for index, minutes in enumerate((17, 12, 7, 2))
+    ]
+    if failure == "stale":
+        for row in rows:
+            row["timestamp"] = int(str(row["timestamp"])) - 3_600_000
+    elif failure == "future":
+        rows[-1]["timestamp"] = int((NOW + timedelta(minutes=3)).timestamp() * 1000)
+    elif failure == "gap":
+        rows[1]["timestamp"] = int(str(rows[1]["timestamp"])) + 60_000
+    elif failure == "wrong_symbol":
+        rows[0]["symbol"] = "BTCUSDT"
+    elif failure == "zero":
+        rows[0]["sumOpenInterest"] = "0"
+    current.write_text(
+        json.dumps(
+            {
+                "source": "/futures/data/openInterestHist",
+                "symbol": "HOTUSDT",
+                "status": "CURRENT",
+                "observed_at": (NOW - timedelta(minutes=2)).isoformat(),
+                "rows": rows,
+                "execution_allowed": False,
+                "promotion_status": "RESEARCH_ONLY",
+                "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+            }
+        ),
+        encoding="utf-8",
+    )
+    snapshot = transport.attach_futures_context(
+        replace(technical_snapshot(), market_type="USD_M_FUTURES")
+    )
+    assert snapshot.market_metadata["trading_status"] == "TRADING"
+    assert snapshot.exchange_filters
+    assert snapshot.spread is not None
+    if failure == "valid":
+        assert snapshot.derivatives_snapshot["open_interest"] == "1003"
+        assert (
+            snapshot.derivatives_snapshot["as_of"]
+            == (NOW - timedelta(minutes=2)).isoformat()
+        )
+        assert "futures_context_blockers" not in snapshot.market_metadata
+    else:
+        assert not snapshot.derivatives_snapshot
+        assert snapshot.market_metadata["futures_context_blockers"]
 
 
 @pytest.mark.parametrize(
@@ -869,3 +979,100 @@ def test_futures_liquidity_invalid_sources_remove_prior_evidence(
     assert snapshot.bid is None
     assert not snapshot.exchange_filters
     assert "trading_status" not in snapshot.market_metadata
+    diagnostic = snapshot.market_metadata["futures_liquidity_failure"]
+    assert isinstance(diagnostic, Mapping)
+    expected_reasons = {
+        "stale": "LOCAL_MARKET_SNAPSHOT_STALE",
+        "wrong_symbol": "LOCAL_MARKET_SNAPSHOT_SYMBOL_INVALID",
+        "crossed": "FUTURES_LIQUIDITY_SPREAD_INVALID",
+        "filters": "FUTURES_LIQUIDITY_FILTERS_INVALID",
+        "wrong_source": "LOCAL_MARKET_SNAPSHOT_SOURCE_INVALID",
+        "stale_book": "FUTURES_LIQUIDITY_BOOK_STALE_OR_FUTURE",
+        "future_book": "FUTURES_LIQUIDITY_BOOK_STALE_OR_FUTURE",
+    }
+    assert diagnostic["reason_code"] == expected_reasons[failure]
+    assert diagnostic["source_filename"] == path.name
+
+
+@pytest.mark.parametrize("filename", ["exchange-info.json", "ticker-bookTicker.json"])
+def test_liquidity_failure_retains_sanitized_source_and_veto(
+    tmp_path: Path,
+    filename: str,
+) -> None:
+    """Test-only missing receipts retain their origin without stale fallback."""
+    from ai4binance.agents.catalog import build_default_registry
+    from ai4binance.agents.data_quality_gate import DataQualityGate
+
+    transport = write_local_sources(tmp_path)
+    (transport.directory / filename).rename(
+        transport.directory / (filename + ".unavailable")
+    )
+    snapshot = transport.attach_futures_context(
+        replace(technical_snapshot(), market_type="USD_M_FUTURES")
+    )
+    failure = snapshot.market_metadata["futures_liquidity_failure"]
+    assert isinstance(failure, Mapping)
+    assert failure["source_filename"] == filename
+    assert failure["reason_code"] == "LOCAL_MARKET_SNAPSHOT_MISSING"
+    assert str(tmp_path) not in str(failure)
+    assert snapshot.bid is None
+    assert snapshot.ask is None
+    assert not snapshot.exchange_filters
+    quality = DataQualityGate(build_default_registry().get("data_quality")).evaluate(
+        snapshot
+    )
+    assert (
+        f"FUTURES_LIQUIDITY_LOCAL_MARKET_SNAPSHOT_MISSING:{filename}"
+        in quality.blockers
+    )
+    assert quality.status.value == "BLOCKED"
+
+
+def test_receipt_refresh_after_fixed_cutoff_is_identifiable_and_recoverable(
+    tmp_path: Path,
+) -> None:
+    """Test-only refresh race keeps future evidence closed at the old cutoff."""
+    transport = write_local_sources(tmp_path)
+    path = transport.directory / "ticker-bookTicker.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    refreshed = NOW + timedelta(seconds=1)
+    payload["observed_at"] = refreshed.isoformat()
+    payload["rows"][0]["time"] = int(refreshed.timestamp() * 1000)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    original = replace(technical_snapshot(), market_type="USD_M_FUTURES")
+    blocked = transport.attach_futures_context(original)
+    failure = blocked.market_metadata["futures_liquidity_failure"]
+    assert isinstance(failure, Mapping)
+    assert failure["reason_code"] == "LOCAL_MARKET_SNAPSHOT_FUTURE"
+    assert failure["observed_at"] == refreshed.isoformat()
+    assert failure["cutoff_at"] == NOW.isoformat()
+    assert blocked.bid is None
+    assert not blocked.exchange_filters
+    recovered = replace(transport, clock=lambda: refreshed).attach_futures_context(
+        replace(original, created_at=refreshed)
+    )
+    assert recovered.bid is not None
+    assert recovered.exchange_filters
+    assert "futures_liquidity_failure" not in recovered.market_metadata
+    assert "futures_liquidity_blockers" not in recovered.market_metadata
+
+
+def test_liquidity_diagnostics_redact_unknown_exception_contents(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test-only exception text must never become public diagnostic evidence."""
+    transport = write_local_sources(tmp_path)
+
+    def fail(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("test-only-secret-marker")
+
+    monkeypatch.setattr(LocalMarketSnapshotTransport, "get_json", fail)
+    snapshot = transport.attach_futures_context(
+        replace(technical_snapshot(), market_type="USD_M_FUTURES")
+    )
+    assert "test-only-secret-marker" not in str(snapshot.market_metadata)
+    diagnostic = snapshot.market_metadata["futures_liquidity_failure"]
+    assert isinstance(diagnostic, Mapping)
+    assert diagnostic["reason_code"] == "FUTURES_LIQUIDITY_PAYLOAD_INVALID"
+    assert not snapshot.exchange_filters

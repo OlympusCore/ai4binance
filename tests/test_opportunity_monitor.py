@@ -22,6 +22,7 @@ from ai4binance.application.opportunity_monitor import (
     refresh_monitor,
     universe_monitor_summary,
 )
+from ai4binance.application.opportunity_observation import project_futures_opportunity
 from ai4binance.cli.opportunity_monitor import refresh_candle_windows
 from ai4binance.compatibility import opportunity_monitor as monitor_module
 from ai4binance.compatibility.opportunity_monitor import (
@@ -40,7 +41,7 @@ from ai4binance.exchange.models import MarketKline
 from ai4binance.integrations.research_market_universe import manual_selection_digest
 from ai4binance.opportunity_intelligence import TIMEFRAME_DURATIONS
 from ai4binance.opportunity_radar import build_opportunity_radar_snapshot
-from ai4binance.schemas import MarketSnapshot, OHLCVCandle
+from ai4binance.schemas import AnalysisState, MarketSnapshot, OHLCVCandle
 from ai4binance.storage import JsonlAuditStore
 
 NOW = datetime(2026, 9, 13, tzinfo=UTC)
@@ -492,6 +493,151 @@ def test_generation_diagnostic_distinguishes_no_setup_data_and_sizing() -> None:
     assert sizing.outcome.value == "INCOMPLETE_PLAN"
     assert sizing.failed_stage.value == "POSITION_SIZING"
     assert sizing.missing_fields == ("quantity", "leverage")
+
+
+@pytest.mark.parametrize(
+    ("blockers", "status", "outcome", "stage"),
+    [
+        (
+            ("MACRO_STRUCTURE_CONFLICT", "OOS_APPROVAL_MISSING"),
+            "NO_SETUP",
+            "NO_SETUP",
+            "SIGNAL_QUALIFICATION",
+        ),
+        (
+            ("OOS_APPROVAL_MISSING", "RISK_APPROVAL_MISSING"),
+            "VALIDATION_PENDING",
+            "VALIDATION_BLOCKED",
+            "VALIDATION",
+        ),
+        (
+            ("OOS_RUNTIME_EVIDENCE_UNAVAILABLE:OOS_RUNTIME_SOURCE_MISMATCH",),
+            "VALIDATION_PENDING",
+            "VALIDATION_BLOCKED",
+            "VALIDATION",
+        ),
+        (
+            ("FUTURES_OPEN_INTEREST_UNAVAILABLE", "OOS_APPROVAL_MISSING"),
+            "DATA_BLOCKED",
+            "DATA_BLOCKED",
+            "DATA_QUALITY",
+        ),
+        (
+            ("FUTURES_LIQUIDITY_LOCAL_MARKET_SNAPSHOT_FUTURE:ticker-bookTicker.json",),
+            "DATA_BLOCKED",
+            "DATA_BLOCKED",
+            "DATA_QUALITY",
+        ),
+        (
+            ("DATA_NOT_CURRENT:15m", "MACRO_STRUCTURE_CONFLICT"),
+            "DATA_BLOCKED",
+            "DATA_BLOCKED",
+            "DATA_QUALITY",
+        ),
+        (("SPREAD_EXCEEDS_LIMIT",), "BLOCKED", "NO_SETUP", "SIGNAL_QUALIFICATION"),
+    ],
+)
+def test_futures_projection_preserves_root_causes_through_monitor_ledger(
+    tmp_path: Path,
+    blockers: tuple[str, ...],
+    status: str,
+    outcome: str,
+    stage: str,
+) -> None:
+    """Test-only archive evidence exercises projection and persisted diagnostics."""
+    archive = ParquetOHLCVArchive(tmp_path / "archive")
+    seed(archive, "USD_M_FUTURES")
+
+    def build(snapshot: MarketSnapshot, timeframe: str) -> dict[str, object]:
+        state = AnalysisState(
+            snapshot_id=snapshot.snapshot_id,
+            symbol=snapshot.symbol,
+            timestamp=snapshot.created_at,
+            market_snapshot=snapshot,
+            blockers=blockers,
+        )
+        projected = project_futures_opportunity(state, timeframe)
+        assert projected["status"] == status
+        assert projected["execution_allowed"] is False
+        return projected
+
+    result = refresh_monitor(
+        tmp_path,
+        archive,
+        market="USD_M_FUTURES",
+        symbol="BTCUSDT",
+        now=NOW,
+        minimum_candles=21,
+        candle_limit=30,
+        futures_builder=build,
+    )
+    assert result["candidates"] == []
+    assert result["execution_allowed"] is False
+    assert result["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+    health = cast(dict[str, object], result["generation_health"])
+    assert health["rejected_by_stage"] == {stage: 5}
+    rejections = cast(list[dict[str, object]], health["recent_rejections"])
+    assert all(row["outcome"] == outcome for row in rejections)
+    assert all(
+        set(blockers) <= set(cast(list[str], row["reason_codes"])) for row in rejections
+    )
+    assert all(
+        "OPPORTUNITY_INPUT_DATA_UNAVAILABLE"
+        not in cast(tuple[str, ...], row["reason_codes"])
+        for row in rejections
+    )
+    lifecycle = (
+        monitor_directory(tmp_path, "USD_M_FUTURES", "BTCUSDT") / "lifecycle.jsonl"
+    )
+    events = [
+        json.loads(line)["payload"]
+        for line in lifecycle.read_text(encoding="utf-8").splitlines()
+    ]
+    assert len(events) == 5
+    assert all(event["evaluation_stage"] == stage for event in events)
+    assert all(set(blockers) <= set(event["reason_codes"]) for event in events)
+    assert all(event["execution_allowed"] is False for event in events)
+
+
+def test_legacy_data_blocked_diagnostic_keeps_real_validation_reason() -> None:
+    diagnostic = diagnose_opportunity_generation(
+        {
+            "market": "USD_M_FUTURES",
+            "symbol": "BTCUSDT",
+            "direction": "WATCH_ONLY",
+            "status": "DATA_BLOCKED",
+            "data_status": "CURRENT",
+            "blockers": ["OOS_APPROVAL_MISSING"],
+        }
+    )
+    assert diagnostic.outcome.value == "VALIDATION_BLOCKED"
+    assert diagnostic.retryability == "NEEDS_VALIDATION_REVIEW"
+    assert "OOS_APPROVAL_MISSING" in diagnostic.reason_codes
+    assert "OPPORTUNITY_INPUT_DATA_UNAVAILABLE" not in diagnostic.reason_codes
+
+
+def test_complete_research_observation_keeps_validation_blockers_visible() -> None:
+    """Test-only complete geometry remains research evidence, never authority."""
+    candidate: dict[str, object] = {
+        "market": "USD_M_FUTURES",
+        "symbol": "BTCUSDT",
+        "direction": "BULLISH",
+        "side": "LONG",
+        "status": "RESEARCH_ONLY",
+        "entry": "100",
+        "stop_loss": "98",
+        "tp1": "104",
+        "tp2": "106",
+        "tp3": "108",
+        "target_risk_reward": "2",
+        "quantity": "1",
+        "leverage": 1,
+        "blockers": ["OOS_APPROVAL_MISSING"],
+        "execution_allowed": False,
+    }
+    assert diagnose_opportunity_generation(candidate).complete
+    assert candidate["blockers"] == ["OOS_APPROVAL_MISSING"]
+    assert candidate["execution_allowed"] is False
 
 
 @pytest.mark.parametrize("market", ["SPOT", "USD_M_FUTURES"])

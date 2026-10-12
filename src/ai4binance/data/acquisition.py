@@ -204,10 +204,19 @@ class ArchivedMarketSnapshotAcquisition:
 class LocalMarketSnapshotError(ExchangePayloadError):
     """Expose a sanitized collector failure without disclosing payload contents."""
 
-    def __init__(self, blocker_code: str, source_filename: str) -> None:
+    def __init__(
+        self,
+        blocker_code: str,
+        source_filename: str,
+        *,
+        observed_at: datetime | None = None,
+        cutoff_at: datetime | None = None,
+    ) -> None:
         super().__init__("canonical local market snapshot is unavailable")
         self.blocker_code = blocker_code
         self.source_filename = source_filename
+        self.observed_at = observed_at
+        self.cutoff_at = cutoff_at
 
 
 class LocalMarketPublicClient(BinancePublicClient):
@@ -256,6 +265,8 @@ class LocalMarketSnapshotTransport:
             and not (self.directory / filenames[path]).exists()
         ):
             filenames[path] = "premium-index.json"
+        observed_at: datetime | None = None
+        cutoff_at: datetime | None = None
         try:
             if (self.directory / filenames[path]).stat().st_size > 8_000_000:
                 raise ValueError("LOCAL_MARKET_SNAPSHOT_OVERSIZED")
@@ -271,12 +282,11 @@ class LocalMarketSnapshotTransport:
             observed = datetime.fromisoformat(payload["observed_at"])
             if observed.utcoffset() is None:
                 raise ValueError("LOCAL_MARKET_SNAPSHOT_TIMESTAMP_INVALID")
-            age = (self.clock() - observed).total_seconds()
+            observed_at, cutoff_at = observed, self.clock()
             maximum_age = (
                 86400 if path.endswith("exchangeInfo") else self.maximum_age_seconds
             )
-            if not 0 <= age <= maximum_age:
-                raise ValueError("LOCAL_MARKET_SNAPSHOT_STALE")
+            self._validate_receipt_time(observed, cutoff_at, maximum_age)
             symbol = str((params or {}).get("symbol", ""))
             rows = (
                 payload["payload"]["symbols"]
@@ -299,6 +309,7 @@ class LocalMarketSnapshotTransport:
                 "LOCAL_MARKET_SNAPSHOT_OVERSIZED",
                 "LOCAL_MARKET_SNAPSHOT_TIMESTAMP_INVALID",
                 "LOCAL_MARKET_SNAPSHOT_STALE",
+                "LOCAL_MARKET_SNAPSHOT_FUTURE",
                 "LOCAL_MARKET_SNAPSHOT_SYMBOL_INVALID",
                 "LOCAL_MARKET_SNAPSHOT_SOURCE_INVALID",
             }
@@ -309,7 +320,25 @@ class LocalMarketSnapshotTransport:
                 if str(error) in safe_codes
                 else "LOCAL_MARKET_SNAPSHOT_INVALID"
             )
-            raise LocalMarketSnapshotError(code, filenames[path]) from error
+            raise LocalMarketSnapshotError(
+                code,
+                filenames[path],
+                observed_at=observed_at,
+                cutoff_at=cutoff_at,
+            ) from error
+
+    @staticmethod
+    def _validate_receipt_time(
+        observed: datetime,
+        cutoff: datetime,
+        maximum_age: float,
+    ) -> None:
+        """Distinguish future and expired receipts without widening freshness."""
+        age = (cutoff - observed).total_seconds()
+        if age < 0:
+            raise ValueError("LOCAL_MARKET_SNAPSHOT_FUTURE")
+        if age > maximum_age:
+            raise ValueError("LOCAL_MARKET_SNAPSHOT_STALE")
 
     def attach_futures_context(self, snapshot: MarketSnapshot) -> MarketSnapshot:
         """Attach collector-owned public evidence without network acquisition.
@@ -325,6 +354,10 @@ class LocalMarketSnapshotTransport:
                 "local Futures context cannot enrich a historical snapshot"
             )
         snapshot = self._attach_futures_liquidity(snapshot)
+        metadata = dict(snapshot.market_metadata)
+        metadata.pop("futures_context_blockers", None)
+        snapshot = replace(snapshot, market_metadata=metadata, derivatives_snapshot={})
+        failure_code = "FUTURES_MARK_PRICE_UNAVAILABLE_OR_INVALID"
         try:
             premium = self.get_json(
                 "/fapi/v1/premiumIndex", {"symbol": snapshot.symbol}
@@ -338,6 +371,7 @@ class LocalMarketSnapshotTransport:
                 <= self.maximum_age_seconds
             ):
                 raise ValueError("local Futures mark-price evidence is stale")
+            failure_code = "FUTURES_OPEN_INTEREST_UNAVAILABLE_OR_INVALID"
             oi, oi_time = self._latest_open_interest(snapshot)
             return replace(
                 snapshot,
@@ -362,8 +396,24 @@ class LocalMarketSnapshotTransport:
             AttributeError,
             IndexError,
             ArithmeticError,
-        ):
-            return replace(snapshot, derivatives_snapshot={})
+        ) as error:
+            if str(error) in {
+                "FUTURES_OPEN_INTEREST_UNAVAILABLE",
+                "FUTURES_OPEN_INTEREST_UNAVAILABLE_OR_INVALID",
+                "FUTURES_OPEN_INTEREST_INVALID",
+                "FUTURES_OPEN_INTEREST_SYMBOL_MISMATCH",
+                "FUTURES_OPEN_INTEREST_STALE_OR_FUTURE",
+                "FUTURES_OPEN_INTEREST_CONFLICT",
+            }:
+                failure_code = str(error)
+            return replace(
+                snapshot,
+                derivatives_snapshot={},
+                market_metadata={
+                    **snapshot.market_metadata,
+                    "futures_context_blockers": (failure_code,),
+                },
+            )
 
     def _attach_futures_liquidity(self, snapshot: MarketSnapshot) -> MarketSnapshot:
         """Validate listing and book evidence independently from derivatives.
@@ -373,6 +423,8 @@ class LocalMarketSnapshotTransport:
         """
         metadata = dict(snapshot.market_metadata)
         metadata.pop("trading_status", None)
+        metadata.pop("futures_liquidity_blockers", None)
+        metadata.pop("futures_liquidity_failure", None)
         empty = replace(
             snapshot,
             bid=None,
@@ -381,34 +433,38 @@ class LocalMarketSnapshotTransport:
             exchange_filters={},
             market_metadata=metadata,
         )
+        source_filename = "exchange-info.json"
         try:
             exchange = self.get_json(
                 "/fapi/v1/exchangeInfo", {"symbol": snapshot.symbol}
             )
-            book = self.get_json(
-                "/fapi/v1/ticker/bookTicker", {"symbol": snapshot.symbol}
-            )
-            if not isinstance(exchange, Mapping) or not isinstance(book, Mapping):
-                raise ValueError("local Futures liquidity evidence is invalid")
+            if not isinstance(exchange, Mapping):
+                raise ValueError("FUTURES_LIQUIDITY_PAYLOAD_INVALID")
             symbol_info = exchange["symbols"][0]
             if symbol_info["symbol"] != snapshot.symbol:
-                raise ValueError("local Futures listing identity is invalid")
+                raise ValueError("FUTURES_LIQUIDITY_LISTING_IDENTITY_INVALID")
             raw_filters = symbol_info["filters"]
             filters = {item["filterType"]: item for item in raw_filters}
             if not filters or len(filters) != len(raw_filters):
-                raise ValueError("local Futures filters are missing or duplicated")
+                raise ValueError("FUTURES_LIQUIDITY_FILTERS_INVALID")
             if not isinstance(symbol_info["status"], str):
-                raise ValueError("local Futures trading status is invalid")
+                raise ValueError("FUTURES_LIQUIDITY_TRADING_STATUS_INVALID")
+            source_filename = "ticker-bookTicker.json"
+            book = self.get_json(
+                "/fapi/v1/ticker/bookTicker", {"symbol": snapshot.symbol}
+            )
+            if not isinstance(book, Mapping):
+                raise ValueError("FUTURES_LIQUIDITY_PAYLOAD_INVALID")
             book_time = datetime.fromtimestamp(int(str(book["time"])) / 1000, tz=UTC)
             if (
                 not 0
                 <= (snapshot.created_at - book_time).total_seconds()
                 <= self.maximum_age_seconds
             ):
-                raise ValueError("local Futures book evidence is stale")
+                raise ValueError("FUTURES_LIQUIDITY_BOOK_STALE_OR_FUTURE")
             bid, ask = Decimal(str(book["bidPrice"])), Decimal(str(book["askPrice"]))
             if not bid.is_finite() or not ask.is_finite() or not 0 < bid <= ask:
-                raise ValueError("local Futures spread is invalid")
+                raise ValueError("FUTURES_LIQUIDITY_SPREAD_INVALID")
             return replace(
                 empty,
                 bid=bid,
@@ -426,8 +482,57 @@ class LocalMarketSnapshotTransport:
             AttributeError,
             IndexError,
             ArithmeticError,
-        ):
-            return empty
+        ) as error:
+            return self._liquidity_failure(empty, source_filename, error)
+
+    @staticmethod
+    def _liquidity_failure(
+        empty: MarketSnapshot,
+        source_filename: str,
+        error: Exception,
+    ) -> MarketSnapshot:
+        """Retain bounded public-source diagnostics and remove unsafe inputs."""
+        reason = str(error)
+        observed_at = None
+        if isinstance(error, LocalMarketSnapshotError):
+            reason = error.blocker_code
+            observed_at = error.observed_at
+        safe_reasons = {
+            "LOCAL_MARKET_SNAPSHOT_MISSING",
+            "LOCAL_MARKET_SNAPSHOT_OVERSIZED",
+            "LOCAL_MARKET_SNAPSHOT_TIMESTAMP_INVALID",
+            "LOCAL_MARKET_SNAPSHOT_STALE",
+            "LOCAL_MARKET_SNAPSHOT_FUTURE",
+            "LOCAL_MARKET_SNAPSHOT_SYMBOL_INVALID",
+            "LOCAL_MARKET_SNAPSHOT_SOURCE_INVALID",
+            "LOCAL_MARKET_SNAPSHOT_INVALID",
+            "FUTURES_LIQUIDITY_PAYLOAD_INVALID",
+            "FUTURES_LIQUIDITY_LISTING_IDENTITY_INVALID",
+            "FUTURES_LIQUIDITY_FILTERS_INVALID",
+            "FUTURES_LIQUIDITY_TRADING_STATUS_INVALID",
+            "FUTURES_LIQUIDITY_BOOK_STALE_OR_FUTURE",
+            "FUTURES_LIQUIDITY_SPREAD_INVALID",
+        }
+        if reason not in safe_reasons:
+            reason = "FUTURES_LIQUIDITY_PAYLOAD_INVALID"
+        code = (
+            reason if reason.startswith("FUTURES_") else f"FUTURES_LIQUIDITY_{reason}"
+        )
+        return replace(
+            empty,
+            market_metadata={
+                **empty.market_metadata,
+                "futures_liquidity_blockers": (f"{code}:{source_filename}",),
+                "futures_liquidity_failure": {
+                    "source_filename": source_filename,
+                    "reason_code": reason,
+                    "observed_at": observed_at.isoformat()
+                    if isinstance(observed_at, datetime)
+                    else None,
+                    "cutoff_at": empty.created_at.isoformat(),
+                },
+            },
+        )
 
     def _latest_open_interest(
         self, snapshot: MarketSnapshot
@@ -435,27 +540,25 @@ class LocalMarketSnapshotTransport:
         directory = (
             self.directory.parent / snapshot.symbol / "details" / "open_interest"
         )
+        current = directory / "current.json"
         pages = sorted(
             (p for p in directory.glob("*.json") if p.stem.isdigit()),
             key=lambda p: int(p.stem),
             reverse=True,
         )[:4]
+        if current.exists():
+            pages = [current]
         points: list[tuple[datetime, Decimal]] = []
         for page in pages:
-            if page.stat().st_size > 8_000_000:
-                raise ValueError("local open-interest page exceeds size limit")
-            payload = json.loads(page.read_text(encoding="utf-8"))
+            payload = self._open_interest_payload(page, snapshot)
             if payload.get("source") != "/futures/data/openInterestHist":
                 continue
-            for row in payload["rows"]:
-                if row.get("symbol") != snapshot.symbol:
-                    raise ValueError("local open-interest symbol mismatch")
-                stamp = datetime.fromtimestamp(
-                    int(str(row["timestamp"])) / 1000, tz=UTC
+            previous: datetime | None = None
+            for row in cast(list[Mapping[str, object]], payload["rows"]):
+                stamp, value = self._open_interest_point(
+                    row, snapshot, current=page == current, previous=previous
                 )
-                value = Decimal(str(row["sumOpenInterest"]))
-                if not value.is_finite() or value <= 0:
-                    raise ValueError("local open interest is invalid")
+                previous = stamp
                 if (
                     0
                     <= (snapshot.created_at - stamp).total_seconds()
@@ -463,11 +566,70 @@ class LocalMarketSnapshotTransport:
                 ):
                     points.append((stamp, value))
         if not points:
-            raise ValueError("current local open interest is unavailable")
+            if current.exists():
+                raise ValueError("FUTURES_OPEN_INTEREST_STALE_OR_FUTURE")
+            raise ValueError("FUTURES_OPEN_INTEREST_UNAVAILABLE")
         if any(len({v for t, v in points if t == stamp}) != 1 for stamp, _ in points):
-            raise ValueError("local open-interest timestamps conflict")
+            raise ValueError("FUTURES_OPEN_INTEREST_CONFLICT")
         stamp, value = max(points, key=lambda point: point[0])
         return value, stamp
+
+    def _open_interest_point(
+        self,
+        row: Mapping[str, object],
+        snapshot: MarketSnapshot,
+        *,
+        current: bool,
+        previous: datetime | None,
+    ) -> tuple[datetime, Decimal]:
+        """Validate source identity and positive finite OI before using a point."""
+        if row.get("symbol") != snapshot.symbol:
+            raise ValueError("FUTURES_OPEN_INTEREST_SYMBOL_MISMATCH")
+        stamp = datetime.fromtimestamp(int(str(row["timestamp"])) / 1000, tz=UTC)
+        value = Decimal(str(row["sumOpenInterest"]))
+        if not value.is_finite() or value <= 0:
+            raise ValueError("FUTURES_OPEN_INTEREST_INVALID")
+        if current:
+            if previous is not None and stamp - previous != timedelta(minutes=5):
+                raise ValueError("FUTURES_OPEN_INTEREST_CONFLICT")
+            if stamp > snapshot.created_at:
+                raise ValueError("FUTURES_OPEN_INTEREST_STALE_OR_FUTURE")
+        return stamp, value
+
+    def _open_interest_payload(
+        self, page: Path, snapshot: MarketSnapshot
+    ) -> dict[str, object]:
+        """Read one receipt once and fail closed on unavailable current evidence."""
+        if page.is_symlink() or page.stat().st_size > 8_000_000:
+            raise ValueError("FUTURES_OPEN_INTEREST_INVALID")
+        payload = json.loads(page.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("FUTURES_OPEN_INTEREST_INVALID")
+        if page.name != "current.json":
+            return payload
+        expected = {
+            "source": "/futures/data/openInterestHist",
+            "symbol": snapshot.symbol,
+            "status": "CURRENT",
+            "promotion_status": "RESEARCH_ONLY",
+            "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+        }
+        rows = payload.get("rows")
+        if (
+            any(payload.get(key) != value for key, value in expected.items())
+            or payload.get("execution_allowed") is not False
+            or not isinstance(rows, list)
+            or not 1 <= len(rows) <= 4
+        ):
+            raise ValueError("FUTURES_OPEN_INTEREST_UNAVAILABLE_OR_INVALID")
+        observed = datetime.fromisoformat(payload["observed_at"])
+        if observed.utcoffset() is None or not (
+            0
+            <= (snapshot.created_at - observed).total_seconds()
+            <= self.maximum_age_seconds
+        ):
+            raise ValueError("FUTURES_OPEN_INTEREST_STALE_OR_FUTURE")
+        return payload
 
 
 @dataclass(frozen=True, slots=True)

@@ -523,6 +523,9 @@ class ContinuousMarketHistory:
     scoped_clock_offset_seconds: float = 0.0
     scoped_clock_verified: bool = False
     scoped_turn_deadline_seconds: float = 30.0
+    _current_open_interest_results: dict[str, dict[str, object]] = field(
+        default_factory=dict, init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         if (
@@ -1592,6 +1595,7 @@ class ContinuousMarketHistory:
             for item in results
         ):
             blockers.append("OPPORTUNITY_SCREENING_DATA_BLOCKED")
+        blockers.extend(self._current_open_interest_blockers())
         completed_at = self.clock()
         if completed_at.utcoffset() is None:
             raise ValueError("market history completion clock must be timezone-aware")
@@ -1606,6 +1610,7 @@ class ContinuousMarketHistory:
                 if row["timeframe"] in reported_timeframes
             ],
             "collection_plan": self._collection_plan(),
+            "current_open_interest": dict(self._current_open_interest_results),
             "initial_history_days": self.initial_days,
             "enrichment_history_days": self.enrichment_days,
             "spot_universe_count": len(universe.spot_symbols),
@@ -1929,6 +1934,7 @@ class ContinuousMarketHistory:
                 "schema_version": "2.0",
                 "status": "COLLECTING",
                 "collection_plan": self._collection_plan(),
+                "current_open_interest": dict(self._current_open_interest_results),
                 "initial_history_days": self.initial_days,
                 "enrichment_history_days": self.enrichment_days,
                 "cycle_started_at": cycle_started_at.isoformat(),
@@ -1946,7 +1952,13 @@ class ContinuousMarketHistory:
                 "completion_ratio": self._completion_ratio(
                     completed_streams, total_streams
                 ),
-                "blockers": sorted({"MARKET_DATA_CYCLE_IN_PROGRESS", *blockers}),
+                "blockers": sorted(
+                    {
+                        "MARKET_DATA_CYCLE_IN_PROGRESS",
+                        *blockers,
+                        *self._current_open_interest_blockers(),
+                    }
+                ),
                 "collector_coverage": collector_coverage,
                 "opportunity_analysis_summary": dict(opportunity_analysis_summary),
                 "dashboard_opportunity_projection": dict(
@@ -2196,6 +2208,106 @@ class ContinuousMarketHistory:
                         **_SAFE_STATE,
                     },
                 )
+
+        if market == "usd_m_futures":
+            for symbol in symbols:
+                self._refresh_current_open_interest(symbol, now)
+
+    def _refresh_current_open_interest(
+        self, symbol: str, now: datetime
+    ) -> dict[str, object]:
+        """Refresh current OI without reading or advancing the historical cursor.
+
+        The bounded observation has its own cadence and never closes an archive
+        gap. Failed refreshes replace previous current evidence with a veto.
+        """
+        if now.utcoffset() is None:
+            raise ValueError("current open-interest cutoff must be timezone-aware")
+        previous = self._current_open_interest_results.get(symbol)
+        if (
+            previous is not None
+            and 0
+            <= (
+                now - datetime.fromisoformat(str(previous["observed_at"]))
+            ).total_seconds()
+            < _MARKET_SNAPSHOT_REFRESH_SECONDS
+        ):
+            return dict(previous)
+        endpoint = "/futures/data/openInterestHist"
+        end = now.astimezone(UTC).replace(second=0, microsecond=0)
+        start = end - timedelta(minutes=15)
+        try:
+            raw = self.futures.get_json(
+                endpoint,
+                {
+                    "symbol": symbol,
+                    "period": "5m",
+                    "startTime": int(start.timestamp() * 1000),
+                    "endTime": int(end.timestamp() * 1000),
+                    "limit": 4,
+                },
+            )
+            rows = self._validate_current_open_interest(raw, symbol, start, end)
+            result: dict[str, object] = {"status": "CURRENT", "rows": rows}
+        except (OSError, ValueError, ArithmeticError, ExchangeError) as error:
+            result = {
+                "status": "BLOCKED",
+                "rows": [],
+                "reason": self._safe_stream_failure_reason(error),
+                "blockers": ["FUTURES_OPEN_INTEREST_UNAVAILABLE_OR_INVALID"],
+            }
+        payload = {
+            **result,
+            "symbol": symbol,
+            "source": endpoint,
+            "observed_at": now.isoformat(),
+            **_SAFE_STATE,
+        }
+        _save(
+            self.history.archive_root
+            / "usd_m_futures"
+            / symbol
+            / "details"
+            / "open_interest"
+            / "current.json",
+            payload,
+        )
+        summary = {key: value for key, value in payload.items() if key != "rows"}
+        self._current_open_interest_results[symbol] = summary
+        return dict(summary)
+
+    def _current_open_interest_blockers(self) -> tuple[str, ...]:
+        """Keep current-source failures visible separately from archive gaps."""
+        return tuple(
+            f"FUTURES_CURRENT_OPEN_INTEREST_UNAVAILABLE:{symbol}"
+            for symbol, result in sorted(self._current_open_interest_results.items())
+            if result["status"] != "CURRENT"
+        )
+
+    @staticmethod
+    def _validate_current_open_interest(
+        raw: object, symbol: str, start: datetime, end: datetime
+    ) -> list[dict[str, object]]:
+        """Validate exact source rows; never fill gaps or synthesize values."""
+        if not isinstance(raw, list) or not 1 <= len(raw) <= 4:
+            raise ValueError("current open-interest response count is invalid")
+        rows: list[dict[str, object]] = []
+        previous: int | None = None
+        for item in raw:
+            if not isinstance(item, dict) or item.get("symbol") != symbol:
+                raise ValueError("current open-interest response identity is invalid")
+            stamp = int(str(item.get("timestamp")))
+            if not int(start.timestamp() * 1000) <= stamp <= int(
+                end.timestamp() * 1000
+            ) or (previous is not None and stamp - previous != 300_000):
+                raise ValueError("current open-interest response chronology is invalid")
+            for name in ("sumOpenInterest", "sumOpenInterestValue"):
+                value = Decimal(str(item.get(name)))
+                if not value.is_finite() or value <= 0:
+                    raise ValueError("current open-interest response value is invalid")
+            previous = stamp
+            rows.append(dict(item))
+        return rows
 
     def _progress(
         self,
