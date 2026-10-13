@@ -466,6 +466,7 @@ class MeteredPublicTransport:
                 self.snapshot_directory / "exchange-info.json",
                 {
                     "observed_at": datetime.now(UTC).isoformat(),
+                    "source": path,
                     "payload": payload,
                     **_SAFE_STATE,
                 },

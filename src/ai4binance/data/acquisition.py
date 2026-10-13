@@ -273,11 +273,7 @@ class LocalMarketSnapshotTransport:
             payload = json.loads(
                 (self.directory / filenames[path]).read_text(encoding="utf-8")
             )
-            if (
-                path.startswith("/fapi/")
-                and not path.endswith("exchangeInfo")
-                and payload.get("source") != path
-            ):
+            if path.startswith("/fapi/") and payload.get("source") != path:
                 raise ValueError("LOCAL_MARKET_SNAPSHOT_SOURCE_INVALID")
             observed = datetime.fromisoformat(payload["observed_at"])
             if observed.utcoffset() is None:
@@ -441,12 +437,8 @@ class LocalMarketSnapshotTransport:
             if not isinstance(exchange, Mapping):
                 raise ValueError("FUTURES_LIQUIDITY_PAYLOAD_INVALID")
             symbol_info = exchange["symbols"][0]
-            if symbol_info["symbol"] != snapshot.symbol:
-                raise ValueError("FUTURES_LIQUIDITY_LISTING_IDENTITY_INVALID")
-            raw_filters = symbol_info["filters"]
-            filters = {item["filterType"]: item for item in raw_filters}
-            if not filters or len(filters) != len(raw_filters):
-                raise ValueError("FUTURES_LIQUIDITY_FILTERS_INVALID")
+            self._validate_futures_listing_identity(symbol_info, snapshot.symbol)
+            filters = self._validated_futures_filters(symbol_info.get("filters"))
             if not isinstance(symbol_info["status"], str):
                 raise ValueError("FUTURES_LIQUIDITY_TRADING_STATUS_INVALID")
             source_filename = "ticker-bookTicker.json"
@@ -484,6 +476,80 @@ class LocalMarketSnapshotTransport:
             ArithmeticError,
         ) as error:
             return self._liquidity_failure(empty, source_filename, error)
+
+    @staticmethod
+    def _validate_futures_listing_identity(listing: object, symbol: str) -> None:
+        """Require the same perpetual, quote-margined identity as the universe owner."""
+        if not isinstance(listing, Mapping):
+            raise ValueError("FUTURES_LIQUIDITY_LISTING_IDENTITY_INVALID")
+        base, quote = listing.get("baseAsset"), listing.get("quoteAsset")
+        if (
+            listing.get("symbol") != symbol
+            or listing.get("contractType") != "PERPETUAL"
+            or not isinstance(base, str)
+            or not base
+            or not isinstance(quote, str)
+            or not quote
+            or base + quote != symbol
+            or listing.get("marginAsset") != quote
+        ):
+            raise ValueError("FUTURES_LIQUIDITY_LISTING_IDENTITY_INVALID")
+
+    @staticmethod
+    def _validated_futures_filters(raw: object) -> dict[str, dict[str, object]]:
+        """Validate public Futures constraints without applying order or risk policy.
+
+        Futures MIN_NOTIONAL uses notional, unlike the Spot minNotional field.
+        PRICE_FILTER zero values disable individual rules in the exchange contract.
+        Unrelated exchange filters remain intact for their owning consumers.
+        """
+        try:
+            if not isinstance(raw, list) or not raw:
+                raise ValueError
+            filters: dict[str, dict[str, object]] = {}
+            for item in raw:
+                if not isinstance(item, Mapping):
+                    raise ValueError
+                name = item.get("filterType")
+                if not isinstance(name, str) or not name or name in filters:
+                    raise ValueError
+                filters[name] = dict(item)
+            LocalMarketSnapshotTransport._futures_filter_numbers(
+                filters["MIN_NOTIONAL"], ("notional",)
+            )
+            for name, fields in (
+                ("PRICE_FILTER", ("minPrice", "maxPrice", "tickSize")),
+                ("LOT_SIZE", ("minQty", "maxQty", "stepSize")),
+                ("MARKET_LOT_SIZE", ("minQty", "maxQty", "stepSize")),
+            ):
+                values = LocalMarketSnapshotTransport._futures_filter_numbers(
+                    filters[name], fields
+                )
+                minimum, maximum, step = values
+                if name == "PRICE_FILTER":
+                    if minimum > 0 and maximum > 0 and minimum > maximum:
+                        raise ValueError
+                elif maximum <= 0 or step <= 0 or minimum > maximum:
+                    raise ValueError
+            return filters
+        except (KeyError, ValueError, TypeError, ArithmeticError) as error:
+            raise ValueError("FUTURES_LIQUIDITY_FILTERS_INVALID") from error
+
+    @staticmethod
+    def _futures_filter_numbers(
+        values: Mapping[str, object], fields: tuple[str, ...]
+    ) -> tuple[Decimal, ...]:
+        """Reject absent, boolean, nonnumeric, non-finite, and negative constraints."""
+        result: list[Decimal] = []
+        for field in fields:
+            raw = values[field]
+            if isinstance(raw, bool) or not isinstance(raw, (str, int, float, Decimal)):
+                raise ValueError
+            value = Decimal(str(raw))
+            if not value.is_finite() or value < 0:
+                raise ValueError
+            result.append(value)
+        return tuple(result)
 
     @staticmethod
     def _liquidity_failure(

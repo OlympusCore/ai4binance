@@ -2495,8 +2495,10 @@ def test_rate_limit_stops_following_network_requests(tmp_path: Path) -> None:
     assert limited.calls == 1
 
 
+@pytest.mark.parametrize("endpoint", ["/api/v3/exchangeInfo", "/fapi/v1/exchangeInfo"])
 def test_exchange_info_configures_shared_budget_below_declared_weight_limit(
     tmp_path: Path,
+    endpoint: str,
 ) -> None:
     class ExchangeInfo:
         def get_json(
@@ -2505,7 +2507,7 @@ def test_exchange_info_configures_shared_budget_below_declared_weight_limit(
             params: Mapping[str, str | int] | None = None,
         ) -> object:
             del params
-            assert path == "/api/v3/exchangeInfo"
+            assert path == endpoint
             return {
                 "rateLimits": [
                     {
@@ -2526,9 +2528,14 @@ def test_exchange_info_configures_shared_budget_below_declared_weight_limit(
     budget = PublicRequestBudget(seconds_per_weight=0.05)
     transport = MeteredPublicTransport(ExchangeInfo(), tmp_path, budget=budget)
 
-    transport.get_json("/api/v3/exchangeInfo")
+    payload = transport.get_json(endpoint)
 
     assert budget.seconds_per_weight == pytest.approx(10 / (800 * 0.70))
+    receipt = _load(tmp_path / "exchange-info.json")
+    assert receipt["source"] == endpoint
+    assert receipt["payload"] == payload
+    assert receipt["execution_allowed"] is False
+    assert receipt["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
 
 
 def test_stored_raw_candles_retain_trade_and_taker_fields(tmp_path: Path) -> None:

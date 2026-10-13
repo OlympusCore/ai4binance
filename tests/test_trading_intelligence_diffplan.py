@@ -741,15 +741,40 @@ def write_local_sources(tmp_path: Path) -> LocalMarketSnapshotTransport:
             ],
         },
         "exchange-info.json": {
+            "source": "/fapi/v1/exchangeInfo",
             "payload": {
                 "symbols": [
                     {
                         "symbol": "HOTUSDT",
+                        "baseAsset": "HOT",
+                        "quoteAsset": "USDT",
+                        "marginAsset": "USDT",
+                        "contractType": "PERPETUAL",
                         "status": "TRADING",
-                        "filters": [{"filterType": "PRICE_FILTER", "tickSize": ".01"}],
+                        "filters": [
+                            {
+                                "filterType": "PRICE_FILTER",
+                                "minPrice": ".01",
+                                "maxPrice": "10000",
+                                "tickSize": ".01",
+                            },
+                            {
+                                "filterType": "LOT_SIZE",
+                                "minQty": "1",
+                                "maxQty": "100000",
+                                "stepSize": "1",
+                            },
+                            {
+                                "filterType": "MARKET_LOT_SIZE",
+                                "minQty": "1",
+                                "maxQty": "10000",
+                                "stepSize": "1",
+                            },
+                            {"filterType": "MIN_NOTIONAL", "notional": "5"},
+                        ],
                     }
                 ]
-            }
+            },
         },
     }
     for filename, payload in sources.items():
@@ -769,6 +794,234 @@ def write_local_sources(tmp_path: Path) -> LocalMarketSnapshotTransport:
         )
     )
     return LocalMarketSnapshotTransport(metadata, clock=lambda: NOW)
+
+
+@pytest.mark.parametrize(
+    "source", [None, "/api/v3/exchangeInfo", "/dapi/v1/exchangeInfo"]
+)
+def test_futures_listing_requires_exact_receipt_source(
+    tmp_path: Path, source: str | None
+) -> None:
+    """Test-only legacy and wrong-market receipts cannot establish Futures identity."""
+    transport = write_local_sources(tmp_path)
+    path = transport.directory / "exchange-info.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if source is None:
+        payload.pop("source")
+    else:
+        payload["source"] = source
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    blocked = transport.attach_futures_context(
+        replace(technical_snapshot(), market_type="USD_M_FUTURES")
+    )
+    failure = blocked.market_metadata["futures_liquidity_failure"]
+    assert isinstance(failure, Mapping)
+    assert failure["reason_code"] == "LOCAL_MARKET_SNAPSHOT_SOURCE_INVALID"
+    assert failure["source_filename"] == "exchange-info.json"
+    assert not blocked.exchange_filters
+    assert blocked.bid is None
+    assert blocked.ask is None
+    assert "trading_status" not in blocked.market_metadata
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("baseAsset", "BTC"),
+        ("quoteAsset", "BTC"),
+        ("marginAsset", "BTC"),
+        ("contractType", "CURRENT_QUARTER"),
+        ("contractType", None),
+    ],
+)
+def test_futures_listing_rejects_conflicting_contract_identity(
+    tmp_path: Path, field: str, value: str | None
+) -> None:
+    """Test-only contract fields must agree with the perpetual symbol identity."""
+    transport = write_local_sources(tmp_path)
+    path = transport.directory / "exchange-info.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["payload"]["symbols"][0][field] = value
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    blocked = transport.attach_futures_context(
+        replace(technical_snapshot(), market_type="USD_M_FUTURES")
+    )
+    failure = blocked.market_metadata["futures_liquidity_failure"]
+    assert isinstance(failure, Mapping)
+    assert failure["reason_code"] == "FUTURES_LIQUIDITY_LISTING_IDENTITY_INVALID"
+    assert not blocked.exchange_filters
+    assert blocked.spread is None
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "missing_price",
+        "missing_lot",
+        "missing_market_lot",
+        "missing_notional",
+        "duplicate",
+        "malformed",
+        "nonnumeric",
+        "nan",
+        "infinite",
+        "boolean",
+        "negative",
+        "inverted_price",
+        "inverted_lot",
+        "zero_lot_step",
+        "zero_market_step",
+        "missing_field",
+        "spot_notional",
+    ],
+)
+def test_futures_listing_rejects_incomplete_or_invalid_filters(
+    tmp_path: Path, failure: str
+) -> None:
+    """Test-only filter mutations retain the source veto without unsafe defaults."""
+    transport = write_local_sources(tmp_path)
+    path = transport.directory / "exchange-info.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    listing = payload["payload"]["symbols"][0]
+    filters = listing["filters"]
+    if failure.startswith("missing_") and failure != "missing_field":
+        index = {
+            "missing_price": 0,
+            "missing_lot": 1,
+            "missing_market_lot": 2,
+            "missing_notional": 3,
+        }[failure]
+        filters.pop(index)
+    elif failure == "duplicate":
+        filters.append(dict(filters[0]))
+    elif failure == "malformed":
+        listing["filters"] = {"PRICE_FILTER": filters[0]}
+    elif failure == "missing_field":
+        filters[0].pop("tickSize")
+    elif failure == "spot_notional":
+        filters[3] = {"filterType": "MIN_NOTIONAL", "minNotional": "5"}
+    elif failure == "inverted_price":
+        filters[0]["minPrice"] = "20000"
+    elif failure == "inverted_lot":
+        filters[1]["minQty"] = "200000"
+    elif failure in {"zero_lot_step", "zero_market_step"}:
+        filters[1 if failure == "zero_lot_step" else 2]["stepSize"] = "0"
+    else:
+        filters[0]["tickSize"] = {
+            "nonnumeric": "invalid",
+            "nan": "NaN",
+            "infinite": "Infinity",
+            "boolean": True,
+            "negative": "-1",
+        }[failure]
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    blocked = transport.attach_futures_context(
+        replace(technical_snapshot(), market_type="USD_M_FUTURES")
+    )
+    failure_details = blocked.market_metadata["futures_liquidity_failure"]
+    assert isinstance(failure_details, Mapping)
+    assert failure_details["reason_code"] == "FUTURES_LIQUIDITY_FILTERS_INVALID"
+    assert failure_details["source_filename"] == "exchange-info.json"
+    assert not blocked.exchange_filters
+    assert blocked.spread is None
+
+
+@pytest.mark.parametrize(
+    ("filter_type", "field", "value"),
+    [
+        ("LOT_SIZE", "minQty", "NaN"),
+        ("LOT_SIZE", "stepSize", True),
+        ("MARKET_LOT_SIZE", "maxQty", "-1"),
+        ("MARKET_LOT_SIZE", "stepSize", "Infinity"),
+        ("MIN_NOTIONAL", "notional", "-5"),
+        ("MIN_NOTIONAL", "notional", "NaN"),
+        ("MIN_NOTIONAL", "notional", None),
+    ],
+)
+def test_futures_filter_validation_covers_quantity_and_notional_values(
+    tmp_path: Path, filter_type: str, field: str, value: object
+) -> None:
+    """Test-only non-price constraints receive the same fail-closed validation."""
+    transport = write_local_sources(tmp_path)
+    path = transport.directory / "exchange-info.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    for item in payload["payload"]["symbols"][0]["filters"]:
+        if item["filterType"] == filter_type:
+            item[field] = value
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    blocked = transport.attach_futures_context(
+        replace(technical_snapshot(), market_type="USD_M_FUTURES")
+    )
+    failure = blocked.market_metadata["futures_liquidity_failure"]
+    assert isinstance(failure, Mapping)
+    assert failure["reason_code"] == "FUTURES_LIQUIDITY_FILTERS_INVALID"
+    assert not blocked.exchange_filters
+
+
+def test_futures_listing_recovers_only_after_verified_receipt_replacement(
+    tmp_path: Path,
+) -> None:
+    """Test-only source migration restores liquidity without granting authority."""
+    from ai4binance.agents.catalog import build_default_registry
+    from ai4binance.agents.universe_liquidity_gate import UniverseLiquidityGate
+
+    transport = write_local_sources(tmp_path)
+    book_path = transport.directory / "ticker-bookTicker.json"
+    book = json.loads(book_path.read_text(encoding="utf-8"))
+    book["rows"][0].update(bidPrice="1.099", askPrice="1.101")
+    book_path.write_text(json.dumps(book), encoding="utf-8")
+    path = transport.directory / "exchange-info.json"
+    valid = json.loads(path.read_text(encoding="utf-8"))
+    legacy = dict(valid)
+    legacy.pop("source")
+    path.write_text(json.dumps(legacy), encoding="utf-8")
+    original = replace(technical_snapshot(), market_type="USD_M_FUTURES")
+    original = replace(
+        original,
+        market_metadata={
+            **original.market_metadata,
+            "execution_allowed": False,
+            "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+        },
+    )
+    blocked = transport.attach_futures_context(original)
+    assert not blocked.exchange_filters
+    path.write_text(json.dumps(valid), encoding="utf-8")
+    recovered = transport.attach_futures_context(blocked)
+    assert "futures_liquidity_failure" not in recovered.market_metadata
+    assert "futures_liquidity_blockers" not in recovered.market_metadata
+    notional_filter = recovered.exchange_filters["MIN_NOTIONAL"]
+    assert isinstance(notional_filter, Mapping)
+    assert notional_filter["notional"] == "5"
+    gate = UniverseLiquidityGate(build_default_registry().get("universe_liquidity"))
+    result = gate.evaluate_snapshot(recovered)
+    assert result.status.value == "SUCCESS"
+    assert result.hard_gate_eligible is False
+    assert recovered.market_metadata["execution_allowed"] is False
+    assert recovered.market_metadata["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_futures_filter_validation_preserves_exchange_disabled_price_rules(
+    tmp_path: Path,
+) -> None:
+    """Test-only exchange zero rules stay valid and unrelated filters stay intact."""
+    transport = write_local_sources(tmp_path)
+    path = transport.directory / "exchange-info.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    filters = payload["payload"]["symbols"][0]["filters"]
+    filters[0].update(minPrice="0", maxPrice="0", tickSize="0")
+    filters.append({"filterType": "PERCENT_PRICE", "multiplierUp": "1.15"})
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    enriched = transport.attach_futures_context(
+        replace(technical_snapshot(), market_type="USD_M_FUTURES")
+    )
+    price_filter = enriched.exchange_filters["PRICE_FILTER"]
+    percent_filter = enriched.exchange_filters["PERCENT_PRICE"]
+    assert isinstance(price_filter, Mapping)
+    assert isinstance(percent_filter, Mapping)
+    assert price_filter["tickSize"] == "0"
+    assert percent_filter["multiplierUp"] == "1.15"
+    assert "futures_liquidity_failure" not in enriched.market_metadata
 
 
 def test_local_futures_sources_are_fresh_symbol_bound_and_replay_safe(
