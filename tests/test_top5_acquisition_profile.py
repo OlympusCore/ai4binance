@@ -2,7 +2,8 @@
 
 import errno
 import json
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from hashlib import sha256
@@ -32,7 +33,9 @@ from ai4binance.data.archive import DatasetManifest, ParquetOHLCVArchive
 from ai4binance.data.market_history_continuous import ContinuousMarketHistory
 from ai4binance.data.market_history_sync import (
     BinanceVisionArchiveCache,
+    MarketHistorySupervisor,
     MarketHistorySynchronizer,
+    _candle_health_wakeup_delay,
 )
 from ai4binance.data.scoped_history import (
     _collect_turn,
@@ -55,7 +58,11 @@ from ai4binance.data.weekly_volume import (
     save_evidence,
     verify_frozen_reconstruction,
 )
-from ai4binance.integrations.binance import BinanceMarketUniverseProvider
+from ai4binance.exchange.client import JsonTransport
+from ai4binance.integrations.binance import (
+    BinanceEligibleMarketSnapshot,
+    BinanceMarketUniverseProvider,
+)
 from ai4binance.schemas import OHLCVCandle
 
 NOW = datetime(2026, 9, 2, 12, 4, tzinfo=UTC)
@@ -237,6 +244,314 @@ def test_candle_health_publication_keeps_supplemental_errors_and_native_expiry(
         instance._candle_progress_payload({"status": "COLLECTING"})["status"]
         == "COLLECTING"
     )
+
+
+def test_candle_health_recovers_a_close_crossed_during_collection(
+    candle_health_archive: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """TEST_ONLY rollover: recovery must fetch and reverify the missing tail."""
+    instance = fixture_collector(candle_health_archive / "collector")
+    instance.history = replace(instance.history, archive_root=candle_health_archive)
+    instance.follow_wall_clock = True
+    instance.candle_window_health_enabled = True
+    closed = NOW + timedelta(minutes=1)
+    instance.clock = lambda: closed
+    symbols = {"spot": ("AAAUSDT",), "usd_m_futures": ("BBBUSDT",)}
+    attempts: list[tuple[str, ...]] = []
+
+    def recover(
+        _work: object,
+        now: datetime,
+        *,
+        timeframes: tuple[str, ...],
+        on_stream_complete: Callable[[], None] | None = None,
+    ) -> dict[str, object]:
+        attempts.append(timeframes)
+        for market, selected in symbols.items():
+            archive = ParquetOHLCVArchive(candle_health_archive / market)
+            for symbol in selected:
+                for timeframe in timeframes:
+                    window = candle_health_window(market, timeframe, now)
+                    archive.update(
+                        symbol,
+                        timeframe,
+                        (
+                            OHLCVCandle(
+                                timestamp=window.end - timedelta(minutes=5),
+                                open=Decimal("100"),
+                                high=Decimal("102"),
+                                low=Decimal("99"),
+                                close=Decimal("101"),
+                                volume=Decimal("1"),
+                            ),
+                        ),
+                        source="BINANCE_PUBLIC_REST_5M",
+                    )
+        if on_stream_complete is not None:
+            on_stream_complete()
+        return {"status": "COMPLETE"}
+
+    monkeypatch.setattr(
+        ContinuousMarketHistory,
+        "_refresh_active_tails",
+        lambda _self, *args, **kwargs: recover(*args, **kwargs),
+    )
+    recovery = instance._refresh_candle_window_health(
+        (), symbols=symbols, universe_blockers=lambda: ()
+    )
+    assert attempts == [("5m",)]
+    assert recovery == {"status": "COMPLETE", "timeframes": ["5m"]}
+    assert candle_health_status(instance._candle_health, closed) == "VERIFIED"
+    payload = instance._candle_progress_payload(
+        {"status": "DEGRADED", "blockers": ["OPEN_INTEREST_UNAVAILABLE"], **SAFE_STATE}
+    )
+    assert payload["status"] == "VERIFIED"
+    assert payload["blockers"] == ["OPEN_INTEREST_UNAVAILABLE"]
+    assert payload["collection_status"] == "DEGRADED"
+    assert payload["execution_allowed"] is False
+
+
+@pytest.mark.parametrize("failure", ["corrupt", "older_gap", "universe", "historical"])
+def test_candle_health_does_not_use_tail_recovery_to_waive_other_failures(
+    candle_health_archive: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    instance = fixture_collector(candle_health_archive / "collector")
+    instance.history = replace(instance.history, archive_root=candle_health_archive)
+    instance.follow_wall_clock = failure != "historical"
+    instance.clock = lambda: (
+        NOW if failure in {"corrupt", "older_gap"} else NOW + timedelta(minutes=1)
+    )
+    if failure == "corrupt":
+        path = candle_health_archive / "spot/AAAUSDT/5m.parquet"
+        path.write_bytes(path.read_bytes() + b"TEST_ONLY_CORRUPTION")
+    if failure == "older_gap":
+        source = ParquetOHLCVArchive(candle_health_archive / "spot")
+        target = candle_health_archive / "old-gap"
+        archive = ParquetOHLCVArchive(target / "spot")
+        for timeframe in PROFILE_TIMEFRAMES:
+            candles = source.read("AAAUSDT", timeframe)
+            if timeframe == "5m":
+                candles = candles[:100] + candles[101:]
+            archive.update(
+                "AAAUSDT",
+                timeframe,
+                candles,
+                source=f"BINANCE_PUBLIC_REST_{timeframe.upper()}",
+            )
+        instance.history = replace(instance.history, archive_root=target)
+
+    def forbidden(*_args: object, **_kwargs: object) -> dict[str, object]:
+        pytest.fail("A non-tail failure must not trigger new-bar recovery")
+
+    monkeypatch.setattr(ContinuousMarketHistory, "_refresh_active_tails", forbidden)
+    recovery = instance._refresh_candle_window_health(
+        (),
+        symbols={"spot": ("AAAUSDT",), "usd_m_futures": ()},
+        universe_blockers=lambda: (
+            ("TEST_ONLY_UNIVERSE_UNVERIFIED",) if failure == "universe" else ()
+        ),
+    )
+    assert recovery == {"status": "NOT_REQUIRED", "timeframes": []}
+    assert candle_health_status(instance._candle_health, instance.clock()) == "PARTIAL"
+
+
+def test_candle_health_bounds_failed_tail_recovery_and_keeps_partial_state(
+    candle_health_archive: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    instance = fixture_collector(candle_health_archive / "collector")
+    instance.history = replace(instance.history, archive_root=candle_health_archive)
+    instance.follow_wall_clock = True
+    instance.clock = lambda: NOW + timedelta(minutes=1)
+    attempts: list[tuple[str, ...]] = []
+
+    def unavailable(
+        _self: object,
+        _work: object,
+        _now: datetime,
+        *,
+        timeframes: tuple[str, ...],
+        on_stream_complete: Callable[[], None] | None = None,
+    ) -> dict[str, object]:
+        attempts.append(timeframes)
+        return {"status": "DEGRADED", "unavailable_streams": 1}
+
+    monkeypatch.setattr(ContinuousMarketHistory, "_refresh_active_tails", unavailable)
+    recovery = instance._refresh_candle_window_health(
+        (),
+        symbols={"spot": ("AAAUSDT",), "usd_m_futures": ()},
+        universe_blockers=lambda: (),
+    )
+    assert attempts == [("5m",)]
+    assert recovery["status"] == "DEGRADED"
+    assert candle_health_status(instance._candle_health, instance.clock()) == "PARTIAL"
+
+
+def test_candle_health_rechecks_universe_veto_after_tail_recovery(
+    candle_health_archive: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """TEST_ONLY metadata failure during recovery must veto otherwise complete bars."""
+    instance = fixture_collector(candle_health_archive / "collector")
+    instance.history = replace(instance.history, archive_root=candle_health_archive)
+    instance.follow_wall_clock = True
+    instance.clock = lambda: NOW + timedelta(minutes=1)
+    vetoes: list[str] = []
+
+    def recover(
+        _self: object,
+        _work: object,
+        now: datetime,
+        *,
+        timeframes: tuple[str, ...],
+        on_stream_complete: Callable[[], None] | None = None,
+    ) -> dict[str, object]:
+        assert timeframes == ("5m",)
+        window = candle_health_window("spot", "5m", now)
+        ParquetOHLCVArchive(candle_health_archive / "spot").update(
+            "AAAUSDT",
+            "5m",
+            (
+                OHLCVCandle(
+                    timestamp=window.end - timedelta(minutes=5),
+                    open=Decimal("100"),
+                    high=Decimal("102"),
+                    low=Decimal("99"),
+                    close=Decimal("101"),
+                    volume=Decimal("1"),
+                ),
+            ),
+            source="BINANCE_PUBLIC_REST_5M",
+        )
+        assert on_stream_complete is not None
+        on_stream_complete()
+        return {"status": "COMPLETE"}
+
+    monkeypatch.setattr(ContinuousMarketHistory, "_refresh_active_tails", recover)
+    instance._refresh_candle_window_health(
+        (),
+        symbols={"spot": ("AAAUSDT",), "usd_m_futures": ()},
+        universe_blockers=lambda: tuple(vetoes),
+        on_stream_complete=lambda: vetoes.append(
+            "MARKET_UNIVERSE_METADATA_UNAVAILABLE"
+        ),
+    )
+    assert instance._candle_health is not None
+    assert instance._candle_health["verified_stream_count"] == 5
+    assert instance._candle_health["blockers"] == [
+        "MARKET_UNIVERSE_METADATA_UNAVAILABLE"
+    ]
+    assert candle_health_status(instance._candle_health, instance.clock()) == "PARTIAL"
+
+
+def test_terminal_collection_report_retains_a_new_metadata_veto(
+    candle_health_archive: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """TEST_ONLY full-cycle projection must preserve a veto raised after its build."""
+    instance = fixture_collector(candle_health_archive / "collector")
+    instance.history = replace(instance.history, archive_root=candle_health_archive)
+    instance.scoped_selection = None
+    instance.candle_window_health_enabled = True
+    instance.clock = lambda: NOW
+    elapsed = [0.0]
+    monkeypatch.setattr(
+        "ai4binance.data.market_history_continuous.time.monotonic", lambda: elapsed[0]
+    )
+
+    def universe(
+        _self: object, _now: datetime, *, force_refresh: bool = False
+    ) -> BinanceEligibleMarketSnapshot:
+        return BinanceEligibleMarketSnapshot(
+            spot_symbols=("AAAUSDT",),
+            futures_symbols=(),
+            blockers=("TEST_ONLY_METADATA_FAILURE",) if elapsed[0] else (),
+        )
+
+    monkeypatch.setattr(MarketHistorySynchronizer, "_eligible_universe", universe)
+    # This case isolates metadata vetoes; ticker I/O is unrelated to the assertion.
+    monkeypatch.setattr(ContinuousMarketHistory, "_snapshots", lambda *_args: None)
+    original = ContinuousMarketHistory._refresh_candle_window_health
+
+    def terminal(
+        self: ContinuousMarketHistory,
+        work: tuple[tuple[str, tuple[str, ...], JsonTransport | None], ...],
+        *,
+        symbols: Mapping[str, tuple[str, ...]],
+        universe_blockers: Callable[[], tuple[str, ...]],
+        on_stream_complete: Callable[[], None] | None = None,
+    ) -> dict[str, object]:
+        elapsed[0] = 240
+        assert on_stream_complete is not None
+        on_stream_complete()
+        return original(
+            self,
+            work,
+            symbols=symbols,
+            universe_blockers=universe_blockers,
+            on_stream_complete=on_stream_complete,
+        )
+
+    monkeypatch.setattr(
+        ContinuousMarketHistory, "_refresh_candle_window_health", terminal
+    )
+    payload = instance.sync_cycle(observed_at=NOW)
+    assert "MARKET_UNIVERSE_METADATA_UNAVAILABLE" in cast(
+        list[str], payload["blockers"]
+    )
+    assert payload["collection_status"] == "DEGRADED"
+    assert payload["status"] == "PARTIAL"
+    assert payload["execution_allowed"] is False
+
+
+def test_candle_health_wakeup_obeys_native_close_and_bounded_retry(
+    candle_health_archive: Path,
+) -> None:
+    proof = candle_window_health(
+        candle_health_archive, symbols={"spot": ("AAAUSDT",)}, cutoff=NOW
+    )
+    result = {
+        "data_core": proof,
+        "blockers": ["OPEN_INTEREST_UNAVAILABLE"],
+        **SAFE_STATE,
+    }
+    assert _candle_health_wakeup_delay(result, NOW, 180) == 60
+    assert _candle_health_wakeup_delay(result, NOW, 10) == 10
+    assert _candle_health_wakeup_delay(result, NOW + timedelta(minutes=1), 180) == 30
+    partial = candle_window_health(
+        candle_health_archive,
+        symbols={"spot": ("AAAUSDT",)},
+        cutoff=NOW + timedelta(minutes=1),
+    )
+    assert (
+        _candle_health_wakeup_delay(
+            {"data_core": partial}, NOW + timedelta(minutes=1), 180
+        )
+        == 30
+    )
+    assert _candle_health_wakeup_delay({"data_core": None}, NOW, 180) == 180
+    assert _candle_health_wakeup_delay({}, NOW, 180) == 180
+    assert result["blockers"] == ["OPEN_INTEREST_UNAVAILABLE"]
+    assert result["execution_allowed"] is False
+
+
+@pytest.mark.parametrize(("elapsed", "expected_delay"), [(0, 60), (60, 30)])
+def test_supervisor_uses_candle_health_deadline_in_its_resident_loop(
+    candle_health_archive: Path, elapsed: int, expected_delay: int
+) -> None:
+    """TEST_ONLY daemon-loop integration; no production lease or network is used."""
+    collector = fixture_collector(candle_health_archive / "collector")
+    proof = candle_window_health(
+        candle_health_archive, symbols={"spot": ("AAAUSDT",)}, cutoff=NOW
+    )
+    sleeps: list[float] = []
+    supervisor = MarketHistorySupervisor(
+        synchronizer=collector.history,
+        interval_seconds=180,
+        lock_path=(candle_health_archive / "TEST_ONLY-supervisor.lock").resolve(),
+        clock=lambda: NOW + timedelta(seconds=elapsed),
+        sleeper=sleeps.append,
+        cycle=lambda _now: {"data_core": proof, **SAFE_STATE},
+    )
+    assert supervisor.run(max_cycles=2) == 2
+    assert sleeps == [expected_delay]
 
 
 def test_candle_health_status_cli_projects_scope_without_waiving_supplemental_blockers(

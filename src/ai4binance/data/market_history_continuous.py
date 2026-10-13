@@ -1654,20 +1654,14 @@ class ContinuousMarketHistory:
             "blockers": sorted(set(blockers)),
             **_SAFE_STATE,
         }
-        payload["network"] = {
-            key: value - before[key] for key, value in self._network_totals().items()
-        }
         if self.candle_window_health_enabled:
-            from ai4binance.data.acquisition_profile import candle_window_health
-
-            self._candle_health = candle_window_health(
-                self.history.archive_root,
+            payload["candle_window_tail_recovery"] = self._refresh_candle_window_health(
+                market_work,
                 symbols={
                     "spot": universe.spot_symbols,
                     "usd_m_futures": universe.futures_symbols,
                 },
-                cutoff=completed_at,
-                universe_blockers=(
+                universe_blockers=lambda: (
                     *universe.blockers,
                     *(
                         item
@@ -1675,10 +1669,70 @@ class ContinuousMarketHistory:
                         if item == "MARKET_UNIVERSE_METADATA_UNAVAILABLE"
                     ),
                 ),
+                on_stream_complete=lambda: refresh_snapshots(
+                    self.clock().astimezone(UTC)
+                ),
             )
+            payload["blockers"] = sorted(set(blockers))
+            payload["status"] = "DEGRADED" if blockers else "READY"
+            payload["observed_at"] = self.clock().astimezone(UTC).isoformat()
             payload = self._candle_progress_payload(payload)
+        payload["network"] = {
+            key: value - before[key] for key, value in self._network_totals().items()
+        }
         _save(self.history.state_path, payload)
         return payload
+
+    def _refresh_candle_window_health(
+        self,
+        market_work: tuple[tuple[str, tuple[str, ...], JsonTransport | None], ...],
+        *,
+        symbols: Mapping[str, tuple[str, ...]],
+        universe_blockers: Callable[[], tuple[str, ...]],
+        on_stream_complete: Callable[[], None] | None = None,
+    ) -> dict[str, object]:
+        """Recover a newly closed tail once before publishing a terminal proof."""
+        from ai4binance.data.acquisition_profile import candle_window_health
+
+        def verify() -> dict[str, object]:
+            return candle_window_health(
+                self.history.archive_root,
+                symbols=symbols,
+                cutoff=self.clock(),
+                universe_blockers=universe_blockers(),
+            )
+
+        self._candle_health = verify()
+        due = self._newly_closed_candle_timeframes(self._candle_health)
+        if not self.follow_wall_clock or universe_blockers() or not due:
+            return {"status": "NOT_REQUIRED", "timeframes": []}
+        recovered = self._refresh_active_tails(
+            market_work,
+            self.clock(),
+            timeframes=due,
+            on_stream_complete=on_stream_complete,
+        )
+        self._candle_health = verify()
+        return {**recovered, "timeframes": list(due)}
+
+    @staticmethod
+    def _newly_closed_candle_timeframes(
+        health: Mapping[str, object],
+    ) -> tuple[str, ...]:
+        """Select missing latest bars; older gaps and invalid bytes stay blocked."""
+        streams = cast(list[dict[str, object]], health["streams"])
+        missing = {
+            str(row["timeframe"])
+            for row in streams
+            if row["status"] == "PARTIAL"
+            and row["error_code"] is None
+            and row["duplicate_count"] == 0
+            and row["missing_count"] == 1
+            and row["missing_open_time_sample"] == [row["expected_latest_closed_open"]]
+        }
+        return tuple(
+            frame for frame in VIRTUAL_MARKET_COLLECTION_TIMEFRAMES if frame in missing
+        )
 
     def _candle_progress_payload(self, payload: dict[str, object]) -> dict[str, object]:
         """Publish candle health without changing collection or consumer vetoes."""

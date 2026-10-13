@@ -799,6 +799,7 @@ class MarketHistorySupervisor:
                     if fast_retry:
                         delay = min(delay, 30)
                     delay = _scoped_wakeup_delay(result, self.clock(), delay)
+                    delay = _candle_health_wakeup_delay(result, self.clock(), delay)
                     self.sleeper(delay)
         return completed
 
@@ -811,6 +812,26 @@ def _scoped_wakeup_delay(result: object, now: datetime, fallback: float) -> floa
     if due.utcoffset() is None or now.utcoffset() is None:
         raise ValueError("scoped wakeup must be timezone-aware")
     return max(1.0, (due - now).total_seconds())
+
+
+def _candle_health_wakeup_delay(
+    result: object, now: datetime, fallback: float
+) -> float:
+    """Wake at the next native close or retry an incomplete candle proof promptly."""
+    if not isinstance(result, Mapping) or "data_core" not in result:
+        return fallback
+    from ai4binance.data.acquisition_profile import (
+        candle_health_status,
+        candle_health_window,
+    )
+
+    status = candle_health_status(result["data_core"], now)
+    if status in {"PARTIAL", "STALE"}:
+        return min(fallback, 30.0)
+    if status != "VERIFIED":
+        return fallback
+    boundary = candle_health_window("spot", "5m", now).end + timeframe_duration("5m")
+    return min(fallback, max(1.0, (boundary - now).total_seconds()))
 
 
 def _requires_fast_retry(result: object) -> bool:
