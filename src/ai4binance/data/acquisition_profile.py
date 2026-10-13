@@ -3,6 +3,8 @@
 These targets do not amend strategy warmup, retention, or execution authority.
 """
 
+from __future__ import annotations
+
 import json
 from calendar import monthrange
 from collections.abc import Mapping, Sequence
@@ -10,7 +12,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, localcontext
 from hashlib import sha256
+from pathlib import Path
+from typing import cast
 
+from ai4binance.data.archive import ParquetOHLCVArchive
 from ai4binance.data.market_history_continuous import ContinuousMarketHistory
 from ai4binance.data.timeframes import timeframe_duration
 
@@ -21,6 +26,214 @@ SAFE_STATE = {
     "promotion_status": "RESEARCH_ONLY",
     "live_eligibility_status": "LIVE_ORDER_BLOCKED",
 }
+CANDLE_HEALTH_SCOPE = "SPOT_1000_CLOSED_BARS_FUTURES_30_DAYS"
+
+
+def candle_health_window(
+    market: str, timeframe: str, cutoff: datetime
+) -> AcquisitionWindow:
+    """Define candle health independently of ranking and strategy warmup."""
+    if market not in {"spot", "usd_m_futures"} or timeframe not in PROFILE_TIMEFRAMES:
+        raise ValueError("unsupported candle health stream")
+    duration = timeframe_duration(timeframe)
+    end = completed_boundary(cutoff, timeframe)
+    start = end - (1000 * duration if market == "spot" else timedelta(days=30))
+    return AcquisitionWindow(
+        market, timeframe, start, end, int((end - start) / duration)
+    )
+
+
+def _verified_candle_health_stream(
+    archive_root: Path, market: str, symbol: str, timeframe: str, cutoff: datetime
+) -> dict[str, object]:
+    window = candle_health_window(market, timeframe, cutoff)
+    archive = ParquetOHLCVArchive(archive_root / market)
+    lineage: dict[str, object] = {}
+    timestamps: list[datetime] = []
+    error_code = None
+    try:
+        manifest = archive.manifest(symbol, timeframe)
+        if (
+            manifest.symbol != symbol
+            or manifest.timeframe != timeframe
+            or not manifest.source.startswith(
+                ("BINANCE_PUBLIC_REST_", "BINANCE_VISION_")
+            )
+        ):
+            raise ValueError("candle health source identity is invalid")
+        candles = archive.read_window(
+            symbol,
+            timeframe,
+            start_at=window.start,
+            end_at=window.end - timeframe_duration(timeframe),
+        )
+        if archive.manifest(symbol, timeframe) != manifest:
+            raise ValueError("candle health archive changed during verification")
+        timestamps = [candle.timestamp for candle in candles]
+        lineage = {"source": manifest.source, "dataset_sha256": manifest.sha256}
+    except (OSError, ValueError, ArithmeticError) as error:
+        error_code = type(error).__name__
+    row = stream_health(
+        window,
+        timestamps,
+        strategy_required_bars=200,
+        verified_archive_count=len(timestamps),
+        lineage=lineage,
+    )
+    for field in (
+        "strategy_required_bars",
+        "warmup_ready",
+        "warmup_grid_status",
+        "warmup_blockers",
+        "analysis_status",
+    ):
+        row.pop(field)
+    missing = row.pop("missing_open_times")
+    row.update(
+        symbol=symbol,
+        status="VERIFIED" if str(row["status"]).startswith("DATA_READY") else "PARTIAL",
+        missing_open_time_sample=cast(list[str], missing)[:5],
+        error_code=error_code,
+    )
+    return row
+
+
+def candle_window_health(
+    archive_root: Path,
+    *,
+    symbols: Mapping[str, Sequence[str]],
+    cutoff: datetime,
+    universe_blockers: Sequence[str] = (),
+) -> dict[str, object]:
+    """Verify current native OHLCV windows using the canonical archive reader.
+
+    This evidence grants no strategy, enrichment, retention or execution authority.
+    """
+    rows = [
+        _verified_candle_health_stream(archive_root, market, symbol, timeframe, cutoff)
+        for market in ("spot", "usd_m_futures")
+        for symbol in symbols.get(market, ())
+        for timeframe in PROFILE_TIMEFRAMES
+    ]
+    blockers = list(universe_blockers)
+    if not rows:
+        blockers.append("CANDLE_HEALTH_UNIVERSE_EMPTY")
+    if any(row["status"] != "VERIFIED" for row in rows):
+        blockers.append("REQUIRED_NATIVE_CANDLE_WINDOW_INCOMPLETE")
+    return {
+        "schema_version": 1,
+        "scope": CANDLE_HEALTH_SCOPE,
+        "status": "PARTIAL" if blockers else "VERIFIED",
+        "observed_at": cutoff.astimezone(UTC).isoformat(),
+        "symbols": {
+            market: list(symbols.get(market, ()))
+            for market in ("spot", "usd_m_futures")
+        },
+        "timeframes": list(PROFILE_TIMEFRAMES),
+        "spot_required_bars": 1000,
+        "futures_required_days": 30,
+        "stream_count": len(rows),
+        "verified_stream_count": sum(row["status"] == "VERIFIED" for row in rows),
+        "streams": rows,
+        "blockers": sorted(set(blockers)),
+        "analysis_status": "NOT_EVALUATED",
+        **SAFE_STATE,
+    }
+
+
+def _current_candle_health_stream(row: Mapping[str, object], now: datetime) -> bool:
+    try:
+        window = candle_health_window(str(row["market"]), str(row["timeframe"]), now)
+        lineage = row["source_lineage"]
+        digest = (
+            str(lineage.get("dataset_sha256", ""))
+            if isinstance(lineage, Mapping)
+            else ""
+        )
+        return (
+            row["status"] == "VERIFIED"
+            and type(row["requested_bars"]) is int
+            and row["requested_bars"] == window.expected_count
+            and type(row["available_verified_bars"]) is int
+            and row["available_verified_bars"] == window.expected_count
+            and row["missing_count"] == 0
+            and row["duplicate_count"] == 0
+            and type(row["missing_count"]) is int
+            and type(row["duplicate_count"]) is int
+            and row["tail_ready"] is True
+            and datetime.fromisoformat(str(row["requested_start"])) == window.start
+            and datetime.fromisoformat(str(row["requested_end_exclusive"]))
+            == window.end
+            and datetime.fromisoformat(str(row["last_closed_open"]))
+            == window.end - timeframe_duration(window.timeframe)
+            and isinstance(lineage, Mapping)
+            and str(lineage.get("source", "")).startswith(
+                ("BINANCE_PUBLIC_REST_", "BINANCE_VISION_")
+            )
+            and len(digest) == 64
+            and all(char in "0123456789abcdef" for char in digest)
+        )
+    except KeyError, TypeError, ValueError:
+        return False
+
+
+def candle_health_status(report: object, now: datetime) -> str:
+    """Reject expired or inconsistent candle proofs independently of heartbeats."""
+    if not isinstance(report, Mapping) or report.get("scope") != CANDLE_HEALTH_SCOPE:
+        return "NOT_VERIFIED"
+    if (
+        report.get("status") != "VERIFIED"
+        or report.get("blockers") != []
+        or report.get("execution_allowed") is not False
+        or report.get("promotion_status") != "RESEARCH_ONLY"
+        or report.get("live_eligibility_status") != "LIVE_ORDER_BLOCKED"
+    ):
+        return "PARTIAL"
+    try:
+        declared = report["symbols"]
+        rows = report["streams"]
+        if not isinstance(declared, Mapping) or not isinstance(rows, list):
+            return "NOT_VERIFIED"
+        expected = _candle_health_identities(declared)
+        actual = {(row["market"], row["symbol"], row["timeframe"]) for row in rows}
+        observed = datetime.fromisoformat(str(report["observed_at"]))
+        if (
+            not expected
+            or actual != expected
+            or len(rows) != len(expected)
+            or report.get("stream_count") != len(expected)
+            or report.get("verified_stream_count") != len(expected)
+            or not 0 <= (now - observed).total_seconds() < 300
+        ):
+            return "NOT_VERIFIED"
+        return (
+            "VERIFIED"
+            if all(_current_candle_health_stream(row, now) for row in rows)
+            else "STALE"
+        )
+    except KeyError, TypeError, ValueError:
+        return "NOT_VERIFIED"
+
+
+def _candle_health_identities(
+    declared: Mapping[str, object],
+) -> set[tuple[str, str, str]]:
+    identities: set[tuple[str, str, str]] = set()
+    for market in ("spot", "usd_m_futures"):
+        symbols = declared[market]
+        if not isinstance(symbols, list) or len(symbols) > 100:
+            raise ValueError("candle health symbols are invalid")
+        for symbol in symbols:
+            if not isinstance(
+                symbol, str
+            ) or symbol != ParquetOHLCVArchive._validate_identity(
+                symbol, "1d", "health"
+            ):
+                raise ValueError("candle health identity is invalid")
+            identities.update(
+                (market, symbol, timeframe) for timeframe in PROFILE_TIMEFRAMES
+            )
+    return identities
 
 
 def content_digest(payload: object) -> str:

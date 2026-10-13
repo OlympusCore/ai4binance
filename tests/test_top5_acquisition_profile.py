@@ -12,11 +12,15 @@ from urllib.parse import urlencode
 
 import pytest
 
+from ai4binance.config import Settings
 from ai4binance.core.errors import ExchangeRateLimitError, ExchangeTransportError
 from ai4binance.data.acquisition_profile import (
     PROFILE_TIMEFRAMES,
     SAFE_STATE,
     acquisition_window,
+    candle_health_status,
+    candle_health_window,
+    candle_window_health,
     content_digest,
     exact_quote_volume,
     native_schedule,
@@ -58,6 +62,133 @@ NOW = datetime(2026, 9, 2, 12, 4, tzinfo=UTC)
 ASSETS = ("AAA", "BBB", "CCC", "DDD", "EEE", "FFF")
 
 
+@pytest.fixture
+def candle_health_archive(tmp_path: Path) -> Path:
+    """TEST_ONLY complete native windows for one Spot and one Futures instrument."""
+    for market, symbol in (("spot", "AAAUSDT"), ("usd_m_futures", "BBBUSDT")):
+        archive = ParquetOHLCVArchive(tmp_path / market)
+        for timeframe in PROFILE_TIMEFRAMES:
+            window = candle_health_window(market, timeframe, NOW)
+            duration = (window.end - window.start) / window.expected_count
+            candles = tuple(
+                OHLCVCandle(
+                    timestamp=window.start + index * duration,
+                    open=Decimal("100"),
+                    high=Decimal("102"),
+                    low=Decimal("99"),
+                    close=Decimal("101"),
+                    volume=Decimal("1"),
+                )
+                for index in range(window.expected_count)
+            )
+            archive.update(
+                symbol,
+                timeframe,
+                candles,
+                source=f"BINANCE_PUBLIC_REST_{timeframe.upper()}",
+            )
+    return tmp_path
+
+
+def test_candle_health_verifies_exact_spot_and_fixed_30_day_futures_windows(
+    candle_health_archive: Path,
+) -> None:
+    report = candle_window_health(
+        candle_health_archive,
+        symbols={"spot": ("AAAUSDT",), "usd_m_futures": ("BBBUSDT",)},
+        cutoff=NOW,
+    )
+    assert candle_health_status(report, NOW) == "VERIFIED"
+    assert report["stream_count"] == report["verified_stream_count"] == 10
+    assert report["execution_allowed"] is False
+    assert report["promotion_status"] == "RESEARCH_ONLY"
+    rows = cast(list[dict[str, object]], report["streams"])
+    assert [row["requested_bars"] for row in rows[:5]] == [1000] * 5
+    assert [row["requested_bars"] for row in rows[5:]] == [8640, 2880, 720, 180, 30]
+    assert report["analysis_status"] == "NOT_EVALUATED"
+    assert all("warmup_ready" not in row for row in rows)
+    assert candle_health_status(report, NOW + timedelta(minutes=1)) == "STALE"
+    assert candle_health_status(report, NOW - timedelta(seconds=1)) == "NOT_VERIFIED"
+
+
+@pytest.mark.parametrize(
+    "cutoff", ["2026-03-13T00:00:00+00:00", "2026-11-13T00:00:00+00:00"]
+)
+def test_candle_health_uses_fixed_days_without_changing_calendar_month_profile(
+    cutoff: str,
+) -> None:
+    now = datetime.fromisoformat(cutoff)
+    window = candle_health_window("usd_m_futures", "1d", now)
+    assert window.expected_count == 30
+    assert window.end - window.start == timedelta(days=30)
+    assert acquisition_window("usd_m_futures", "1d", now).expected_count != 30
+
+
+@pytest.mark.parametrize(
+    "failure", ["missing", "stale", "corrupt", "wrong_source", "gap"]
+)
+def test_candle_health_rejects_failed_required_windows(
+    candle_health_archive: Path,
+    failure: str,
+) -> None:
+    root = candle_health_archive
+    archive = ParquetOHLCVArchive(root / "spot")
+    window = candle_health_window("spot", "5m", NOW)
+    if failure == "stale":
+        archive.truncate_from(
+            "AAAUSDT",
+            "5m",
+            start_at=window.end - timedelta(minutes=5),
+            source="BINANCE_PUBLIC_REST_5M",
+        )
+    elif failure == "corrupt":
+        path = root / "spot/AAAUSDT/5m.parquet"
+        path.write_bytes(path.read_bytes() + b"TEST_ONLY_CORRUPTION")
+    elif failure == "wrong_source":
+        path = root / "spot/AAAUSDT/5m.manifest.json"
+        manifest = json.loads(path.read_text())
+        manifest["source"] = "TEST_ONLY_UNAPPROVED_SOURCE"
+        path.write_text(json.dumps(manifest))
+    else:
+        # A distinct test archive avoids deleting or rewriting the original fixture.
+        target = root / "incomplete"
+        copy = ParquetOHLCVArchive(target / "spot")
+        candles = archive.read("AAAUSDT", "5m")
+        retained = (
+            candles[1:] if failure == "missing" else candles[:500] + candles[501:]
+        )
+        copy.update("AAAUSDT", "5m", retained, source="BINANCE_PUBLIC_REST_5M")
+        root = target
+    report = candle_window_health(root, symbols={"spot": ("AAAUSDT",)}, cutoff=NOW)
+    assert report["status"] == "PARTIAL"
+    assert candle_health_status(report, NOW) != "VERIFIED"
+    assert "REQUIRED_NATIVE_CANDLE_WINDOW_INCOMPLETE" in cast(
+        list[str], report["blockers"]
+    )
+
+
+def test_candle_health_preserves_universe_veto_and_rejects_forged_complete_counts(
+    candle_health_archive: Path,
+) -> None:
+    symbols = {"spot": ("AAAUSDT",), "usd_m_futures": ("BBBUSDT",)}
+    blocked = candle_window_health(
+        candle_health_archive,
+        symbols=symbols,
+        cutoff=NOW,
+        universe_blockers=("UNIVERSE_UNVERIFIED",),
+    )
+    assert blocked["status"] == "PARTIAL"
+    assert blocked["blockers"] == ["UNIVERSE_UNVERIFIED"]
+    report = candle_window_health(candle_health_archive, symbols=symbols, cutoff=NOW)
+    rows = cast(list[dict[str, object]], report["streams"])
+    rows.pop()
+    assert candle_health_status(report, NOW) == "NOT_VERIFIED"
+    assert (
+        candle_window_health(candle_health_archive, symbols={}, cutoff=NOW)["status"]
+        == "PARTIAL"
+    )
+
+
 def native_row(
     stamp: int, interval: int, *, quote: str = "0.123456789123456789"
 ) -> list[object]:
@@ -75,6 +206,244 @@ def native_row(
         "0.05",
         "0",
     ]
+
+
+def test_candle_health_publication_keeps_supplemental_errors_and_native_expiry(
+    candle_health_archive: Path,
+) -> None:
+    instance = fixture_collector(candle_health_archive / "collector")
+    instance.candle_window_health_enabled = True
+    instance.clock = lambda: NOW
+    instance._candle_health = candle_window_health(
+        candle_health_archive,
+        symbols={"spot": ("AAAUSDT",), "usd_m_futures": ("BBBUSDT",)},
+        cutoff=NOW,
+    )
+    payload: dict[str, object] = {
+        "status": "DEGRADED",
+        "blockers": ["MARKET_DATA_SOURCE_OR_INTEGRITY_FAILURE"],
+        "stream_failure_summary": {"usd_m_futures:open_interest:none:DATASET_GAP": 1},
+        **SAFE_STATE,
+    }
+    projected = instance._candle_progress_payload(payload)
+    assert projected["status"] == "VERIFIED"
+    assert projected["collection_status"] == "DEGRADED"
+    assert projected["blockers"] == ["MARKET_DATA_SOURCE_OR_INTEGRITY_FAILURE"]
+    assert projected["stream_failure_summary"] == {
+        "usd_m_futures:open_interest:none:DATASET_GAP": 1
+    }
+    instance.clock = lambda: NOW + timedelta(minutes=1)
+    assert (
+        instance._candle_progress_payload({"status": "COLLECTING"})["status"]
+        == "COLLECTING"
+    )
+
+
+def test_candle_health_status_cli_projects_scope_without_waiving_supplemental_blockers(
+    candle_health_archive: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from types import SimpleNamespace
+
+    from ai4binance.cli import market_data
+
+    class FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz: object = None) -> FixedDatetime:
+            return cls.fromtimestamp(NOW.timestamp(), UTC)
+
+    proof = candle_window_health(
+        candle_health_archive,
+        symbols={"spot": ("AAAUSDT",)},
+        cutoff=NOW,
+    )
+    path = candle_health_archive / "health-state.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": "2.0",
+                "observed_at": NOW.isoformat(),
+                "status": "VERIFIED",
+                "collection_status": "DEGRADED",
+                "blockers": ["MARKET_DATA_SOURCE_OR_INTEGRITY_FAILURE"],
+                "data_core": proof,
+                **SAFE_STATE,
+            }
+        )
+    )
+    monkeypatch.setattr(market_data, "datetime", FixedDatetime)
+    monkeypatch.setattr(
+        market_data,
+        "build_market_history_synchronizer",
+        lambda settings: SimpleNamespace(state_path=path),
+    )
+    assert (
+        market_data.run_market_history_command(
+            "market-history-status",
+            Settings.model_construct(market_history_live_interval_seconds=180),
+            as_of=None,
+            max_cycles=None,
+        )
+        == 0
+    )
+    output = json.loads(capsys.readouterr().out)
+    assert output["status"] == "VERIFIED"
+    assert output["blockers"] == ["MARKET_DATA_SOURCE_OR_INTEGRITY_FAILURE"]
+
+
+def test_candle_health_dashboard_projection_reuses_proof_and_rejects_expiry(
+    candle_health_archive: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import runpy
+    from types import SimpleNamespace
+
+    proof = candle_window_health(
+        candle_health_archive, symbols={"spot": ("AAAUSDT",)}, cutoff=NOW
+    )
+    state = {
+        "observed_at": NOW.isoformat(),
+        "status": "VERIFIED",
+        "data_core": proof,
+        "collection_status": "DEGRADED",
+    }
+    path = candle_health_archive / "runtime/state/market-history-latest.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(state))
+    source = Path(__file__).resolve().parents[1] / "src/ai4binance/local_dashboard"
+    project = runpy.run_path(str(source / "market_views.py.in"))["universe_view"]
+    settings = SimpleNamespace(market_history_live_interval_seconds=180)
+    assert (
+        project(candle_health_archive, settings, "SPOT", ("AAAUSDT",), NOW)[
+            "data_core_status"
+        ]
+        == "VERIFIED"
+    )
+    assert (
+        project(candle_health_archive, settings, "SPOT", ("AAAUSDT",), NOW)[
+            "quality_status"
+        ]
+        == "CURRENT"
+    )
+    assert (
+        project(
+            candle_health_archive,
+            settings,
+            "SPOT",
+            ("AAAUSDT",),
+            NOW + timedelta(minutes=1),
+        )["data_core_status"]
+        == "STALE"
+    )
+    assert (
+        project(candle_health_archive, settings, "SPOT", ("OTHERUSDT",), NOW)[
+            "data_core_status"
+        ]
+        == "NOT_VERIFIED"
+    )
+
+
+def test_candle_health_rejects_duplicate_candles_and_changed_partition(
+    candle_health_archive: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = ParquetOHLCVArchive.read_window
+
+    def duplicated(
+        self: ParquetOHLCVArchive, *args: object, **kwargs: object
+    ) -> tuple[OHLCVCandle, ...]:
+        candles = original(
+            self,
+            str(args[0]),
+            str(args[1]),
+            start_at=cast(datetime, kwargs["start_at"]),
+            end_at=cast(datetime, kwargs["end_at"]),
+        )
+        return (*candles, candles[-1]) if candles else candles
+
+    with monkeypatch.context() as patch:
+        patch.setattr(ParquetOHLCVArchive, "read_window", duplicated)
+        report = candle_window_health(
+            candle_health_archive, symbols={"spot": ("AAAUSDT",)}, cutoff=NOW
+        )
+        assert report["status"] == "PARTIAL"
+        assert (
+            cast(list[dict[str, object]], report["streams"])[0]["duplicate_count"] == 1
+        )
+
+    def replaced(
+        self: ParquetOHLCVArchive, *args: object, **kwargs: object
+    ) -> tuple[OHLCVCandle, ...]:
+        candles = original(
+            self,
+            str(args[0]),
+            str(args[1]),
+            start_at=cast(datetime, kwargs["start_at"]),
+            end_at=cast(datetime, kwargs["end_at"]),
+        )
+        next_stamp = candles[-1].timestamp + (
+            candles[-1].timestamp - candles[-2].timestamp
+        )
+        self.append_verified_tail(
+            str(args[0]),
+            str(args[1]),
+            (
+                OHLCVCandle(
+                    timestamp=next_stamp,
+                    open=Decimal("100"),
+                    high=Decimal("102"),
+                    low=Decimal("99"),
+                    close=Decimal("101"),
+                    volume=Decimal("1"),
+                ),
+            ),
+            source="BINANCE_PUBLIC_REST_TEST_ONLY",
+        )
+        return candles
+
+    with monkeypatch.context() as patch:
+        patch.setattr(ParquetOHLCVArchive, "read_window", replaced)
+        report = candle_window_health(
+            candle_health_archive, symbols={"spot": ("AAAUSDT",)}, cutoff=NOW
+        )
+        assert report["status"] == "PARTIAL"
+        assert all(
+            row["error_code"] == "ValueError"
+            for row in cast(list[dict[str, object]], report["streams"])
+        )
+
+
+def test_candle_health_dashboard_never_uses_ready_fallback_for_invalid_proof(
+    candle_health_archive: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import runpy
+
+    class FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz: object = None) -> FixedDatetime:
+            return cls.fromtimestamp(NOW.timestamp(), UTC)
+
+    proof = candle_window_health(
+        candle_health_archive, symbols={"spot": ("AAAUSDT",)}, cutoff=NOW
+    )
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "src/ai4binance/local_dashboard/server.py.in"
+    )
+    project = runpy.run_path(str(source))["market_history_projection"]
+    monkeypatch.setitem(project.__globals__, "datetime", FixedDatetime)
+    state = {
+        "status": "READY",
+        "completed_streams": 5,
+        "total_streams": 5,
+        "blockers": [],
+        "data_core": proof,
+    }
+    assert project(state, candle_health_archive)["data_core_status"] == "VERIFIED"
+    proof["status"] = "PARTIAL"
+    assert project(state, candle_health_archive)["readiness_status"] == "DEGRADED"
 
 
 class FixtureTransport:

@@ -506,6 +506,10 @@ class ContinuousMarketHistory:
     refresh_request_path: Path | None = None
     vision_history_enabled: bool = True
     follow_wall_clock: bool = False
+    candle_window_health_enabled: bool = False
+    _candle_health: dict[str, object] | None = field(
+        default=None, init=False, repr=False
+    )
     on_symbol_ready: SymbolReadyHandler | None = field(default=None, repr=False)
     on_symbol_screen: SymbolReadyHandler | None = field(default=None, repr=False)
     clock: Callable[[], datetime] = field(default=lambda: datetime.now(UTC), repr=False)
@@ -1653,7 +1657,49 @@ class ContinuousMarketHistory:
         payload["network"] = {
             key: value - before[key] for key, value in self._network_totals().items()
         }
+        if self.candle_window_health_enabled:
+            from ai4binance.data.acquisition_profile import candle_window_health
+
+            self._candle_health = candle_window_health(
+                self.history.archive_root,
+                symbols={
+                    "spot": universe.spot_symbols,
+                    "usd_m_futures": universe.futures_symbols,
+                },
+                cutoff=completed_at,
+                universe_blockers=(
+                    *universe.blockers,
+                    *(
+                        item
+                        for item in blockers
+                        if item == "MARKET_UNIVERSE_METADATA_UNAVAILABLE"
+                    ),
+                ),
+            )
+            payload = self._candle_progress_payload(payload)
         _save(self.history.state_path, payload)
+        return payload
+
+    def _candle_progress_payload(self, payload: dict[str, object]) -> dict[str, object]:
+        """Publish candle health without changing collection or consumer vetoes."""
+        if not self.candle_window_health_enabled or self._candle_health is None:
+            return payload
+        from ai4binance.data.acquisition_profile import (
+            CANDLE_HEALTH_SCOPE,
+            candle_health_status,
+        )
+
+        status = candle_health_status(self._candle_health, self.clock())
+        payload.update(
+            data_core=self._candle_health,
+            collection_status=payload["status"],
+            status_scope=CANDLE_HEALTH_SCOPE,
+            blockers_scope="COLLECTION_AND_ANALYSIS",
+        )
+        if status == "VERIFIED":
+            payload["status"] = "VERIFIED"
+        elif payload["status"] != "COLLECTING":
+            payload["status"] = status
         return payload
 
     def _complete_refresh_request(
@@ -1931,44 +1977,46 @@ class ContinuousMarketHistory:
     ) -> None:
         _save(
             self.history.state_path,
-            {
-                "schema_version": "2.0",
-                "status": "COLLECTING",
-                "collection_plan": self._collection_plan(),
-                "current_open_interest": dict(self._current_open_interest_results),
-                "initial_history_days": self.initial_days,
-                "enrichment_history_days": self.enrichment_days,
-                "cycle_started_at": cycle_started_at.isoformat(),
-                "observed_at": datetime.now(UTC).isoformat(),
-                "active_market": active_market,
-                "universe_source": universe_source,
-                "selected_assets": list(selected_assets),
-                "wallet_assets": list(wallet_assets),
-                "market_cap_assets": list(market_cap_assets),
-                "universe_retention": universe_retention,
-                "completed_symbols": completed_symbols,
-                "total_symbols": total_symbols,
-                "completed_streams": completed_streams,
-                "total_streams": total_streams,
-                "completion_ratio": self._completion_ratio(
-                    completed_streams, total_streams
-                ),
-                "blockers": sorted(
-                    {
-                        "MARKET_DATA_CYCLE_IN_PROGRESS",
-                        *blockers,
-                        *self._current_open_interest_blockers(),
-                    }
-                ),
-                "collector_coverage": collector_coverage,
-                "opportunity_analysis_summary": dict(opportunity_analysis_summary),
-                "dashboard_opportunity_projection": dict(
-                    dashboard_opportunity_projection
-                ),
-                "stream_failure_summary": dict(stream_failure_summary),
-                "active_tail_refresh": dict(active_tail_refresh),
-                **_SAFE_STATE,
-            },
+            self._candle_progress_payload(
+                {
+                    "schema_version": "2.0",
+                    "status": "COLLECTING",
+                    "collection_plan": self._collection_plan(),
+                    "current_open_interest": dict(self._current_open_interest_results),
+                    "initial_history_days": self.initial_days,
+                    "enrichment_history_days": self.enrichment_days,
+                    "cycle_started_at": cycle_started_at.isoformat(),
+                    "observed_at": datetime.now(UTC).isoformat(),
+                    "active_market": active_market,
+                    "universe_source": universe_source,
+                    "selected_assets": list(selected_assets),
+                    "wallet_assets": list(wallet_assets),
+                    "market_cap_assets": list(market_cap_assets),
+                    "universe_retention": universe_retention,
+                    "completed_symbols": completed_symbols,
+                    "total_symbols": total_symbols,
+                    "completed_streams": completed_streams,
+                    "total_streams": total_streams,
+                    "completion_ratio": self._completion_ratio(
+                        completed_streams, total_streams
+                    ),
+                    "blockers": sorted(
+                        {
+                            "MARKET_DATA_CYCLE_IN_PROGRESS",
+                            *blockers,
+                            *self._current_open_interest_blockers(),
+                        }
+                    ),
+                    "collector_coverage": collector_coverage,
+                    "opportunity_analysis_summary": dict(opportunity_analysis_summary),
+                    "dashboard_opportunity_projection": dict(
+                        dashboard_opportunity_projection
+                    ),
+                    "stream_failure_summary": dict(stream_failure_summary),
+                    "active_tail_refresh": dict(active_tail_refresh),
+                    **_SAFE_STATE,
+                }
+            ),
         )
 
     def record_recoverable_cycle_failure(

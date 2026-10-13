@@ -263,6 +263,8 @@ def _generation_health_view(market_projection, market):
 
 def universe_view(root, settings, market, symbols, now):
     """Project bounded collector evidence without inferring candle freshness."""
+    from ai4binance.data.acquisition_profile import candle_health_status
+
     path = root / "runtime/state/market-history-latest.json"
     state = {}
     try:
@@ -398,6 +400,14 @@ def universe_view(root, settings, market, symbols, now):
         )
         else "CURRENT"
     )
+    candle_status = candle_health_status(state.get("data_core"), now)
+    if "data_core" in state:
+        proof = state["data_core"]
+        declared = proof.get("symbols") if isinstance(proof, dict) else None
+        selected = declared.get(market.lower()) if isinstance(declared, dict) else None
+        if not isinstance(selected, list) or tuple(selected) != tuple(symbols):
+            candle_status = "NOT_VERIFIED"
+        quality_summary_status = "CURRENT" if candle_status == "VERIFIED" else candle_status
     return {
         "generated_at": now.isoformat(),
         "collector_observed_at": collector_observed_at,
@@ -406,6 +416,8 @@ def universe_view(root, settings, market, symbols, now):
         "universe_count": universe_count,
         "status": state.get("status", "UNAVAILABLE"),
         "quality_status": quality_summary_status,
+        "data_core_status": candle_status,
+        "collection_status": state.get("collection_status", state.get("status")),
         "quality": quality_rows,
         "opportunity_coverage": {
             "monitored_symbol_count": monitored_symbols

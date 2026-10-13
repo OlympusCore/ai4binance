@@ -21,6 +21,7 @@ from ai4binance.compatibility.opportunity_monitor import screen_market_opportuni
 from ai4binance.config import Settings
 from ai4binance.core.errors import ExchangeRateLimitError
 from ai4binance.data.acquisition import ArchivedMarketSnapshotAcquisition
+from ai4binance.data.acquisition_profile import candle_health_status
 from ai4binance.data.archive import ParquetOHLCVArchive
 from ai4binance.data.coin_observations import build_coin_observations
 from ai4binance.data.legacy_1m_cleanup import LegacyOneMinuteCleanup
@@ -203,6 +204,7 @@ def build_continuous_market_history(
         pages_per_stream=settings.market_history_pages_per_stream,
         max_workers=settings.market_history_max_workers,
         follow_wall_clock=True,
+        candle_window_health_enabled=True,
         minimum_candles=settings.minimum_closed_candles,
         required_candles_by_timeframe=settings.virtual_market_period_lengths,
         coin_m=(
@@ -415,6 +417,17 @@ def _build_opportunity_screen(
     return screen
 
 
+def _print_market_history_status(payload: dict[str, object]) -> int:
+    """Report candle readiness while retaining collection diagnostics."""
+    if "data_core" in payload:
+        status = candle_health_status(payload["data_core"], datetime.now(UTC))
+        payload.update(status=status, candle_health_status=status)
+        print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+        return 0 if status == "VERIFIED" else 2
+    print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+    return 0 if not payload.get("blockers") else 2
+
+
 def run_market_history_command(
     command: str,
     settings: Settings,
@@ -492,8 +505,7 @@ def run_market_history_command(
             print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
             return 2
         payload["command"] = command
-        print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
-        return 0 if not payload.get("blockers") else 2
+        return _print_market_history_status(payload)
 
     continuous = build_continuous_market_history(
         settings,

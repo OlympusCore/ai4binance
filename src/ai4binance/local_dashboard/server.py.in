@@ -740,6 +740,9 @@ def market_projection(data):
 
 def market_history_projection(data, root: Path):
     """Project the canonical all-market collector without duplicating its state."""
+    from ai4binance.data.acquisition_profile import candle_health_status
+
+    candle_status = candle_health_status(data.get("data_core"), datetime.now(UTC))
     interval_seconds = None
     try:
         from ai4binance.config import Settings
@@ -763,9 +766,13 @@ def market_history_projection(data, root: Path):
     )
     readiness_status = (
         "READY"
+        if candle_status == "VERIFIED"
+        else "READY"
         if ready
         else ("COLLECTING" if data.get("status") == "COLLECTING" else "DEGRADED")
     )
+    if "data_core" in data and candle_status != "VERIFIED":
+        readiness_status = "COLLECTING" if data.get("collection_status") == "COLLECTING" else "DEGRADED"
     return {
         **fields(
             data,
@@ -786,6 +793,9 @@ def market_history_projection(data, root: Path):
         ),
         "collector_coverage": collector_coverage(data.get("collector_coverage")),
         "readiness_status": readiness_status,
+        "data_core_status": candle_status,
+        "data_core": data.get("data_core"),
+        "collection_status": data.get("collection_status", data.get("status")),
         "refresh_interval_seconds": scalar(interval_seconds),
         "blockers": reasons(data.get("blockers")),
     }
