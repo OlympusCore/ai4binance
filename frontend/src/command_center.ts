@@ -72,6 +72,7 @@ interface DecisionRecord {
 declare const root: HTMLElement;
 declare const state: {
   page: string; market: string; virtualMarket: string; language: string; mode: string;
+  simulationScope?: 'all' | 'selected';
 };
 declare const marketSelections: Record<string, string>;
 declare const marketCache: Record<string, { symbols?: string[]; timeframes?: string[] }>;
@@ -168,10 +169,14 @@ function commandShouldLoadMarket(): boolean {
 }
 function commandShouldRefreshMarket(): boolean {
   return state.mode === 'local' && ['opportunities', 'virtual-market'].includes(state.page)
+    && !commandVirtualAllSymbols()
     && (state.page !== 'opportunities'
       || !commandOpportunityAllSymbols(state.market === 'Spot' ? 'SPOT' : 'USD_M_FUTURES'));
 }
 const commandOpportunitySymbolSelections: Record<string, string> = {};
+function commandVirtualAllSymbols(): boolean {
+  return state.page === 'virtual-market' && state.simulationScope !== 'selected';
+}
 function commandOpportunityAllSymbols(market: string): boolean {
   return state.page === 'opportunities' && commandOpportunitySymbolSelections[market] === 'ALL';
 }
@@ -182,16 +187,17 @@ function commandOpportunitySymbolMatches(item: { symbol?: string }, market: stri
 function commandMarketSymbolControl(market: string, symbols: string[], virtual: boolean): HTMLSelectElement {
   const control = ccNode('select', '', 'aw-button');
   control.setAttribute('aria-label', state.language === 'tr' ? 'Sembol' : 'Symbol');
-  const selected = virtual ? marketSelections[market]
+  const selected = virtual ? (commandVirtualAllSymbols() ? 'ALL' : marketSelections[market])
     : commandOpportunitySymbolSelections[market] || marketSelections[market];
-  const values = virtual ? symbols : ['ALL', ...symbols.filter(symbol => symbol !== 'ALL')];
+  const values = ['ALL', ...symbols.filter(symbol => symbol !== 'ALL')];
   values.forEach(symbol => {
     const option = ccNode('option', symbol || (state.language === 'tr' ? 'Yükleniyor…' : 'Loading…'));
     option.value = symbol; option.selected = symbol === selected; control.append(option);
   });
   control.addEventListener('change', () => {
-    if (!virtual) commandOpportunitySymbolSelections[market] = control.value === 'ALL' ? 'ALL' : '';
-    if (virtual || control.value !== 'ALL') {
+    if (virtual) state.simulationScope = control.value === 'ALL' ? 'all' : 'selected';
+    else commandOpportunitySymbolSelections[market] = control.value === 'ALL' ? 'ALL' : '';
+    if (control.value !== 'ALL') {
       marketSelections[market] = control.value; void loadMarket();
     }
     marketFilter = 'All'; render();
@@ -199,15 +205,20 @@ function commandMarketSymbolControl(market: string, symbols: string[], virtual: 
   return control;
 }
 function commandMarketRefreshLabel(market: string): string[] {
+  if (commandVirtualAllSymbols()) return ['Refresh virtual market view', 'Sanal piyasa görünümünü yenile'];
   return commandOpportunityAllSymbols(market)
     ? ['Refresh opportunity view', 'Fırsat görünümünü yenile']
     : ['Refresh data and opportunities', 'Veri ve fırsatları yenile'];
 }
 async function commandRefreshMarketSelection(market: string): Promise<void> {
-  if (commandOpportunityAllSymbols(market)) await loadMarket();
+  if (commandVirtualAllSymbols()) { await refreshLocal(); render(); }
+  else if (commandOpportunityAllSymbols(market)) await loadMarket();
   else await runMarketRefresh(market, marketSelections[market]);
 }
 function commandMarketScopeNote(market: string): string[] {
+  if (commandVirtualAllSymbols()) return [
+    'Showing canonical simulation observations for all eligible symbols in this market. Wallet totals cover the market.',
+    'Bu piyasadaki uygun tüm sembollerin kanonik simülasyon gözlemleri gösteriliyor. Cüzdan toplamları piyasa kapsamındadır.'];
   return commandOpportunityAllSymbols(market)
     ? ['Showing published opportunities for all eligible symbols in this market. Select a symbol for its data quality and history.',
       'Bu piyasadaki uygun tüm sembollerin yayınlanmış fırsatları gösteriliyor. Veri kalitesi ve geçmiş için bir sembol seçin.']
@@ -708,7 +719,7 @@ function enhanceCommandShell(focusKey?: string): void {
   if (local && state.page === 'opportunities') root.querySelector('#aw-subtitle')!.textContent = ccText('marketHelp');
   root.querySelector('#aw-status')!.textContent = root.querySelector('#aw-title')!.textContent;
   root.querySelector('.cc-context')?.remove();
-  if (local && !['overview', 'opportunities', 'research', 'news', 'recommendations', 'kaizen'].includes(state.page)) {
+  if (local && !['overview', 'opportunities', 'research', 'news', 'recommendations', 'kaizen', 'decision', 'evidence', 'system', 'virtual-market', 'binance-wallet'].includes(state.page)) {
     const context = ccNode('div', '', 'cc-context');
     const field = (key: CopyKey, values: string[], selected: string, change: (value: string) => void) => {
       const label = ccNode('label', ccText(key));
@@ -737,6 +748,9 @@ function enhanceCommandShell(focusKey?: string): void {
     root.querySelector('#aw-content')!.prepend(commandConnectionPanel());
   }
   root.querySelectorAll<HTMLTableCellElement>('th').forEach(cell => { cell.scope = 'col'; });
+  if (local && commandVirtualAllSymbols()) root.querySelectorAll<HTMLElement>('#aw-content article').forEach(panel => {
+    if (['Selected coin data quality', 'Seçili koinin veri kalitesi'].includes(panel.querySelector('h2')?.textContent || '')) panel.remove();
+  });
   root.querySelectorAll<HTMLElement>('.aw-tablewrap').forEach(wrap => {
     wrap.tabIndex = 0; wrap.setAttribute('role', 'region');
     wrap.setAttribute('aria-label', wrap.closest('article,section')?.querySelector('h2')?.textContent || ccText('details'));
@@ -763,6 +777,7 @@ let commandKaizenSelection: KaizenFinding | undefined;
 let commandKaizenActions: KaizenActions | undefined;
 let commandKaizenPending = false;
 let commandKaizenError = '';
+let commandKaizenAcknowledgement = '';
 let commandKaizenMarket = 'SPOT';
 let commandKaizenSymbol = '';
 function commandKaizenLabel(action: string | null): string {
@@ -790,7 +805,7 @@ async function commandLoadKaizen(): Promise<void> {
 }
 async function commandChooseKaizen(item: HealthFinding): Promise<void> {
   if (commandKaizenPending) return;
-  commandKaizenPending = true; commandKaizenError = ''; render();
+  commandKaizenPending = true; commandKaizenError = ''; commandKaizenAcknowledgement = ''; render();
   try {
     await commandLoadKaizen();
     commandKaizenSelection = commandKaizenActions?.actions.find(value => commandFindingKey(value) === commandFindingKey(item));
@@ -811,6 +826,13 @@ async function commandApplyKaizen(): Promise<void> {
     const response = await fetch('/api/kaizen/apply', {method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(request), cache: 'no-store', signal: AbortSignal.timeout(8000)});
     if (!response.ok) throw new Error('KAIZEN_APPLY_REJECTED');
+    const acknowledgement = await response.json() as KaizenJob;
+    if (typeof acknowledgement.state !== 'string' || acknowledgement.execution_allowed !== false || acknowledgement.live_eligibility_status !== 'LIVE_ORDER_BLOCKED') {
+      throw new Error('KAIZEN_ACKNOWLEDGEMENT_INVALID');
+    }
+    if (['BUSY', 'COOLDOWN'].includes(acknowledgement.state)) {
+      commandKaizenAcknowledgement = acknowledgement.state; await commandLoadKaizen(); return;
+    }
     // Acknowledgement is not proof of resolution; display the canonical job and fresh finding.
     for (let attempt = 0; attempt < 60; attempt++) {
       await commandLoadKaizen();
@@ -851,6 +873,9 @@ function commandKaizenPanel(): HTMLElement {
   if (commandKaizenError) panel.append(ccNode('p', ccLabel(
     'The action or its result is unavailable. Refresh the summary and select the current finding again.',
     'İşlem veya sonucu kullanılamıyor. Özeti yenileyip güncel bulguyu yeniden seçin.'), 'cc-blockers'));
+  if (commandKaizenAcknowledgement) panel.append(ccNode('p', ccLabel(
+    'No new action started. Another action is active or the one-minute cooldown has not ended.',
+    'Yeni işlem başlatılmadı. Başka bir işlem sürüyor veya bir dakikalık bekleme süresi bitmedi.'), 'cc-blockers'));
   const selected = commandKaizenSelection;
   if (selected) {
     const detail = ccNode('section'); detail.setAttribute('aria-label', ccLabel('Apply action preview', 'Uygulama önizlemesi'));

@@ -11,6 +11,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Thread
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -44,7 +45,7 @@ def test_canonical_dashboard_source_builds_deterministic_offline_assets(
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "DASHBOARD_PACKAGE_BUILT"
     assert _sha256(stage / "app.js") == (
-        "b3e8b21fb0282ecd4502ada30403a50d47e9596e62d8df766a0be7fe5c59e5ba"
+        "b65e46840005652ce9c3eca7147a85172b9f9a9998779b023327fa42f218894b"
     )
     assert _sha256(stage / "app.css") == (
         "d457b4b0bce41e50a9eece8a3dcc0356e90ade6797d7ddaa05ce7fe7d1dc07d1"
@@ -242,7 +243,7 @@ def test_dashboard_degrades_for_high_priority_health_findings() -> None:
 
 
 @pytest.fixture
-def kaizen_host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
+def kaizen_host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     """Only disposable local inputs; no service, market network, or credentials."""
     module = runpy.run_path(str(SOURCE / "server.py.in"))
     namespace = module["start_kaizen_action"].__globals__
@@ -276,7 +277,7 @@ def kaizen_host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
 
 
 def test_kaizen_candle_apply_uses_canonical_queue_without_simulation(
-    kaizen_host: dict,
+    kaizen_host: dict[str, Any],
 ) -> None:
     module, config = kaizen_host["module"], kaizen_host["config"]
     actions = module["kaizen_actions"](config)
@@ -318,8 +319,8 @@ def test_kaizen_candle_apply_uses_canonical_queue_without_simulation(
     ],
 )
 def test_kaizen_rejects_unconfirmed_stale_and_arbitrary_targets(
-    kaizen_host: dict,
-    change: dict,
+    kaizen_host: dict[str, Any],
+    change: dict[str, object],
 ) -> None:
     module, config = kaizen_host["module"], kaizen_host["config"]
     token = module["kaizen_actions"](config)["actions"][0]["token"]
@@ -330,7 +331,7 @@ def test_kaizen_rejects_unconfirmed_stale_and_arbitrary_targets(
         "symbol": "TESTUSDT",
     }
     request.update(change)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="KAIZEN_"):
         module["start_kaizen_action"](config, request)
     assert not (
         kaizen_host["root"] / "runtime/state/market-history-refresh-request.json"
@@ -338,7 +339,7 @@ def test_kaizen_rejects_unconfirmed_stale_and_arbitrary_targets(
 
 
 def test_kaizen_rechecks_finding_and_withholds_unsupported_service(
-    kaizen_host: dict,
+    kaizen_host: dict[str, Any],
 ) -> None:
     module, config = kaizen_host["module"], kaizen_host["config"]
     old = module["kaizen_actions"](config)["actions"][0]["token"]
@@ -357,7 +358,7 @@ def test_kaizen_rechecks_finding_and_withholds_unsupported_service(
 
 
 def test_kaizen_learning_dispatch_does_not_invent_lessons(
-    kaizen_host: dict,
+    kaizen_host: dict[str, Any],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     module, config = kaizen_host["module"], kaizen_host["config"]
@@ -366,7 +367,7 @@ def test_kaizen_learning_dispatch_does_not_invent_lessons(
     ]
     calls = []
 
-    def start(_config: dict, radar: str) -> dict:
+    def start(_config: dict[str, object], radar: str) -> dict[str, object]:
         calls.append(radar)
         return {"state": "RUNNING"}
 
@@ -378,11 +379,12 @@ def test_kaizen_learning_dispatch_does_not_invent_lessons(
     module["start_kaizen_action"](config, {"token": token, "confirmed": True})
     status = module["kaizen_actions"](config)["job"]
     assert calls == ["learning"]
-    assert status["state"] == "COMPLETED" and status["finding_present"] is True
+    assert status["state"] == "COMPLETED"
+    assert status["finding_present"] is True
 
 
 def test_kaizen_http_requires_same_origin_and_explicit_confirmation(
-    kaizen_host: dict,
+    kaizen_host: dict[str, Any],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     module, config = kaizen_host["module"], kaizen_host["config"]
@@ -392,7 +394,7 @@ def test_kaizen_http_requires_same_origin_and_explicit_confirmation(
     ]
     calls: list[str] = []
 
-    def start(_config: dict, radar: str) -> dict:
+    def start(_config: dict[str, object], radar: str) -> dict[str, object]:
         calls.append(radar)
         return {"state": "RUNNING"}
 
@@ -435,7 +437,7 @@ def test_kaizen_http_requires_same_origin_and_explicit_confirmation(
 
 
 def test_kaizen_restart_dispatch_is_fixed_to_canonical_market_history_owner(
-    kaizen_host: dict,
+    kaizen_host: dict[str, Any],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import os
@@ -463,7 +465,8 @@ def test_kaizen_restart_dispatch_is_fixed_to_canonical_market_history_owner(
     )
     assert kwargs["shell"] is False
     status = module["kaizen_actions"](config)["job"]
-    assert status["state"] == "COMPLETED" and status["finding_present"] is True
+    assert status["state"] == "COMPLETED"
+    assert status["finding_present"] is True
 
 
 @pytest.mark.parametrize("observations", [None, {}, [], [None]])

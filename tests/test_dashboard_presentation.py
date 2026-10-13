@@ -20,7 +20,8 @@ import {readFileSync} from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
 import vm from 'node:vm';
 class Element {
-  constructor(tag) {this.tagName=tag;this.children=[];this.dataset={};this.attributes={};this.listeners={};}
+  constructor(tag) {this.tagName=tag;this.children=[];this.dataset={};
+    this.attributes={};this.listeners={};}
   append(...nodes) {this.children.push(...nodes);}
   setAttribute(key,value) {this.attributes[key]=value;}
   addEventListener(key,value) {this.listeners[key]=value;}
@@ -32,18 +33,21 @@ const findings=[
   {finding_id:'LEARNING_SUMMARY_EMPTY',evidence:'TEST_ONLY_3'},
   {finding_id:'SERVICE_NOT_READY',evidence:'TEST_ONLY_4',facts:{service:'runtime'}}];
 const safe={execution_allowed:false,live_eligibility_status:'LIVE_ORDER_BLOCKED'};
-const data={...safe,actions:findings.map((item,i)=>({...item,token:String(i+1).repeat(64),
+const data={...safe,actions:findings.map((item,i)=>({...item,
+  token:String(i+1).repeat(64),
   action:['REFRESH_CANDLES','RESTART_MARKET_HISTORY','REFRESH_LEARNING',null][i]})),
   targets:{SPOT:['TESTUSDT'],USD_M_FUTURES:['OTHERUSDT']},job:{state:'NOT_RUN',...safe}};
 let posts=[];
-const context=vm.createContext({state:{market:'Spot',language:'en',mode:'local',page:'kaizen'},
+const context=vm.createContext({
+  state:{market:'Spot',language:'en',mode:'local',page:'kaizen'},
   localData:{health_findings:findings},document:{createElement:tag=>new Element(tag)},
   render:()=>{},refreshLocal:async()=>{},AbortSignal:{timeout:()=>undefined},
   findingCopy:item=>({severity:'P1',title:[item.finding_id,item.finding_id],
     explanation:['TEST_ONLY','TEST_ONLY'],action:['TEST_ONLY','TEST_ONLY'],evidence:item.evidence}),
   fetch:async(path,options)=>{
     if(options.method==='POST'){posts.push(JSON.parse(options.body));
-      data.job={state:'COMPLETED',action:'REFRESH_LEARNING',finding_present:true,...safe};}
+      data.job={state:'COMPLETED',action:'REFRESH_LEARNING',finding_present:true,...safe};
+      return {ok:true,json:async()=>data.job};}
     return {ok:true,json:async()=>data};
   }});
 vm.runInContext(stripTypeScriptTypes(readFileSync('frontend/src/command_center.ts','utf8')),context);
@@ -76,9 +80,11 @@ const result=evaluate('commandKaizenPanel()').children.at(-1);
 assert.equal(result.attributes.role,'status');
 assert.match(result.children[0].textContent,/Finding remains/);
 assert.match(result.textContent,/COMPLETED/);
-assert.equal(evaluate("commandKaizenLabel('REFRESH_LEARNING')"),'Refresh the canonical learning summary');
+assert.equal(evaluate("commandKaizenLabel('REFRESH_LEARNING')"),
+  'Refresh the canonical learning summary');
 context.state.language='tr';
-assert.equal(evaluate("commandKaizenLabel('REFRESH_LEARNING')"),'Kanonik öğrenim özetini yenile');
+assert.equal(evaluate("commandKaizenLabel('REFRESH_LEARNING')"),
+  'Kanonik öğrenim özetini yenile');
 console.log('KAIZEN_CLICK_BOUNDARY_PASS');
 """
     completed = subprocess.run(  # noqa: S603 - fixed test-only local script.
@@ -239,6 +245,8 @@ context.state.mode='local';context.state.page='overview';
 assert.equal(evaluate('commandShouldLoadMarket()'),true);
 assert.equal(evaluate('commandShouldRefreshMarket()'),false);
 context.state.page='virtual-market';
+assert.equal(evaluate('commandShouldRefreshMarket()'),false);
+context.state.simulationScope='selected';
 assert.equal(evaluate('commandShouldRefreshMarket()'),true);
 context.state.mode='sample';
 assert.equal(evaluate('commandShouldLoadMarket()'),false);
@@ -431,7 +439,7 @@ console.log('PRESENTATION_INVARIANTS_PASS');
     assert completed.stdout.strip() == "PRESENTATION_INVARIANTS_PASS"
 
 
-def test_opportunity_all_symbol_filter_preserves_single_symbol_requests() -> None:
+def test_market_all_symbol_filter_preserves_single_symbol_requests() -> None:
     """ALL is a test-only display selection, never an exchange symbol or job."""
     node = shutil.which("node")
     assert node is not None
@@ -446,15 +454,16 @@ class Element {
   setAttribute(key,value) { this[key]=value; }
   addEventListener(key,callback) { this.events[key]=callback; }
 }
-let reads=0,writes=0;
+let reads=0,writes=0,snapshotReads=0,renders=0;
 const context=vm.createContext({
   document:{createElement:tag=>new Element(tag)},
   state:{mode:'local',page:'opportunities',market:'Spot',language:'en'},
   marketSelections:{SPOT:'TEST_ONLY_A',USD_M_FUTURES:'TEST_ONLY_F'},
   loadMarket:async()=>{reads++;},
+  refreshLocal:async()=>{snapshotReads++;},
   runMarketRefresh:async(market,symbol)=>{
     assert.equal(market,'SPOT');assert.equal(symbol,'TEST_ONLY_B');writes++;
-  },render:()=>{},
+  },render:()=>{renders++;},
 });
 vm.runInContext(stripTypeScriptTypes(
   readFileSync('frontend/src/command_center.ts','utf8')),context);
@@ -488,9 +497,38 @@ assert.equal(context.marketSelections.SPOT,'TEST_ONLY_B');
 context.state.page='virtual-market';
 const virtual=evaluate(
   "commandMarketSymbolControl('SPOT',['TEST_ONLY_A','TEST_ONLY_B'],true)");
-assert.equal(virtual.children.some(item=>item.value==='ALL'),false);
+assert.deepEqual(virtual.children.map(item=>item.value),['ALL','TEST_ONLY_A','TEST_ONLY_B']);
+assert.equal(virtual.children.find(item=>item.selected).value,'ALL');
+assert.equal(evaluate('commandVirtualAllSymbols()'),true);
 assert.equal(evaluate("commandOpportunityAllSymbols('USD_M_FUTURES')"),false);
+assert.equal(evaluate('commandShouldRefreshMarket()'),false);
+virtual.value='ALL';virtual.events.change();
+assert.equal(context.marketSelections.SPOT,'TEST_ONLY_B');
+assert.equal(context.marketSelections.USD_M_FUTURES,'TEST_ONLY_F');
+assert.equal(context.state.simulationScope,'all');
+const beforeVirtualRefresh=renders;
+await evaluate("commandRefreshMarketSelection('SPOT')");
+assert.equal(snapshotReads,1);assert.equal(writes,1);
+assert.equal(renders,beforeVirtualRefresh+1);
+assert.match(evaluate("commandMarketScopeNote('SPOT')[0]"),/all eligible symbols/);
 virtual.value='TEST_ONLY_A';virtual.events.change();
+assert.equal(context.state.simulationScope,'selected');
+assert.equal(context.marketSelections.SPOT,'TEST_ONLY_A');
+assert.equal(evaluate('commandVirtualAllSymbols()'),false);
+assert.equal(evaluate('commandShouldRefreshMarket()'),true);
+const virtualFutures=evaluate(
+  "commandMarketSymbolControl('USD_M_FUTURES',['ALL','TEST_ONLY_F'],true)");
+assert.deepEqual(virtualFutures.children.map(item=>item.value),['ALL','TEST_ONLY_F']);
+virtualFutures.value='ALL';virtualFutures.events.change();
+assert.equal(context.marketSelections.SPOT,'TEST_ONLY_A');
+assert.equal(context.marketSelections.USD_M_FUTURES,'TEST_ONLY_F');
+const beforeFuturesRefresh=renders;
+await evaluate("commandRefreshMarketSelection('USD_M_FUTURES')");
+assert.equal(snapshotReads,2);assert.equal(writes,1);
+assert.equal(renders,beforeFuturesRefresh+1);
+context.state.simulationScope='selected';
+const restored=evaluate("commandMarketSymbolControl('SPOT',['TEST_ONLY_A'],true)");
+assert.equal(restored.children.find(item=>item.selected).value,'TEST_ONLY_A');
 context.state.page='opportunities';
 assert.equal(evaluate("commandOpportunitySymbolMatches({symbol:'TEST_ONLY_A'},'SPOT')"),true);
 assert.equal(evaluate("commandOpportunitySymbolMatches({symbol:'TEST_ONLY_B'},'SPOT')"),false);

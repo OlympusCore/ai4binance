@@ -3,6 +3,7 @@ interface DashboardState {
   page: string;
   market: string;
   virtualMarket: string;
+  simulationScope?: 'all' | 'selected';
   radar: string;
   hideBalances: boolean;
   language: string;
