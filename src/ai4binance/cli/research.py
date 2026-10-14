@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import redirect_stdout
 from datetime import UTC, datetime
 from pathlib import Path
 from time import perf_counter_ns
@@ -32,6 +33,7 @@ from ai4binance.governance import (
 )
 from ai4binance.multiops.llmops.contracts import TaskClass, TaskCriticality
 from ai4binance.opportunity_radar import build_opportunity_radar_snapshot
+from ai4binance.ops import SingleInstanceLease
 from ai4binance.outlook import MarketOutlookArtifactStore
 from ai4binance.rag import (
     AdvisoryProviderResult,
@@ -50,7 +52,10 @@ from ai4binance.reporting import to_primitive
 from ai4binance.research_runtime import build_research_application_service
 from ai4binance.schemas import MarketSnapshot
 from ai4binance.storage import AuditEvent, JsonlAuditStore
-from ai4binance.validation.oos_maturity import prepare_spot_oos_deployment
+from ai4binance.validation.oos_maturity import (
+    load_spot_oos_validation_specification,
+    prepare_spot_oos_deployment,
+)
 from ai4binance.validation_pipeline_runtime import (
     SPOT_VALIDATION_NOTIONAL_TO_EQUITY_RATIO,
     HistoricalValidationRuntime,
@@ -76,6 +81,96 @@ from .status import build_public_acquisition, fusion_asset
 
 
 def run_validate_research(settings: Settings, symbol: str | None) -> int:
+    """Serialize the canonical validation producer; never rebind old evidence."""
+    lease = SingleInstanceLease(
+        settings.runtime_validation_deployment_path.with_suffix(".lock")
+    )
+    try:
+        lease.acquire()
+    except RuntimeError as error:
+        blocker = (
+            "VALIDATION_PRODUCER_BUSY"
+            if str(error) == "runtime instance is already active"
+            else "VALIDATION_PRODUCER_LOCK_INVALID"
+        )
+        print(json.dumps({"blockers": [blocker], "execution_allowed": False}))
+        return 2
+    try:
+        return _run_validate_research(settings, symbol)
+    finally:
+        lease.release()
+
+
+def refresh_runtime_validation(
+    settings: Settings, *, as_of: datetime
+) -> dict[str, object]:
+    """Re-run local historical validation for a missing or obsolete source binding.
+
+    Malformed evidence is left intact and denied by the existing loader. A new
+    binding is produced only by the canonical validation pipeline, with every
+    maturity and human-approval veto still enforced at decision time.
+    """
+    from ai4binance.agents.validation_gate import ValidationGate
+
+    def load() -> ValidationGate:
+        return ValidationGate.from_deployment(
+            artifact_root=settings.validation_artifact_directory,
+            deployment_path=settings.runtime_validation_deployment_path,
+            as_of=as_of,
+        )
+
+    gate = load()
+    blockers = gate.evidence_load_blockers
+    result: dict[str, object] = {
+        "status": "CURRENT_SOURCE_BINDING" if not blockers else "BLOCKED",
+        "blockers": list(blockers),
+        "execution_allowed": False,
+        "promotion_status": "RESEARCH_ONLY",
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+    }
+    if blockers not in {
+        ("OOS_RUNTIME_EVIDENCE_UNAVAILABLE:OOS_DEPLOYMENT_MISSING",),
+        ("OOS_RUNTIME_EVIDENCE_UNAVAILABLE:OOS_RUNTIME_SOURCE_MISMATCH",),
+    }:
+        return result
+    from ai4binance.enterprise.resources import ResourcePolicy, physical_ram_used_gb
+
+    resource_blocker = ResourcePolicy().memory_blocker(
+        physical_ram_used_gb(), discretionary=True
+    )
+    if resource_blocker is not None:
+        result.update(status="DEFERRED", blockers=[*blockers, resource_blocker])
+        return result
+    log_path = settings.validation_artifact_directory / "runtime-validation-refresh.log"
+    try:
+        specification = load_spot_oos_validation_specification(
+            Path("config/research/virtual_market_acceptance.yaml")
+        )
+        validation_settings = settings.model_copy(
+            update={"timeframes": tuple(cast(list[str], specification["timeframes"]))}
+        )
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with log_path.open("a", encoding="utf-8") as stream, redirect_stdout(stream):
+            exit_code = run_validate_research(
+                validation_settings, settings.validation_symbol
+            )
+        refreshed = load()
+    except OSError, ValueError:
+        result["blockers"] = [*blockers, "OOS_REVALIDATION_FAILED"]
+        return result
+    result.update(
+        status="REVALIDATED_RESEARCH_ONLY"
+        if exit_code == 0 and not refreshed.evidence_load_blockers
+        else "BLOCKED",
+        blockers=list(refreshed.evidence_load_blockers)
+        + (["OOS_REVALIDATION_FAILED"] if exit_code else []),
+        producer_exit_code=exit_code,
+        evidence_path=str(log_path),
+    )
+    return result
+
+
+def _run_validate_research(settings: Settings, symbol: str | None) -> int:
     try:
         validation_symbol = normalize_cli_symbol(symbol) or settings.validation_symbol
         batch = ResearchValidationService(

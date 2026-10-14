@@ -91,7 +91,7 @@ class Settings(BaseSettings):
         "runtime/artifacts/research/backtest/validation"
     )
     runtime_validation_deployment_path: Path = Path(
-        "config/research/runtime_validation_deployment.json"
+        "runtime/artifacts/research/backtest/validation/runtime_validation_deployment.json"
     )
     futures_oos_artifact_directory: Path = Path(
         "runtime/artifacts/validation/futures_oos"

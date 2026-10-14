@@ -658,6 +658,7 @@ def run_virtual_market_daemon(
     )
     consecutive_failures = 0
     cycle_count = 0
+    validation_refresh: dict[str, object] | None = None
     with SingleInstanceLease(lock_path):
         while max_cycles is None or cycle_count < max_cycles:
             cycle_count += 1
@@ -676,6 +677,16 @@ def run_virtual_market_daemon(
                 if cycle_runner is not None:
                     exit_code = cycle_runner(settings, acquisition)
                 else:
+                    if (
+                        validation_refresh is None
+                        or validation_refresh.get("status") == "DEFERRED"
+                    ):
+                        from .research import refresh_runtime_validation
+
+                        validation_refresh = refresh_runtime_validation(
+                            settings, as_of=clock()
+                        )
+                    cycle_report["validation_refresh"] = validation_refresh
                     from ai4binance.data.market_history_sync import (
                         read_cached_market_universe,
                     )

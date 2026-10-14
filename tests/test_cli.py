@@ -1342,6 +1342,132 @@ def test_validate_research_fails_closed_without_archive(
     assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
 
 
+@pytest.mark.parametrize("initial", ["missing", "obsolete"])
+def test_runtime_validation_refresh_reuses_producer_and_preserves_maturity_vetoes(
+    initial: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from ai4binance.agents.validation_gate import ValidationGate
+    from ai4binance.cli import research as research_cli
+    from ai4binance.enterprise import resources
+    from ai4binance.validation import oos_maturity
+
+    # TEST_ONLY bindings; these are not market or approval evidence.
+    settings = Settings(timeframes=("5m", "15m", "1h", "4h", "1d"))
+    path = settings.runtime_validation_deployment_path
+    assert (
+        path
+        == settings.validation_artifact_directory / "runtime_validation_deployment.json"
+    )
+    monkeypatch.setattr(resources, "physical_ram_used_gb", lambda: 1.0)
+    monkeypatch.setattr(oos_maturity, "runtime_source_sha256", lambda: "a" * 64)
+    if initial == "obsolete":
+        path.parent.mkdir(parents=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "execution_allowed": False,
+                    "promotion_status": "RESEARCH_ONLY",
+                    "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+                    "runtime_source_sha256": "b" * 64,
+                    "schema_version": "1.0",
+                }
+            ),
+            encoding="utf-8",
+        )
+    calls: list[tuple[str | None, tuple[str, ...]]] = []
+
+    def produce(current: Settings, symbol: str | None) -> int:
+        calls.append((symbol, current.timeframes))
+        oos_maturity.prepare_spot_oos_deployment(
+            artifact_root=current.validation_artifact_directory,
+            deployment_path=current.runtime_validation_deployment_path,
+            specification_path=Path("config/research/virtual_market_acceptance.yaml"),
+            run_cards=(
+                {
+                    "hypothesis_id": "hyp:trend_continuation:1h",
+                    "symbol": "BTCUSDT",
+                    "timeframe": "1h",
+                    "strategy_sha256": "c" * 64,
+                    "config_sha256": "d" * 64,
+                    "dataset_sha256": "e" * 64,
+                    "fee_rate": 0.001,
+                    "slippage_rate": 0.0005,
+                    "promotion_status": "RESEARCH_ONLY",
+                    "execution_allowed": False,
+                },
+            ),
+            observed_at=datetime.now(UTC),
+        )
+        print("TEST_ONLY_PRODUCER_OUTPUT")
+        return 0
+
+    monkeypatch.setattr(research_cli, "_run_validate_research", produce)
+    result = research_cli.refresh_runtime_validation(settings, as_of=datetime.now(UTC))
+    assert result["status"] == "REVALIDATED_RESEARCH_ONLY"
+    assert result["execution_allowed"] is False
+    assert result["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+    assert calls == [("BTCUSDT", ("15m", "1h", "4h"))]
+    assert not capsys.readouterr().out
+    gate = ValidationGate.from_deployment(
+        artifact_root=settings.validation_artifact_directory,
+        deployment_path=path,
+        as_of=datetime.now(UTC),
+    )
+    assert not gate.evidence_load_blockers
+    maturity = oos_maturity.OOSMaturityGate(
+        settings.validation_artifact_directory
+    ).evaluate(gate.evidence_bundles[0])
+    assert "PROMOTION_EVIDENCE_INCOMPLETE" in maturity.blockers
+    assert maturity.execution_allowed is False
+    assert (
+        research_cli.refresh_runtime_validation(settings, as_of=datetime.now(UTC))[
+            "status"
+        ]
+        == "CURRENT_SOURCE_BINDING"
+    )
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("failure", ["invalid", "busy", "resource", "missing_archive"])
+def test_runtime_validation_refresh_keeps_failed_evidence_blocked(
+    failure: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from ai4binance.cli import research as research_cli
+    from ai4binance.enterprise import resources
+    from ai4binance.ops import SingleInstanceLease
+
+    settings = Settings()
+    path = settings.runtime_validation_deployment_path
+    monkeypatch.setattr(
+        resources,
+        "physical_ram_used_gb",
+        lambda: 100.0 if failure == "resource" else 1.0,
+    )
+    if failure == "invalid":
+        path.parent.mkdir(parents=True)
+        path.write_text('{"execution_allowed": true}', encoding="utf-8")
+        result = research_cli.refresh_runtime_validation(
+            settings, as_of=datetime.now(UTC)
+        )
+        assert path.read_text(encoding="utf-8") == '{"execution_allowed": true}'
+    elif failure == "busy":
+        with SingleInstanceLease(path.with_suffix(".lock")):
+            result = research_cli.refresh_runtime_validation(
+                settings, as_of=datetime.now(UTC)
+            )
+        assert isinstance(result["blockers"], list)
+        assert "OOS_REVALIDATION_FAILED" in result["blockers"]
+    else:
+        result = research_cli.refresh_runtime_validation(
+            settings, as_of=datetime.now(UTC)
+        )
+        assert not path.exists()
+    assert result["status"] in {"BLOCKED", "DEFERRED"}
+    assert result["blockers"]
+    assert result["execution_allowed"] is False
+    assert result["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
 def test_crew_plan_reports_btcusdt_biweekly_validation_task(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -2325,15 +2451,31 @@ def test_virtual_market_manual_refresh_rejects_authority_drift_and_stale_request
 
 
 @pytest.mark.parametrize("console_encoding", ["utf-8", "cp1252"])
+@pytest.mark.parametrize("deferred", [False, True])
 def test_virtual_market_priority_revisits_preserve_discovery_and_restart_cursor(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     console_encoding: str,
+    deferred: bool,
 ) -> None:
     from io import BytesIO, TextIOWrapper
 
+    from ai4binance.cli import research as research_cli
     from ai4binance.data import market_history_sync
     from ai4binance.integrations.binance import BinanceEligibleMarketSnapshot
+
+    refresh_calls: list[datetime] = []
+
+    def refresh(_settings: Settings, *, as_of: datetime) -> dict[str, object]:
+        refresh_calls.append(as_of)
+        return {
+            "status": "DEFERRED"
+            if deferred and len(refresh_calls) in {1, 3}
+            else "TEST_ONLY_BLOCKED",
+            "execution_allowed": False,
+        }
+
+    monkeypatch.setattr(research_cli, "refresh_runtime_validation", refresh)
 
     output = BytesIO()
     stream = TextIOWrapper(output, encoding=console_encoding)
@@ -2395,6 +2537,7 @@ def test_virtual_market_priority_revisits_preserve_discovery_and_restart_cursor(
         "ETHUSDT",
     ]
     assert sleeps == [settings.virtual_market_cycle_interval_seconds] * 8
+    assert len(refresh_calls) == (4 if deferred else 2)
     state = json.loads((tmp_path / "virtual-market.json").read_text(encoding="utf-8"))
     assert state["scan_sequence"] == 10
     assert state["universe_symbol_count"] == 4

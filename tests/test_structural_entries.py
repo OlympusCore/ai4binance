@@ -10,10 +10,12 @@ from ai4binance.agents.catalog import build_default_registry
 from ai4binance.agents.technical import MarketStructureAgent, SupportResistanceAgent
 from ai4binance.data.timeframes import timeframe_duration, timeframe_from_duration
 from ai4binance.domain import Action, CandidateStatus, ValidationStatus
+from ai4binance.domain.research.virtual_runtime_attribution import TradeDecisionEvidence
 from ai4binance.intelligence.contracts import ScenarioState
 from ai4binance.intelligence.plan import TradePlanEngine
 from ai4binance.intelligence.trading import ScenarioEngine
 from ai4binance.schemas import AgentResult, MarketSnapshot
+from ai4binance.strategies.arbitration import CandidateArbitrator
 from ai4binance.strategies.engine import StrategyEngine
 from ai4binance.strategies.rules import historical_playbook_decision
 from tests.test_strategy_rules import structural_candles
@@ -217,6 +219,84 @@ def test_indicator_votes_cannot_reverse_a_structural_entry() -> None:
         "confluence": _result("confluence", vote=-1),
     }
     assert StrategyEngine().generate(snapshot, contrary) == baseline
+
+
+@pytest.mark.parametrize("short", [False, True])
+@pytest.mark.parametrize("stage", ["bind", "propose_initial", "propose_final"])
+@pytest.mark.parametrize("missing_cost", [False, True])
+def test_oversized_decision_evidence_blocks_candidate_without_crashing_cycle(
+    short: bool, stage: str, missing_cost: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    snapshot, results = structural_context(short=short)
+    state = ScenarioEngine().build(snapshot, results)
+    engine = TradePlanEngine()
+    (candidate,) = engine.propose(snapshot, state)
+    candidate = replace(
+        candidate, decision_evidence=TradeDecisionEvidence(), blockers=()
+    )
+    if missing_cost:
+        state = replace(
+            state,
+            estimated_round_trip_cost_ratio=None,
+            cost_blockers=("TEST_ONLY_EXECUTION_COST_UNAVAILABLE",),
+        )
+    scenario = state.selected_scenario
+    assert scenario is not None
+    baseline = engine.bind(candidate, scenario, state)
+    if missing_cost:
+        assert "TEST_ONLY_EXECUTION_COST_UNAVAILABLE" in baseline.blockers
+        assert "NET_RISK_REWARD_UNAVAILABLE" in baseline.blockers
+    original = TradePlanEngine._plan_factors
+    calls = 0
+
+    def factors(current: object) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        # TEST_ONLY oversized metadata; never market or approval evidence.
+        if stage != "propose_final" or calls == 2:
+            return {"test_only_padding": "x" * 1_000_001}
+        return original(candidate)
+
+    monkeypatch.setattr(TradePlanEngine, "_plan_factors", staticmethod(factors))
+    if stage == "bind":
+        blocked = engine.bind(candidate, scenario, state)
+    else:
+        (blocked,) = engine.propose(snapshot, state)
+    assert blocked.status is CandidateStatus.RESEARCH_ONLY
+    assert "DECISION_EVIDENCE_PAYLOAD_BOUND_EXCEEDED" in blocked.blockers
+    assert set(baseline.blockers).issubset(blocked.blockers)
+    assert blocked.entry_state == "ENTRY_NOT_READY"
+    assert blocked.scenario_id == scenario.scenario_id
+    assert CandidateArbitrator().select((blocked,)).selected is None
+    assert len(blocked.decision_evidence.factors_json.encode()) <= 1_000_000
+    assert blocked.decision_evidence.status == (
+        "RECORDED_AT_DECISION" if stage == "propose_final" else "NOT_RECORDED"
+    )
+    # The canonical limit still rejects the same payload directly.
+    with pytest.raises(ValueError, match="decision evidence exceeds the payload bound"):
+        TradeDecisionEvidence(
+            factors_json='{"test_only_padding":"' + "x" * 1_000_001 + '"}'
+        )
+
+
+def test_decision_evidence_digest_rejection_is_not_caught_as_size_overflow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot, results = structural_context()
+    state = ScenarioEngine().build(snapshot, results)
+    (candidate,) = TradePlanEngine().propose(snapshot, state)
+    candidate = replace(candidate, decision_evidence=TradeDecisionEvidence())
+    scenario = state.selected_scenario
+    assert scenario is not None
+    monkeypatch.setattr(
+        TradePlanEngine,
+        "_plan_factors",
+        staticmethod(
+            lambda _: {"method_registry": {"definition": {}, "sha256": "a" * 64}}
+        ),
+    )
+    with pytest.raises(ValueError, match="recorded method registry digest mismatch"):
+        TradePlanEngine().bind(candidate, scenario, state)
 
 
 @pytest.mark.parametrize("short", [False, True])

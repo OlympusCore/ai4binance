@@ -37,6 +37,28 @@ from ai4binance.schemas import MarketSnapshot
 ZERO = Decimal("0")
 
 
+def _bounded_decision_evidence(
+    *,
+    as_of: datetime,
+    direction_method: str,
+    entry_method: str,
+    factors_json: str,
+) -> TradeDecisionEvidence | None:
+    """Keep the canonical byte limit; deny only the oversized candidate."""
+    try:
+        return TradeDecisionEvidence(
+            status="RECORDED_AT_DECISION",
+            as_of=as_of,
+            direction_method=direction_method,
+            entry_method=entry_method,
+            factors_json=factors_json,
+        )
+    except ValueError as error:
+        if str(error) != "decision evidence exceeds the payload bound":
+            raise
+        return None
+
+
 @dataclass(frozen=True, slots=True)
 class RiskRewardEngine:
     """Calculate explicit gross, structural, and cost-aware research metrics."""
@@ -266,8 +288,10 @@ class TradePlanEngine:
             )
             candidate = self.structural_candidate(candidate, scenario, state, snapshot)
             candidate = self.bind(candidate, scenario, state)
-            evidence = TradeDecisionEvidence(
-                status="RECORDED_AT_DECISION",
+            if "DECISION_EVIDENCE_PAYLOAD_BOUND_EXCEEDED" in candidate.blockers:
+                proposals.append(candidate)
+                continue
+            evidence = _bounded_decision_evidence(
                 as_of=snapshot.created_at,
                 direction_method="CONFIRMED_SWING_GRAPH_AND_4H_TREND_GEOMETRY",
                 entry_method="CONFIRMED_SCENARIO_CLOSED_CANDLE_TRIGGER",
@@ -298,8 +322,17 @@ class TradePlanEngine:
                         }
                     ),
                     sort_keys=True,
+                    separators=(",", ":"),
                 ),
             )
+            if evidence is None:
+                proposals.append(
+                    self._unavailable(
+                        replace(candidate, entry_state="ENTRY_NOT_READY"),
+                        "DECISION_EVIDENCE_PAYLOAD_BOUND_EXCEEDED",
+                    )
+                )
+                continue
             proposals.append(replace(candidate, decision_evidence=evidence))
         return tuple(proposals)
 
@@ -605,8 +638,7 @@ class TradePlanEngine:
         candidate = self._economics(candidate, scenario, state)
         decision_evidence = candidate.decision_evidence
         if decision_evidence.status == "NOT_RECORDED":
-            decision_evidence = TradeDecisionEvidence(
-                status="RECORDED_AT_DECISION",
+            recorded_evidence = _bounded_decision_evidence(
                 as_of=state.timestamp,
                 direction_method="CANONICAL_SCENARIO",
                 entry_method="SCENARIO_BINDING",
@@ -618,8 +650,18 @@ class TradePlanEngine:
                         }
                     ),
                     sort_keys=True,
+                    separators=(",", ":"),
                 ),
             )
+            if recorded_evidence is None:
+                status = CandidateStatus.RESEARCH_ONLY
+                unique_blockers = tuple(
+                    dict.fromkeys(
+                        (*unique_blockers, "DECISION_EVIDENCE_PAYLOAD_BOUND_EXCEEDED")
+                    )
+                )
+            else:
+                decision_evidence = recorded_evidence
         return replace(
             candidate,
             status=status,
