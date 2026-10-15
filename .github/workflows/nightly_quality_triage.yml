@@ -33,6 +33,7 @@ jobs:
         run: uv sync --frozen --extra dev
 
       - name: Run bounded report-only triage
+        continue-on-error: true
         run: >-
           uv run --frozen python -m ai4binance.ops.quality_triage
           --repository-root .
@@ -50,4 +51,3 @@ jobs:
             runtime/logs/nightly-quality-triage-*.jsonl
           if-no-files-found: error
           retention-days: 30
-
