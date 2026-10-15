@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-FRM-001
 title: AI4BINANCE Core vNext Governance Framework
 document_type: FRAMEWORK
-version: 2.0.14
+version: 2.0.16
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -567,6 +567,83 @@ amendment, general single-owner model, historical approval repair, trading,
 promotion, deployment or live-risk permission is established. Keep RESEARCH_ONLY,
 execution_allowed=false and LIVE_ORDER_BLOCKED.
 
+#### 3.1.3 Bounded Owner Acceptance for the Decision Workbench Repair
+
+bounded_owner_acceptance_contract=AI4B-GOV-C3-REPAIR-20261015
+
+Only the exact decision-workbench repair frozen at baseline
+433741bdbda3212058b41c7bbda5fdf0e6147f35 may use one genuine owner decision
+through the existing BOUNDED_OWNER_PACKAGE consumer. This prospective amendment
+expressly departs from the project-authored two-human C3 default for this finite
+repair. It does not claim independent human review. Huseyin Cicek remains the
+existing Huseyin / GovernanceOwner / huseyin-governance-owner-principal owner.
+No other identity, appointment or review is created.
+
+Recognition requires a new OWNER_ISSUED normative decision and an actual completed
+DocumentLockAuthorityContext/v4 transition from the completed Core 2.0.15 raw
+SHA-256 32d57ee03b00c312b3c5a04bfad7702cbc0f205b3613f005e4536ae8ed38b412
+to the individually reviewed Core 2.0.16. This replaces the earlier recognition
+only for the same finite repair after its remote-preservation helper failed the
+unchanged maintainability ratchet. Preserve the completed 2.0.14-to-2.0.15
+predecessor and all earlier evidence. The corrected helper must pass the existing
+ratchet without suppressed findings or increased limits. The earlier owner
+source, grant and output inventory cannot approve these changed bytes; require a
+new genuine exact-subject owner adoption and a new sealed complete output
+inventory through the existing written-owner procedure. Use epoch
+AI4B_DECISION_WORKBENCH_OWNER_REPAIR_20261015. Bind the same genuine source,
+review subject, owner, versioned predecessor, registration and sealed complete
+output inventory. Existing original Git-rule commits remain historical inputs;
+neither their decisions nor section 3.1.2 recognition authorize this repair.
+
+The finite allowed paths are:
+
+- `config/governance/governance_enforcement_fabric.yaml`
+- `config/governance/governed_document_lock_manifest.json`
+- `docs/governance/framework_core_vnext_governance.md`
+- `docs/governance/policy_manifest_governance.md`
+- `frontend/src/command_center.ts`
+- `frontend/src/dashboard_shell.ts`
+- `schemas/governance/governance_enforcement_fabric.schema.json`
+- `scripts/git-hooks/pre-push`
+- `scripts/quality.ps1`
+- `src/ai4binance/application/research.py`
+- `src/ai4binance/cli/research.py`
+- `src/ai4binance/cli/runtime.py`
+- `src/ai4binance/governance/package_owner_acceptance.py`
+- `src/ai4binance/infrastructure/persistence/canonical_payloads.py`
+- `src/ai4binance/local_dashboard/server.py.in`
+- `src/ai4binance/ops/quality_gate/repository_completion.py`
+- `tests/test_canonical_explanations.py`
+- `tests/test_cli.py`
+- `tests/test_dashboard_decisions.py`
+- `tests/test_dashboard_presentation.py`
+- `tests/test_local_dashboard_source.py`
+- `tests/test_lowest_coverage_remaining_edges.py`
+- `tests/test_package_owner_acceptance.py`
+- `tests/test_repository_completion.py`
+- `tests/test_research_application.py`
+
+Every present output except the deterministically derived protected registration
+manifest must match its individually sealed reviewed bytes. No path may be added
+or substituted. Missing, changed, revoked, expired or inconsistent inputs deny
+recognition. Require natural_person_count=1, independent_human_review=false and
+departure_from_legacy_c3=true. Validity is at most 24 hours and cannot outlive the
+actual application grant. Preparation and test fixtures grant no authority.
+
+The existing governance gate remains the only final acceptance consumer. Its
+exact subject, scope, quality, lifecycle, identity and veto checks remain binding.
+Fresh canonical FULL evidence must precede recording any expressly supplied
+conditional final package acceptance. A staged acceptance cannot be rebound to
+a changed committed subject; use fresh evidence and the expressly authorized
+conditional owner directive for each actual reviewed subject. Record actual
+recording times without claiming an unobserved later human review.
+
+This recognition grants no deployment, Git mutation, credential, promotion,
+trading or live-risk authority. Those controls remain independently binding.
+Other C3 packages retain section 3.1. No successor or future package may reuse
+this recognition. Preserve RESEARCH_ONLY, execution_allowed=false and
+LIVE_ORDER_BLOCKED.
+
 ### 3.2 Repository Completion Invariant
 
 Rule ID: `AI4B-GOV-GIT-001`.
@@ -625,6 +702,19 @@ must block false completion/baseline claims. External settings require separate
 authorization. Current extra branches/worktrees require a preservation inventory
 and separately authorized remediation; this rule grants no deletion, discard,
 commit, push, deployment or history-rewrite authority.
+
+remote_branch_remediation_contract=AI4B-GOV-GIT-REMEDIATION-20261015
+
+Separately authorized recovery may submit only deletions of all currently
+observed non-main remote branches as one exact update set. Require a bounded
+runtime preservation inventory, complete-history Git bundles, matching bundle
+hashes and bundled tips, and unchanged live remote SHAs. Prohibit main deletion,
+new branch creation, mixed publication and recovery updates, missing archives,
+changed tips and unrelated violations. Retain the independent one-use Git-specific
+authorization consumer. A preservation check is not authorization. Preserve the
+original observed violations and report CHANGE_IN_PROGRESS, never a verified
+baseline, while recovery is pending. Completion requires fresh main-only remote
+verification after the actual authorized write.
 
 Preserve PAPER_TRADING, MANUAL_CONFIRMATION, LIVE_EXECUTION_DISABLED, READ_ONLY_API,
 RESEARCH_ONLY and LIVE_ORDER_BLOCKED.

@@ -54,6 +54,10 @@ from ai4binance.domain.research.virtual_runtime_attribution import (
 )
 
 
+class CanonicalExplanationStoreLike(Protocol):
+    def save(self, reference: CycleArtifactRef, body: Mapping[str, object]) -> None: ...
+
+
 class StatusValueLike(Protocol):
     value: str
 
@@ -313,6 +317,7 @@ class ResearchApplicationService:
     market_context_registry: Any | None = None
     market_context_provider_ids: tuple[str, ...] = ()
     outlook_store: Any | None = None
+    canonical_explanation_store: CanonicalExplanationStoreLike | None = None
     observer: Any | None = None
     learning_evidence_provider: LearningEvidenceProvider | None = None
     virtual_market_runtime: Any | None = None
@@ -577,6 +582,22 @@ class ResearchApplicationService:
             self.outlook_store.save(workflow.market_outlook)
         if self.audit_store is None or self.audit_event_builder is None:
             return
+        if (
+            self.canonical_explanation_store is not None
+            and workflow.canonical_cycle is not None
+        ):
+            cycle = workflow.canonical_cycle
+            for reference in (
+                cycle.decision,
+                cycle.governance_result,
+                cycle.audit_trail,
+                cycle.execution_plan,
+            ):
+                if reference is None:
+                    continue
+                body = workflow.canonical_payloads.get(reference.artifact_id)
+                if isinstance(body, Mapping):
+                    self.canonical_explanation_store.save(reference, body)
         append = getattr(
             self.audit_store,
             "append_verified_idempotent",
@@ -664,11 +685,20 @@ class ResearchApplicationService:
                 else None
             ),
         }
-        # Keep the existing compact audit budget. Missing bodies stay missing;
-        # never truncate a body whose complete bytes define its reference hash.
+        # Preserve the compact audit budget and complete hash-bound bodies.
+        # Configured explanation storage retains bodies omitted from this event.
         bodies: dict[str, object] = {}
         payload["canonical_payloads"] = bodies
-        for artifact_id, body in sorted(workflow.canonical_payloads.items()):
+        priority = {"DECISION": 0, "GOVERNANCE_RESULT": 1, "AUDIT_TRAIL": 2}
+        for artifact_id, body in sorted(
+            workflow.canonical_payloads.items(),
+            key=lambda item: (
+                priority.get(str(item[1].get("artifact_kind")), 3)
+                if isinstance(item[1], Mapping)
+                else 3,
+                item[0],
+            ),
+        ):
             bodies[artifact_id] = body
             encoded = json.dumps(
                 self.primitive_converter(payload),

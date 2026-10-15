@@ -19,7 +19,8 @@ declare function renderLocal(content: HTMLElement): void;
 declare function observedTime(value?: string): string;
 declare function pollLocal(): Promise<void>;
 declare function renderDashboardIcons(root: ParentNode): void;
-declare const localData: {generated_at?: string} | null;
+interface DashboardSnapshot { generated_at?: string; }
+declare var localData: DashboardSnapshot | null;
 
 (() => {
   function requiredElement(parent: ParentNode, selector: string): HTMLElement {

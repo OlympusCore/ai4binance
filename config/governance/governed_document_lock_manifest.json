@@ -2298,13 +2298,13 @@
       "authority_scope": "core_constitution",
       "canonical_path": "docs/governance/framework_core_vnext_governance.md",
       "document_status": "ACTIVE",
-      "expected_hash": "0cb0aedfb3d0dde896af4c65a931f4a32878280dd4716b2645322ce49fa403d3",
+      "expected_hash": "daff7033ccab19ad0043c461db9fa07a24b66d09135147fd4b3712b55cc090e9",
       "lock_state": "LOCKED",
       "path": "docs/governance/framework_core_vnext_governance.md",
-      "sha256": "0cb0aedfb3d0dde896af4c65a931f4a32878280dd4716b2645322ce49fa403d3",
+      "sha256": "daff7033ccab19ad0043c461db9fa07a24b66d09135147fd4b3712b55cc090e9",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "2.0.14"
+      "version": "2.0.16"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -2434,13 +2434,13 @@
       "authority_scope": "manifest_governance",
       "canonical_path": "docs/governance/policy_manifest_governance.md",
       "document_status": "ACTIVE",
-      "expected_hash": "95eb2b98be444b30662e08728bd8619fd90cecd1e6fdb7822357c3e92ebedb81",
+      "expected_hash": "b4b4d961e4c9157193872650323bdbf00d7dc1ed0a6043042b9a506365242aaa",
       "lock_state": "LOCKED",
       "path": "docs/governance/policy_manifest_governance.md",
-      "sha256": "95eb2b98be444b30662e08728bd8619fd90cecd1e6fdb7822357c3e92ebedb81",
+      "sha256": "b4b4d961e4c9157193872650323bdbf00d7dc1ed0a6043042b9a506365242aaa",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "1.0.6"
+      "version": "1.0.7"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -4675,12 +4675,12 @@
   "prospective_lock_grant": {
     "contract_version": "DocumentLockRegistration/v3",
     "grant": {
-      "path": "runtime/artifacts/data/top5/written-rule-application/owner-application-grant.json",
-      "sha256": "ff3a20ff07a86450915e3fd8184ac37800be233fa0ddf368cacadd424bd4c5db"
+      "path": "runtime/artifacts/quality/gate/decision-workbench-review/maintainability-correction/owner-application-grant.json",
+      "sha256": "246aa8165a1a31a8accee64f62d39dbe0c02c334fbd19937b3027584eab0c29d"
     },
     "predecessor": {
-      "path": "runtime/artifacts/data/top5/written-rule-application/predecessor-context.json",
-      "sha256": "e18df181a94150645911fc8d6db780c9b3b08c702ff57ec3b509fb9e85903f01"
+      "path": "runtime/artifacts/quality/gate/decision-workbench-review/maintainability-correction/predecessor-context.raw.json",
+      "sha256": "8c0e79d48a4534d531da5c3eaab43b5cf1f3657c5ca83e3e92b7772aba2e60c3"
     }
   }
 }

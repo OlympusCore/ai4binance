@@ -32,6 +32,11 @@ MANIFEST = "config/governance/governed_document_lock_manifest.json"
 RULE = "AI4B-GOV-C3-OWNER-20261007"
 PROFILE = "BOUNDED_OWNER_PACKAGE"
 PRIOR_CORE_SHA256 = "f9c25e829035791b2197f5bdb01e853152d6bdf83675af79489de2ad7df2563b"
+REPAIR_RULE = "AI4B-GOV-C3-REPAIR-20261015"
+REPAIR_BASELINE = "433741bdbda3212058b41c7bbda5fdf0e6147f35"
+REPAIR_PRIOR_CORE_SHA256 = (
+    "32d57ee03b00c312b3c5a04bfad7702cbc0f205b3613f005e4536ae8ed38b412"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +121,7 @@ def _installed_decision(
     )
     if (
         context["contract_version"] != "DocumentLockAuthorityContext/v4"
+        or decision["rule_id"] != policy["rule_id"]
         or context["grant"] != decision["grant"]
         or context["subject_sha256"] != decision["subject_sha256"]
         or context["owner_person_id"] != policy["owner_person_id"]
@@ -132,11 +138,18 @@ def _installed_decision(
     if len(core_documents) != 1:
         raise ValueError("BOUNDED_OWNER_EXACT_AMENDMENT_REQUIRED")
     core_document = core_documents[0]
+    repair = policy["rule_id"] == REPAIR_RULE
+    before_hash, before_version, after_version = (
+        (REPAIR_PRIOR_CORE_SHA256, "2.0.15", "2.0.16")
+        if repair
+        else (PRIOR_CORE_SHA256, "2.0.13", "2.0.14")
+    )
     if (
         reviewed["baseline_commit"] != policy["review_baseline_commit"]
-        or core_document["before_sha256"] != PRIOR_CORE_SHA256
-        or core_document["before_version"] != "2.0.13"
-        or core_document["version"] != "2.0.14"
+        or (repair and reviewed["baseline_commit"] != REPAIR_BASELINE)
+        or core_document["before_sha256"] != before_hash
+        or core_document["before_version"] != before_version
+        or core_document["version"] != after_version
         or core_document["sha256"] != policy["core_sha256"]
     ):
         raise ValueError("BOUNDED_OWNER_EXACT_AMENDMENT_REQUIRED")
@@ -209,8 +222,8 @@ def load_package_owner_acceptance(
         return None
     core = read_verified_governed_document(root, CORE)
     if (
-        policy["rule_id"] != RULE
-        or RULE not in core
+        policy["rule_id"] not in {RULE, REPAIR_RULE}
+        or policy["rule_id"] not in core
         or hashlib.sha256((root / CORE).read_bytes()).hexdigest()
         != policy["core_sha256"]
         or root.resolve() != Path(policy["canonical_root"]).resolve()

@@ -18,6 +18,7 @@ from typing import Any
 import yaml
 
 RULE_ID = "AI4B-GOV-GIT-001"
+REMOTE_REMEDIATION_CONTRACT = "AI4B-GOV-GIT-REMEDIATION-20261015"
 OPERATIONS = (
     "completion",
     "preflight",
@@ -39,6 +40,7 @@ class GitPolicy:
 
     canonical_root: Path
     canonical_remote_url: str
+    preserved_remote_remediation: bool = False
 
 
 def _git(root: Path, *arguments: str) -> str:
@@ -88,6 +90,7 @@ def _policy(root: Path, *, remote_only: bool = False) -> GitPolicy:
     projection = fabric["repository_git"]
     if projection["rule_id"] != RULE_ID:
         raise ValueError("Canonical Git rule identity is unavailable")
+    verified_texts: list[str] = []
     for path, field in ((CORE_PATH, "core_sha256"), (POLICY_PATH, "policy_sha256")):
         text = (
             (root / path).read_text(encoding="utf-8")
@@ -99,6 +102,14 @@ def _policy(root: Path, *, remote_only: bool = False) -> GitPolicy:
             or sha256((root / path).read_bytes()).hexdigest() != projection[field]
         ):
             raise ValueError("Canonical Git authority differs from its projection")
+        verified_texts.append(text)
+    remediation = (
+        projection.get("remote_remediation_contract") == REMOTE_REMEDIATION_CONTRACT
+    )
+    if remediation and any(
+        REMOTE_REMEDIATION_CONTRACT not in text for text in verified_texts
+    ):
+        raise ValueError("Remote remediation lacks accepted normative authority")
     canonical = Path(projection["canonical_root"])
     endpoint = projection["canonical_remote_url"]
     if not canonical.is_absolute() or not isinstance(endpoint, str):
@@ -110,7 +121,7 @@ def _policy(root: Path, *, remote_only: bool = False) -> GitPolicy:
         or any(char in endpoint for char in ("@", "?", "#", "\n", " "))
     ):
         raise ValueError("Unsupported canonical remote endpoint")
-    return GitPolicy(canonical.resolve(), endpoint)
+    return GitPolicy(canonical.resolve(), endpoint, remediation)
 
 
 def _topology(
@@ -369,6 +380,7 @@ def inspect_git_boundary(
     name, remote_heads = remote_before
     report["canonical_remote_url"] = active_policy.canonical_remote_url
     report["canonical_remote_name"] = name
+    report["remote_remediation_supported"] = active_policy.preserved_remote_remediation
     _record_remote_heads(report, remote_heads, fail)
 
     if operation != "ci":
@@ -392,8 +404,136 @@ def inspect_git_completion(root: Path) -> dict[str, Any]:
     return inspect_git_boundary(root)
 
 
+def _remote_deletion_targets(
+    lines: list[list[str]], heads: dict[str, str], extras: set[str]
+) -> set[str]:
+    """Require each observed extra ref exactly once as a tip-bound deletion."""
+    targets: set[str] = set()
+    for line in lines:
+        if len(line) != 4:
+            raise ValueError("REMOTE_REMEDIATION_UPDATE_INVALID")
+        source, oid, target, remote_oid = line
+        if (
+            source != "(delete)"
+            or target not in extras
+            or target in targets
+            or remote_oid != heads[target]
+            or oid != "0" * len(remote_oid)
+        ):
+            raise ValueError("REMOTE_REMEDIATION_UPDATE_INVALID")
+        targets.add(target)
+    return targets
+
+
+def _remote_preservation_inventory(
+    inventory: Path, boundary: Path, expected_count: int
+) -> tuple[bytes, list[Any]]:
+    """Read the bounded runtime inventory without accepting an external path."""
+    if (
+        inventory.is_symlink()
+        or not inventory.resolve().is_relative_to(boundary)
+        or inventory.stat().st_size > 65_536
+    ):
+        raise ValueError("REMOTE_REMEDIATION_INVENTORY_INVALID")
+    with inventory.open("rb") as stream:
+        raw = stream.read(65_537)
+    if len(raw) > 65_536:
+        raise ValueError("REMOTE_REMEDIATION_INVENTORY_INVALID")
+    payload = json.loads(raw)
+    branches = payload.get("branches") if isinstance(payload, dict) else None
+    if not isinstance(branches, list) or len(branches) != expected_count:
+        raise ValueError("REMOTE_REMEDIATION_INVENTORY_INVALID")
+    return raw, branches
+
+
+def _complete_bundle_digest(bundle: Path, boundary: Path) -> str:
+    """Hash a bounded complete-history bundle, rejecting prerequisites."""
+    if (
+        bundle.is_symlink()
+        or not bundle.resolve().is_relative_to(boundary)
+        or not 0 < bundle.stat().st_size <= 512 * 1024 * 1024
+    ):
+        raise ValueError("REMOTE_REMEDIATION_BUNDLE_INVALID")
+    digest = sha256()
+    with bundle.open("rb") as stream:
+        header = stream.readline(65_537)
+        if header.rstrip() not in {b"# v2 git bundle", b"# v3 git bundle"}:
+            raise ValueError("REMOTE_REMEDIATION_BUNDLE_INVALID")
+        digest.update(header)
+        header_bytes = len(header)
+        while True:
+            line_bytes = stream.readline(65_537)
+            header_bytes += len(line_bytes)
+            if not line_bytes or header_bytes > 65_536 or line_bytes.startswith(b"-"):
+                raise ValueError("REMOTE_REMEDIATION_COMPLETE_HISTORY_REQUIRED")
+            digest.update(line_bytes)
+            if line_bytes in {b"\n", b"\r\n"}:
+                break
+        bundle_bytes = header_bytes
+        while block := stream.read(1024 * 1024):
+            bundle_bytes += len(block)
+            if bundle_bytes > 512 * 1024 * 1024:
+                raise ValueError("REMOTE_REMEDIATION_BUNDLE_INVALID")
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _preserved_remote_deletions(
+    report: dict[str, Any], lines: list[list[str]], root: Path, inventory: Path
+) -> dict[str, object]:
+    """Verify Core 3.2 recovery inputs; independent Git approval still applies."""
+    heads = report.get("remote_heads", {})
+    extras = set(heads) - {"refs/heads/main"}
+    if (
+        report.get("operation") != "pre_push"
+        or report.get("remote_remediation_supported") is not True
+        or report.get("blockers") != ["GIT_COMPLETION_REMOTE_BRANCHES"]
+        or not extras
+        or len(extras) > 32
+        or len(lines) != len(extras)
+    ):
+        raise ValueError("REMOTE_REMEDIATION_BOUNDARY_INVALID")
+    targets = _remote_deletion_targets(lines, heads, extras)
+    boundary = (root / "runtime").resolve()
+    raw, branches = _remote_preservation_inventory(inventory, boundary, len(extras))
+    preserved: dict[str, str] = {}
+    for item in branches:
+        if not isinstance(item, dict) or not isinstance(item.get("branch"), str):
+            raise ValueError("REMOTE_REMEDIATION_INVENTORY_INVALID")
+        ref = "refs/heads/" + item["branch"]
+        if (
+            ref not in targets
+            or ref in preserved
+            or item.get("reviewed_head_sha") != heads[ref]
+            or not isinstance(item.get("bundle"), str)
+        ):
+            raise ValueError("REMOTE_REMEDIATION_PRESERVATION_MISMATCH")
+        bundle = root / item["bundle"]
+        digest = _complete_bundle_digest(bundle, boundary)
+        if digest != item.get("bundle_sha256"):
+            raise ValueError("REMOTE_REMEDIATION_BUNDLE_HASH_MISMATCH")
+        _git(root, "bundle", "verify", str(bundle.resolve()))
+        bundled = _git(root, "bundle", "list-heads", str(bundle.resolve()))
+        if {line.split()[0] for line in bundled.splitlines()} != {heads[ref]}:
+            raise ValueError("REMOTE_REMEDIATION_BUNDLE_HEAD_MISMATCH")
+        preserved[ref] = digest
+    return {
+        "inventory_path": inventory.resolve().relative_to(root.resolve()).as_posix(),
+        "inventory_sha256": sha256(raw).hexdigest(),
+        "preserved_remote_heads": {ref: heads[ref] for ref in sorted(targets)},
+        "bundle_sha256": preserved,
+        "status": "PRESERVED_AWAITING_INDEPENDENT_GIT_AUTHORIZATION",
+    }
+
+
 def validate_push_updates(
-    report: dict[str, Any], raw: str, remote_name: str, remote_url: str
+    report: dict[str, Any],
+    raw: str,
+    remote_name: str,
+    remote_url: str,
+    *,
+    repository_root: Path | None = None,
+    remediation_inventory: Path | None = None,
 ) -> None:
     """Constrain the exact update set before independent Git authorization."""
     lines = [line.split() for line in raw.splitlines() if line.strip()]
@@ -411,6 +551,27 @@ def validate_push_updates(
             source == target == "refs/heads/main"
             and oid == report.get("local_shas", [None])[0]
         )
+    if not valid and repository_root is not None and remediation_inventory is not None:
+        try:
+            if remote_name != report.get(
+                "canonical_remote_name"
+            ) or not _canonical_endpoint(
+                remote_url, report.get("canonical_remote_url")
+            ):
+                raise ValueError("REMOTE_REMEDIATION_ENDPOINT_INVALID")
+            remediation = _preserved_remote_deletions(
+                report, lines, repository_root, remediation_inventory
+            )
+        except OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError:
+            report["blockers"].append("GIT_COMPLETION_REMOTE_REMEDIATION_INVALID")
+        else:
+            report["observed_invariant_violations"] = list(report["blockers"])
+            report["remote_remediation"] = remediation
+            report["blockers"] = []
+            report["status"] = "PASS"
+            report["state"] = "CHANGE_IN_PROGRESS"
+            report["baseline_verified"] = False
+            valid = True
     if not valid:
         report["blockers"].append("GIT_COMPLETION_PUSH_UPDATE_PROHIBITED")
         report["status"] = "BLOCKED"
@@ -428,6 +589,7 @@ def main() -> int:
     parser.add_argument("--synchronization-sequence", action="store_true")
     parser.add_argument("--output-json", type=Path)
     parser.add_argument("--push-updates-path", type=Path)
+    parser.add_argument("--remote-remediation-inventory", type=Path)
     parser.add_argument("--remote-name", default="")
     parser.add_argument("--remote-url", default="")
     args = parser.parse_args()
@@ -445,6 +607,8 @@ def main() -> int:
             args.push_updates_path.read_text(encoding="utf-8"),
             args.remote_name,
             args.remote_url,
+            repository_root=args.repository_root,
+            remediation_inventory=args.remote_remediation_inventory,
         )
     if args.output_json is not None:
         from ai4binance.infrastructure.persistence.safe_json import (

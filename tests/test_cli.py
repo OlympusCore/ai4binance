@@ -1871,6 +1871,17 @@ def test_virtual_market_research_cycle_persists_both_wallets_and_report(
     assert cycle_report["virtual_runtime_evaluated"] is False
     assert cycle_report["virtual_simulation_outcome"] == "PRECONDITIONS_BLOCKED"
     assert cycle_report["virtual_order_ready"] is False
+    validation_evidence = cast(
+        Mapping[str, object], cycle_report["validation_evidence"]
+    )
+    assert validation_evidence["snapshot_id"] == payload["snapshot_id"]
+    assert validation_evidence["symbol"] == payload["symbol"]
+    assert validation_evidence["market"] == "SPOT"
+    assert validation_evidence["loaded_subject_count"] == 0
+    assert validation_evidence["symbol_subject_count"] == 0
+    assert validation_evidence["load_blockers"] == (
+        "OOS_RUNTIME_EVIDENCE_UNAVAILABLE:OOS_DEPLOYMENT_MISSING",
+    )
     tuning = cast(Mapping[str, object], cycle_report["daily_loss_tuning"])
     assert tuning["status"] == "NOT_TRIGGERED"
     assert tuning["loss_threshold"] == 3
@@ -3273,3 +3284,109 @@ def test_virtual_projection_preserves_other_symbol_and_clears_failed_verdict() -
     assert "risk_approved" not in failed_row
     assert "virtual_order_ready" not in failed_row
     assert failed["order_ready_symbol_count"] == 0
+
+
+def test_virtual_projection_retains_bound_candidate_causes_and_evidence_scope() -> None:
+    """Test-only reports reproduce the dropped per-coin readiness evidence."""
+    now = datetime(2026, 10, 15, tzinfo=UTC)
+    report: dict[str, object] = {
+        "snapshot_id": "TEST_ONLY_SNAPSHOT_A",
+        "symbol": "TEST_ONLY_A",
+        "market": "SPOT",
+        "candidate_count": 1,
+        "risk_approved": False,
+        "virtual_order_ready": False,
+        "research_blockers": ["NO_READY_CANDIDATE", "OOS_APPROVAL_MISSING"],
+        "candidate_diagnostics": [
+            {
+                "candidate_id": "TEST_ONLY_CANDIDATE",
+                "setup": "TEST_ONLY_SETUP",
+                "timeframe": "1h",
+                "status": "RESEARCH_ONLY",
+                "blockers": ["ENTRY_TRIGGER_MISSING", "TEST_ONLY_UNKNOWN_REASON"],
+            }
+        ],
+        "validation_evidence": {
+            "snapshot_id": "TEST_ONLY_SNAPSHOT_A",
+            "symbol": "TEST_ONLY_A",
+            "market": "SPOT",
+            "loaded_subject_count": 15,
+            "symbol_subject_count": 0,
+            "deployment_path": "TEST_ONLY_DEPLOYMENT",
+            "load_blockers": [],
+        },
+    }
+    first = runtime_cli._dashboard_simulation_projection(
+        {},
+        symbols=("TEST_ONLY_A", "TEST_ONLY_B"),
+        observed_at=now,
+        exit_code=0,
+        cycle_report=report,
+    )
+    row = cast(list[dict[str, object]], first["symbol_observations"])[0]
+    assert row["candidate_diagnostics"] == report["candidate_diagnostics"]
+    assert row["validation_evidence"] == report["validation_evidence"]
+    assert row["blockers"] == report["research_blockers"]
+    assert row["risk_approved"] is False
+    second = runtime_cli._dashboard_simulation_projection(
+        first,
+        symbols=("TEST_ONLY_A", "TEST_ONLY_B"),
+        observed_at=now,
+        exit_code=0,
+        cycle_report={"symbol": "TEST_ONLY_B", "candidate_count": 0},
+    )
+    rows = cast(list[dict[str, object]], second["symbol_observations"])
+    assert rows[0]["candidate_diagnostics"] == row["candidate_diagnostics"]
+    assert rows[0]["validation_evidence"] == row["validation_evidence"]
+    assert "candidate_diagnostics" not in rows[1]
+    failed = runtime_cli._dashboard_simulation_projection(
+        second,
+        symbols=("TEST_ONLY_A", "TEST_ONLY_B"),
+        observed_at=now,
+        exit_code=2,
+        cycle_report={
+            "symbol": "TEST_ONLY_A",
+            "research_blockers": ["TEST_ONLY_FAILED"],
+        },
+    )
+    assert (
+        "candidate_diagnostics"
+        not in cast(list[dict[str, object]], failed["symbol_observations"])[0]
+    )
+    assert (
+        "validation_evidence"
+        not in cast(list[dict[str, object]], failed["symbol_observations"])[0]
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("snapshot_id", "TEST_ONLY_OTHER"),
+        ("symbol", "TEST_ONLY_OTHER"),
+        ("market", "USD_M_FUTURES"),
+        ("loaded_subject_count", True),
+        ("symbol_subject_count", 2),
+        ("load_blockers", "TEST_ONLY_INVALID"),
+    ],
+)
+def test_virtual_evidence_scope_rejects_mismatch_and_invalid_counts(
+    field: str, value: object
+) -> None:
+    report: dict[str, object] = {
+        "snapshot_id": "TEST_ONLY_SNAPSHOT",
+        "symbol": "TEST_ONLY_A",
+        "market": "SPOT",
+    }
+    evidence: dict[str, object] = {
+        **report,
+        "loaded_subject_count": 1,
+        "symbol_subject_count": 0,
+        "deployment_path": "TEST_ONLY_PATH",
+        "load_blockers": [],
+    }
+    evidence[field] = value
+    report["validation_evidence"] = evidence
+    assert "validation_evidence" not in runtime_cli._reported_virtual_simulation_fields(
+        report
+    )

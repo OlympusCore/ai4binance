@@ -287,7 +287,12 @@ def test_history_projection_bounds_recent_receipts_without_changing_journal(
         encoding="utf-8",
     )
 
-    def project(event: dict[str, Any], source: str, _now: datetime) -> dict[str, Any]:
+    def project(
+        event: dict[str, Any],
+        source: str,
+        _now: datetime,
+        _explanation_store: object = None,
+    ) -> dict[str, Any]:
         index = event["index"]
         return {
             "decision_id": f"TEST_ONLY_{index:02}",

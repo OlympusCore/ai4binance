@@ -223,6 +223,55 @@ def test_research_service_runs_all_safe_stages_and_persists_audit(
     assert len(audit_path.read_bytes()) < 16_000
 
 
+def test_large_mandatory_receipt_retains_bounded_exact_explanations(
+    tmp_path: Path,
+) -> None:
+    """Test-only wide receipts reproduce missing explanations in real cycles."""
+    service = build_research_application_service()
+    snapshot = public_snapshot()
+    workflow = service.run(snapshot)
+    assert workflow.canonical_cycle is not None
+    original = workflow.canonical_cycle
+    observation = original.observations[0]
+    cycle = replace(
+        original,
+        observations=tuple(
+            replace(observation, artifact_id=f"TEST_ONLY_OBSERVATION_{index:03}")
+            for index in range(64)
+        ),
+    )
+    workflow = replace(workflow, canonical_cycle=cycle)
+    from ai4binance.infrastructure.persistence.canonical_payloads import (
+        CanonicalExplanationStore,
+    )
+
+    explanation_store = CanonicalExplanationStore(
+        tmp_path / "explanations", boundary=tmp_path
+    )
+    audit_path = tmp_path / "wide-audit.jsonl"
+    service = replace(
+        service,
+        audit_store=JsonlAuditStore(audit_path),
+        canonical_explanation_store=explanation_store,
+    )
+    service._persist(snapshot, workflow)
+    payload = json.loads(audit_path.read_text(encoding="utf-8"))["payload"]
+    bodies = cast(dict[str, object], payload["canonical_payloads"])
+    assert len(json.dumps(payload["canonical_cycle"]).encode()) > 16_000
+    assert payload["canonical_cycle"] == cycle.to_payload()
+    assert (
+        explanation_store.read(cycle.decision)
+        == workflow.canonical_payloads[cycle.decision.artifact_id]
+    )
+    assert not bodies
+    assert all(
+        path.stat().st_size <= 16_001
+        for path in explanation_store.directory.glob("*.json")
+    )
+    assert payload["execution_allowed"] is False
+    assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
 def test_research_service_publishes_read_only_market_outlook(tmp_path: Path) -> None:
     from ai4binance.outlook import MarketOutlookArtifactStore
 

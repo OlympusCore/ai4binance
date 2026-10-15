@@ -1249,13 +1249,24 @@ def warm_dashboard_dependencies() -> None:
     )
 
 
-def decision_reference(reference, payloads):
-    """Resolve only embedded, hash-bound bodies; never follow arbitrary paths."""
+def decision_reference(reference, payloads, explanation_store=None):
+    """Resolve exact embedded or stored bodies; never follow arbitrary paths."""
     expected = reference.to_payload()
     result = {**expected, "status": "PAYLOAD_UNAVAILABLE"}
-    if not isinstance(payloads, dict) or reference.artifact_id not in payloads:
+    if isinstance(payloads, dict) and reference.artifact_id in payloads:
+        supplied = payloads[reference.artifact_id]
+    elif explanation_store is not None and reference.artifact_kind.value in {
+        "DECISION", "GOVERNANCE_RESULT", "AUDIT_TRAIL", "VIRTUAL_SIMULATION_PLAN"
+    }:
+        try:
+            supplied = explanation_store.read(reference)
+        except (OSError, ValueError):
+            result["status"] = "PAYLOAD_INVALID"
+            return result
+        if supplied is None:
+            return result
+    else:
         return result
-    supplied = payloads[reference.artifact_id]
     try:
         if not isinstance(supplied, dict) or set(supplied) != {*expected, "payload"}:
             raise ValueError("PAYLOAD_SHAPE_INVALID")
@@ -1276,7 +1287,7 @@ def decision_reference(reference, payloads):
     return result
 
 
-def decision_record(event, source, now):
+def decision_record(event, source, now, explanation_store=None):
     """Project a canonical receipt; a reference never proves its absent payload."""
     from ai4binance.domain.research.canonical_cycle import (
         CanonicalCycleEnvelope,
@@ -1354,7 +1365,7 @@ def decision_record(event, source, now):
                 "blockers": reasons(stage.get("blockers")),
             }
         )
-    resolved = [decision_reference(item, payload.get("canonical_payloads")) for item in references]
+    resolved = [decision_reference(item, payload.get("canonical_payloads"), explanation_store) for item in references]
     timeframes = payload["snapshot_ref"].get("timeframes", [])
     return {
         "decision_id": envelope.decision.artifact_id,
@@ -1385,6 +1396,7 @@ def decision_history(root, now):
     """Read bounded existing audit tails without creating or repairing journals."""
     from ai4binance.config import Settings
     from ai4binance.core import read_bounded_jsonl_tail
+    from ai4binance.infrastructure.persistence.canonical_payloads import CanonicalExplanationStore
 
     result = {
         "status": "DATA_UNAVAILABLE",
@@ -1394,7 +1406,12 @@ def decision_history(root, now):
         "live_eligibility_status": "LIVE_ORDER_BLOCKED",
     }
     try:
-        directory = (root / Settings(_env_file=root / ".env").audit_directory).resolve()
+        settings = Settings(_env_file=root / ".env")
+        directory = (root / settings.audit_directory).resolve()
+        explanation_store = CanonicalExplanationStore(
+            root / settings.evidence_artifact_directory / "research" / "canonical_cycle_payloads",
+            boundary=root / "runtime",
+        )
         if not directory.is_relative_to(root.resolve() / "runtime"):
             raise ValueError("AUDIT_PATH_OUTSIDE_RUNTIME")
         identities = {}
@@ -1419,7 +1436,7 @@ def decision_history(root, now):
                     event = json.loads(line)
                     if event.get("event_type") != "RESEARCH_WORKFLOW_COMPLETED":
                         continue
-                    record = decision_record(event, name, now)
+                    record = decision_record(event, name, now, explanation_store)
                     key = record["decision_id"]
                     previous = identities.get(key)
                     if previous is not None:

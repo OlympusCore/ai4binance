@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 import subprocess
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 from ai4binance.ops.quality_gate import repository_completion as completion
 
@@ -365,6 +367,61 @@ def test_unaccepted_authority_cannot_enable_rule(
     }
 
 
+@pytest.mark.parametrize("missing", [None, "core", "policy", "projection"])
+def test_recovery_requires_both_normative_markers_and_the_pinned_projection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    missing: str | None,
+) -> None:
+    """TEST_ONLY accepted-document seam; no real protected update is performed."""
+    from ai4binance.governance import (
+        governance_enforcement_fabric,
+        repository_validator,
+    )
+
+    root = Path(__file__).resolve().parents[1]
+    fabric = yaml.safe_load(
+        (root / governance_enforcement_fabric.FABRIC_PATH).read_bytes()
+    )
+    projection = fabric["repository_git"]
+    projection.update(canonical_root=tmp_path.as_posix(), canonical_remote_url=ENDPOINT)
+    projection.pop("remote_remediation_contract", None)
+    if missing != "projection":
+        projection["remote_remediation_contract"] = (
+            completion.REMOTE_REMEDIATION_CONTRACT
+        )
+    for name, field, role in (
+        (completion.CORE_PATH, "core_sha256", "core"),
+        (completion.POLICY_PATH, "policy_sha256", "policy"),
+    ):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        text = completion.RULE_ID
+        if missing != role:
+            text += "\n" + completion.REMOTE_REMEDIATION_CONTRACT
+        path.write_text(text, encoding="utf-8")
+        projection[field] = sha256(path.read_bytes()).hexdigest()
+    target = tmp_path / governance_enforcement_fabric.FABRIC_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(yaml.safe_dump(fabric), encoding="utf-8")
+    monkeypatch.setattr(
+        governance_enforcement_fabric,
+        "load_governance_enforcement_fabric",
+        lambda *_: None,
+    )
+    monkeypatch.setattr(
+        repository_validator,
+        "read_verified_governed_document",
+        lambda base, relative: (base / relative).read_text(),
+    )
+    if missing in {"core", "policy"}:
+        with pytest.raises(ValueError, match="accepted normative authority"):
+            completion._policy(tmp_path)
+    else:
+        result = completion._policy(tmp_path)
+        assert result.preserved_remote_remediation is (missing is None)
+
+
 @pytest.mark.parametrize(
     "updates",
     [
@@ -403,6 +460,203 @@ def test_main_sync_update_retains_independent_authorization(
     assert (
         report["authorization"] == "INDEPENDENT_USER_AND_GOVERNANCE_CONTROLS_REQUIRED"
     )
+
+
+@pytest.fixture
+def preserved_deletion(
+    tmp_path: Path, observations: Observations, monkeypatch: pytest.MonkeyPatch
+) -> tuple[dict[str, Any], str, Path]:
+    """TEST_ONLY bundle bytes; verification calls are deterministic Git fixtures."""
+    observations[("ls-remote", "--heads", ENDPOINT)] = (
+        f"{SHA} refs/heads/main\n{OTHER} refs/heads/extra\n"
+    )
+    monkeypatch.setattr(
+        completion,
+        "_policy",
+        lambda _root, **_kwargs: completion.GitPolicy(
+            tmp_path.resolve(), ENDPOINT, True
+        ),
+    )
+    directory = tmp_path / "runtime/artifacts/quality/gate"
+    directory.mkdir(parents=True)
+    bundle = directory / "TEST_ONLY.bundle"
+    bundle.write_bytes(
+        f"# v2 git bundle\n{OTHER} FETCH_HEAD\n\nTEST_ONLY_PACK".encode()
+    )
+    inventory = directory / "TEST_ONLY_inventory.json"
+    inventory.write_text(
+        json.dumps(
+            {
+                "branches": [
+                    {
+                        "branch": "extra",
+                        "reviewed_head_sha": OTHER,
+                        "bundle": bundle.relative_to(tmp_path).as_posix(),
+                        "bundle_sha256": sha256(bundle.read_bytes()).hexdigest(),
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    original = completion._git
+
+    def git(root: Path, *args: str) -> str:
+        if args[:2] == ("bundle", "verify"):
+            assert args[2] == str(bundle.resolve())
+            return "TEST_ONLY complete history verified"
+        if args[:2] == ("bundle", "list-heads"):
+            return f"{OTHER} FETCH_HEAD\n"
+        return original(root, *args)
+
+    monkeypatch.setattr(completion, "_git", git)
+    report = completion.inspect_git_boundary(
+        tmp_path,
+        operation="pre_push",
+        task_scope="TEST_ONLY separately approved recovery",
+    )
+    return report, f"(delete) {'0' * 40} refs/heads/extra {OTHER}\n", inventory
+
+
+def test_preserved_recovery_does_not_claim_baseline_or_grant_git_authority(
+    tmp_path: Path,
+    observations: Observations,
+    preserved_deletion: tuple[dict[str, Any], str, Path],
+) -> None:
+    report, updates, inventory = preserved_deletion
+    completion.validate_push_updates(
+        report,
+        updates,
+        "upstream",
+        ENDPOINT,
+        repository_root=tmp_path,
+        remediation_inventory=inventory,
+    )
+    assert report["status"] == "PASS"
+    assert report["state"] == "CHANGE_IN_PROGRESS"
+    assert report["baseline_verified"] is False
+    assert report["observed_invariant_violations"] == ["GIT_COMPLETION_REMOTE_BRANCHES"]
+    assert report["remote_branch_count"] == 2
+    assert report["remote_remediation"]["preserved_remote_heads"] == {
+        "refs/heads/extra": OTHER
+    }
+    assert (
+        report["authorization"] == "INDEPENDENT_USER_AND_GOVERNANCE_CONTROLS_REQUIRED"
+    )
+    assert report["execution_allowed"] is False
+    assert report["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+    assert completion.inspect_git_completion(tmp_path)["status"] == "BLOCKED"
+    assert (
+        completion.inspect_git_boundary(
+            tmp_path, operation="quality", task_scope="TEST_ONLY bounded task"
+        )["status"]
+        == "BLOCKED"
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "no_inventory",
+        "policy_not_admitted",
+        "main_deletion",
+        "main_update",
+        "creation",
+        "stale_sha",
+        "duplicate",
+        "missing_deletion",
+        "other_endpoint",
+        "other_remote",
+        "other_blocker",
+        "completion",
+        "wrong_inventory_sha",
+        "wrong_bundle_hash",
+        "incomplete_bundle",
+        "outside_runtime",
+        "git_verify_failed",
+        "wrong_bundle_head",
+        "malformed_inventory",
+    ],
+)
+def test_remote_recovery_rejects_unpreserved_or_unrelated_operations(
+    tmp_path: Path,
+    preserved_deletion: tuple[dict[str, Any], str, Path],
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    report, updates, inventory = preserved_deletion
+    endpoint, remote = ENDPOINT, "upstream"
+    selected: Path | None = inventory
+    if mutation == "no_inventory":
+        selected = None
+    elif mutation == "policy_not_admitted":
+        report["remote_remediation_supported"] = False
+    elif mutation == "main_deletion":
+        updates = f"(delete) {'0' * 40} refs/heads/main {SHA}\n"
+    elif mutation == "main_update":
+        updates += f"refs/heads/main {SHA} refs/heads/main {SHA}\n"
+    elif mutation == "creation":
+        updates = f"refs/heads/main {SHA} refs/heads/extra {'0' * 40}\n"
+    elif mutation == "stale_sha":
+        updates = updates.replace(OTHER, SHA)
+    elif mutation == "duplicate":
+        updates += updates
+    elif mutation == "missing_deletion":
+        report["remote_heads"]["refs/heads/other"] = SHA
+    elif mutation == "other_endpoint":
+        endpoint += ".other"
+    elif mutation == "other_remote":
+        remote = "TEST_ONLY_OTHER"
+    elif mutation == "other_blocker":
+        report["blockers"].append("GIT_COMPLETION_AUTHORITY_UNAVAILABLE")
+    elif mutation == "completion":
+        report["operation"] = "completion"
+    elif mutation in {"wrong_inventory_sha", "wrong_bundle_hash", "incomplete_bundle"}:
+        payload = json.loads(inventory.read_text())
+        item = payload["branches"][0]
+        if mutation == "wrong_inventory_sha":
+            item["reviewed_head_sha"] = SHA
+        elif mutation == "wrong_bundle_hash":
+            item["bundle_sha256"] = "0" * 64
+        else:
+            bundle = tmp_path / item["bundle"]
+            bundle.write_bytes(
+                (
+                    f"# v2 git bundle\n-{SHA} TEST_ONLY prerequisite\n"
+                    f"{OTHER} FETCH_HEAD\n\nTEST_ONLY_PACK"
+                ).encode()
+            )
+            item["bundle_sha256"] = sha256(bundle.read_bytes()).hexdigest()
+        inventory.write_text(json.dumps(payload), encoding="utf-8")
+    elif mutation == "outside_runtime":
+        selected = tmp_path / "TEST_ONLY_outside.json"
+        selected.write_bytes(inventory.read_bytes())
+    elif mutation in {"git_verify_failed", "wrong_bundle_head"}:
+        original = completion._git
+
+        def git(root: Path, *args: str) -> str:
+            if args[:2] == ("bundle", "verify") and mutation == "git_verify_failed":
+                raise subprocess.CalledProcessError(1, "TEST_ONLY corrupt pack")
+            if args[:2] == ("bundle", "list-heads"):
+                return f"{SHA} TEST_ONLY_wrong_head\n"
+            return original(root, *args)
+
+        monkeypatch.setattr(completion, "_git", git)
+    else:
+        inventory.write_text("[]", encoding="utf-8")
+    completion.validate_push_updates(
+        report,
+        updates,
+        remote,
+        endpoint,
+        repository_root=tmp_path,
+        remediation_inventory=selected,
+    )
+    assert report["status"] == "BLOCKED"
+    assert "GIT_COMPLETION_PUSH_UPDATE_PROHIBITED" in report["blockers"]
+    assert "GIT_COMPLETION_REMOTE_BRANCHES" in report["blockers"]
+    assert report["baseline_verified"] is False
+    assert "remote_remediation" not in report
 
 
 def test_normative_owner_and_adapter_references_are_consistent() -> None:

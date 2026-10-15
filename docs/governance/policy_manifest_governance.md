@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-POL-MANIFEST-001
 title: AI4BINANCE Manifest Governance Policy
 document_type: POLICY
-version: 1.0.6
+version: 1.0.7
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -394,8 +394,16 @@ claims, while a recorded already authorized bounded task permits testing/editing
 
 Reuse the checker at Codex startup/Stop, repository-validator CLI and canonical
 quality entry, controlled worktree setup, pre-commit/pre-push hooks and existing
-CI. The pre-push checker restricts the exact update set to canonical main and
-preserves the existing one-use Git-specific authorization consumer. Local/remote
+CI. Normal publication updates remain restricted to canonical main. The
+remote_branch_remediation_contract=AI4B-GOV-GIT-REMEDIATION-20261015 projection
+implements only Core section 3.2 separately authorized preserved recovery.
+Require exact live non-main tips, complete-history verified bundles and their
+hashes, a complete deletion-only update set, and no unrelated violations. Main
+deletion, branch creation and mixed publication/recovery remain prohibited.
+Preserve observed violations and CHANGE_IN_PROGRESS; require fresh main-only
+verification for completion. Preserve the existing one-use Git-specific
+authorization consumer; neither an inventory nor a technical PASS authorizes a
+remote write. Local/remote
 SHA differences during explicitly authorized synchronization preparation are
 observed and deferred to fresh post-publication completion verification.
 Publication preparation must never be reported as final synchronized evidence.
@@ -431,3 +439,15 @@ decisions and installation chains without rebinding historical approval.
 Re-seal only the finite reviewed output inventory for this exact correction.
 Unrecognized successors remain blocked; current FULL, final exact owner
 acceptance and Git authorization remain separate.
+
+### 18.1 Exact Decision Workbench Repair Recognition
+
+Core section 3.1.3, AI4B-GOV-C3-REPAIR-20261015, is the sole normative source for
+the finite new repair recognition. Project its exact before/after Core binding,
+review baseline, epoch, actual owner decision and closed reviewed output inventory
+through the existing bounded_owner_acceptance field. Preserve the prior
+section 3.1.2 decisions as historical records without replaying or rebinding them.
+Drafts and test fixtures never activate recognition. A separately completed exact
+protected update and genuine normative decision must precede final C3 acceptance;
+fresh FULL evidence and all independent Git/deployment controls remain required.
+No general single-owner model or future exception is established.

@@ -566,6 +566,7 @@ def test_runtime_stores_ledgers_and_supervisor_edges(tmp_path: Path) -> None:
         management_ledger=management,
         sleeper=slept.append,
         clock=lambda: NOW,
+        memory_probe=lambda: 1.0,  # Test-only admission; retry behavior owns this test.
     )
     assert supervisor.run(max_cycles=2) == 1
     assert slept == [5.0]

@@ -1,6 +1,6 @@
 document_id: AI4B-GOV-FABRIC-001
 fabric_id: AI4B-GOV-FABRIC-001
-version: 1.4.2
+version: 1.4.4
 status: ACTIVE
 authority_layer: L4_REPOSITORY_STANDARDS_CONTROLS_QUALITY_POLICIES
 authority_effect: IMPLEMENTATION
@@ -145,20 +145,21 @@ repository_git:
   rule_id: AI4B-GOV-GIT-001
   core_ref: docs/governance/framework_core_vnext_governance.md
   core_section: '3.2'
-  core_sha256: 0cb0aedfb3d0dde896af4c65a931f4a32878280dd4716b2645322ce49fa403d3
+  core_sha256: daff7033ccab19ad0043c461db9fa07a24b66d09135147fd4b3712b55cc090e9
   policy_ref: docs/governance/policy_manifest_governance.md
-  policy_sha256: 95eb2b98be444b30662e08728bd8619fd90cecd1e6fdb7822357c3e92ebedb81
+  policy_sha256: b4b4d961e4c9157193872650323bdbf00d7dc1ed0a6043042b9a506365242aaa
   canonical_root: C:/vscode-projects/ai4binance
   canonical_remote_url: https://github.com/OlympusCore/ai4binance.git
   projection_role: "ENFORCEMENT_PROJECTION"
   source_of_truth: false
+  remote_remediation_contract: AI4B-GOV-GIT-REMEDIATION-20261015
 bounded_owner_acceptance:
-  rule_id: AI4B-GOV-C3-OWNER-20261007
+  rule_id: AI4B-GOV-C3-REPAIR-20261015
   core_ref: docs/governance/framework_core_vnext_governance.md
-  core_section: 3.1.2
-  core_sha256: 0cb0aedfb3d0dde896af4c65a931f4a32878280dd4716b2645322ce49fa403d3
+  core_section: 3.1.3
+  core_sha256: daff7033ccab19ad0043c461db9fa07a24b66d09135147fd4b3712b55cc090e9
   canonical_root: C:/vscode-projects/ai4binance
-  epoch_id: AI4B_CANONICAL_GIT_RULE_OWNER_FORMAT_20261008
+  epoch_id: AI4B_DECISION_WORKBENCH_OWNER_REPAIR_20261015
   package_base_commit: 51aa502297903c52f98d58e63f6c916b43bce433
   package_commit: f3d81cb6bb57f9fe6e69661f1ddbbcf4db4d5901
   package_patch_sha256: 1716301760edd93d6030f055ad935343b7c955f883a34b414d8f1fecb89eb741
@@ -166,69 +167,58 @@ bounded_owner_acceptance:
   approver_id: Huseyin
   principal_id: huseyin-governance-owner-principal
   approver_role: GovernanceOwner
-  normative_decision_ref: runtime/artifacts/git_consolidation/canonical-baseline-rule-20261007/bounded-owner-amendment/yaml-format-repair-normative-owner-decision.json
+  normative_decision_ref: runtime/artifacts/quality/gate/decision-workbench-review/maintainability-correction/normative-owner-decision.json
   allowed_change_paths:
-  - .codex/environments/environment.toml
-  - .github/workflows/quality_profiles.yml
-  - '0'
-  - '1'
-  - '10756'
   - config/governance/governance_enforcement_fabric.yaml
   - config/governance/governed_document_lock_manifest.json
-  - docs/compliance/registry_compliance_matrix.md
   - docs/governance/framework_core_vnext_governance.md
   - docs/governance/policy_manifest_governance.md
-  - pyproject.toml
+  - frontend/src/command_center.ts
+  - frontend/src/dashboard_shell.ts
   - schemas/governance/governance_enforcement_fabric.schema.json
-  - scripts/codex_governance_hook.py
-  - scripts/git-hooks/pre-commit
   - scripts/git-hooks/pre-push
-  - scripts/prepare_c3_human_governance_closure_request.py
   - scripts/quality.ps1
-  - scripts/restore_codex_worktree_standards.ps1
-  - scripts/setup_codex_worktree.ps1
-  - src/ai4binance/governance/gate.py
+  - src/ai4binance/application/research.py
+  - src/ai4binance/cli/research.py
+  - src/ai4binance/cli/runtime.py
   - src/ai4binance/governance/package_owner_acceptance.py
-  - src/ai4binance/governance/repository_validator.py
+  - src/ai4binance/infrastructure/persistence/canonical_payloads.py
+  - src/ai4binance/local_dashboard/server.py.in
   - src/ai4binance/ops/quality_gate/repository_completion.py
-  - tests/governance/terminology/test_governance_enforcement_fabric.py
-  - tests/test_artifact_hygiene_scripts.py
-  - tests/test_dependency_security_regressions.py
-  - tests/test_governance_gate.py
+  - tests/test_canonical_explanations.py
+  - tests/test_cli.py
+  - tests/test_dashboard_decisions.py
+  - tests/test_dashboard_presentation.py
+  - tests/test_local_dashboard_source.py
+  - tests/test_lowest_coverage_remaining_edges.py
   - tests/test_package_owner_acceptance.py
   - tests/test_repository_completion.py
-  - tests/test_repository_validator.py
-  - tests/test_security_tooling_contract.py
-  - uv.lock
+  - tests/test_research_application.py
   reviewed_output_paths:
-  - .codex/environments/environment.toml
-  - .github/workflows/quality_profiles.yml
   - config/governance/governance_enforcement_fabric.yaml
-  - docs/compliance/registry_compliance_matrix.md
   - docs/governance/framework_core_vnext_governance.md
   - docs/governance/policy_manifest_governance.md
-  - pyproject.toml
+  - frontend/src/command_center.ts
+  - frontend/src/dashboard_shell.ts
   - schemas/governance/governance_enforcement_fabric.schema.json
-  - scripts/codex_governance_hook.py
-  - scripts/git-hooks/pre-commit
   - scripts/git-hooks/pre-push
-  - scripts/prepare_c3_human_governance_closure_request.py
   - scripts/quality.ps1
-  - scripts/restore_codex_worktree_standards.ps1
-  - scripts/setup_codex_worktree.ps1
-  - src/ai4binance/governance/gate.py
+  - src/ai4binance/application/research.py
+  - src/ai4binance/cli/research.py
+  - src/ai4binance/cli/runtime.py
   - src/ai4binance/governance/package_owner_acceptance.py
-  - src/ai4binance/governance/repository_validator.py
+  - src/ai4binance/infrastructure/persistence/canonical_payloads.py
+  - src/ai4binance/local_dashboard/server.py.in
   - src/ai4binance/ops/quality_gate/repository_completion.py
-  - tests/governance/terminology/test_governance_enforcement_fabric.py
-  - tests/test_artifact_hygiene_scripts.py
-  - tests/test_dependency_security_regressions.py
-  - tests/test_governance_gate.py
+  - tests/test_canonical_explanations.py
+  - tests/test_cli.py
+  - tests/test_dashboard_decisions.py
+  - tests/test_dashboard_presentation.py
+  - tests/test_local_dashboard_source.py
+  - tests/test_lowest_coverage_remaining_edges.py
   - tests/test_package_owner_acceptance.py
   - tests/test_repository_completion.py
-  - tests/test_repository_validator.py
-  - tests/test_security_tooling_contract.py
-  - uv.lock
+  - tests/test_research_application.py
   source_of_truth: false
-  projection_role: ENFORCEMENT_PROJECTION
-  review_baseline_commit: 01bcf1c8fe74618740824a5021c5a3874f191321
+  projection_role: "ENFORCEMENT_PROJECTION"
+  review_baseline_commit: 433741bdbda3212058b41c7bbda5fdf0e6147f35

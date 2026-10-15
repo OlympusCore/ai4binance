@@ -125,7 +125,8 @@ const daemon={market:'USD_M_FUTURES',symbol:'TEST_ONLY_F',candidate_count:0,
   virtual_runtime_evaluated:true,risk_approved:true,last_success_at:now,
   blockers:['TEST_ONLY_OTHER_MARKET'],dashboard_simulation_projection:spot,
   dashboard_futures_simulation_projection:futures};
-const context=vm.createContext({state:{language:'en'},localData:{virtual:daemon}});
+const context=vm.createContext({state:{language:'en'},localData:{virtual:daemon},
+  observedTime:value=>value||'TEST_ONLY_TIME_UNAVAILABLE'});
 class Element {
   constructor(tag) {this.tagName=tag;this.children=[];}
   append(...nodes) {this.children.push(...nodes);}
@@ -146,9 +147,12 @@ context.view=all;
 const rendered=evaluate('commandVirtualSimulationBlockers(view)');
 assert.equal(rendered.children.length,2);
 assert.match(rendered.children[0].children[0].textContent,/TEST_ONLY_A/);
-assert.equal(rendered.children[0].children[1].textContent,'TEST_ONLY_A_BLOCKER');
+const textOf=node=>[node.textContent||'',...node.children.map(textOf)].join(' ');
+assert.match(textOf(rendered.children[0]),/TEST_ONLY_A_BLOCKER/);
+assert.doesNotMatch(textOf(rendered.children[0]),/TEST_ONLY_B_BLOCKER/);
 assert.match(rendered.children[1].children[0].textContent,/TEST_ONLY_B/);
-assert.equal(rendered.children[1].children[1].textContent,'TEST_ONLY_B_BLOCKER');
+assert.match(textOf(rendered.children[1]),/TEST_ONLY_B_BLOCKER/);
+assert.doesNotMatch(textOf(rendered.children[1]),/TEST_ONLY_A_BLOCKER/);
 const background=evaluate("commandVirtualMarketState('SPOT')");
 assert.equal(background.market,'SPOT');
 assert.equal(background.symbol,'TEST_ONLY_A');
@@ -848,3 +852,127 @@ console.log('ROW_DOM_PASS');
     )
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "ROW_DOM_PASS"
+
+
+def test_virtual_candidate_causes_are_preserved_without_granting_approval() -> None:
+    """Test-only DOM evidence distinguishes causes, coverage and gate verdicts."""
+    node = shutil.which("node")
+    assert node is not None
+    script = r"""
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {stripTypeScriptTypes} from 'node:module';
+import vm from 'node:vm';
+class Element {
+  constructor(tag){this.tagName=tag;this.children=[];this._text='';}
+  set textContent(value){this._text=value;}
+  get textContent(){return this._text+this.children.map(n=>n.textContent).join(' ');}
+  append(...nodes){this.children.push(...nodes);}
+}
+const context=vm.createContext({state:{language:'en'},
+  observedTime:value=>value||'TEST_ONLY_TIME_UNAVAILABLE',
+  document:{createElement:tag=>new Element(tag)}});
+vm.runInContext(stripTypeScriptTypes(readFileSync('frontend/src/command_center.ts','utf8')),context);
+const evaluate=value=>vm.runInContext(value,context);
+const raw={symbol:'TEST_ONLY_A',market:'SPOT',snapshot_id:'TEST_ONLY_SNAPSHOT',
+  observed_at:'TEST_ONLY_TIME',candidate_count:1,risk_approved:false,virtual_order_ready:false,
+  blockers:['NO_READY_CANDIDATE','OOS_APPROVAL_MISSING','DGE_SIMULATION_NOT_APPROVED'],
+  candidate_diagnostics:[{candidate_id:'TEST_ONLY_CANDIDATE',setup:'TEST_ONLY_SETUP',
+    timeframe:'1h',status:'RESEARCH_ONLY',blockers:['ENTRY_TRIGGER_MISSING',
+      'REGIME_ROUTE_STRATEGY_BLOCKED:HIGH_VOLATILITY','REGIME_ROUTE_SPOT_DEFENSIVE_CASH',
+      'TEST_ONLY_UNKNOWN_REASON','<script>TEST_ONLY_XSS</script>']}],
+  validation_evidence:{symbol:'TEST_ONLY_A',market:'SPOT',snapshot_id:'TEST_ONLY_SNAPSHOT',
+    loaded_subject_count:15,symbol_subject_count:0,load_blockers:[],deployment_path:'TEST_ONLY_DEPLOYMENT'}};
+context.raw=raw;
+let row=evaluate('commandVirtualObservation(raw)');context.row=row;
+let panel=evaluate('commandVirtualSimulationBlockers({blocker_records:[row]})');
+for(const value of ['Entry trigger is absent','ENTRY_TRIGGER_MISSING',
+  'The strategy is excluded by the current regime','HIGH_VOLATILITY',
+  'The current regime requires staying in cash','REGIME_ROUTE_SPOT_DEFENSIVE_CASH',
+  'TEST_ONLY_UNKNOWN_REASON','<script>TEST_ONLY_XSS</script>',
+  'OOS_APPROVAL_MISSING','DGE_SIMULATION_NOT_APPROVED','TEST_ONLY_SNAPSHOT',
+  '0 subjects for this coin / 15 loaded','Scope is separate from maturity approval.']){
+  assert.ok(panel.textContent.includes(value),value);
+}
+assert.equal(row.risk_approved,false);assert.equal(row.virtual_order_ready,false);
+assert.equal(evaluate('commandVirtualObservation({}).validation_evidence'),undefined);
+for(const bad of [true,-1,1.5,16]){
+  context.bad={...raw,validation_evidence:{...raw.validation_evidence,symbol_subject_count:bad}};
+  assert.equal(evaluate('commandVirtualObservation(bad).validation_evidence'),undefined);
+}
+for(const field of ['symbol','market','snapshot_id']){
+  context.bad={...raw,validation_evidence:{...raw.validation_evidence,[field]:'TEST_ONLY_OTHER'}};
+  assert.equal(evaluate('commandVirtualObservation(bad).validation_evidence'),undefined);
+}
+context.bad={...raw,candidate_diagnostics:undefined,validation_evidence:undefined};
+context.row=evaluate('commandVirtualObservation(bad)');
+panel=evaluate('commandVirtualSimulationBlockers({blocker_records:[row]})');
+assert.match(panel.textContent,/Candidate-level reasons were not reported/);
+assert.match(panel.textContent,/Not reported for this observation/);
+context.state.language='tr';context.row=row;
+panel=evaluate('commandVirtualSimulationBlockers({blocker_records:[row]})');
+assert.match(panel.textContent,/Giriş tetikleyicisi yok/);
+assert.match(panel.textContent,/olgunluk onay\u0131ndan ayr\u0131d\u0131r/);
+console.log('VIRTUAL_CAUSES_PASS');
+"""
+    completed = subprocess.run(  # noqa: S603 - fixed local test-only DOM.
+        [node, "--input-type=module", "-e", script],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "VIRTUAL_CAUSES_PASS"
+
+
+def test_recorded_evidence_reports_actual_payload_counts_without_classification() -> (
+    None
+):
+    """Test-only DOM counts remain distinct from evidence and trading approval."""
+    node = shutil.which("node")
+    assert node is not None
+    script = r"""
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {stripTypeScriptTypes} from 'node:module';
+import vm from 'node:vm';
+class Element {
+  constructor(tag){this.tagName=tag;this.children=[];this._text='';}
+  set textContent(value){this._text=value;}
+  get textContent(){return this._text+this.children.map(n=>n.textContent).join(' ');}
+  append(...nodes){this.children.push(...nodes);}
+}
+const context=vm.createContext({state:{language:'en'},
+  document:{createElement:tag=>new Element(tag)}});
+vm.runInContext(stripTypeScriptTypes(readFileSync('frontend/src/command_center.ts','utf8')),context);
+const evaluate=value=>vm.runInContext(value,context);
+context.record={references:[{status:'PAYLOAD_HASH_MATCH',payload:{action:'NO_TRADE'}},
+  {status:'PAYLOAD_UNAVAILABLE'},{status:'PAYLOAD_INVALID'},{status:'PAYLOAD_HASH_MATCH'}]};
+let panel=evaluate('ccDecisionEvidence(record)');
+assert.match(panel.textContent,/1 \/ 4/);
+assert.match(panel.textContent,/Unavailable bodies 2/);
+assert.match(panel.textContent,/Invalid bodies 1/);
+assert.match(panel.textContent,/classifications were not reported/);
+assert.ok(!panel.textContent.includes('DATA_UNAVAILABLE'));
+context.record={references:[{status:'PAYLOAD_UNAVAILABLE'}]};
+panel=evaluate('ccDecisionEvidence(record)');
+assert.match(panel.textContent,/0 \/ 1/);
+assert.match(panel.textContent,/without explanation bodies/);
+assert.match(panel.textContent,/cannot be repaired by relabeling/);
+context.state.language='tr';
+assert.match(evaluate('ccDecisionEvidence(record)').textContent,/Kan\u0131t içeriği/);
+assert.match(evaluate("commandVirtualCandidateReason('RESOURCE_RAM_HARD_LIMIT')"),/RESOURCE_RAM_HARD_LIMIT/);
+console.log('RECORDED_EVIDENCE_PASS');
+"""
+    completed = subprocess.run(  # noqa: S603 - fixed local test-only DOM.
+        [node, "--input-type=module", "-e", script],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "RECORDED_EVIDENCE_PASS"

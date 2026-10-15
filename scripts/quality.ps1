@@ -3290,6 +3290,9 @@ New-Item -ItemType Directory -Path $qualityGateArtifactDirectory -Force | Out-Nu
 Start-Transcript -Path $qualityRunOutputPath -Force | Out-Null
 Write-QualityRunMetadata -Status $qualityRunStatus -CurrentStep $qualityRunCurrentStep
 try {
+    $script:qualityRunCurrentStep = "Repository state baseline"
+    $script:qualityInitialWorkspaceAttestation = Get-QualityWorkspaceAttestation
+    $script:qualityRunCurrentStep = "Canonical Git preflight"
     Invoke-CanonicalGitPreflight
     $profileOutput = & $python -B -m ai4binance.ops.quality_gate profile `
         --config $qualityGateProfileConfigPath --profile $script:qualityGateProfile
@@ -3297,8 +3300,6 @@ try {
     $script:qualityProfilePolicy = $profileOutput | ConvertFrom-Json
     $script:qualityRunCurrentStep = "Quality gate Git write guard"
     Publish-QualityGateGitWriteLease
-    $script:qualityRunCurrentStep = "Repository state baseline"
-    $script:qualityInitialWorkspaceAttestation = Get-QualityWorkspaceAttestation
     Invoke-SelectedQualityGate
     $script:qualityRunCurrentStep = "COMPLETED"
     $qualityRunStatus = if ($script:qualityGateProfile -eq "full") {

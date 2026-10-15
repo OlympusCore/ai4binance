@@ -31,6 +31,9 @@ from ai4binance.governance import (
     market_outlook_workflow,
     preview_workflow,
 )
+from ai4binance.infrastructure.persistence.canonical_payloads import (
+    CanonicalExplanationStore,
+)
 from ai4binance.multiops.llmops.contracts import TaskClass, TaskCriticality
 from ai4binance.opportunity_radar import build_opportunity_radar_snapshot
 from ai4binance.ops import SingleInstanceLease
@@ -728,17 +731,24 @@ def _run_research_or_analysis(
     from ai4binance.agents.validation_gate import ValidationGate
     from ai4binance.strategies.engine import StrategyEngine
 
+    validation_gate = ValidationGate.from_deployment(
+        artifact_root=settings.validation_artifact_directory,
+        deployment_path=settings.runtime_validation_deployment_path,
+        as_of=snapshot.created_at,
+    )
     service = build_research_application_service(
         orchestrator=EnterpriseOrchestrator(
             minimum_candles=settings.minimum_closed_candles,
             strategy_engine=StrategyEngine(candidate_timeframes=snapshot.timeframes),
-            validation_agent=ValidationGate.from_deployment(
-                artifact_root=settings.validation_artifact_directory,
-                deployment_path=settings.runtime_validation_deployment_path,
-                as_of=snapshot.created_at,
-            ),
+            validation_agent=validation_gate,
         ),
         audit_store=workflow_store,
+        canonical_explanation_store=CanonicalExplanationStore(
+            settings.evidence_artifact_directory
+            / "research"
+            / "canonical_cycle_payloads",
+            boundary=Path("runtime"),
+        ),
         outlook_store=MarketOutlookArtifactStore(
             settings.evidence_artifact_directory / "market-outlook" / "state.json"
         ),
@@ -851,6 +861,20 @@ def _run_research_or_analysis(
                 "snapshot_id": snapshot.snapshot_id,
                 "symbol": snapshot.symbol,
                 "market": snapshot.market_type.upper(),
+                "validation_evidence": {
+                    "snapshot_id": snapshot.snapshot_id,
+                    "symbol": snapshot.symbol,
+                    "market": snapshot.market_type.upper(),
+                    "deployment_path": str(settings.runtime_validation_deployment_path),
+                    "loaded_subject_count": len(validation_gate.expected_subjects),
+                    "symbol_subject_count": sum(
+                        subject.promotion.symbol == snapshot.symbol
+                        and subject.promotion.market_type
+                        == snapshot.market_type.upper()
+                        for subject in validation_gate.expected_subjects
+                    ),
+                    "load_blockers": validation_gate.evidence_load_blockers,
+                },
                 "candidate_count": len(state.candidate_setups),
                 "candidate_diagnostics": tuple(
                     {

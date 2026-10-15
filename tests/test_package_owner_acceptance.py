@@ -47,7 +47,9 @@ def _write(root: Path, relative: str, value: object) -> dict[str, str]:
 
 
 @pytest.fixture
-def package(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+def package(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> dict[str, Any]:
     """TEST_ONLY sealed inputs; canonical installation verification is substituted."""
     _write(
         tmp_path,
@@ -60,6 +62,29 @@ def package(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         )
     )
     policy = fabric["bounded_owner_acceptance"]
+    # Historical fixtures stay explicit when the installed finite package changes.
+    policy.update(
+        rule_id=owner.RULE,
+        core_section="3.1.2",
+        epoch_id="AI4B_CANONICAL_GIT_RULE_OWNER_FORMAT_20261008",
+        review_baseline_commit="01bcf1c8fe74618740824a5021c5a3874f191321",
+        normative_decision_ref=(
+            "runtime/artifacts/git_consolidation/canonical-baseline-rule-20261007/"
+            "bounded-owner-amendment/yaml-format-repair-normative-owner-decision.json"
+        ),
+    )
+    repair = getattr(request, "param", "legacy") == "repair"
+    if repair:
+        policy.update(
+            rule_id=owner.REPAIR_RULE,
+            core_section="3.1.3",
+            epoch_id="AI4B_DECISION_WORKBENCH_OWNER_REPAIR_20261015",
+            review_baseline_commit=owner.REPAIR_BASELINE,
+            normative_decision_ref=(
+                "runtime/artifacts/quality/gate/decision-workbench-review/"
+                "maintainability-correction/normative-owner-decision.json"
+            ),
+        )
     policy["canonical_root"] = tmp_path.as_posix()
     policy["allowed_change_paths"] = [
         owner.CORE,
@@ -72,7 +97,7 @@ def package(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         FABRIC_PATH.as_posix(),
         "tests/test_package.py",
     ]
-    core = _write(tmp_path, owner.CORE, b"TEST_ONLY AI4B-GOV-C3-OWNER-20261007\n")
+    core = _write(tmp_path, owner.CORE, f"TEST_ONLY {policy['rule_id']}\n".encode())
     policy["core_sha256"] = core["sha256"]
     policy["package_patch_sha256"] = hashlib.sha256(
         b"TEST_ONLY_ORIGINAL_PATCH"
@@ -107,9 +132,11 @@ def package(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
                 "documents": [
                     {
                         "path": owner.CORE,
-                        "before_sha256": owner.PRIOR_CORE_SHA256,
-                        "before_version": "2.0.13",
-                        "version": "2.0.14",
+                        "before_sha256": owner.REPAIR_PRIOR_CORE_SHA256
+                        if repair
+                        else owner.PRIOR_CORE_SHA256,
+                        "before_version": "2.0.15" if repair else "2.0.13",
+                        "version": "2.0.16" if repair else "2.0.14",
                         "sha256": policy["core_sha256"],
                     }
                 ],
@@ -131,7 +158,7 @@ def package(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     _write(tmp_path, owner.MANIFEST, {"artifact_origin": "TEST_ONLY"})
     decision = {
         "contract_version": "BoundedOwnerNormativeAmendment/v1",
-        "rule_id": owner.RULE,
+        "rule_id": policy["rule_id"],
         "record_origin": "OWNER_ISSUED",
         "status": "ISSUED",
         "decision": "RECOGNIZE_EXACT_OWNER_PACKAGE_ACCEPTANCE",
@@ -199,6 +226,72 @@ def test_missing_projection_preserves_legacy_defaults(tmp_path: Path) -> None:
         is None
     )
     assert gate._approval_requirements(ChangeApprovalClass.C3_GOVERNED)[0] == 2
+
+
+@pytest.mark.parametrize("package", ["repair"], indirect=True)
+def test_repair_recognition_requires_its_new_exact_owner_decision(
+    package: dict[str, Any],
+) -> None:
+    root = package["root"]
+    policy = package["policy"]
+    validate_local_definition(
+        root / "schemas/governance/governance_enforcement_fabric.schema.json",
+        "bounded_owner_acceptance",
+        policy,
+    )
+    result = owner.load_package_owner_acceptance(
+        root,
+        package["change_set"].changed_paths,
+        "C3_GOVERNED",
+        now=NOW,
+    )
+    assert result is not None
+    assert result.owner_person_id == "Huseyin Cicek"
+    assert gate._approval_requirements(ChangeApprovalClass.C3_GOVERNED)[0] == 2
+    assert (
+        owner.load_package_owner_acceptance(
+            root,
+            ("src/UNREVIEWED.py",),
+            "C3_GOVERNED",
+            now=NOW,
+        )
+        is None
+    )
+    _write(
+        root,
+        policy["normative_decision_ref"],
+        {**package["decision"], "rule_id": owner.RULE},
+    )
+    with pytest.raises(ValueError, match="DECISION_SUBJECT_MISMATCH"):
+        owner.load_package_owner_acceptance(
+            root,
+            package["change_set"].changed_paths,
+            "C3_GOVERNED",
+            now=NOW,
+        )
+
+
+@pytest.mark.parametrize("package", ["repair"], indirect=True)
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("core_section", "3.1.2"),
+        ("epoch_id", "AI4B_CANONICAL_GIT_RULE_OWNER_FORMAT_20261008"),
+        ("review_baseline_commit", "01bcf1c8fe74618740824a5021c5a3874f191321"),
+    ],
+)
+def test_repair_projection_cannot_mix_predecessor_bindings(
+    package: dict[str, Any],
+    field: str,
+    value: str,
+) -> None:
+    with pytest.raises(SchemaValidationError):
+        validate_local_definition(
+            package["root"]
+            / "schemas/governance/governance_enforcement_fabric.schema.json",
+            "bounded_owner_acceptance",
+            {**package["policy"], field: value},
+        )
 
 
 def test_only_eligible_test_package_recognized(package: dict[str, Any]) -> None:
@@ -564,6 +657,32 @@ def test_consumed_quality_repair_grant_cannot_approve_format_successor(
         before_version="2.0.12",
         version="2.0.13",
         before_sha256="fe770aaf518bb413dd9ed99654f8cd974ac016dec775563cd14eff7741651b14",
+    )
+    context["grant"] = _write(root, context["grant"]["path"], grant)
+    _write(root, CONTEXT_PATH, context)
+    _write(
+        root,
+        package["policy"]["normative_decision_ref"],
+        {**package["decision"], "grant": context["grant"]},
+    )
+    with pytest.raises(ValueError, match="EXACT_AMENDMENT_REQUIRED"):
+        owner.load_package_owner_acceptance(
+            root, package["change_set"].changed_paths, "C3_GOVERNED", now=NOW
+        )
+
+
+@pytest.mark.parametrize("package", ["repair"], indirect=True)
+def test_initial_repair_grant_cannot_approve_maintainability_correction(
+    package: dict[str, Any],
+) -> None:
+    """TEST_ONLY: the real predecessor remains historical, never a new decision."""
+    root = package["root"]
+    context = dict(package["context"])
+    grant = json.loads((root / context["grant"]["path"]).read_text())
+    grant["review_subject"]["documents"][0].update(
+        before_version="2.0.14",
+        version="2.0.15",
+        before_sha256="0cb0aedfb3d0dde896af4c65a931f4a32878280dd4716b2645322ce49fa403d3",
     )
     context["grant"] = _write(root, context["grant"]["path"], grant)
     _write(root, CONTEXT_PATH, context)

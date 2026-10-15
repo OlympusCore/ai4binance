@@ -57,10 +57,17 @@ git_python="$repo_root/.venv/Scripts/python.exe"
 if [ -x "$repo_root/.venv/bin/python" ]; then
     git_python="$repo_root/.venv/bin/python"
 fi
-if ! PYTHONPATH="$repo_root/src" "$git_python" -B -m ai4binance.ops.quality_gate.repository_completion \
-    --repository-root "$repo_root" --operation pre_push --task-scope "Git-specific publication authorization preparation" \
-    --push-updates-path "$push_updates_path" --remote-name "$1" --remote-url "$2"; then
-    exit 1
+git_remote_name=$1
+git_remote_url=$2
+inspect_git_boundary() {
+    PYTHONPATH="$repo_root/src" "$git_python" -B -m ai4binance.ops.quality_gate.repository_completion \
+        --repository-root "$repo_root" --operation pre_push --task-scope "Git-specific publication authorization preparation" \
+        --push-updates-path "$push_updates_path" --remote-name "$git_remote_name" --remote-url "$git_remote_url" "$@"
+}
+if [ -n "${AI4BINANCE_GIT_REMOTE_REMEDIATION_INVENTORY:-}" ]; then
+    inspect_git_boundary --remote-remediation-inventory "$AI4BINANCE_GIT_REMOTE_REMEDIATION_INVENTORY" || exit 1
+else
+    inspect_git_boundary || exit 1
 fi
 
 # Git invokes pre-push even when no refs require an update.  No remote write

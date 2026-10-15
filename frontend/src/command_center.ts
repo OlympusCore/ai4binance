@@ -87,7 +87,17 @@ function commandVirtualMarketState(market: string): BackgroundObservation {
   return {...latest, market, dashboard_simulation_projection: projection};
 }
 
+interface VirtualCandidateDiagnostic {
+  candidate_id: string; setup: string; timeframe: string; status: string; blockers: string[];
+}
+interface VirtualValidationEvidence {
+  snapshot_id: string; symbol: string; market: string; deployment_path?: string;
+  loaded_subject_count: number; symbol_subject_count: number; load_blockers: string[];
+}
 interface VirtualObservation extends BackgroundObservation {
+  snapshot_id?: string;
+  candidate_diagnostics?: VirtualCandidateDiagnostic[];
+  validation_evidence?: VirtualValidationEvidence;
   state?: string;
   status?: string;
   observed_at?: string;
@@ -103,7 +113,7 @@ function commandVirtualObservation(value: unknown): VirtualObservation {
   const raw = value as Record<string, unknown>;
   const result: VirtualObservation = {};
   for (const key of ['symbol', 'market', 'state', 'status', 'observed_at',
-    'completed_at', 'last_success_at', 'scan_lane', 'virtual_decision_status', 'virtual_simulation_outcome'] as const) {
+    'completed_at', 'last_success_at', 'scan_lane', 'snapshot_id', 'virtual_decision_status', 'virtual_simulation_outcome'] as const) {
     if (typeof raw[key] === 'string') result[key] = raw[key];
   }
   for (const key of ['virtual_runtime_evaluated', 'risk_approved', 'virtual_order_ready'] as const) {
@@ -113,6 +123,21 @@ function commandVirtualObservation(value: unknown): VirtualObservation {
     && raw.candidate_count >= 0) result.candidate_count = raw.candidate_count;
   result.blockers = Array.isArray(raw.blockers)
     ? raw.blockers.filter((item): item is string => typeof item === 'string') : [];
+  if (Array.isArray(raw.candidate_diagnostics)) {
+    result.candidate_diagnostics = raw.candidate_diagnostics.filter((item): item is VirtualCandidateDiagnostic =>
+      !!item && typeof item === 'object' && ['candidate_id', 'setup', 'timeframe', 'status'].every(
+        key => typeof item[key] === 'string' && item[key].length > 0) && Array.isArray(item.blockers)
+      && item.blockers.every((value: unknown) => typeof value === 'string'));
+  }
+  const evidence = raw.validation_evidence as Partial<VirtualValidationEvidence> | null;
+  if (evidence && ['snapshot_id', 'symbol', 'market'].every(key =>
+    typeof raw[key] === 'string' && (evidence as Record<string, unknown>)[key] === raw[key])
+    && typeof evidence.loaded_subject_count === 'number' && Number.isSafeInteger(evidence.loaded_subject_count)
+    && typeof evidence.symbol_subject_count === 'number' && Number.isSafeInteger(evidence.symbol_subject_count)
+    && evidence.symbol_subject_count >= 0 && evidence.symbol_subject_count <= evidence.loaded_subject_count
+    && Array.isArray(evidence.load_blockers) && evidence.load_blockers.every(value => typeof value === 'string')) {
+    result.validation_evidence = evidence as VirtualValidationEvidence;
+  }
   return result;
 }
 function commandVirtualObservations(value: unknown): VirtualObservation[] {
@@ -191,12 +216,64 @@ function commandVirtualSimulationBlockers(view: VirtualSimulationView): HTMLElem
   const container = ccNode('div');
   for (const record of view.blocker_records) {
     if (!record.blockers?.length) continue;
-    const detail = ccNode('details');
+    const detail = ccNode('details', '', 'cc-panel');
     detail.append(ccNode('summary', `${record.symbol || ccLabel('Selected coin', 'Seçili koin')} · ${record.blockers.length} ${ccLabel('reported blockers', 'bildirilen engel')}`));
-    for (const blocker of record.blockers) detail.append(ccNode('div', blocker, 'aw-status'));
+    detail.append(ccNode('p', `${observedTime(record.observed_at)} · ${ccValue(record.snapshot_id)}`, 'aw-source'));
+    detail.append(ccNode('h3', ccLabel('Candidate-level findings', 'Aday düzeyindeki bulgular')));
+    if (record.blockers.includes('NO_READY_CANDIDATE')) detail.append(ccNode('p', ccLabel(
+      'No ready trade candidate was reported. The decision and gate findings below also remain binding.',
+      'İşleme hazır aday bildirilmedi. Aşağıdaki karar ve kapı bulguları da bağlayıcıdır.')));
+    if (!record.candidate_diagnostics?.length) detail.append(ccNode('p', ccLabel(
+      'Candidate-level reasons were not reported for this observation.', 'Bu gözlem için aday düzeyindeki nedenler bildirilmedi.')));
+    for (const candidate of record.candidate_diagnostics || []) {
+      detail.append(ccNode('p', `${candidate.setup} · ${candidate.timeframe} · ${candidate.status}`));
+      detail.append(ccNode('p', candidate.candidate_id, 'aw-source'));
+      const list = ccNode('ul', '', 'cc-blockers');
+      for (const code of candidate.blockers) list.append(ccNode('li', commandVirtualCandidateReason(code)));
+      detail.append(list);
+    }
+    const evidence = record.validation_evidence;
+    detail.append(ccNode('h3', ccLabel('Loaded OOS evidence scope', 'Yüklenen OOS kanıt kapsamı')));
+    detail.append(ccNode('p', evidence ? ccLabel(
+      `${evidence.symbol_subject_count} subjects for this coin / ${evidence.loaded_subject_count} loaded. Scope is separate from maturity approval.`,
+      `Bu koin için ${evidence.symbol_subject_count} kayıt / yüklenen ${evidence.loaded_subject_count} kayıt. Kapsam, olgunluk onayından ayrıdır.`)
+      : ccLabel('Not reported for this observation.', 'Bu gözlem için bildirilmedi.')));
+    if (evidence) {
+      detail.append(ccNode('p', ccValue(evidence.deployment_path), 'aw-source'));
+      for (const code of evidence.load_blockers) detail.append(ccNode('p', code, 'aw-status'));
+    }
+    const technical = ccNode('details');
+    technical.append(ccNode('summary', ccLabel('Decision and gate findings', 'Karar ve kapı bulguları')));
+    for (const blocker of record.blockers) technical.append(ccNode('div', blocker, 'aw-status'));
+    detail.append(technical);
     container.append(detail);
   }
   return container;
+}
+function commandVirtualCandidateReason(code: string): string {
+  const labels: Record<string, [string, string]> = {
+    ENTRY_TRIGGER_MISSING: ['Entry trigger is absent', 'Giriş tetikleyicisi yok'],
+    DIRECTIONAL_STRUCTURE_UNRESOLVED: ['Directional structure is unresolved', 'Yön yapısı netleşmedi'],
+    MACRO_STRUCTURE_CONFLICT: ['Macro structure conflicts with the setup', 'Büyük ölçekli yapı kurulumla çelişiyor'],
+    SETUP_STRUCTURE_CONFLICT: ['Setup structure is inconsistent', 'Kurulum yapısı tutarsız'],
+    MULTI_TIMEFRAME_DIRECTION_CONFLICT: ['Timeframe directions conflict', 'Zaman dilimlerinin yönleri çelişiyor'],
+    TRADING_INTELLIGENCE_NO_SELECTED_SCENARIO: ['No scenario was selected', 'Senaryo seçilmedi'],
+    REGIME_ROUTE_SPOT_DEFENSIVE_CASH: ['The current regime requires staying in cash', 'Mevcut rejim nakitte kalmayı gerektiriyor'],
+    SCENARIO_CONFIRMATION_PENDING: ['Scenario confirmation is pending', 'Senaryo teyidi bekleniyor'],
+    COST_FEE_EVIDENCE_UNAVAILABLE: ['Fee evidence is unavailable', 'Komisyon kanıtı mevcut değil'],
+    COST_SLIPPAGE_EVIDENCE_UNAVAILABLE: ['Slippage evidence is unavailable', 'Fiyat kayması kanıtı mevcut değil'],
+    NET_RISK_REWARD_UNAVAILABLE: ['Net risk-reward could not be established', 'Net risk-getiri oranı belirlenemedi'],
+    NO_READY_CANDIDATE: ['No trade candidate passed readiness checks', 'Hazırlık kontrollerini geçen işlem adayı yok'],
+    TRADE_CANDIDATE_AND_RISK_PLAN_MISSING: ['A complete candidate and risk plan were not supplied', 'Tam bir aday ve risk planı sağlanmadı'],
+    RESOURCE_RAM_HARD_LIMIT: ['Research paused at the approved RAM limit', 'Araştırma onaylı RAM sınırında duraklatıldı'],
+    RESOURCE_RAM_SOFT_LIMIT: ['Background validation waits for available RAM', 'Arka plan doğrulaması kullanılabilir RAM bekliyor'],
+  };
+  if (code.startsWith('REGIME_ROUTE_STRATEGY_BLOCKED:')) return ccLabel(
+    'The strategy is excluded by the current regime', 'Strateji mevcut rejimde uygun değil') + ` · ${code}`;
+  if (code === 'OOS_RUNTIME_EVIDENCE_UNAVAILABLE:OOS_RUNTIME_SOURCE_MISMATCH') return ccLabel(
+    'OOS evidence belongs to a different source version; genuine revalidation is required',
+    'OOS kanıtı farklı kaynak sürümüne ait; gerçek yeniden doğrulama gerekiyor') + ` · ${code}`;
+  return labels[code] ? `${ccLabel(...labels[code])} · ${code}` : code;
 }
 interface HealthFinding {
   finding_id?: string;
@@ -247,7 +324,7 @@ declare const state: {
 declare const marketSelections: Record<string, string>;
 declare const marketCache: Record<string, { symbols?: string[]; timeframes?: string[] }>;
 declare let marketFilter: string;
-declare let localData: DashboardSnapshot | null;
+declare var localData: DashboardSnapshot | null;
 declare let lastPollFailed: boolean;
 declare function render(): void;
 declare function renderLocal(content: HTMLElement): void;
@@ -283,6 +360,7 @@ const commandCopy = {
     missingFindings: 'DATA_UNAVAILABLE — Health findings were not supplied.',
     details: 'Technical provenance', support: 'Supporting evidence', counter: 'Counter-evidence',
     missing: 'Missing evidence', conflict: 'Conflicting evidence',
+    verifiedPayloads: 'Verified explanation bodies', missingPayloads: 'Unavailable bodies', invalidPayloads: 'Invalid bodies',
     decisionHelp: 'Read the reported result and blockers before inspecting evidence.',
     evidenceHelp: 'Source freshness and audit evidence; full decision lineage is not connected.',
     systemHelp: 'Service health and data readiness are separate observations.',
@@ -307,6 +385,7 @@ const commandCopy = {
     missingFindings: 'DATA_UNAVAILABLE — Sağlık bulguları sağlanmadı.',
     details: 'Teknik kaynak bilgisi', support: 'Destekleyici kanıt', counter: 'Karşı kanıt',
     missing: 'Eksik kanıt', conflict: 'Çelişen kanıt',
+    verifiedPayloads: 'Doğrulanan açıklama içerikleri', missingPayloads: 'Mevcut olmayan içerikler', invalidPayloads: 'Geçersiz içerikler',
     decisionHelp: 'Kanıtlardan önce bildirilen sonucu ve engelleri inceleyin.',
     evidenceHelp: 'Kaynak güncelliği ve denetim kanıtları; tam karar zinciri bağlı değil.',
     systemHelp: 'Servis sağlığı ve veri hazırlığı ayrı gözlemlerdir.',
@@ -817,6 +896,18 @@ function ccAttention(): HTMLElement {
   return panel;
 }
 function ccDecision(content: HTMLElement): void {
+  const observation = commandSummary(localData);
+  const current = ccPanel('current');
+  current.append(ccNode('p', `${observation.market} · ${observation.symbol} · ${observedTime(observation.observedAt)}`),
+    ccNode('p', `${observation.decision} · ${ccText('risk')}: ${observation.risk}`),
+    ccNode('p', ccLabel('Latest background observation. The recorded receipt below belongs to its own past cycle.',
+      'Son arka plan gözlemi. Aşağıdaki kayıt kendi geçmiş döngüsüne aittir.')));
+  if (observation.blockers?.length) {
+    const reasons = ccNode('ul', '', 'cc-blockers');
+    observation.blockers.forEach(code => reasons.append(ccNode('li', commandVirtualCandidateReason(code))));
+    current.append(reasons);
+  }
+  content.append(current);
   const history = localData?.decision_history;
   const chooser = ccPanel('decision');
   const label = ccNode('label', ccLabel('Recorded decision', 'Kayıtlı karar'));
@@ -864,7 +955,7 @@ function ccDecision(content: HTMLElement): void {
 }
 function ccRecordedDecision(content: HTMLElement, item: DecisionRecord): void {
   const panel = ccPanel('decision');
-  const status = ccNode('p', `${item.status} · ${item.action || 'DATA_UNAVAILABLE'} · ${item.symbol || 'DATA_UNAVAILABLE'}`, 'cc-connection');
+  const status = ccNode('p', `${ccLabel('Recorded cycle freshness', 'Kayıtlı döngü güncelliği')}: ${item.status} · ${item.action || 'DATA_UNAVAILABLE'} · ${item.symbol || 'DATA_UNAVAILABLE'}`, 'cc-connection');
   status.setAttribute('role', 'status');
   panel.append(status, ccNode('p', `${item.observed_at} · ${item.execution_surface}`),
     ccNode('p', ccLabel('Historical receipt; workspace filters do not relabel this record.',
@@ -879,19 +970,34 @@ function ccRecordedDecision(content: HTMLElement, item: DecisionRecord): void {
   panel.append(metrics, ccNode('h3', ccText('reason')));
   const blockers = [...new Set([...item.blockers, ...item.analysis_blockers, ...item.stages.flatMap(stage => stage.blockers)])];
   const list = ccNode('ul', '', 'cc-blockers');
-  blockers.forEach(reason => list.append(ccNode('li', reason)));
+  blockers.forEach(reason => list.append(ccNode('li', commandVirtualCandidateReason(reason))));
   panel.append(list, ccNode('p', ccLabel('Reported stage completion is not approval. Live orders remain blocked.',
     'Bildirilen aşama tamamlanması onay değildir. Canlı emirler kapalıdır.')));
   const stages = ccNode('details'); stages.append(ccNode('summary', ccText('details')));
   item.stages.forEach(stage => stages.append(ccNode('p', `${stage.name}: ${stage.status}`)));
   panel.append(stages);
-  const groups = ccNode('dl', '', 'cc-metrics');
-  (['support', 'counter', 'missing', 'conflict'] as CopyKey[]).forEach(key => groups.append(
-    ccMetric(key, 'DATA_UNAVAILABLE', ccLabel('The source does not classify evidence into this group.', 'Kaynak, kanıtları bu gruba sınıflandırmıyor.'))));
-  panel.append(groups, ccNode('p', `${item.receipt_status} · ${item.historical_authenticity}`));
+  panel.append(ccDecisionEvidence(item), ccNode('p', `${item.receipt_status} · ${item.historical_authenticity}`));
   panel.append(ccNode('p', ccLabel('Each reference reports its own payload availability and hash check. Historical authenticity is not verified.',
     'Her referans kendi içerik durumunu ve hash kontrolünü gösterir. Geçmiş kaydın özgünlüğü doğrulanmadı.')));
   content.append(panel, ccLineage(item));
+}
+function ccDecisionEvidence(item: DecisionRecord): HTMLElement {
+  const section = ccNode('section');
+  section.append(ccNode('h3', ccLabel('Evidence payload availability', 'Kanıt içeriği erişilebilirliği')));
+  const verified = item.references.filter(ref => ref.status === 'PAYLOAD_HASH_MATCH' && ref.payload).length;
+  const invalid = item.references.filter(ref => ref.status === 'PAYLOAD_INVALID').length;
+  const missing = item.references.length - verified - invalid;
+  const metrics = ccNode('dl', '', 'cc-metrics');
+  metrics.append(ccMetric('verifiedPayloads', `${verified} / ${item.references.length}`),
+    ccMetric('missingPayloads', String(missing)), ccMetric('invalidPayloads', String(invalid)));
+  section.append(metrics);
+  if (!verified) section.append(ccNode('p', ccLabel(
+    'This recorded cycle contains references without explanation bodies. It cannot be repaired by relabeling the receipt.',
+    'Bu kayıtlı döngüde açıklama içerikleri olmadan referanslar var. Kayıt yeniden etiketlenerek onarılamaz.')));
+  section.append(ccNode('p', ccLabel(
+    'Supporting, counter and conflicting evidence classifications were not reported. Payload hash checks do not establish these classifications or trading approval.',
+    'Destekleyici, karşı ve çelişen kanıt sınıfları bildirilmedi. İçerik hash kontrolü bu sınıfları veya işlem onayını oluşturmaz.')));
+  return section;
 }
 function ccLineage(item: DecisionRecord): HTMLElement {
   const panel = ccPanel('lineage');

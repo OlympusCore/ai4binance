@@ -46,6 +46,9 @@ from ai4binance.exchange import (
 )
 from ai4binance.execution import PaperLedger
 from ai4binance.external_intel.retrieval.feeds import FeedEntry, parse_feed
+from ai4binance.infrastructure.persistence.canonical_payloads import (
+    CanonicalExplanationStore,
+)
 from ai4binance.infrastructure.persistence.memory import JsonlMemoryStore
 from ai4binance.learning.engine import ControlledLearningEngine
 from ai4binance.learning.lifecycle import (
@@ -466,6 +469,12 @@ def build_read_only_runtime(settings: Settings) -> ReadOnlyRuntimeCycle:
             ),
             audit_store=JsonlAuditStore.chained_successor(
                 settings.audit_directory / "runtime_research_events.jsonl"
+            ),
+            canonical_explanation_store=CanonicalExplanationStore(
+                settings.evidence_artifact_directory
+                / "research"
+                / "canonical_cycle_payloads",
+                boundary=Path("runtime"),
             ),
             memory_bridge=GovernedMemoryCycleBridge(
                 JsonlMemoryStore(settings.governed_memory_path)
@@ -1521,6 +1530,64 @@ def _reported_virtual_simulation_fields(
     outcome = report.get("virtual_simulation_outcome")
     if isinstance(outcome, str) and outcome:
         fields["virtual_simulation_outcome"] = outcome
+    for name in ("snapshot_id", "market"):
+        value = report.get(name)
+        if isinstance(value, str) and value:
+            fields[name] = value
+    diagnostics = report.get("candidate_diagnostics")
+    if isinstance(diagnostics, (list, tuple)):
+        keys = ("candidate_id", "setup", "timeframe", "status")
+        fields["candidate_diagnostics"] = [
+            {
+                **{name: item[name] for name in keys},
+                "blockers": [
+                    value
+                    for value in item.get("blockers", ())
+                    if isinstance(value, str)
+                ]
+                if isinstance(item.get("blockers"), (list, tuple))
+                else [],
+            }
+            for item in diagnostics
+            if isinstance(item, Mapping)
+            and all(isinstance(item.get(name), str) and item[name] for name in keys)
+            and isinstance(item.get("blockers"), (list, tuple))
+            and all(isinstance(value, str) for value in item.get("blockers", ()))
+        ]
+    evidence = report.get("validation_evidence")
+    if isinstance(evidence, Mapping) and all(
+        evidence.get(name) == report.get(name) and isinstance(report.get(name), str)
+        for name in ("snapshot_id", "symbol", "market")
+    ):
+        counts = (
+            evidence.get("loaded_subject_count"),
+            evidence.get("symbol_subject_count"),
+        )
+        if all(
+            isinstance(value, int) and not isinstance(value, bool) and value >= 0
+            for value in counts
+        ) and (
+            cast(int, counts[1]) <= cast(int, counts[0])
+            and isinstance(evidence.get("load_blockers"), (list, tuple))
+            and all(
+                isinstance(value, str) for value in evidence.get("load_blockers", ())
+            )
+        ):
+            fields["validation_evidence"] = {
+                **{
+                    name: evidence[name] for name in ("snapshot_id", "symbol", "market")
+                },
+                "loaded_subject_count": counts[0],
+                "symbol_subject_count": counts[1],
+                "deployment_path": evidence.get("deployment_path"),
+                "load_blockers": [
+                    value
+                    for value in evidence.get("load_blockers", ())
+                    if isinstance(value, str)
+                ]
+                if isinstance(evidence.get("load_blockers"), (list, tuple))
+                else [],
+            }
     return fields
 
 
