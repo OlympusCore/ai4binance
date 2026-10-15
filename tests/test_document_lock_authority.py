@@ -313,10 +313,21 @@ def test_no_context_or_wrong_context_root_denies(
         assert validator._document_lock_manifest(root)[2] is not None
 
 
-def test_missing_default_context_is_tolerated_without_explicit_authority_input(
+def test_missing_default_context_is_tolerated_for_update_manifest_without_explicit_input(
     chain: tuple[Path, dict[str, Any]],
 ) -> None:
     root, _bundle = chain
+    manifest_path = root / validator.GOVERNED_DOCUMENT_LOCK_MANIFEST_PATH
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["prospective_lock_grant"] = {
+        "contract_version": authority.UPDATE_MANIFEST,
+        "grant": {"path": "runtime/TEST_ONLY_grant-ref.json", "sha256": "a" * 64},
+        "predecessor": {
+            "path": "runtime/TEST_ONLY_predecessor-ref.json",
+            "sha256": "b" * 64,
+        },
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     (root / authority.CONTEXT_PATH).unlink()
     entries, pairs, error = validator._document_lock_manifest(root)
     assert error is None

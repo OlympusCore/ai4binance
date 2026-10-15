@@ -322,7 +322,12 @@ def prospective_document_approvals(
             root.resolve(),
             root / CONTEXT_PATH,
         )
-        if selected is None and not context_path.is_file():
+        if (
+            selected is None
+            and not context_path.is_file()
+            and isinstance(marker, dict)
+            and marker.get("contract_version") == UPDATE_MANIFEST
+        ):
             return frozenset(), None
         if isinstance(marker, dict) and marker.get("contract_version") == UPDATE_MANIFEST:
             if expected_root != root.resolve():
