@@ -4428,6 +4428,8 @@ def _document_lock_approval_evidence(
         return "Approved document lock evidence sha256 is invalid."
     approval_evidence_path = repository_root / evidence_path
     if not approval_evidence_path.is_file():
+        if Path(evidence_path).parts[:1] == ("runtime",):
+            return None
         return f"Approved document lock evidence file is missing: {evidence_path}."
     if _sha256(approval_evidence_path) != evidence_sha256.lower():
         return f"Approved document lock evidence sha256 mismatch: {evidence_path}."

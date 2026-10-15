@@ -19,7 +19,7 @@ families:
     standard_path: docs/standards/standard_terminology_governance.md
     standard_id: AI4B-GOV-STD-TERM-001
     standard_version: 1.2.1
-    standard_content_sha256: 3afc73fd1c11e960c33445d184754e0a3c1a998c222660e88e14d0d4a673e954
+    standard_content_sha256: d8edb7c88c73b4ac5a956ca10053e00c6df6ec323788ceb3ec74538590e3d40c
     projection_path: config/governance/canonical_terminology_registry.yaml
     schema_path: schemas/governance/canonical_terminology_registry.schema.json
   repository_naming:
@@ -27,7 +27,7 @@ families:
     standard_path: docs/standards/standard_repository_naming_governance.md
     standard_id: AI4B-GOV-STD-RFG-102
     standard_version: 1.0.1
-    standard_content_sha256: 27e65580f54f082dff90741392da467f62571851b46b64e623f2de5ef17e4559
+    standard_content_sha256: 5de0bb68bb24b0b3ce9a32bd185dcf5c72ce55125db44faf665d273e2d3876ce
     projection_path: policies/repository-validator/manifest-policy.json
     schema_path: null
   technology_language:

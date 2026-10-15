@@ -317,15 +317,17 @@ def prospective_document_approvals(
     if marker is None and "prospective_lock_grant" not in payload:
         return frozenset(), None
     try:
+        selected = _INPUT.get()
+        expected_root, context_path = selected or (
+            root.resolve(),
+            root / CONTEXT_PATH,
+        )
+        if selected is None and not context_path.is_file():
+            return frozenset(), None
         if (
             isinstance(marker, dict)
             and marker.get("contract_version") == UPDATE_MANIFEST
         ):
-            selected = _INPUT.get()
-            expected_root, context_path = selected or (
-                root.resolve(),
-                root / CONTEXT_PATH,
-            )
             if expected_root != root.resolve():
                 raise ValueError("DOCUMENT_LOCK_AUTHORITY_CONTEXT_ROOT")
             context = review._object(context_path)
@@ -336,11 +338,6 @@ def prospective_document_approvals(
             COMPLETED_MANIFEST_CONTRACT,
         }:
             raise ValueError("DOCUMENT_GRANT_NOT_ADOPTED")
-        selected = _INPUT.get()
-        expected_root, context_path = selected or (
-            root.resolve(),
-            root / CONTEXT_PATH,
-        )
         if expected_root != root.resolve():
             raise ValueError("DOCUMENT_LOCK_AUTHORITY_CONTEXT_ROOT")
         context = review._object(context_path)

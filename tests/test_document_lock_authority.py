@@ -313,6 +313,17 @@ def test_no_context_or_wrong_context_root_denies(
         assert validator._document_lock_manifest(root)[2] is not None
 
 
+def test_missing_default_context_is_tolerated_without_explicit_authority_input(
+    chain: tuple[Path, dict[str, Any]],
+) -> None:
+    root, _bundle = chain
+    (root / authority.CONTEXT_PATH).unlink()
+    entries, pairs, error = validator._document_lock_manifest(root)
+    assert error is None
+    assert entries
+    assert not pairs
+
+
 def test_grant_cannot_outlive_adoption(chain: tuple[Path, dict[str, Any]]) -> None:
     root, bundle = chain
     bundle["adoption"]["expires_at_utc"] = "2026-10-02T12:00:00Z"
