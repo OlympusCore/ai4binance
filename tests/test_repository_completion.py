@@ -272,6 +272,9 @@ def test_sync_preparation_defers_equality_but_completion_does_not(
 def test_ci_is_explicitly_remote_only(
     tmp_path: Path, observations: Observations
 ) -> None:
+    observations[("ls-remote", "--heads", ENDPOINT)] = (
+        f"{SHA} refs/heads/main\n{OTHER} refs/heads/extra\n"
+    )
     for key in list(observations):
         if key[0] not in {"remote", "ls-remote"}:
             del observations[key]
@@ -280,6 +283,8 @@ def test_ci_is_explicitly_remote_only(
     assert report["scope"] == "REMOTE_ONLY"
     assert report["state"] == "NOT_VERIFIED"
     assert report["baseline_verified"] is False
+    assert report["remote_branch_count"] == 2
+    assert "GIT_COMPLETION_REMOTE_BRANCHES" not in report["blockers"]
     assert "worktree_count" not in report
 
 

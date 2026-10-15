@@ -208,13 +208,17 @@ def _finalize(report: dict[str, Any]) -> dict[str, Any]:
 
 
 def _record_remote_heads(
-    report: dict[str, Any], heads: dict[str, str] | None, fail: Fail
+    report: dict[str, Any],
+    heads: dict[str, str] | None,
+    fail: Fail,
+    *,
+    require_main_only: bool = True,
 ) -> None:
     if heads is None:
         return
     report["remote_heads"] = heads
     report["remote_branch_count"] = len(heads)
-    if set(heads) != {"refs/heads/main"}:
+    if require_main_only and set(heads) != {"refs/heads/main"}:
         fail("REMOTE_BRANCHES")
     if "refs/heads/main" not in heads:
         fail("REMOTE_MAIN_MISSING")
@@ -369,7 +373,12 @@ def inspect_git_boundary(
     name, remote_heads = remote_before
     report["canonical_remote_url"] = active_policy.canonical_remote_url
     report["canonical_remote_name"] = name
-    _record_remote_heads(report, remote_heads, fail)
+    _record_remote_heads(
+        report,
+        remote_heads,
+        fail,
+        require_main_only=operation != "ci",
+    )
 
     if operation != "ci":
         _topology(root, active_policy, before, report, fail)
