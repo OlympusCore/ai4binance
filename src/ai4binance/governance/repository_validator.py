@@ -328,6 +328,7 @@ REPOSITORY_VALIDATOR_POLICY_PATH = "policies/repository-validator/manifest-polic
 AUTHORITY_GRAPH_REGISTRY_PATH = "docs/registries/registry_authority_graph.yaml"
 GOVERNED_DOCUMENT_ALLOWED_CHANGE_PROCESS = "WRITTEN_OWNER_APPROVAL_REQUIRED"
 _SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
+_RUNTIME_SCOPE_PREFIX = "runtime"
 _LEGACY_RUNTIME_ROOT_TARGETS = {
     "artifacts": "runtime/artifacts",
     "data": "runtime/data",
@@ -4429,7 +4430,7 @@ def _document_lock_approval_evidence(
     approval_evidence_path = repository_root / evidence_path
     if not approval_evidence_path.is_file():
         relative_parts = Path(evidence_path).parts
-        if len(relative_parts) > 1 and relative_parts[0] == "runtime":
+        if len(relative_parts) > 1 and relative_parts[0] == _RUNTIME_SCOPE_PREFIX:
             return None
         return f"Approved document lock evidence file is missing: {evidence_path}."
     if _sha256(approval_evidence_path) != evidence_sha256.lower():
