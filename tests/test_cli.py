@@ -1996,6 +1996,7 @@ def test_virtual_market_research_cycle_persists_both_wallets_and_report(
     assert validation_evidence["symbol"] == payload["symbol"]
     assert validation_evidence["market"] == "SPOT"
     assert validation_evidence["loaded_subject_count"] == 0
+    assert validation_evidence["market_subject_count"] == 0
     assert validation_evidence["symbol_subject_count"] == 0
     assert validation_evidence["load_blockers"] == (
         "OOS_RUNTIME_EVIDENCE_UNAVAILABLE:OOS_DEPLOYMENT_MISSING",
@@ -3431,6 +3432,7 @@ def test_virtual_projection_retains_bound_candidate_causes_and_evidence_scope() 
             "symbol": "TEST_ONLY_A",
             "market": "SPOT",
             "loaded_subject_count": 15,
+            "market_subject_count": 15,
             "symbol_subject_count": 0,
             "deployment_path": "TEST_ONLY_DEPLOYMENT",
             "load_blockers": [],
@@ -3510,3 +3512,82 @@ def test_virtual_evidence_scope_rejects_mismatch_and_invalid_counts(
     assert "validation_evidence" not in runtime_cli._reported_virtual_simulation_fields(
         report
     )
+
+
+@pytest.mark.parametrize("market_count", [True, None, -1, 0, 91, 1.5, "90"])
+def test_virtual_evidence_scope_rejects_invalid_market_counts(
+    market_count: object,
+) -> None:
+    report = {
+        "snapshot_id": "TEST_ONLY_SNAPSHOT",
+        "symbol": "TEST_ONLY_A",
+        "market": "USD_M_FUTURES",
+    }
+    evidence: dict[str, object] = {
+        **report,
+        "loaded_subject_count": 90,
+        "market_subject_count": market_count,
+        "symbol_subject_count": 1,
+        "load_blockers": [],
+    }
+    assert "validation_evidence" not in runtime_cli._reported_virtual_simulation_fields(
+        {**report, "validation_evidence": evidence}
+    )
+
+
+def test_virtual_report_preserves_pre_candidate_causes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test-only upstream rejection must survive an empty candidate projection."""
+    from dataclasses import replace
+
+    import ai4binance.cli.research as research_cli
+    from ai4binance.application.research import (
+        ResearchApplicationService,
+        ResearchWorkflowResult,
+    )
+
+    original = ResearchApplicationService.run
+
+    def rejected_scenario(
+        service: ResearchApplicationService, snapshot: MarketSnapshot
+    ) -> ResearchWorkflowResult:
+        result = original(service, snapshot)
+        analysis = result.analysis
+        assert not analysis.candidate_setups
+        assert analysis.trading_intelligence is not None
+        intelligence = replace(
+            analysis.trading_intelligence,
+            blockers=("TEST_ONLY_PRE_CANDIDATE_REJECTION",),
+        )
+        return replace(
+            result, analysis=replace(analysis, trading_intelligence=intelligence)
+        )
+
+    monkeypatch.setattr(ResearchApplicationService, "run", rejected_scenario)
+    settings = Settings(
+        timeframes=("1h",),
+        minimum_closed_candles=2,
+        evidence_artifact_directory=tmp_path / "runtime/artifacts",
+        audit_directory=tmp_path / "runtime/logs",
+    )
+    report: dict[str, object] = {}
+    assert (
+        research_cli.run_public_research_command(
+            "research-public",
+            settings,
+            public_acquisition=StubAcquisition(),
+            whale_fusion_cycle=None,
+            cycle_report=report,
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert report["candidate_count"] == 0
+    assert "TEST_ONLY_PRE_CANDIDATE_REJECTION" in cast(
+        tuple[str, ...], report["research_blockers"]
+    )
+    assert payload["execution_allowed"] is False
+    assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"

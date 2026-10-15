@@ -978,11 +978,17 @@ def virtual_observation_diagnostics(row):
         and isinstance(blockers, list)
         and all(isinstance(value, str) for value in blockers)
     ):
+        market_count = evidence.get("market_subject_count")
+        if "market_subject_count" in evidence and (
+            type(market_count) is not int or not matched <= market_count <= loaded
+        ):
+            return result
         result["validation_evidence"] = {
             **fields(evidence, ("snapshot_id", "symbol", "market", "deployment_path")),
             "loaded_subject_count": loaded,
             "symbol_subject_count": matched,
             "load_blockers": reasons(blockers),
+            **({"market_subject_count": market_count} if market_count is not None else {}),
         }
     return result
 

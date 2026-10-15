@@ -81,6 +81,7 @@ def virtual_observation() -> dict[str, Any]:
             "market": "SPOT",
             "snapshot_id": "TEST_ONLY_SNAPSHOT",
             "loaded_subject_count": 90,
+            "market_subject_count": 90,
             "symbol_subject_count": 15,
             "load_blockers": [],
             "deployment_path": "runtime/TEST_ONLY_DEPLOYMENT.json",
@@ -104,6 +105,7 @@ def test_virtual_projection_preserves_snapshot_bound_diagnostics() -> None:
     assert projected["market"] == row["market"]
     assert projected["validation_evidence"]["symbol_subject_count"] == 15
     assert projected["validation_evidence"]["loaded_subject_count"] == 90
+    assert projected["validation_evidence"]["market_subject_count"] == 90
     assert projected["candidate_diagnostics"][0]["blockers"] == [
         "ENTRY_TRIGGER_MISSING"
     ]
@@ -125,6 +127,12 @@ def test_virtual_projection_preserves_snapshot_bound_diagnostics() -> None:
         ("symbol_subject_count", -1),
         ("symbol_subject_count", 91),
         ("symbol_subject_count", 1.5),
+        ("market_subject_count", True),
+        ("market_subject_count", None),
+        ("market_subject_count", -1),
+        ("market_subject_count", 14),
+        ("market_subject_count", 91),
+        ("market_subject_count", 1.5),
         ("load_blockers", "TEST_ONLY_INVALID_SHAPE"),
         ("load_blockers", [False]),
     ],
@@ -172,6 +180,7 @@ def test_virtual_projection_does_not_borrow_evidence_across_markets() -> None:
         market="USD_M_FUTURES",
         snapshot_id="TEST_ONLY_FUTURES_SNAPSHOT",
         symbol_subject_count=0,
+        market_subject_count=0,
     )
     source = {
         "dashboard_simulation_projection": {"symbol_observations": [spot, futures]},
@@ -184,6 +193,7 @@ def test_virtual_projection_does_not_borrow_evidence_across_markets() -> None:
     assert len(spot_rows) == len(futures_rows) == 1
     assert spot_rows[0]["validation_evidence"]["symbol_subject_count"] == 15
     assert futures_rows[0]["validation_evidence"]["symbol_subject_count"] == 0
+    assert futures_rows[0]["validation_evidence"]["market_subject_count"] == 0
 
 
 def receipt() -> dict[str, Any]:

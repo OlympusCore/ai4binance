@@ -958,6 +958,10 @@ def _run_research_or_analysis(
                     "market": snapshot.market_type.upper(),
                     "deployment_path": str(settings.runtime_validation_deployment_path),
                     "loaded_subject_count": len(validation_gate.expected_subjects),
+                    "market_subject_count": sum(
+                        subject.promotion.market_type == snapshot.market_type.upper()
+                        for subject in validation_gate.expected_subjects
+                    ),
                     "symbol_subject_count": sum(
                         subject.promotion.symbol == snapshot.symbol
                         and subject.promotion.market_type
@@ -999,6 +1003,16 @@ def _run_research_or_analysis(
                 ),
             }
         )
+        if not state.candidate_setups and state.trading_intelligence is not None:
+            # Preserve pre-candidate causes that cannot appear on a candidate row.
+            cycle_report["research_blockers"] = tuple(
+                dict.fromkeys(
+                    (
+                        *cast(tuple[str, ...], cycle_report["research_blockers"]),
+                        *state.trading_intelligence.blockers,
+                    )
+                )
+            )
     print(json.dumps(to_primitive(payload), ensure_ascii=False, sort_keys=True))
     return 0
 

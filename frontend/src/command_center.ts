@@ -92,7 +92,8 @@ interface VirtualCandidateDiagnostic {
 }
 interface VirtualValidationEvidence {
   snapshot_id: string; symbol: string; market: string; deployment_path?: string;
-  loaded_subject_count: number; symbol_subject_count: number; load_blockers: string[];
+  loaded_subject_count: number; market_subject_count?: number;
+  symbol_subject_count: number; load_blockers: string[];
 }
 interface VirtualObservation extends BackgroundObservation {
   snapshot_id?: string;
@@ -135,6 +136,10 @@ function commandVirtualObservation(value: unknown): VirtualObservation {
     && typeof evidence.loaded_subject_count === 'number' && Number.isSafeInteger(evidence.loaded_subject_count)
     && typeof evidence.symbol_subject_count === 'number' && Number.isSafeInteger(evidence.symbol_subject_count)
     && evidence.symbol_subject_count >= 0 && evidence.symbol_subject_count <= evidence.loaded_subject_count
+    && (evidence.market_subject_count === undefined
+      || (typeof evidence.market_subject_count === 'number' && Number.isSafeInteger(evidence.market_subject_count)
+        && evidence.symbol_subject_count <= evidence.market_subject_count
+        && evidence.market_subject_count <= evidence.loaded_subject_count))
     && Array.isArray(evidence.load_blockers) && evidence.load_blockers.every(value => typeof value === 'string')) {
     result.validation_evidence = evidence as VirtualValidationEvidence;
   }
@@ -238,11 +243,20 @@ function commandVirtualSimulationBlockers(view: VirtualSimulationView): HTMLElem
     }
     const evidence = record.validation_evidence;
     detail.append(ccNode('h3', ccLabel('Loaded OOS evidence scope', 'Yüklenen OOS kanıt kapsamı')));
-    detail.append(ccNode('p', evidence ? ccLabel(
+    detail.append(ccNode('p', evidence && evidence.market_subject_count !== undefined ? ccLabel(
+      `${evidence.symbol_subject_count} subjects for this coin / ${evidence.market_subject_count} in ${evidence.market}. Total across markets: ${evidence.loaded_subject_count}. Scope is separate from maturity approval.`,
+      `Bu koin için ${evidence.symbol_subject_count} kayıt / ${evidence.market} piyasasında ${evidence.market_subject_count} kayıt. Tüm piyasaların toplamı: ${evidence.loaded_subject_count}. Kapsam, olgunluk onayından ayrıdır.`)
+      : evidence ? ccLabel(
       `${evidence.symbol_subject_count} subjects for this coin / ${evidence.loaded_subject_count} loaded. Scope is separate from maturity approval.`,
       `Bu koin için ${evidence.symbol_subject_count} kayıt / yüklenen ${evidence.loaded_subject_count} kayıt. Kapsam, olgunluk onayından ayrıdır.`)
       : ccLabel('Not reported for this observation.', 'Bu gözlem için bildirilmedi.')));
     if (evidence) {
+      if (evidence.market_subject_count === undefined) detail.append(ccNode('p', ccLabel(
+        'The loaded total covers all markets; this market count was not reported.',
+        'Yüklenen toplam tüm piyasaları kapsar; bu piyasanın kayıt sayısı bildirilmedi.')));
+      if (evidence.market_subject_count === 0 && evidence.load_blockers.length === 0) detail.append(ccNode('p', ccLabel(
+        `No OOS validation subject is configured for ${evidence.market} in this deployment. Evidence from another market cannot fill this gap.`,
+        `Bu dağıtımda ${evidence.market} için OOS doğrulama kaydı tanımlı değil. Başka piyasanın kanıtı bu eksikliği kapatamaz.`), 'aw-status'));
       detail.append(ccNode('p', ccValue(evidence.deployment_path), 'aw-source'));
       for (const code of evidence.load_blockers) detail.append(ccNode('p', code, 'aw-status'));
     }
@@ -269,6 +283,14 @@ function commandVirtualCandidateReason(code: string): string {
     NET_RISK_REWARD_UNAVAILABLE: ['Net risk-reward could not be established', 'Net risk-getiri oranı belirlenemedi'],
     NO_READY_CANDIDATE: ['No trade candidate passed readiness checks', 'Hazırlık kontrollerini geçen işlem adayı yok'],
     TRADE_CANDIDATE_AND_RISK_PLAN_MISSING: ['A complete candidate and risk plan were not supplied', 'Tam bir aday ve risk planı sağlanmadı'],
+    BACKTEST_APPROVAL_MISSING: ['Backtest approval is absent for this observation', 'Bu gözlem için geriye dönük test onayı yok'],
+    WALK_FORWARD_APPROVAL_MISSING: ['Walk-forward approval is absent for this observation', 'Bu gözlem için ileri yürüyen doğrulama onayı yok'],
+    OOS_APPROVAL_MISSING: ['Out-of-sample validation approval is absent', 'Örneklem dışı doğrulama onayı yok'],
+    RISK_APPROVAL_MISSING: ['No approved risk assessment was reported', 'Onaylı risk değerlendirmesi bildirilmedi'],
+    NO_RESEARCH_CANDIDATE: ['No research candidate was produced', 'Araştırma adayı üretilmedi'],
+    'VALIDATION_STATUS:REJECTED': ['The validation decision is rejected', 'Doğrulama kararı reddedildi'],
+    NO_VIRTUAL_SETUP_CANDIDATE: ['No candidate is available for virtual execution', 'Sanal işlem için aday mevcut değil'],
+    DGE_SIMULATION_NOT_APPROVED: ['The governance gate has not approved this simulation', 'Yönetişim kapısı bu simülasyonu onaylamadı'],
     RESOURCE_RAM_HARD_LIMIT: ['Research paused at the approved RAM limit', 'Araştırma onaylı RAM sınırında duraklatıldı'],
     RESOURCE_RAM_SOFT_LIMIT: ['Background validation waits for available RAM', 'Arka plan doğrulaması kullanılabilir RAM bekliyor'],
   };

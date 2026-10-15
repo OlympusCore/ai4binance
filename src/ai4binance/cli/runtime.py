@@ -1581,6 +1581,13 @@ def _reported_virtual_simulation_fields(
                 isinstance(value, str) for value in evidence.get("load_blockers", ())
             )
         ):
+            market_count = evidence.get("market_subject_count")
+            if "market_subject_count" in evidence and (
+                not isinstance(market_count, int)
+                or isinstance(market_count, bool)
+                or not cast(int, counts[1]) <= market_count <= cast(int, counts[0])
+            ):
+                return fields
             fields["validation_evidence"] = {
                 **{
                     name: evidence[name] for name in ("snapshot_id", "symbol", "market")
@@ -1595,6 +1602,11 @@ def _reported_virtual_simulation_fields(
                 ]
                 if isinstance(evidence.get("load_blockers"), (list, tuple))
                 else [],
+                **(
+                    {"market_subject_count": market_count}
+                    if market_count is not None
+                    else {}
+                ),
             }
     return fields
 

@@ -917,6 +917,30 @@ assert.doesNotMatch(panel.textContent,/Candidate-level reasons were not reported
 assert.match(panel.textContent,/0 subjects for this coin \/ 15 loaded/);
 assert.match(panel.textContent,/OOS_APPROVAL_MISSING/);
 assert.match(panel.textContent,/DGE_SIMULATION_NOT_APPROVED/);
+context.futures={...raw,market:'USD_M_FUTURES',candidate_count:0,candidate_diagnostics:[],
+  blockers:[...raw.blockers,'ENTRY_TRIGGER_MISSING','MULTI_TIMEFRAME_DIRECTION_CONFLICT'],
+  validation_evidence:{...raw.validation_evidence,market:'USD_M_FUTURES',
+    loaded_subject_count:90,market_subject_count:0,symbol_subject_count:0}};
+context.row=evaluate('commandVirtualObservation(futures)');
+panel=evaluate('commandVirtualSimulationBlockers({blocker_records:[row]})');
+assert.match(panel.textContent,/0 subjects for this coin \/ 0 in USD_M_FUTURES/);
+assert.match(panel.textContent,/Total across markets: 90/);
+assert.match(panel.textContent,
+  /No OOS validation subject is configured for USD_M_FUTURES/);
+assert.match(panel.textContent,/Evidence from another market cannot fill this gap/);
+assert.match(panel.textContent,/Entry trigger is absent/);
+assert.match(panel.textContent,/Out-of-sample validation approval is absent/);
+context.unavailable={...context.futures,
+  validation_evidence:{...context.futures.validation_evidence,
+    load_blockers:['TEST_ONLY_EVIDENCE_LOAD_FAILED']}};
+context.row=evaluate('commandVirtualObservation(unavailable)');
+panel=evaluate('commandVirtualSimulationBlockers({blocker_records:[row]})');
+assert.doesNotMatch(panel.textContent,/No OOS validation subject is configured/);
+assert.match(panel.textContent,/TEST_ONLY_EVIDENCE_LOAD_FAILED/);
+for(const bad of [true,null,-1,91,1.5,'90']){
+  context.bad={...context.futures,validation_evidence:{...context.futures.validation_evidence,market_subject_count:bad}};
+  assert.equal(evaluate('commandVirtualObservation(bad).validation_evidence'),undefined);
+}
 context.state.language='tr';context.row=row;
 panel=evaluate('commandVirtualSimulationBlockers({blocker_records:[row]})');
 assert.match(panel.textContent,/Giriş tetikleyicisi yok/);
