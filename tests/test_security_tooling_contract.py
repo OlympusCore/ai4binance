@@ -11,6 +11,7 @@ import tomllib
 import warnings
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -135,9 +136,20 @@ def _initialize_git_repository(repository: Path) -> str:
 
 def _stage_fixture_baseline(repository: Path, git: str) -> None:
     """TEST_ONLY bounded recovery for the observed Windows loose-object denial."""
+    _write_fixture_objects(repository, git, ("add", "tracked.txt"), phase="BASELINE")
+
+
+def _write_fixture_objects(
+    repository: Path,
+    git: str,
+    arguments: tuple[str, ...],
+    *,
+    phase: str,
+) -> subprocess.CompletedProcess[str]:
+    """Materialize TEST_ONLY Git objects; never retry an authority decision."""
     assert repository.resolve() != REPOSITORY_ROOT
     assert (repository / ".git").is_dir()
-    command = [git, "-C", str(repository), "add", "tracked.txt"]
+    command = [git, "-C", str(repository), *arguments]
     delays = (0.01, 0.02, 0.04, 0.08, 0.16, 0.25, 0.25)
     errors: list[str] = []
     for attempt in range(len(delays) + 1):
@@ -152,7 +164,7 @@ def _stage_fixture_baseline(repository: Path, git: str) -> None:
                     RuntimeWarning,
                     stacklevel=2,
                 )
-            return
+            return result
         errors.append(result.stderr)
         object_denied = re.search(
             r"(?m)^error: unable to write file '?\.git/objects/"
@@ -169,11 +181,12 @@ def _stage_fixture_baseline(repository: Path, git: str) -> None:
                 result.returncode, command, result.stdout, result.stderr
             )
             failure.add_note(
-                "TEST_ONLY_GIT_BASELINE_FAILED; captured attempt stderr:\n"
+                f"TEST_ONLY_GIT_{phase}_FAILED; captured attempt stderr:\n"
                 + "\n".join(errors)
             )
             raise failure
         time.sleep(delays[attempt])
+    raise AssertionError("TEST_ONLY Git object materialization did not complete")
 
 
 @pytest.fixture
@@ -460,6 +473,11 @@ def _prepare_authorization(
     remote_name: str = "",
     push_updates_path: Path | None = None,
 ) -> tuple[Path, str]:
+    # Fixture preparation only: the canonical helper still derives and checks
+    # its own subject, and no authorization operation is retried.
+    _write_fixture_objects(
+        repository, _required_executable("git"), ("write-tree",), phase="TREE"
+    )
     arguments = [
         "-Mode",
         "Prepare",
@@ -849,20 +867,15 @@ def test_git_write_authorization_rejects_subject_drift(tmp_path: Path) -> None:
     git = _initialize_git_repository(repository)
     tracked = repository / "tracked.txt"
     tracked.write_text("first staged tree\n", encoding="utf-8")
-    subprocess.run(  # noqa: S603
-        [git, "-C", str(repository), "add", "tracked.txt"],
-        check=True,
-    )
+    _write_fixture_objects(repository, git, ("add", "tracked.txt"), phase="STAGING")
     challenge_path, approval_command = _prepare_authorization(repository, "Commit")
     authorization_path = _approve_authorization(
         repository, challenge_path, approval_command
     )
 
     tracked.write_text("different staged tree\n", encoding="utf-8")
-    subprocess.run(  # noqa: S603
-        [git, "-C", str(repository), "add", "tracked.txt"],
-        check=True,
-    )
+    _write_fixture_objects(repository, git, ("add", "tracked.txt"), phase="STAGING")
+    _write_fixture_objects(repository, git, ("write-tree",), phase="TREE")
     mismatch = _run_git_authorization(
         repository,
         "-Mode",
@@ -877,6 +890,90 @@ def test_git_write_authorization_rejects_subject_drift(tmp_path: Path) -> None:
     assert mismatch.returncode == 1
     assert "GIT_WRITE_AUTHORIZATION_SUBJECT_MISMATCH" in mismatch.stderr
     assert authorization_path.is_file()
+
+
+def test_subject_drift_is_still_denied_after_fixture_tree_write_recovery(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """TEST_ONLY I/O faults never cause authority-operation retries or grants."""
+    original_run = subprocess.run
+    injected: set[str] = set()
+    authority_calls: list[str] = []
+    object_path = ".git/objects/de/" + "a" * 38
+
+    def flaky_run(
+        command: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        if "-Mode" in command:
+            authority_calls.append(command[command.index("-Mode") + 1])
+        if command[-1] == "write-tree":
+            contents = (Path(command[2]) / "tracked.txt").read_text(encoding="utf-8")
+            if contents not in injected:
+                injected.add(contents)
+                return subprocess.CompletedProcess(
+                    command,
+                    128,
+                    "",
+                    f"error: unable to write file {object_path}: Permission denied\n",
+                )
+        return original_run(command, **cast(dict[str, Any], kwargs))
+
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(subprocess, "run", flaky_run)
+    with pytest.warns(
+        RuntimeWarning, match="TEST_ONLY_GIT_OBJECT_WRITE_RECOVERED"
+    ) as recovered:
+        test_git_write_authorization_rejects_subject_drift(tmp_path)
+    assert injected == {"first staged tree\n", "different staged tree\n"}
+    assert sum(object_path in str(w.message) for w in recovered) == 2
+    assert authority_calls == ["Prepare", "Approve", "Consume"]
+
+
+@pytest.mark.parametrize(
+    ("stderr", "expected_attempts"),
+    [
+        (
+            "error: unable to write file .git/objects/de/"
+            + "a" * 38
+            + ": Permission denied\n",
+            8,
+        ),
+        ("fatal: disk full", 1),
+    ],
+)
+def test_fixture_tree_preserves_persistent_and_unrelated_failures(
+    empty_git_fixture: tuple[Path, str],
+    monkeypatch: pytest.MonkeyPatch,
+    stderr: str,
+    expected_attempts: int,
+) -> None:
+    repository, git = empty_git_fixture
+    attempts = 0
+
+    def denied_run(
+        command: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        nonlocal attempts
+        attempts += 1
+        assert command == [git, "-C", str(repository), "write-tree"]
+        return subprocess.CompletedProcess(command, 128, "", stderr)
+
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(subprocess, "run", denied_run)
+    monkeypatch.setattr(time, "sleep", lambda _: None)
+    with pytest.raises(subprocess.CalledProcessError) as rejected:
+        _write_fixture_objects(repository, git, ("write-tree",), phase="TREE")
+    assert rejected.value.stderr == stderr
+    assert "TEST_ONLY_GIT_TREE_FAILED" in rejected.value.__notes__[0]
+    assert stderr in rejected.value.__notes__[0]
+    assert attempts == expected_attempts
+
+
+def test_fixture_tree_rejects_the_real_repository() -> None:
+    with pytest.raises(AssertionError):
+        _write_fixture_objects(
+            REPOSITORY_ROOT, _required_executable("git"), ("write-tree",), phase="TREE"
+        )
 
 
 def test_git_write_authorization_rejects_operation_and_outside_paths(
