@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Thread
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -54,6 +54,136 @@ def test_virtual_simulation_projection_keeps_market_observations_independent() -
     assert spot["symbol_observations"][0]["symbol"] == "BTCUSDT"
     assert futures["symbol_observations"][0]["symbol"] == "ETHUSDT"
     assert futures["symbol_observations"][0]["blockers"] == ["OOS_APPROVAL_MISSING"]
+
+
+def virtual_observation() -> dict[str, Any]:
+    """Return a test-only observation with snapshot-bound diagnostics."""
+    return {
+        "symbol": "TEST_ONLY_A",
+        "market": "SPOT",
+        "snapshot_id": "TEST_ONLY_SNAPSHOT",
+        "candidate_count": 1,
+        "risk_approved": False,
+        "virtual_order_ready": False,
+        "blockers": ["NO_READY_CANDIDATE", "OOS_APPROVAL_MISSING"],
+        "candidate_diagnostics": [
+            {
+                "candidate_id": "TEST_ONLY_CANDIDATE",
+                "setup": "TEST_ONLY_SETUP",
+                "timeframe": "1h",
+                "status": "RESEARCH_ONLY",
+                "blockers": ["ENTRY_TRIGGER_MISSING"],
+                "private_field": "TEST_ONLY_MUST_NOT_BE_EXPOSED",
+            }
+        ],
+        "validation_evidence": {
+            "symbol": "TEST_ONLY_A",
+            "market": "SPOT",
+            "snapshot_id": "TEST_ONLY_SNAPSHOT",
+            "loaded_subject_count": 90,
+            "symbol_subject_count": 15,
+            "load_blockers": [],
+            "deployment_path": "runtime/TEST_ONLY_DEPLOYMENT.json",
+            "private_field": "TEST_ONLY_MUST_NOT_BE_EXPOSED",
+        },
+    }
+
+
+def project_virtual_observation(row: dict[str, Any]) -> dict[str, Any]:
+    source = {"dashboard_simulation_projection": {"symbol_observations": [row]}}
+    return cast(
+        dict[str, Any],
+        SERVER["virtual_simulation_projection"](source)["symbol_observations"][0],
+    )
+
+
+def test_virtual_projection_preserves_snapshot_bound_diagnostics() -> None:
+    row = virtual_observation()
+    projected = project_virtual_observation(row)
+    assert projected["snapshot_id"] == row["snapshot_id"]
+    assert projected["market"] == row["market"]
+    assert projected["validation_evidence"]["symbol_subject_count"] == 15
+    assert projected["validation_evidence"]["loaded_subject_count"] == 90
+    assert projected["candidate_diagnostics"][0]["blockers"] == [
+        "ENTRY_TRIGGER_MISSING"
+    ]
+    assert projected["blockers"] == row["blockers"]
+    assert projected["risk_approved"] is False
+    assert projected["virtual_order_ready"] is False
+    assert "TEST_ONLY_MUST_NOT_BE_EXPOSED" not in json.dumps(projected)
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("symbol", "TEST_ONLY_OTHER"),
+        ("market", "USD_M_FUTURES"),
+        ("snapshot_id", "TEST_ONLY_OTHER"),
+        ("loaded_subject_count", True),
+        ("loaded_subject_count", -1),
+        ("symbol_subject_count", True),
+        ("symbol_subject_count", -1),
+        ("symbol_subject_count", 91),
+        ("symbol_subject_count", 1.5),
+        ("load_blockers", "TEST_ONLY_INVALID_SHAPE"),
+        ("load_blockers", [False]),
+    ],
+)
+def test_virtual_projection_rejects_unbound_or_invalid_evidence(
+    key: str, value: object
+) -> None:
+    row = virtual_observation()
+    row["validation_evidence"][key] = value
+    assert "validation_evidence" not in project_virtual_observation(row)
+
+
+def test_virtual_projection_bounds_diagnostics_and_preserves_missingness() -> None:
+    row = virtual_observation()
+    candidate = row["candidate_diagnostics"][0]
+    candidate["blockers"] = ["TEST_ONLY_BLOCKER"] * 100
+    row["candidate_diagnostics"] *= 100
+    row["validation_evidence"]["load_blockers"] = ["TEST_ONLY_BLOCKER"] * 100
+    projected = project_virtual_observation(row)
+    assert len(projected["candidate_diagnostics"]) == 32
+    assert len(projected["candidate_diagnostics"][0]["blockers"]) == 40
+    assert len(projected["validation_evidence"]["load_blockers"]) == 40
+    row["candidate_diagnostics"] = []
+    assert project_virtual_observation(row)["candidate_diagnostics"] == []
+    invalid_diagnostics: tuple[object, ...] = (
+        None,
+        {},
+        [{"candidate_id": "TEST_ONLY_INCOMPLETE"}],
+    )
+    for invalid in invalid_diagnostics:
+        row["candidate_diagnostics"] = invalid
+        assert "candidate_diagnostics" not in project_virtual_observation(row)
+    row.pop("candidate_diagnostics")
+    row.pop("validation_evidence")
+    projected = project_virtual_observation(row)
+    assert "candidate_diagnostics" not in projected
+    assert "validation_evidence" not in projected
+
+
+def test_virtual_projection_does_not_borrow_evidence_across_markets() -> None:
+    spot = virtual_observation()
+    futures = copy.deepcopy(spot)
+    futures.update(market="USD_M_FUTURES", snapshot_id="TEST_ONLY_FUTURES_SNAPSHOT")
+    futures["validation_evidence"].update(
+        market="USD_M_FUTURES",
+        snapshot_id="TEST_ONLY_FUTURES_SNAPSHOT",
+        symbol_subject_count=0,
+    )
+    source = {
+        "dashboard_simulation_projection": {"symbol_observations": [spot, futures]},
+        "dashboard_futures_simulation_projection": {"symbol_observations": [futures]},
+    }
+    spot_rows = SERVER["virtual_simulation_projection"](source)["symbol_observations"]
+    futures_rows = SERVER["virtual_simulation_projection"](source, "USD_M_FUTURES")[
+        "symbol_observations"
+    ]
+    assert len(spot_rows) == len(futures_rows) == 1
+    assert spot_rows[0]["validation_evidence"]["symbol_subject_count"] == 15
+    assert futures_rows[0]["validation_evidence"]["symbol_subject_count"] == 0
 
 
 def receipt() -> dict[str, Any]:

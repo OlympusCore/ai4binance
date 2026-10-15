@@ -942,6 +942,51 @@ def futures_research_readiness_status(projection: object) -> str:
     return "DEGRADED"
 
 
+def virtual_observation_diagnostics(row):
+    """Carry bounded diagnostics tied to the exact reported observation."""
+    result = fields(row, ("snapshot_id", "market"))
+    diagnostics = row.get("candidate_diagnostics")
+    if isinstance(diagnostics, list):
+        candidates = []
+        for item in diagnostics[:32]:
+            if not isinstance(item, dict):
+                continue
+            candidate = fields(item, ("candidate_id", "setup", "timeframe", "status"))
+            blockers = item.get("blockers")
+            if all(isinstance(value, str) and value for value in candidate.values()) and (
+                isinstance(blockers, list)
+                and all(isinstance(value, str) for value in blockers)
+            ):
+                candidates.append({**candidate, "blockers": reasons(blockers)})
+        if not diagnostics or candidates:
+            result["candidate_diagnostics"] = candidates
+    evidence = row.get("validation_evidence")
+    if not isinstance(evidence, dict) or not all(
+        isinstance(row.get(key), str)
+        and result.get(key, row.get(key)) == row[key]
+        and evidence.get(key) == row[key]
+        for key in ("snapshot_id", "symbol", "market")
+    ):
+        return result
+    loaded = evidence.get("loaded_subject_count")
+    matched = evidence.get("symbol_subject_count")
+    blockers = evidence.get("load_blockers")
+    if (
+        type(loaded) is int
+        and type(matched) is int
+        and 0 <= matched <= loaded
+        and isinstance(blockers, list)
+        and all(isinstance(value, str) for value in blockers)
+    ):
+        result["validation_evidence"] = {
+            **fields(evidence, ("snapshot_id", "symbol", "market", "deployment_path")),
+            "loaded_subject_count": loaded,
+            "symbol_subject_count": matched,
+            "load_blockers": reasons(blockers),
+        }
+    return result
+
+
 def virtual_simulation_projection(data, market="SPOT"):
     """Expose bounded all-symbol virtual-simulation coverage to the dashboard."""
     projection = (
@@ -967,7 +1012,7 @@ def virtual_simulation_projection(data, market="SPOT"):
     )
     observations = []
     for row in raw_observations[:1_000] if isinstance(raw_observations, list) else []:
-        if not isinstance(row, dict):
+        if not isinstance(row, dict) or row.get("market", market) != market:
             continue
         observations.append(
             {
@@ -989,6 +1034,7 @@ def virtual_simulation_projection(data, market="SPOT"):
                         "candidate_count",
                     ),
                 ),
+                **virtual_observation_diagnostics(row),
                 "blockers": reasons(row.get("blockers")),
             }
         )

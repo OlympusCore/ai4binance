@@ -223,7 +223,11 @@ function commandVirtualSimulationBlockers(view: VirtualSimulationView): HTMLElem
     if (record.blockers.includes('NO_READY_CANDIDATE')) detail.append(ccNode('p', ccLabel(
       'No ready trade candidate was reported. The decision and gate findings below also remain binding.',
       'İşleme hazır aday bildirilmedi. Aşağıdaki karar ve kapı bulguları da bağlayıcıdır.')));
-    if (!record.candidate_diagnostics?.length) detail.append(ccNode('p', ccLabel(
+    if (record.candidate_count === 0 && record.candidate_diagnostics?.length === 0) {
+      detail.append(ccNode('p', ccLabel(
+        'Analysis reported zero candidates. There are no candidate-level records for this observation; review the decision and gate findings below.',
+        'Analiz sıfır aday bildirdi. Bu gözlemde aday düzeyinde kayıt yok; aşağıdaki karar ve kapı bulgularını inceleyin.')));
+    } else if (!record.candidate_diagnostics?.length) detail.append(ccNode('p', ccLabel(
       'Candidate-level reasons were not reported for this observation.', 'Bu gözlem için aday düzeyindeki nedenler bildirilmedi.')));
     for (const candidate of record.candidate_diagnostics || []) {
       detail.append(ccNode('p', `${candidate.setup} · ${candidate.timeframe} · ${candidate.status}`));
@@ -244,7 +248,7 @@ function commandVirtualSimulationBlockers(view: VirtualSimulationView): HTMLElem
     }
     const technical = ccNode('details');
     technical.append(ccNode('summary', ccLabel('Decision and gate findings', 'Karar ve kapı bulguları')));
-    for (const blocker of record.blockers) technical.append(ccNode('div', blocker, 'aw-status'));
+    for (const blocker of record.blockers) technical.append(ccNode('div', commandVirtualCandidateReason(blocker), 'aw-status'));
     detail.append(technical);
     container.append(detail);
   }
