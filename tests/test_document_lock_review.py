@@ -457,6 +457,91 @@ def test_registration_and_authority_attacks_fail_closed(
         review.verify_document_lock_review(root, decision, context, now=NOW)
 
 
+@pytest.mark.parametrize(
+    ("mutation", "error"),
+    [
+        ("v1_artifact_root", "V1_ARTIFACT_ROOT"),
+        ("v2_context_mismatch", "CONTEXT_VERSION"),
+        ("decision_drift", "DECISION_DRIFT"),
+        ("subject_hash_drift", "SUBJECT_HASH_MISMATCH"),
+        ("duplicate_document", "DUPLICATE_DOCUMENT"),
+        ("duplicate_manifest", "MANIFEST_SCOPE_INVALID"),
+        ("empty_manifest", "INVENTORY_INCOMPLETE"),
+    ],
+)
+def test_review_rejects_version_identity_and_inventory_ambiguity(
+    bundle: tuple[Path, dict[str, Any], dict[str, Any]],
+    mutation: str,
+    error: str,
+) -> None:
+    root, decision, context = bundle
+    subject = decision["review_subject"]
+    arguments: dict[str, Any] = {}
+    if mutation == "v1_artifact_root":
+        arguments["artifact_root"] = root
+    elif mutation == "v2_context_mismatch":
+        decision["contract_version"] = "DocumentLockReview/v2"
+        candidate = (root / "AGENTS.md").read_bytes()
+        (root / "runtime/TEST_ONLY_candidate.md").write_bytes(candidate)
+        subject["candidate_payloads"] = [
+            {
+                "path": "AGENTS.md",
+                "source": {
+                    "path": "runtime/TEST_ONLY_candidate.md",
+                    "sha256": hashlib.sha256(candidate).hexdigest(),
+                },
+            }
+        ]
+        bind(root, decision, context)
+    elif mutation == "decision_drift":
+        decision["decision_id"] = "TEST_ONLY_DIFFERENT_DECISION"
+    elif mutation == "subject_hash_drift":
+        decision["subject_sha256"] = "f" * 64
+        context["decision"] = save(root, "runtime/TEST_ONLY_decision.json", decision)
+    elif mutation == "duplicate_document":
+        subject["documents"].append({**subject["documents"][0], "version": "2.0.1"})
+        context["review_subject"] = copy.deepcopy(subject)
+        bind(root, decision, context)
+    else:
+        manifest = json.loads(
+            (root / subject["registration_manifest"]["path"]).read_bytes()
+        )
+        if mutation == "duplicate_manifest":
+            manifest["locked_documents"].append(
+                copy.deepcopy(manifest["locked_documents"][0])
+            )
+        else:
+            manifest["locked_documents"] = []
+        subject["registration_manifest"] = save(
+            root, "runtime/TEST_ONLY_manifest.json", manifest
+        )
+        context["review_subject"] = copy.deepcopy(subject)
+        bind(root, decision, context)
+    with pytest.raises(ValueError, match=error):
+        review.verify_document_lock_review(
+            root, decision, context, now=NOW, **arguments
+        )
+
+
+def test_review_rejects_non_object_context_and_directory_reference(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with pytest.raises(ValueError, match="OBJECT_REQUIRED"):
+        review._decode(b"[]")
+    directory = tmp_path / "TEST_ONLY_directory"
+    directory.mkdir()
+    with pytest.raises(ValueError, match="PATH_ESCAPE"):
+        review._path(tmp_path, directory.name)
+    with pytest.raises(ValueError, match="CONTEXT_PATH_ESCAPE"):
+        review.review_files(directory, directory.parent, now=NOW)
+    monkeypatch.setattr(shutil, "which", lambda _: None)
+    with pytest.raises(ValueError, match="GIT_UNAVAILABLE"):
+        review._git_bytes(tmp_path, "status")
+    monkeypatch.setattr(review, "_git_text", lambda *args: "TEST_ONLY_WRONG_ROOT")
+    with pytest.raises(ValueError, match="BASELINE_OR_ROOT_DRIFT"):
+        review._accepted_commit(tmp_path, {}, "a" * 40)
+
+
 def test_existing_validator_cli_consumes_review_files(
     bundle: tuple[Path, dict[str, Any], dict[str, Any]],
     monkeypatch: pytest.MonkeyPatch,

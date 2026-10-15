@@ -1148,11 +1148,17 @@ class ResearchApplicationService:
             else None
         )
         if raw_context is None:
-            return ResearchApplicationService._futures_inputs_without_context(
-                snapshot,
-                candidate=candidate,
-                market=market,
+            context_inputs, blockers = (
+                ResearchApplicationService._futures_inputs_without_context(
+                    snapshot,
+                    candidate=candidate,
+                    market=market,
+                )
             )
+            costs, cost_blockers = ResearchApplicationService._virtual_cost_inputs(
+                snapshot
+            )
+            return {**context_inputs, **costs}, (*blockers, *cost_blockers)
         if not isinstance(raw_context, Mapping):
             return {}, ("VIRTUAL_EXECUTION_CONTEXT_INVALID",)
         observed_at = getattr(snapshot, "created_at", None)
@@ -1203,6 +1209,79 @@ class ResearchApplicationService:
             return inputs, blockers
         inputs.update(futures_inputs)
         return inputs, ()
+
+    @staticmethod
+    def _virtual_cost_inputs(
+        snapshot: object,
+    ) -> tuple[dict[str, object], tuple[str, ...]]:
+        """Use the same explicit simulation assumptions as candidate planning."""
+        metadata = getattr(snapshot, "market_metadata", {})
+        model = (
+            metadata.get("virtual_cost_model")
+            if isinstance(metadata, Mapping)
+            else None
+        )
+        if model is None:
+            return {}, ()
+        observed_at = getattr(snapshot, "created_at", None)
+        expected = {
+            "model_kind": "BOUNDED_SIMULATION_COST_ASSUMPTIONS",
+            "snapshot_id": getattr(snapshot, "snapshot_id", None),
+            "market": str(getattr(snapshot, "market_type", "")).upper(),
+            "observed_at": observed_at.isoformat()
+            if isinstance(observed_at, datetime)
+            else None,
+            "execution_allowed": False,
+        }
+        if (
+            not isinstance(model, Mapping)
+            or model.get("execution_allowed") is not False
+            or any(model.get(k) != v for k, v in expected.items())
+        ):
+            return {}, ("VIRTUAL_COST_MODEL_IDENTITY_INVALID",)
+        values = {
+            key: ResearchApplicationService._bounded_decimal(
+                model.get(key),
+                minimum=Decimal("0"),
+                maximum=maximum,
+                minimum_inclusive=True,
+            )
+            for key, maximum in (
+                ("fee_ratio", Decimal("0.01")),
+                ("slippage_ratio", Decimal("0.02")),
+            )
+        }
+        if any(value is None for value in values.values()):
+            return {}, ("VIRTUAL_COST_MODEL_INPUT_INVALID",)
+        if values["fee_ratio"] != ResearchApplicationService._bounded_decimal(
+            metadata.get("estimated_fee_ratio", metadata.get("fee_ratio")),
+            minimum=Decimal("0"),
+            maximum=Decimal("0.01"),
+            minimum_inclusive=True,
+        ) or values["slippage_ratio"] != ResearchApplicationService._bounded_decimal(
+            metadata.get("estimated_slippage_ratio"),
+            minimum=Decimal("0"),
+            maximum=Decimal("0.02"),
+            minimum_inclusive=True,
+        ):
+            return {}, ("VIRTUAL_COST_MODEL_INPUT_MISMATCH",)
+        spread = ResearchApplicationService._bounded_decimal(
+            getattr(snapshot, "spread", None),
+            minimum=Decimal("0"),
+            minimum_inclusive=True,
+        )
+        price = ResearchApplicationService._bounded_decimal(
+            getattr(snapshot, "latest_price", None),
+            minimum=Decimal("0"),
+            minimum_inclusive=False,
+        )
+        if spread is None or price is None:
+            return {}, ("VIRTUAL_COST_SPREAD_UNAVAILABLE",)
+        half_spread = spread / (price * 2)
+        if half_spread > Decimal("0.02"):
+            return {}, ("VIRTUAL_COST_SPREAD_INVALID",)
+        values["half_spread_ratio"] = half_spread
+        return cast(dict[str, object], values), ()
 
     @staticmethod
     def _futures_inputs_without_context(

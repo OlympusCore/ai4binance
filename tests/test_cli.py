@@ -1428,6 +1428,124 @@ def test_runtime_validation_refresh_reuses_producer_and_preserves_maturity_vetoe
     assert len(calls) == 1
 
 
+def test_validation_never_rebinds_a_run_after_its_source_changes(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from ai4binance.cli import research as research_cli
+
+    identities = iter(("a" * 64, "b" * 64))
+    monkeypatch.setattr(research_cli, "runtime_source_sha256", lambda: next(identities))
+    # TEST_ONLY producer boundary; no deployment, observation, or approval is written.
+    monkeypatch.setattr(
+        research_cli,
+        "ResearchValidationService",
+        lambda **kwargs: SimpleNamespace(run=lambda *args: object()),
+    )
+    assert research_cli._run_validate_research(Settings(), "ETHUSDT") == 2
+    result = json.loads(capsys.readouterr().out)
+    assert result["blockers"] == ["VALIDATION_SOURCE_CHANGED_DURING_RUN"]
+    assert result["execution_allowed"] is False
+    assert result["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_runtime_validation_covers_each_eligible_coin_without_btc_substitution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai4binance.agents.validation_gate import ValidationGate
+    from ai4binance.cli import research as research_cli
+    from ai4binance.enterprise import resources
+    from ai4binance.validation import oos_maturity
+
+    settings = Settings()
+    calls: list[str | None] = []
+    monkeypatch.setattr(resources, "physical_ram_used_gb", lambda: 1.0)
+    # TEST_ONLY producer bindings, not market observations or approvals.
+    monkeypatch.setattr(oos_maturity, "runtime_source_sha256", lambda: "a" * 64)
+
+    def produce(current: Settings, symbol: str | None) -> int:
+        calls.append(symbol)
+        oos_maturity.prepare_spot_oos_deployment(
+            artifact_root=current.validation_artifact_directory,
+            deployment_path=current.runtime_validation_deployment_path,
+            specification_path=Path("config/research/virtual_market_acceptance.yaml"),
+            run_cards=tuple(
+                {
+                    "hypothesis_id": f"hyp:trend_continuation:{timeframe}",
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "strategy_sha256": "c" * 64,
+                    "config_sha256": "d" * 64,
+                    "dataset_sha256": "e" * 64,
+                    "fee_rate": 0.001,
+                    "slippage_rate": 0.0005,
+                    "promotion_status": "RESEARCH_ONLY",
+                    "execution_allowed": False,
+                }
+                for timeframe in current.timeframes
+            ),
+            observed_at=datetime.now(UTC),
+        )
+        return 0
+
+    monkeypatch.setattr(research_cli, "_run_validate_research", produce)
+    scope = ("ETHUSDT", "SOLUSDT")
+    first = research_cli.refresh_runtime_validation(
+        settings, as_of=datetime.now(UTC), symbols=scope
+    )
+    assert first["status"] == "PARTIAL_RESEARCH_COVERAGE"
+    assert first["pending_symbols"] == ["SOLUSDT"]
+    second = research_cli.refresh_runtime_validation(
+        settings, as_of=datetime.now(UTC), symbols=scope
+    )
+    assert second["status"] == "REVALIDATED_RESEARCH_ONLY"
+    assert second["pending_symbols"] == []
+    assert calls == ["ETHUSDT", "SOLUSDT"]
+    third = research_cli.refresh_runtime_validation(
+        settings, as_of=datetime.now(UTC), symbols=scope
+    )
+    assert third["status"] == "CURRENT_SOURCE_BINDING"
+    assert len(calls) == 2
+    gate = ValidationGate.from_deployment(
+        artifact_root=settings.validation_artifact_directory,
+        deployment_path=settings.runtime_validation_deployment_path,
+        as_of=datetime.now(UTC),
+    )
+    assert {s.promotion.symbol for s in gate.expected_subjects} == set(scope)
+    assert len(gate.expected_subjects) == 6
+    assert all(
+        not oos_maturity.OOSMaturityGate(settings.validation_artifact_directory)
+        .evaluate(bundle)
+        .execution_allowed
+        for bundle in gate.evidence_bundles
+    )
+
+
+@pytest.mark.parametrize(
+    "scope",
+    [(), ("../ETHUSDT",), ("\u725b\u6765USDT",), tuple("ETHUSDT" for _ in range(15))],
+)
+def test_runtime_validation_rejects_invalid_or_overlarge_scope(
+    scope: tuple[str, ...],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai4binance.cli import research as research_cli
+
+    def forbidden(_settings: Settings, _symbol: str | None) -> int:
+        raise AssertionError("Invalid validation scope must not reach the producer")
+
+    monkeypatch.setattr(research_cli, "_run_validate_research", forbidden)
+    settings = Settings()
+    result = research_cli.refresh_runtime_validation(
+        settings, as_of=datetime.now(UTC), symbols=scope
+    )
+    assert result["status"] == "BLOCKED"
+    blockers = result["blockers"]
+    assert isinstance(blockers, list)
+    assert "VALIDATION_ELIGIBLE_SCOPE_INVALID" in blockers
+    assert result["execution_allowed"] is False
+
+
 @pytest.mark.parametrize("failure", ["invalid", "busy", "resource", "missing_archive"])
 def test_runtime_validation_refresh_keeps_failed_evidence_blocked(
     failure: str, monkeypatch: pytest.MonkeyPatch
@@ -2477,7 +2595,9 @@ def test_virtual_market_priority_revisits_preserve_discovery_and_restart_cursor(
 
     refresh_calls: list[datetime] = []
 
-    def refresh(_settings: Settings, *, as_of: datetime) -> dict[str, object]:
+    def refresh(
+        _settings: Settings, *, as_of: datetime, symbols: tuple[str, ...]
+    ) -> dict[str, object]:
         refresh_calls.append(as_of)
         return {
             "status": "DEFERRED"

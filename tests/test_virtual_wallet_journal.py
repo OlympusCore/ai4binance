@@ -294,6 +294,107 @@ def test_virtual_wallet_snapshot_supplies_risk_capital_before_evaluation(
         )
 
 
+def test_virtual_cost_assumptions_reach_planning_and_execution(tmp_path: Path) -> None:
+    from ai4binance.application.research import ResearchApplicationService
+    from ai4binance.domain.research.backtest_models import BacktestConfig
+    from ai4binance.intelligence.trading import ScenarioEngine
+    from tests.test_strategy_risk import snapshot
+
+    original = snapshot()
+    prepared = _journal(tmp_path).analysis_snapshot(original)
+    model = BacktestConfig()
+    assert "estimated_fee_ratio" not in original.market_metadata
+    assert prepared.market_metadata["estimated_fee_ratio"] == str(model.fee_ratio)
+    assert prepared.market_metadata["estimated_slippage_ratio"] == str(
+        model.slippage_ratio
+    )
+    provenance = prepared.market_metadata["virtual_cost_model"]
+    assert isinstance(provenance, Mapping)
+    assert provenance["fee_source"] == "CANONICAL_BACKTEST_ASSUMPTION"
+    assert provenance["execution_allowed"] is False
+    costs, blockers = ResearchApplicationService._virtual_cost_inputs(prepared)
+    assert not blockers
+    assert prepared.spread is not None
+    assert prepared.latest_price is not None
+    assert costs == {
+        "fee_ratio": model.fee_ratio,
+        "slippage_ratio": model.slippage_ratio,
+        "half_spread_ratio": prepared.spread / (prepared.latest_price * 2),
+    }
+    state = ScenarioEngine().build(prepared, {})
+    assert "COST_FEE_EVIDENCE_UNAVAILABLE" not in state.cost_blockers
+    assert "COST_SLIPPAGE_EVIDENCE_UNAVAILABLE" not in state.cost_blockers
+    assert state.execution_allowed is False
+
+
+def test_virtual_cost_model_requires_spread_and_does_not_invent_funding_horizon(
+    tmp_path: Path,
+) -> None:
+    from ai4binance.application.research import ResearchApplicationService
+    from tests.test_strategy_risk import snapshot
+
+    prepared = _journal(tmp_path).analysis_snapshot(
+        replace(snapshot(), market_type="USD_M_FUTURES")
+    )
+    assert "estimated_funding_periods" not in prepared.market_metadata
+    missing = replace(prepared, spread=None)
+    assert ResearchApplicationService._virtual_cost_inputs(missing) == (
+        {},
+        ("VIRTUAL_COST_SPREAD_UNAVAILABLE",),
+    )
+
+
+@pytest.mark.parametrize("value", [None, "NaN", "-0.1", True])
+def test_explicit_invalid_simulation_cost_is_not_replaced(
+    tmp_path: Path,
+    value: object,
+) -> None:
+    from ai4binance.application.research import ResearchApplicationService
+    from tests.test_strategy_risk import snapshot
+
+    original = snapshot()
+    prepared = _journal(tmp_path).analysis_snapshot(
+        replace(
+            original,
+            market_metadata={**original.market_metadata, "estimated_fee_ratio": value},
+        )
+    )
+    assert prepared.market_metadata["estimated_fee_ratio"] == value
+    inputs, blockers = ResearchApplicationService._virtual_cost_inputs(prepared)
+    assert not inputs
+    assert blockers == ("VIRTUAL_COST_MODEL_INPUT_INVALID",)
+
+
+def test_virtual_cost_model_cannot_be_rebound_or_disagree_with_planning(
+    tmp_path: Path,
+) -> None:
+    from ai4binance.application.research import ResearchApplicationService
+    from tests.test_strategy_risk import snapshot
+
+    prepared = _journal(tmp_path).analysis_snapshot(snapshot())
+    model = prepared.market_metadata["virtual_cost_model"]
+    assert isinstance(model, Mapping)
+    rebound = replace(
+        prepared,
+        market_metadata={
+            **prepared.market_metadata,
+            "virtual_cost_model": {**model, "snapshot_id": "other"},
+        },
+    )
+    assert ResearchApplicationService._virtual_cost_inputs(rebound) == (
+        {},
+        ("VIRTUAL_COST_MODEL_IDENTITY_INVALID",),
+    )
+    mismatched = replace(
+        prepared,
+        market_metadata={**prepared.market_metadata, "estimated_fee_ratio": "0.002"},
+    )
+    assert ResearchApplicationService._virtual_cost_inputs(mismatched) == (
+        {},
+        ("VIRTUAL_COST_MODEL_INPUT_MISMATCH",),
+    )
+
+
 def test_virtual_wallet_existing_inventory_is_not_assigned_to_scanned_symbol(
     tmp_path: Path,
 ) -> None:

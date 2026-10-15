@@ -36,6 +36,174 @@ from ai4binance.validation.statistics import (
 NOW = datetime(2026, 9, 11, tzinfo=UTC)
 
 
+def _test_only_run_card(symbol: str, dataset: str = "c") -> dict[str, object]:
+    return {
+        "hypothesis_id": "hyp:trend_continuation:1h",
+        "symbol": symbol,
+        "timeframe": "1h",
+        "strategy_sha256": "a" * 64,
+        "config_sha256": "b" * 64,
+        "dataset_sha256": dataset * 64,
+        "fee_rate": 0.001,
+        "slippage_rate": 0.0005,
+        "promotion_status": "RESEARCH_ONLY",
+        "execution_allowed": False,
+    }
+
+
+def test_conflicting_datasets_in_one_coin_scope_are_rejected_before_publication(
+    tmp_path: Path,
+) -> None:
+    arguments: dict[str, Any] = {
+        "artifact_root": tmp_path / "validation",
+        "deployment_path": tmp_path / "deployment.json",
+        "specification_path": Path("config/research/virtual_market_acceptance.yaml"),
+        "observed_at": NOW,
+    }
+    prepare_spot_oos_deployment(
+        **arguments, run_cards=(_test_only_run_card("ETHUSDT"),)
+    )
+    deployment = tmp_path / "deployment.json"
+    previous = deployment.read_bytes()
+    with pytest.raises(ValueError, match="SPOT_OOS_DUPLICATE_SUBJECT"):
+        prepare_spot_oos_deployment(
+            **arguments,
+            run_cards=(
+                _test_only_run_card("BTCUSDT"),
+                _test_only_run_card("BTCUSDT", "d"),
+            ),
+        )
+    assert deployment.read_bytes() == previous
+
+
+@pytest.mark.parametrize("source", [None, "UNKNOWN", "g" * 64])
+def test_invalid_source_identity_is_not_relabelled_as_an_obsolete_valid_source(
+    tmp_path: Path, source: object
+) -> None:
+    deployment = tmp_path / "deployment.json"
+    deployment.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "runtime_source_sha256": source,
+                "subjects": [],
+                "promotion_status": "RESEARCH_ONLY",
+                "execution_allowed": False,
+                "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+            }
+        )
+    )
+    previous = deployment.read_bytes()
+    with pytest.raises(ValueError, match="runtime_source_sha256"):
+        prepare_spot_oos_deployment(
+            artifact_root=tmp_path / "validation",
+            deployment_path=deployment,
+            specification_path=Path("config/research/virtual_market_acceptance.yaml"),
+            observed_at=NOW,
+            run_cards=(_test_only_run_card("BTCUSDT"),),
+        )
+    assert deployment.read_bytes() == previous
+
+
+def test_coin_validation_preserves_other_current_subjects_and_replaces_its_own(
+    tmp_path: Path,
+) -> None:
+    root, deployment = tmp_path / "validation", tmp_path / "deployment.json"
+
+    def produce(symbol: str, dataset: str = "c") -> dict[str, object]:
+        return prepare_spot_oos_deployment(
+            artifact_root=root,
+            deployment_path=deployment,
+            specification_path=Path("config/research/virtual_market_acceptance.yaml"),
+            observed_at=NOW,
+            run_cards=(
+                {
+                    "hypothesis_id": "hyp:trend_continuation:1h",
+                    "symbol": symbol,
+                    "timeframe": "1h",
+                    "strategy_sha256": "a" * 64,
+                    "config_sha256": "b" * 64,
+                    "dataset_sha256": dataset * 64,
+                    "fee_rate": 0.001,
+                    "slippage_rate": 0.0005,
+                    "promotion_status": "RESEARCH_ONLY",
+                    "execution_allowed": False,
+                },
+            ),
+        )
+
+    assert produce("BTCUSDT")["subject_count"] == 1
+    btc = json.loads(deployment.read_text())["subjects"][0]
+    btc_bundle = root / btc["bundle"]["path"]
+    prior_bundle_bytes = btc_bundle.read_bytes()
+    prior_bundle_mtime = btc_bundle.stat().st_mtime_ns
+    assert produce("BTCUSDT")["subject_count"] == 1
+    assert btc_bundle.read_bytes() == prior_bundle_bytes
+    assert btc_bundle.stat().st_mtime_ns == prior_bundle_mtime
+    assert produce("ETHUSDT")["subject_count"] == 2
+    entries = json.loads(deployment.read_text())["subjects"]
+    assert entries[0] == btc
+    eth = entries[1]
+    assert produce("BTCUSDT", "d")["subject_count"] == 2
+    entries = json.loads(deployment.read_text())["subjects"]
+    assert entries[1] == eth
+    assert entries[0] != btc
+    subjects, bundles = OOSMaturityGate(root).load_deployment(deployment, as_of=NOW)
+    assert {s.promotion.symbol for s in subjects} == {"BTCUSDT", "ETHUSDT"}
+    assert all(
+        not json.loads((root / entry["bundle"]["path"]).read_text())[
+            "promotion_records"
+        ]
+        for entry in entries
+    )
+    assert all(
+        OOSMaturityGate(root).evaluate(bundle).execution_allowed is False
+        for bundle in bundles
+    )
+    # A malformed current bundle must never disappear behind a successful run.
+    bundle_path = root / eth["bundle"]["path"]
+    bundle_path.write_text('{"tampered":true}')
+    before = deployment.read_bytes()
+    with pytest.raises(ValueError, match="HASH"):
+        produce("SOLUSDT")
+    assert deployment.read_bytes() == before
+
+
+def test_changed_source_never_relabels_previous_coin_validation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai4binance.validation import oos_maturity as module
+
+    root, deployment = tmp_path / "validation", tmp_path / "deployment.json"
+    card = {
+        "hypothesis_id": "hyp:trend_continuation:1h",
+        "symbol": "BTCUSDT",
+        "timeframe": "1h",
+        "strategy_sha256": "a" * 64,
+        "config_sha256": "b" * 64,
+        "dataset_sha256": "c" * 64,
+        "fee_rate": 0.001,
+        "slippage_rate": 0.0005,
+        "promotion_status": "RESEARCH_ONLY",
+        "execution_allowed": False,
+    }
+    arguments: dict[str, Any] = {
+        "artifact_root": root,
+        "deployment_path": deployment,
+        "specification_path": Path("config/research/virtual_market_acceptance.yaml"),
+        "observed_at": NOW,
+    }
+    prepare_spot_oos_deployment(**arguments, run_cards=(card,))
+    predecessor = json.loads(deployment.read_text())["subjects"][0]
+    # TEST_ONLY changed implementation identity; no production evidence is issued.
+    monkeypatch.setattr(module, "runtime_source_sha256", lambda: "f" * 64)
+    prepare_spot_oos_deployment(**arguments, run_cards=({**card, "symbol": "ETHUSDT"},))
+    subjects, _ = OOSMaturityGate(root).load_deployment(deployment, as_of=NOW)
+    assert [s.promotion.symbol for s in subjects] == ["ETHUSDT"]
+    assert (root / predecessor["bundle"]["path"]).is_file()
+
+
 def test_validation_events_accept_large_hash_bound_append_only_ledger(
     tmp_path: Path,
 ) -> None:

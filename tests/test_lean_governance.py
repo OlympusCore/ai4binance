@@ -348,6 +348,35 @@ def test_six_sigma_evidence_rejects_dpmo_that_disagrees_with_counts() -> None:
 @pytest.mark.parametrize(
     "factory",
     [
+        lambda: replace(build_qaqc_agent_profile(), capabilities=()),
+        lambda: replace(build_qaqc_agent_profile(), live_eligibility_status="READY"),
+        lambda: LeanGovernanceAssessment(
+            LeanPillar.FIVE_S, "test-only", False, ("BLOCKER", "BLOCKER"), ()
+        ),
+        lambda: LeanGovernanceAssessment(
+            LeanPillar.FIVE_S, "test-only", True, (), (" ",)
+        ),
+        lambda: LeanGovernanceAssessment(
+            LeanPillar.FIVE_S,
+            "test-only",
+            True,
+            (),
+            (),
+            live_eligibility_status="READY",
+        ),
+        lambda: LeanGovernanceAssessment(
+            LeanPillar.FIVE_S, "test-only", True, (), (), promotion_status="PROMOTED"
+        ),
+        lambda: replace(clean_five_s(), orphan_artifact_paths=(" ",)),
+        lambda: replace(objective(), baseline=float("nan")),
+        lambda: replace(objective(), linked_blockers=(" ",)),
+        lambda: replace(objective(), validation_artifact_ids=(" ",)),
+        lambda: replace(kaizen_improvement(), current=float("inf")),
+        lambda: replace(kaizen_improvement(), linked_blockers=(" ",)),
+        lambda: replace(kaizen_improvement(), experiment_artifact_ids=(" ",)),
+        lambda: replace(six_sigma_process(), sigma_level=float("nan")),
+        lambda: replace(six_sigma_process(), linked_blockers=(" ",)),
+        lambda: replace(six_sigma_process(), control_plan_artifact_ids=(" ",)),
         lambda: replace(clean_five_s(), workspace_id=""),
         lambda: replace(clean_five_s(), observed_at=datetime(2026, 7, 17)),
         lambda: replace(clean_five_s(), audit_interval_days=0),

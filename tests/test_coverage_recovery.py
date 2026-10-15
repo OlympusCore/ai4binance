@@ -3276,6 +3276,7 @@ def test_research_validation_success_and_sync_are_serialized(
         dataset_directory=tmp_path / "dataset",
         market_history_local_candles=False,
         validation_artifact_directory=tmp_path / "validation",
+        runtime_validation_deployment_path=tmp_path / "validation" / "deployment.json",
         timeframes=("1h",),
     )
     assert cli_research.run_validate_research(settings, "ethusdt") == 0
@@ -3283,6 +3284,11 @@ def test_research_validation_success_and_sync_are_serialized(
     assert payload["symbol"] == "BTCUSDT"
     assert payload["results"] == []
     assert payload["execution_allowed"] is False
+
+    assert settings.runtime_validation_deployment_path.parent == (
+        settings.validation_artifact_directory
+    )
+    assert not settings.runtime_validation_deployment_path.with_suffix(".lock").exists()
 
     class IngestorStub:
         @classmethod

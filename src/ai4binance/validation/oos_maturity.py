@@ -108,6 +108,49 @@ def load_spot_oos_validation_specification(path: Path) -> dict[str, object]:
     return specification
 
 
+def _deployment_scope_key(subject: OOSValidationSubject) -> tuple[str, str, str, str]:
+    return (
+        subject.setup_type,
+        subject.promotion.symbol,
+        subject.promotion.market_type,
+        subject.promotion.timeframe,
+    )
+
+
+def _current_deployment_entries(
+    artifact_root: Path,
+    deployment_path: Path,
+    observed_at: datetime,
+    source_sha256: str,
+) -> dict[tuple[str, str, str, str], dict[str, object]]:
+    """Retain other coins only after exact current-source artifact verification."""
+    if not deployment_path.exists():
+        return {}
+    if (
+        deployment_path.is_symlink()
+        or deployment_path.stat().st_size > MAX_ARTIFACT_BYTES
+    ):
+        raise ValueError("OOS_DEPLOYMENT_INVALID")
+    previous = _object(json.loads(deployment_path.read_text(encoding="utf-8")))
+    _research_only_payload(previous)
+    if _required_hash(previous, "runtime_source_sha256") != source_sha256:
+        # A fresh run may replace the mutable deployment pointer, but must never
+        # relabel any predecessor subject as validated for the changed source.
+        return {}
+    subjects, _ = OOSMaturityGate(artifact_root).load_deployment(
+        deployment_path, as_of=observed_at
+    )
+    entries: dict[tuple[str, str, str, str], dict[str, object]] = {}
+    for subject, raw in zip(
+        subjects, cast(list[object], previous["subjects"]), strict=True
+    ):
+        key = _deployment_scope_key(subject)
+        if key in entries:
+            raise ValueError("OOS_DEPLOYMENT_SCOPE_AMBIGUOUS")
+        entries[key] = _object(raw)
+    return entries
+
+
 def prepare_spot_oos_deployment(
     *,
     artifact_root: Path,
@@ -131,22 +174,12 @@ def prepare_spot_oos_deployment(
     strategy_version = _required_text(template, "strategy_version")
     allowed_timeframes = cast(list[object], template["timeframes"])
     artifact_root.mkdir(parents=True, exist_ok=True)
-    entries: list[dict[str, object]] = []
-    subject_keys: set[str] = set()
+    entries = _current_deployment_entries(
+        artifact_root, deployment_path, observed_at, runtime_sha256
+    )
+    produced_scopes: set[tuple[str, str, str]] = set()
     for card in run_cards:
-        if (
-            card.get("execution_allowed") is not False
-            or card.get("promotion_status") != "RESEARCH_ONLY"
-        ):
-            raise ValueError("SPOT_OOS_RUN_CARD_AUTHORITY_INVALID")
-        hypothesis_id = _required_text(card, "hypothesis_id")
-        hypothesis_parts = hypothesis_id.split(":")
-        if len(hypothesis_parts) != 3 or hypothesis_parts[0] != "hyp":
-            raise ValueError("SPOT_OOS_HYPOTHESIS_ID_INVALID")
-        setup_type = hypothesis_parts[1]
-        timeframe = _required_text(card, "timeframe")
-        if hypothesis_parts[2] != timeframe or timeframe not in allowed_timeframes:
-            raise ValueError("SPOT_OOS_TIMEFRAME_INVALID")
+        setup_type, timeframe = _spot_run_card_scope(card, allowed_timeframes)
         strategy_sha256 = _required_hash(card, "strategy_sha256")
         parameter_set_sha256 = _required_hash(card, "config_sha256")
         dataset_sha256 = _required_hash(card, "dataset_sha256")
@@ -178,6 +211,10 @@ def prepare_spot_oos_deployment(
             code_revision=runtime_sha256,
             as_of=observed_at,
         )
+        scope_key = (setup_type, query.symbol, timeframe)
+        if scope_key in produced_scopes:
+            raise ValueError("SPOT_OOS_DUPLICATE_SUBJECT")
+        produced_scopes.add(scope_key)
         subject_directory = sha256(
             json.dumps(query.subject_key, separators=(",", ":")).encode()
         ).hexdigest()
@@ -199,6 +236,15 @@ def prepare_spot_oos_deployment(
             "live_eligibility_status": "LIVE_ORDER_BLOCKED",
         }
         specification_file = exact_root / "specification.json"
+        retained = _retained_exact_subject(
+            entries.get((setup_type, query.symbol, "SPOT", timeframe)),
+            query=query,
+            cost_model_sha256=cost_model_sha256,
+            specification_file=specification_file,
+            specification_payload=specification_payload,
+        )
+        if retained is not None:
+            continue
         write_json_object_verified(
             specification_file,
             specification_payload,
@@ -218,9 +264,6 @@ def prepare_spot_oos_deployment(
             cost_model_sha256=cost_model_sha256,
             validation_config_sha256=specification_reference.sha256,
         )
-        if subject.subject_key in subject_keys:
-            raise ValueError("SPOT_OOS_DUPLICATE_SUBJECT")
-        subject_keys.add(subject.subject_key)
         available_artifacts = _materialize_available_validation_evidence(
             artifact_root=artifact_root,
             exact_root=exact_root,
@@ -255,16 +298,16 @@ def prepare_spot_oos_deployment(
             bundle_file.relative_to(artifact_root).as_posix(),
             sha256(bundle_file.read_bytes()).hexdigest(),
         )
-        entries.append(
-            {
-                "subject": _subject_payload(subject),
-                "bundle": _reference_payload(bundle_reference),
-            }
-        )
+        entries[_deployment_scope_key(subject)] = {
+            "subject": _subject_payload(subject),
+            "bundle": _reference_payload(bundle_reference),
+        }
+    if len(entries) > 256:
+        raise ValueError("OOS_DEPLOYMENT_SUBJECTS_INVALID")
     deployment: dict[str, object] = {
         "schema_version": "1.0",
         "runtime_source_sha256": runtime_sha256,
-        "subjects": entries,
+        "subjects": list(entries.values()),
         "execution_allowed": False,
         "promotion_status": "RESEARCH_ONLY",
         "live_eligibility_status": "LIVE_ORDER_BLOCKED",
@@ -291,6 +334,46 @@ def prepare_spot_oos_deployment(
         "promotion_status": "RESEARCH_ONLY",
         "live_eligibility_status": "LIVE_ORDER_BLOCKED",
     }
+
+
+def _spot_run_card_scope(
+    card: Mapping[str, object], allowed_timeframes: list[object]
+) -> tuple[str, str]:
+    if (
+        card.get("execution_allowed") is not False
+        or card.get("promotion_status") != "RESEARCH_ONLY"
+    ):
+        raise ValueError("SPOT_OOS_RUN_CARD_AUTHORITY_INVALID")
+    hypothesis_parts = _required_text(card, "hypothesis_id").split(":")
+    if len(hypothesis_parts) != 3 or hypothesis_parts[0] != "hyp":
+        raise ValueError("SPOT_OOS_HYPOTHESIS_ID_INVALID")
+    timeframe = _required_text(card, "timeframe")
+    if hypothesis_parts[2] != timeframe or timeframe not in allowed_timeframes:
+        raise ValueError("SPOT_OOS_TIMEFRAME_INVALID")
+    return hypothesis_parts[1], timeframe
+
+
+def _retained_exact_subject(
+    entry: dict[str, object] | None,
+    *,
+    query: PromotionEvidenceQuery,
+    cost_model_sha256: str,
+    specification_file: Path,
+    specification_payload: dict[str, object],
+) -> OOSValidationSubject | None:
+    """An identical rerun must preserve existing stage evidence and reviews."""
+    if entry is None:
+        return None
+    subject = OOSValidationSubject.from_payload(entry["subject"], as_of=query.as_of)
+    if subject.promotion.subject_key != query.subject_key:
+        return None
+    if (
+        subject.cost_model_sha256 != cost_model_sha256
+        or json.loads(specification_file.read_text(encoding="utf-8"))
+        != specification_payload
+    ):
+        raise ValueError("SPOT_OOS_EXISTING_SUBJECT_CONFLICT")
+    return subject
 
 
 # These are evidence obligations, not numerical promotion thresholds.

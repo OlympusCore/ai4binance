@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
+import zlib
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
@@ -35,6 +38,106 @@ from ai4binance.reporting import to_primitive
 from ai4binance.schemas import MarketSnapshot
 
 ZERO = Decimal("0")
+_STATE_TABLE_DECODE_LIMIT = 8 * 1024 * 1024
+
+
+def _column_table(rows: list[dict[str, object]]) -> object:
+    if not rows:
+        return rows
+    columns = tuple(rows[0])
+    values = [tuple(row[column] for column in columns) for row in rows]
+    raw = json.dumps(values, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    if len(raw) <= _STATE_TABLE_DECODE_LIMIT:
+        return {
+            "encoding": "COLUMN_TABLE_ZLIB_V1",
+            "columns": columns,
+            "row_count": len(rows),
+            "decoded_bytes": len(raw),
+            "sha256": sha256(raw).hexdigest(),
+            "data": base64.b64encode(zlib.compress(raw)).decode("ascii"),
+        }
+    # Retain the original rows so the unchanged outer evidence guard denies
+    # an oversized decision instead of emitting an undecodable compressed body.
+    return {
+        "encoding": "COLUMN_TABLE_V1",
+        "columns": columns,
+        "rows": values,
+    }
+
+
+def _decoded_state_table_bytes(table: Mapping[str, object]) -> bytes:
+    size, encoded = table.get("decoded_bytes"), table.get("data")
+    if (
+        type(size) is not int
+        or not 0 < size <= _STATE_TABLE_DECODE_LIMIT
+        or not isinstance(encoded, str)
+        or len(encoded) > _STATE_TABLE_DECODE_LIMIT
+    ):
+        raise ValueError("decision state table byte bounds are invalid")
+    try:
+        compressed = base64.b64decode(encoded, validate=True)
+        stream = zlib.decompressobj()
+        raw = stream.decompress(compressed, _STATE_TABLE_DECODE_LIMIT + 1)
+    except binascii.Error, ValueError, zlib.error:
+        raise ValueError("decision state table compression is invalid") from None
+    if (
+        len(raw) != size
+        or not stream.eof
+        or stream.unconsumed_tail
+        or stream.unused_data
+        or sha256(raw).hexdigest() != table.get("sha256")
+    ):
+        raise ValueError("decision state table integrity is invalid")
+    return raw
+
+
+def decode_decision_state_table(table: Mapping[str, object]) -> list[dict[str, object]]:
+    """Decode current and historical evidence tables with bounded memory use."""
+    columns = table.get("columns")
+    if (
+        not isinstance(columns, (list, tuple))
+        or not columns
+        or any(not isinstance(column, str) for column in columns)
+        or len(set(columns)) != len(columns)
+    ):
+        raise ValueError("decision state table columns are invalid")
+    encoding = table.get("encoding")
+    if encoding == "COLUMN_TABLE_ZLIB_V1":
+        rows = json.loads(_decoded_state_table_bytes(table))
+    elif encoding == "COLUMN_TABLE_V1":
+        rows = table.get("rows")
+    else:
+        raise ValueError("decision state table encoding is unsupported")
+    if not isinstance(rows, list) or any(
+        not isinstance(row, (list, tuple)) or len(row) != len(columns) for row in rows
+    ):
+        raise ValueError("decision state table row shape is invalid")
+    if encoding == "COLUMN_TABLE_ZLIB_V1" and (
+        type(table.get("row_count")) is not int or table["row_count"] != len(rows)
+    ):
+        raise ValueError("decision state table row count is invalid")
+    return [dict(zip(columns, row, strict=True)) for row in rows]
+
+
+def _decision_state_payload(state: TradingIntelligenceState) -> dict[str, object]:
+    """Record every structural observation with lossless repeated-key encoding.
+
+    Long native histories contain thousands of identically shaped swing/event
+    objects. Column tables preserve every field and row without repeating their
+    keys. Bounded compression preserves headroom as native histories advance.
+    The decision evidence byte limit and all analytical inputs stay intact.
+    Scenarios retain their existing shape for causal attribution consumers.
+    """
+    payload = cast(dict[str, object], to_primitive(state))
+    structures = cast(list[dict[str, object]], payload["structures"])
+    for structure in structures:
+        for name in ("swings", "events"):
+            structure[name] = _column_table(
+                cast(list[dict[str, object]], structure[name])
+            )
+    for name in ("levels", "trend_geometry", "pattern_hypotheses"):
+        payload[name] = _column_table(cast(list[dict[str, object]], payload[name]))
+    return payload
 
 
 def _bounded_decision_evidence(
@@ -298,7 +401,7 @@ class TradePlanEngine:
                 factors_json=json.dumps(
                     to_primitive(
                         {
-                            "state": state,
+                            "state": _decision_state_payload(state),
                             **self._plan_factors(candidate),
                             "entry_candles": rows[-50:],
                             "entry": candidate.entry_price,
@@ -645,7 +748,7 @@ class TradePlanEngine:
                 factors_json=json.dumps(
                     to_primitive(
                         {
-                            "state": state,
+                            "state": _decision_state_payload(state),
                             **self._plan_factors(candidate),
                         }
                     ),

@@ -56,8 +56,10 @@ from ai4binance.research_runtime import build_research_application_service
 from ai4binance.schemas import MarketSnapshot
 from ai4binance.storage import AuditEvent, JsonlAuditStore
 from ai4binance.validation.oos_maturity import (
+    OOSValidationSubject,
     load_spot_oos_validation_specification,
     prepare_spot_oos_deployment,
+    runtime_source_sha256,
 )
 from ai4binance.validation_pipeline_runtime import (
     SPOT_VALIDATION_NOTIONAL_TO_EQUITY_RATIO,
@@ -104,8 +106,46 @@ def run_validate_research(settings: Settings, symbol: str | None) -> int:
         lease.release()
 
 
+def _pending_spot_validation_symbols(
+    subjects: tuple[OOSValidationSubject, ...],
+    symbols: tuple[str, ...],
+    timeframes: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Inventory exact Spot coverage without treating an inventory as approval."""
+    from ai4binance.application.validation_pipeline import VALIDATED_PLAYBOOKS
+    from ai4binance.exchange.client import BinancePublicClient
+
+    if not symbols or len(symbols) * len(timeframes) * len(VALIDATED_PLAYBOOKS) > 256:
+        raise ValueError("VALIDATION_ELIGIBLE_SCOPE_INVALID_OR_EXCEEDS_BOUND")
+    for symbol in symbols:
+        BinancePublicClient._symbol(symbol)
+    available = {
+        (subject.promotion.symbol, subject.promotion.timeframe)
+        for subject in subjects
+        if subject.promotion.market_type == "SPOT"
+    }
+    return tuple(
+        symbol
+        for symbol in dict.fromkeys(symbols)
+        if any((symbol, timeframe) not in available for timeframe in timeframes)
+    )
+
+
+def _validation_scope_result(
+    pending: tuple[str, ...], remaining: tuple[str, ...]
+) -> dict[str, object]:
+    if not remaining:
+        return {"status": "REVALIDATED_RESEARCH_ONLY", "blockers": []}
+    if pending[0] in remaining:
+        return {
+            "status": "BLOCKED",
+            "blockers": [f"VALIDATION_SYMBOL_EVIDENCE_INCOMPLETE:{pending[0]}"],
+        }
+    return {"status": "PARTIAL_RESEARCH_COVERAGE", "blockers": []}
+
+
 def refresh_runtime_validation(
-    settings: Settings, *, as_of: datetime
+    settings: Settings, *, as_of: datetime, symbols: tuple[str, ...] | None = None
 ) -> dict[str, object]:
     """Re-run local historical validation for a missing or obsolete source binding.
 
@@ -131,7 +171,29 @@ def refresh_runtime_validation(
         "promotion_status": "RESEARCH_ONLY",
         "live_eligibility_status": "LIVE_ORDER_BLOCKED",
     }
-    if blockers not in {
+    pending: tuple[str, ...] = ()
+    required_timeframes: tuple[str, ...] = ()
+    if symbols is not None:
+        try:
+            specification = load_spot_oos_validation_specification(
+                Path("config/research/virtual_market_acceptance.yaml")
+            )
+            required_timeframes = tuple(cast(list[str], specification["timeframes"]))
+            pending = _pending_spot_validation_symbols(
+                gate.expected_subjects, symbols, required_timeframes
+            )
+            result.update(
+                pending_symbols=list(pending), eligible_symbol_count=len(symbols)
+            )
+        except OSError, ValueError:
+            result.update(
+                status="BLOCKED",
+                blockers=[*blockers, "VALIDATION_ELIGIBLE_SCOPE_INVALID"],
+            )
+            return result
+    if not blockers and not pending:
+        return result
+    if blockers and blockers not in {
         ("OOS_RUNTIME_EVIDENCE_UNAVAILABLE:OOS_DEPLOYMENT_MISSING",),
         ("OOS_RUNTIME_EVIDENCE_UNAVAILABLE:OOS_RUNTIME_SOURCE_MISMATCH",),
     }:
@@ -155,9 +217,17 @@ def refresh_runtime_validation(
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with log_path.open("a", encoding="utf-8") as stream, redirect_stdout(stream):
             exit_code = run_validate_research(
-                validation_settings, settings.validation_symbol
+                validation_settings,
+                pending[0] if pending else settings.validation_symbol,
             )
         refreshed = load()
+        remaining = (
+            _pending_spot_validation_symbols(
+                refreshed.expected_subjects, symbols, required_timeframes
+            )
+            if symbols is not None
+            else ()
+        )
     except OSError, ValueError:
         result["blockers"] = [*blockers, "OOS_REVALIDATION_FAILED"]
         return result
@@ -170,11 +240,19 @@ def refresh_runtime_validation(
         producer_exit_code=exit_code,
         evidence_path=str(log_path),
     )
+    if symbols is not None:
+        result.update(
+            pending_symbols=list(remaining),
+            validated_symbol=pending[0] if pending else None,
+        )
+        if exit_code == 0 and not refreshed.evidence_load_blockers:
+            result.update(_validation_scope_result(pending, remaining))
     return result
 
 
 def _run_validate_research(settings: Settings, symbol: str | None) -> int:
     try:
+        source_sha256 = runtime_source_sha256()
         validation_symbol = normalize_cli_symbol(symbol) or settings.validation_symbol
         batch = ResearchValidationService(
             archive=ParquetOHLCVArchive(
@@ -190,6 +268,19 @@ def _run_validate_research(settings: Settings, symbol: str | None) -> int:
                 ),
             ),
         ).run(validation_symbol, settings.timeframes)
+        if runtime_source_sha256() != source_sha256:
+            print(
+                json.dumps(
+                    {
+                        "symbol": validation_symbol,
+                        "validation_status": "RESEARCH_ONLY",
+                        "blockers": ["VALIDATION_SOURCE_CHANGED_DURING_RUN"],
+                        "execution_allowed": False,
+                        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+                    }
+                )
+            )
+            return 2
         run_cards = tuple(
             cast(dict[str, object], to_primitive(result.run_card))
             for result in batch.results

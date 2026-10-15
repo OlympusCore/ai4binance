@@ -14,7 +14,7 @@ from typing import cast
 
 from ai4binance.application import IndependentVirtualPortfolios, VirtualPortfolioState
 from ai4binance.data.timeframes import timeframe_duration
-from ai4binance.domain.research.backtest_models import TradeOutcome
+from ai4binance.domain.research.backtest_models import BacktestConfig, TradeOutcome
 from ai4binance.ops.user_reports import (
     render_professional_summary,
     user_report_paths,
@@ -186,6 +186,27 @@ class VirtualWalletJournal:
             daily_loss += max(
                 Decimal(0), before.realized_pnl_usdt - after.realized_pnl_usdt
             )
+        metadata = dict(snapshot.market_metadata)
+        model = BacktestConfig()
+        fee_source = "SNAPSHOT_METADATA"
+        if "estimated_fee_ratio" not in metadata and "fee_ratio" not in metadata:
+            metadata["estimated_fee_ratio"] = str(model.fee_ratio)
+            fee_source = "CANONICAL_BACKTEST_ASSUMPTION"
+        slippage_source = "SNAPSHOT_METADATA"
+        if "estimated_slippage_ratio" not in metadata:
+            metadata["estimated_slippage_ratio"] = str(model.slippage_ratio)
+            slippage_source = "CANONICAL_BACKTEST_ASSUMPTION"
+        metadata["virtual_cost_model"] = {
+            "model_kind": "BOUNDED_SIMULATION_COST_ASSUMPTIONS",
+            "snapshot_id": snapshot.snapshot_id,
+            "market": market,
+            "observed_at": snapshot.created_at.isoformat(),
+            "fee_ratio": metadata.get("estimated_fee_ratio", metadata.get("fee_ratio")),
+            "slippage_ratio": metadata["estimated_slippage_ratio"],
+            "fee_source": fee_source,
+            "slippage_source": slippage_source,
+            "execution_allowed": False,
+        }
         return replace(
             snapshot,
             wallet_summary={
@@ -199,7 +220,7 @@ class VirtualWalletJournal:
             },
             inventory_summary=inventory,
             market_metadata={
-                **snapshot.market_metadata,
+                **metadata,
                 "consecutive_losses": portfolio.consecutive_losses,
                 "virtual_position_identity_unavailable": not bool(inventory),
                 "virtual_managed_position_active": managed is not None,

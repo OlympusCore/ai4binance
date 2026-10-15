@@ -1,5 +1,8 @@
 """Structural direction, lifecycle and geometry cannot fall back to indicators."""
 
+import base64
+import json
+import zlib
 from dataclasses import replace
 from decimal import Decimal
 from typing import cast
@@ -12,14 +15,157 @@ from ai4binance.data.timeframes import timeframe_duration, timeframe_from_durati
 from ai4binance.domain import Action, CandidateStatus, ValidationStatus
 from ai4binance.domain.research.virtual_runtime_attribution import TradeDecisionEvidence
 from ai4binance.intelligence.contracts import ScenarioState
-from ai4binance.intelligence.plan import TradePlanEngine
+from ai4binance.intelligence.plan import (
+    TradePlanEngine,
+    _column_table,
+    _decision_state_payload,
+    decode_decision_state_table,
+)
 from ai4binance.intelligence.trading import ScenarioEngine
+from ai4binance.reporting import to_primitive
 from ai4binance.schemas import AgentResult, MarketSnapshot
 from ai4binance.strategies.arbitration import CandidateArbitrator
 from ai4binance.strategies.engine import StrategyEngine
 from ai4binance.strategies.rules import historical_playbook_decision
 from tests.test_strategy_rules import structural_candles
 from tests.test_trading_intelligence import _costed_snapshot, _evidence_results, _result
+
+
+@pytest.mark.parametrize("short", [False, True])
+def test_decision_state_tables_preserve_every_structural_observation(
+    short: bool,
+) -> None:
+    snapshot, results = structural_context(short=short)
+    state = ScenarioEngine().build(snapshot, results)
+    original = to_primitive(state)
+    recorded = json.loads(json.dumps(_decision_state_payload(state)))
+    for name in ("levels", "trend_geometry", "pattern_hypotheses"):
+        table = recorded[name]
+        if table:
+            recorded[name] = decode_decision_state_table(table)
+    for structure in recorded["structures"]:
+        for name in ("swings", "events"):
+            table = structure[name]
+            if table:
+                assert table["encoding"] == "COLUMN_TABLE_ZLIB_V1"
+                assert len(set(table["columns"])) == len(table["columns"])
+                structure[name] = decode_decision_state_table(table)
+    assert recorded == original
+    assert to_primitive(state) == original
+    assert recorded["execution_allowed"] is False
+    assert recorded["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_native_scale_observations_fit_without_relaxing_the_evidence_bound() -> None:
+    # TEST_ONLY serialization load; these rows are not market observations.
+    rows = [
+        {"bar_index": index, "occurred_at": f"TEST_ONLY_{index}", "label": "TEST_ONLY"}
+        for index in range(25_000)
+    ]
+    raw = json.dumps({"observations": rows})
+    assert len(raw.encode()) > 1_000_000
+    with pytest.raises(ValueError, match="payload bound"):
+        TradeDecisionEvidence(factors_json=raw)
+    table = json.loads(json.dumps(_column_table(rows)))
+    packed = json.dumps({"observations": table})
+    assert len(packed.encode()) < 250_000
+    evidence = TradeDecisionEvidence(
+        status="RECONSTRUCTED_FROM_ARCHIVE",
+        as_of=_costed_snapshot().created_at,
+        direction_method="TEST_ONLY_SERIALIZATION",
+        entry_method="TEST_ONLY_SERIALIZATION",
+        factors_json=packed,
+    )
+    assert json.loads(evidence.factors_json) == {"observations": table}
+    assert decode_decision_state_table(table) == rows
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "base64",
+        "checksum",
+        "truncated",
+        "trailing",
+        "bytes",
+        "row_count",
+        "columns",
+        "encoding",
+    ],
+)
+def test_compressed_evidence_rejects_corruption_and_ambiguous_shape(
+    mutation: str,
+) -> None:
+    table = json.loads(json.dumps(_column_table([{"value": "TEST_ONLY"}])))
+    if mutation == "base64":
+        table["data"] = "not base64"
+    elif mutation == "checksum":
+        table["sha256"] = "0" * 64
+    elif mutation == "truncated":
+        table["data"] = base64.b64encode(base64.b64decode(table["data"])[:-1]).decode()
+    elif mutation == "trailing":
+        table["data"] = base64.b64encode(
+            base64.b64decode(table["data"]) + b"junk"
+        ).decode()
+    elif mutation == "bytes":
+        table["decoded_bytes"] = True
+    elif mutation == "row_count":
+        table["row_count"] = 2
+    elif mutation == "columns":
+        table["columns"] = ["value", "value"]
+    else:
+        table["encoding"] = "UNKNOWN_CODEC"
+    with pytest.raises(ValueError, match="decision state table"):
+        decode_decision_state_table(table)
+
+
+def test_state_table_decoder_rejects_expansion_beyond_its_declared_limit() -> None:
+    size = 8 * 1024 * 1024
+    table = {
+        "encoding": "COLUMN_TABLE_ZLIB_V1",
+        "columns": ["value"],
+        "row_count": 1,
+        "decoded_bytes": size,
+        "sha256": "0" * 64,
+        "data": base64.b64encode(zlib.compress(b"x" * (size + 1))).decode(),
+    }
+    with pytest.raises(ValueError, match="integrity"):
+        decode_decision_state_table(table)
+    assert decode_decision_state_table(
+        {"encoding": "COLUMN_TABLE_V1", "columns": ["value"], "rows": [["TEST_ONLY"]]}
+    ) == [{"value": "TEST_ONLY"}]
+
+
+@pytest.mark.parametrize(
+    "table",
+    [
+        {"encoding": "COLUMN_TABLE_V1", "columns": [], "rows": []},
+        {"encoding": "COLUMN_TABLE_V1", "columns": [1], "rows": [[1]]},
+        {"encoding": "COLUMN_TABLE_V1", "columns": ["value"], "rows": {}},
+        {"encoding": "COLUMN_TABLE_V1", "columns": ["value"], "rows": [[]]},
+        {
+            "encoding": "COLUMN_TABLE_ZLIB_V1",
+            "columns": ["value"],
+            "decoded_bytes": 8 * 1024 * 1024 + 1,
+            "data": "",
+        },
+    ],
+)
+def test_state_table_decoder_rejects_invalid_bounds_and_shape(
+    table: dict[str, object],
+) -> None:
+    with pytest.raises(ValueError, match="decision state table"):
+        decode_decision_state_table(table)
+
+
+def test_state_table_above_decode_budget_retains_the_outer_denial() -> None:
+    # TEST_ONLY expansion exceeds the codec budget; no truncated body is emitted.
+    rows: list[dict[str, object]] = [{"value": "x" * (8 * 1024 * 1024)}]
+    table = cast(dict[str, object], _column_table(rows))
+    assert table["encoding"] == "COLUMN_TABLE_V1"
+    assert decode_decision_state_table(table) == rows
+    with pytest.raises(ValueError, match="payload bound"):
+        TradeDecisionEvidence(factors_json=json.dumps({"observations": table}))
 
 
 def structural_context(
