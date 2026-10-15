@@ -24,6 +24,14 @@ _ALLOWED_ROOT_FILES = frozenset(
 _ALLOWED_PREFIXES = ("docs/", "examples/", "tests/")
 
 
+class GitHubApiError(RuntimeError):
+    """A bounded HTTP failure without response bodies or credentials."""
+
+    def __init__(self, status: int) -> None:
+        self.status = status
+        super().__init__(f"GitHub API GET failed with status {status}")
+
+
 class GitHubApiTransport(Protocol):
     def get_json(
         self, path: str, parameters: Mapping[str, str] | None = None
@@ -78,9 +86,7 @@ class HttpsGitHubTransport:
             if len(body) > MAX_RESPONSE_BYTES:
                 raise ValueError("GitHub API response exceeds bounded size")
             if response.status != 200:
-                raise RuntimeError(
-                    f"GitHub API GET failed with status {response.status}"
-                )
+                raise GitHubApiError(response.status)
             return json.loads(body.decode("utf-8"))
         finally:
             connection.close()
@@ -132,11 +138,16 @@ class PublicGitHubClient:
             self._transport.get_json(f"/repos/{owner}/{name}/commits/{branch}"),
             "commit response",
         )
-        license_payload = _mapping(
-            self._transport.get_json(f"/repos/{owner}/{name}/license"),
-            "license response",
-        )
-        license_item = _mapping(license_payload.get("license"), "license")
+        try:
+            license_payload = _mapping(
+                self._transport.get_json(f"/repos/{owner}/{name}/license"),
+                "license response",
+            )
+            license_item = _mapping(license_payload.get("license"), "license")
+        except GitHubApiError as error:
+            if error.status != 404:
+                raise
+            license_item = {"spdx_id": "UNKNOWN"}
         return RepositorySource(
             repository=f"{repository.owner}/{repository.name}",
             url=repository.url,

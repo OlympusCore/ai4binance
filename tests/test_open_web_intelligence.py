@@ -524,6 +524,69 @@ def test_technology_analyzer_is_deterministic_and_advisory_only() -> None:
     )
 
 
+def test_technology_research_ignores_navigation_and_embedded_keyword_fragments() -> (
+    None
+):
+    """Test-only HTML; page chrome must not become protocol research evidence."""
+    document = extract_html_document(
+        _resource(b"""<html><title>Search and filter for budgets</title><body>
+        <nav><h2>Developer API</h2>WebSocket protocol security</nav>
+        <article><h1>Search and filter for budgets</h1>
+        <p>Sort the billing page by prefix and capitalization.</p></article>
+        <aside>New protocol API</aside><footer><h2>Security API</h2></footer>
+        </body></html>"""),
+        observation_id="test-only-observation",
+    )
+    assert document.headings == ("Search and filter for budgets",)
+    assert "Developer API" not in document.text_excerpt
+    assert "Sort the billing page" in document.text_excerpt
+    assert (
+        analyze_technology(
+            document, evidence_id="test-only-evidence", source_reliability=0.9
+        )
+        is None
+    )
+    security_body = b"""<html><title>Code scanning metrics in security overview</title>
+        <article><h1>Security overview</h1>
+        <p>Security metrics and vulnerability alerts.</p>
+        </article><footer>protocol API WebSocket endpoint FIX</footer></html>"""
+    security = extract_html_document(
+        _resource(security_body),
+        observation_id="test-only-security",
+    )
+    candidate = analyze_technology(
+        security, evidence_id="test-only-evidence", source_reliability=0.9
+    )
+    assert candidate is not None
+    assert candidate.technology_area == "application-security"
+    assert candidate.execution_allowed is False
+    assert candidate.installation_allowed is False
+    # Exercise the unchanged canonical topic intake through the real CLI projection.
+    responses = _engine_responses()
+    responses["https://github.blog/article/"] = (200, _headers(), security_body)
+    fetcher, _ = _fetcher(_policy().allowed_hosts, responses)
+    payload = open_web_payload(engine=OpenWebRadarEngine(_policy(), fetcher))
+    report = payload["report"]
+    assert isinstance(report, dict)
+    assessments = report["research_assessments"]
+    assert isinstance(assessments, tuple)
+    assert assessments[0]["topic_id"] == "NEW_SECURITY_MECHANISM"
+    assert payload["execution_allowed"] is False
+    assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_html_fallback_preserves_body_without_navigation_or_footer() -> None:
+    document = extract_html_document(
+        _resource(b"""<html><title>Test-only fallback</title><nav>WebSocket API</nav>
+        <main><h1>Security update</h1><p>Vulnerability hardening.</p></main>
+        <footer>Protocol API</footer></html>"""),
+        observation_id="test-only-fallback",
+    )
+    assert document.headings == ("Security update",)
+    assert "Vulnerability hardening" in document.text_excerpt
+    assert "Protocol API" not in document.text_excerpt
+
+
 def test_technology_analyzer_covers_deepsearch_research_criteria() -> None:
     cases = (
         (

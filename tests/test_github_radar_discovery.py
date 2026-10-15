@@ -5,9 +5,16 @@ from __future__ import annotations
 import base64
 from collections.abc import Mapping
 from datetime import UTC, datetime
+from unittest.mock import Mock
+
+import pytest
 
 from ai4binance.github_radar.discovery import discover_candidates
-from ai4binance.github_radar.github_client import PublicGitHubClient
+from ai4binance.github_radar.github_client import (
+    GitHubApiError,
+    HttpsGitHubTransport,
+    PublicGitHubClient,
+)
 from ai4binance.github_radar.local_baseline import build_local_capability_baseline
 from ai4binance.github_radar.models import (
     FetchedDocument,
@@ -111,6 +118,24 @@ def test_public_client_resolves_revision_and_reads_only_allowed_surfaces() -> No
     assert not any("src/live.py" in call[0] for call in transport.calls)
 
 
+def test_transport_retains_http_status_without_response_content(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    connection = Mock()
+    response = connection.getresponse.return_value
+    response.status = 404
+    response.read.return_value = b'{"message":"test-only response body withheld"}'
+    monkeypatch.setattr(
+        "ai4binance.github_radar.github_client.http.client.HTTPSConnection",
+        lambda *args, **kwargs: connection,
+    )
+    with pytest.raises(GitHubApiError) as error:
+        HttpsGitHubTransport().get_json("/repos/test-only/example/license")
+    assert error.value.status == 404
+    assert "response body" not in str(error.value)
+    connection.close.assert_called_once()
+
+
 def test_discovery_maps_repository_to_atomic_capability_and_blocks_execution() -> None:
     query = RadarQuery(
         capability_id="R26-C01",
@@ -157,6 +182,37 @@ def test_discovery_maps_repository_to_atomic_capability_and_blocks_execution() -
     assert assessment["execution_allowed"] is False
     assert assessment["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
     assert len(topics) == 14
+
+
+@pytest.mark.parametrize("status", [404, 403, 429, 500])
+def test_missing_license_keeps_discovery_advisory_and_other_http_failures_propagate(
+    status: int,
+) -> None:
+    class LicenseErrorTransport(FakeApiTransport):
+        def get_json(
+            self, path: str, parameters: Mapping[str, str] | None = None
+        ) -> object:
+            if path.endswith("/license"):
+                raise GitHubApiError(status)
+            return super().get_json(path, parameters)
+
+    client = PublicGitHubClient(LicenseErrorTransport())
+    query = RadarQuery(
+        capability_id="R26-C01",
+        query="test-only-query",
+        local_status=build_local_capability_baseline()[0].status,
+    )
+    if status != 404:
+        with pytest.raises(GitHubApiError, match=f"status {status}"):
+            discover_candidates(client, (query,), repositories_per_query=1)
+        return
+    candidates = discover_candidates(client, (query,), repositories_per_query=1)
+    assert len(candidates) == 1
+    assert candidates[0].source.license_id == "UNKNOWN"
+    assert "LICENSE_UNKNOWN_REUSE_BLOCKED" in candidates[0].blockers
+    assert "EXTERNAL_CODE_EXECUTION_BLOCKED" in candidates[0].blockers
+    assert candidates[0].execution_allowed is False
+    assert candidates[0].live_eligibility_status == "LIVE_ORDER_BLOCKED"
 
 
 def test_query_planner_prioritizes_local_gaps_and_accepts_explicit_scope() -> None:

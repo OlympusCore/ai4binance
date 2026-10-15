@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from ai4binance.external_intel.core.enums import TechnologyRecommendation
@@ -304,7 +305,14 @@ def analyze_technology(
         (document.title, document.text_excerpt, *document.headings)
     ).casefold()
     matches = tuple(
-        (rule, sum(keyword in text for keyword in rule.keywords)) for rule in _RULES
+        (
+            rule,
+            sum(
+                re.search(r"(?<!\w)" + re.escape(keyword) + r"(?!\w)", text) is not None
+                for keyword in rule.keywords
+            ),
+        )
+        for rule in _RULES
     )
     rule, hit_count = max(matches, key=lambda item: (item[1], item[0].area))
     if hit_count == 0:

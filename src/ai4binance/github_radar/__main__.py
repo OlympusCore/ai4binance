@@ -12,6 +12,7 @@ from typing import cast
 
 from ai4binance.github_radar.engine import GitHubRadarEngine
 from ai4binance.github_radar.github_client import (
+    GitHubApiError,
     HttpsGitHubTransport,
     PublicGitHubClient,
 )
@@ -50,6 +51,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     engine = GitHubRadarEngine.from_repository(args.repository_root)
+    exit_code = 0
     if args.command == "baseline":
         payload = baseline_payload(engine.local_baseline())
     elif args.command == "evaluate":
@@ -59,18 +61,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         token = os.environ.get("GITHUB_TOKEN")
         client = PublicGitHubClient(HttpsGitHubTransport(token))
-        candidates = engine.discover(
-            client,
-            capability_ids=tuple(args.capability),
-            maximum_queries=args.maximum_queries,
-            repositories_per_query=args.repositories_per_query,
-            documents_per_repository=args.documents_per_repository,
-        )
-        payload = discovery_payload(candidates)
+        try:
+            candidates = engine.discover(
+                client,
+                capability_ids=tuple(args.capability),
+                maximum_queries=args.maximum_queries,
+                repositories_per_query=args.repositories_per_query,
+                documents_per_repository=args.documents_per_repository,
+            )
+        except GitHubApiError as error:
+            payload = {
+                **discovery_payload(()),
+                "status": "BLOCKED",
+                "candidate_count": None,
+                "blockers": (f"GITHUB_API_HTTP_{error.status}", "LIVE_ORDER_BLOCKED"),
+            }
+            exit_code = 1
+        else:
+            payload = discovery_payload(candidates)
     if args.output is not None:
         write_json_atomic(args.output, payload)
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
-    return 0
+    return exit_code
 
 
 def _load_repository_evidence(path: Path) -> RepositoryEvidence:

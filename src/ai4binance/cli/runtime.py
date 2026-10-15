@@ -1509,6 +1509,21 @@ def _previous_virtual_market_success(path: Path) -> datetime | None:
         return None
 
 
+def _reported_virtual_simulation_fields(
+    report: Mapping[str, object],
+) -> dict[str, object]:
+    """Preserve reported observation values without inventing negative verdicts."""
+    fields: dict[str, object] = {}
+    for name in ("virtual_runtime_evaluated", "risk_approved", "virtual_order_ready"):
+        value = report.get(name)
+        if isinstance(value, bool):
+            fields[name] = value
+    outcome = report.get("virtual_simulation_outcome")
+    if isinstance(outcome, str) and outcome:
+        fields["virtual_simulation_outcome"] = outcome
+    return fields
+
+
 def _dashboard_simulation_projection(
     previous: object,
     *,
@@ -1538,7 +1553,7 @@ def _dashboard_simulation_projection(
                 "scan_lane": row.get("scan_lane"),
                 "state": row.get("state"),
                 "virtual_decision_status": row.get("virtual_decision_status"),
-                "virtual_order_ready": row.get("virtual_order_ready") is True,
+                **_reported_virtual_simulation_fields(row),
                 "candidate_count": row.get("candidate_count"),
                 "blockers": (
                     [
@@ -1558,7 +1573,7 @@ def _dashboard_simulation_projection(
             if isinstance(raw_blockers, (list, tuple))
             else []
         )
-        candidate_count = cycle_report.get("candidate_count", 0)
+        candidate_count = cycle_report.get("candidate_count")
         records_by_symbol[symbol] = {
             "symbol": symbol,
             "observed_at": observed_at.isoformat(),
@@ -1567,13 +1582,13 @@ def _dashboard_simulation_projection(
             "virtual_decision_status": cycle_report.get(
                 "virtual_decision_status", "NOT_EVALUATED"
             ),
-            "virtual_order_ready": cycle_report.get("virtual_order_ready") is True,
+            **_reported_virtual_simulation_fields(cycle_report),
             "candidate_count": (
                 candidate_count
                 if isinstance(candidate_count, int)
                 and not isinstance(candidate_count, bool)
                 and candidate_count >= 0
-                else 0
+                else None
             ),
             "blockers": blockers[:_DASHBOARD_SIMULATION_MAX_BLOCKERS],
         }
@@ -1596,7 +1611,7 @@ def _dashboard_simulation_projection(
             and value > 0
         ),
         "order_ready_symbol_count": sum(
-            record["virtual_order_ready"] is True for record in records
+            record.get("virtual_order_ready") is True for record in records
         ),
         "last_full_coverage_at": (
             observed_at.isoformat() if complete else previous_completed_at

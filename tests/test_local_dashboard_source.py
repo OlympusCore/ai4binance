@@ -45,10 +45,10 @@ def test_canonical_dashboard_source_builds_deterministic_offline_assets(
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "DASHBOARD_PACKAGE_BUILT"
     assert _sha256(stage / "app.js") == (
-        "b65e46840005652ce9c3eca7147a85172b9f9a9998779b023327fa42f218894b"
+        "a326fc97c7b7d8a74aa579a8acbad82500c3527bb8bb689f7b1e837894bc4294"
     )
     assert _sha256(stage / "app.css") == (
-        "d457b4b0bce41e50a9eece8a3dcc0356e90ade6797d7ddaa05ce7fe7d1dc07d1"
+        "9d135f9c272b0f2ae41486b870204d7bdc8e963f0048520da2876918bd776b09"
     )
     assert _sha256(stage / "index.html") == (
         "cf00ea2f86490a6a63b8a8383edbd0ed813a4fb3b85af1775915e13ca41219ca"
@@ -536,6 +536,90 @@ def test_news_article_projection_preserves_provenance_without_inventing_events(
     assert result["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
 
 
+@pytest.mark.parametrize(
+    ("count", "candidates", "expected"),
+    [
+        (0, [], "NO_CANDIDATES"),
+        (1, [{}], "CANDIDATES_FOUND"),
+        (True, [], "UNKNOWN"),
+        (2, [], "UNKNOWN"),
+    ],
+)
+def test_github_radar_projects_real_empty_results_without_invented_blockers(
+    tmp_path: Path,
+    count: object,
+    candidates: list[dict[str, Any]],
+    expected: str,
+) -> None:
+    module = runpy.run_path(str(SOURCE / "server.py.in"))
+    result_path = tmp_path / "test-only-github.json"
+    result_path.write_text(
+        json.dumps(
+            {
+                "mode": "GITHUB_DISCOVERY",
+                "candidate_count": count,
+                "candidates": candidates,
+                "execution_allowed": False,
+                "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = module["radar_result_summary"]("github", result_path)
+    assert result["result_status"] == expected
+    assert result["blockers"] == (
+        ["RADAR_RESULT_STATUS_UNAVAILABLE"] if expected == "UNKNOWN" else []
+    )
+    assert result["execution_allowed"] is False
+    assert result["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_radar_projection_preserves_nested_and_process_failure_blockers(
+    tmp_path: Path,
+) -> None:
+    module = runpy.run_path(str(SOURCE / "server.py.in"))
+    module["radar_paths"].__globals__["APP"] = tmp_path
+    radar = tmp_path / "radar"
+    radar.mkdir()
+    (radar / "web-status.json").write_text(
+        json.dumps(
+            {
+                "state": "COMPLETED_WITH_BLOCKERS",
+                "exit_code": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (radar / "web-result.json").write_text(
+        json.dumps(
+            {
+                "status": "DEGRADED",
+                "blockers": ["LIVE_ORDER_BLOCKED"],
+                "report": {
+                    "blockers": ["TEST_ONLY_FETCH_FAILED", "LIVE_ORDER_BLOCKED"]
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = module["radar_status"]({}, "web")
+    assert result["state"] == "COMPLETED_WITH_BLOCKERS"
+    assert result["result"]["result_status"] == "FAILED"
+    assert result["result"]["items"] == []
+    assert result["result"]["blockers"] == [
+        "LIVE_ORDER_BLOCKED",
+        "TEST_ONLY_FETCH_FAILED",
+        "RADAR_PROCESS_FAILED",
+    ]
+    (radar / "web-status.json").write_text(
+        json.dumps({"state": "RUNNING"}), encoding="utf-8"
+    )
+    orphaned = module["radar_status"]({}, "web")
+    assert orphaned["state"] == "COMPLETED_WITH_BLOCKERS"
+    assert orphaned["result"]["result_status"] == "UNVERIFIED"
+    assert orphaned["result"]["blockers"] == ["RADAR_RUN_OWNERSHIP_UNVERIFIED"]
+
+
 def test_dashboard_classifies_futures_research_progress_and_failures() -> None:
     module = runpy.run_path(str(SOURCE / "server.py.in"))
     classify = module["futures_research_readiness_status"]
@@ -585,9 +669,9 @@ def test_dashboard_exposes_virtual_runtime_preconditions_as_inactive() -> None:
     assert '"virtual_runtime_evaluated"' in server
     assert '"virtual_simulation_outcome"' in server
     assert '"risk_approved"' in server
-    assert (
-        "daemon.virtual_simulation_outcome||projection.status||daemon.status" in views
-    )
+    assert "commandVirtualSimulationView(market,daemon,projection,scope" in views
+    assert "simulation.runtime_display" in views
+    assert "simulation.risk_display" in views
     assert "Runtime evaluated" in views
     assert "Risk approved" in views
 

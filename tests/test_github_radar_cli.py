@@ -105,6 +105,44 @@ def test_cli_discover_is_bounded_without_network(
     assert json.loads(capsys.readouterr().out) == payload
 
 
+@pytest.mark.parametrize("status", [403, 429, 500])
+def test_cli_persists_http_failure_without_claiming_an_empty_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    status: int,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from ai4binance.github_radar.github_client import GitHubApiError
+
+    def fail_discovery(*args: object, **kwargs: object) -> object:
+        raise GitHubApiError(status)
+
+    monkeypatch.setattr(GitHubRadarEngine, "discover", fail_discovery)
+    output = tmp_path / "test-only-failed-discovery.json"
+    # An earlier result must not survive as the latest successful discovery.
+    output.write_text('{"status":"READY","candidate_count":99}', encoding="utf-8")
+    exit_code = radar_cli.main(
+        [
+            "--repository-root",
+            str(Path.cwd()),
+            "discover",
+            "--maximum-queries",
+            "1",
+            "--output",
+            str(output),
+        ]
+    )
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert exit_code == 1
+    assert payload["status"] == "BLOCKED"
+    assert payload["candidate_count"] is None
+    assert payload["candidates"] == []
+    assert payload["blockers"] == [f"GITHUB_API_HTTP_{status}", "LIVE_ORDER_BLOCKED"]
+    assert payload["execution_allowed"] is False
+    assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+    assert json.loads(capsys.readouterr().out) == payload
+
+
 def test_cli_input_helpers_and_atomic_writer_fail_closed(tmp_path: Path) -> None:
     oversized = tmp_path / "oversized.json"
     oversized.write_text("x" * 512_001, encoding="utf-8")

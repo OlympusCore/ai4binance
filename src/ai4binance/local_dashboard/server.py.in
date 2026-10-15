@@ -213,7 +213,7 @@ def radar_result_summary(radar: str, result_path: Path) -> dict:
             "live_eligibility_status",
         ),
     )
-    result["result_status"] = result.pop("status", "UNKNOWN")
+    result["result_status"] = result.pop("status", None) or "UNKNOWN"
     report = payload.get("report") if isinstance(payload.get("report"), dict) else {}
     result.update(
         fields(report, ("generated_at", "status", "fetch_count", "cache_hits"))
@@ -315,6 +315,16 @@ def radar_result_summary(radar: str, result_path: Path) -> dict:
         result["items"] = items
         result["item_count"] = len(items)
         result["blockers"] = reasons(payload.get("blockers"))
+        if result["result_status"] == "UNKNOWN" and payload.get("mode") == "GITHUB_DISCOVERY":
+            count = payload.get("candidate_count")
+            candidates = payload.get("candidates")
+            if type(count) is int and isinstance(candidates, list) and count == len(candidates):
+                result["result_status"] = "NO_CANDIDATES" if count == 0 else "CANDIDATES_FOUND"
+    result["blockers"] = list(dict.fromkeys([
+        *result.get("blockers", []), *reasons(report.get("blockers")),
+    ]))
+    if result["result_status"] == "UNKNOWN":
+        result["blockers"].append("RADAR_RESULT_STATUS_UNAVAILABLE")
     return result
 
 
@@ -422,11 +432,8 @@ def radar_status(config: dict, radar: str) -> dict:
             "execution_allowed": False,
             "live_eligibility_status": "LIVE_ORDER_BLOCKED",
         }
-    if (
-        radar == "learning"
-        and status.get("state") == "RUNNING"
-        and radar not in RADAR_PROCESSES
-    ):
+    orphaned_run = status.get("state") == "RUNNING" and radar not in RADAR_PROCESSES
+    if orphaned_run:
         status["state"] = "COMPLETED_WITH_BLOCKERS"
     _, result_path, _ = radar_paths(radar)
     result = (
@@ -434,6 +441,18 @@ def radar_status(config: dict, radar: str) -> dict:
         if status.get("state") != "RUNNING"
         else {}
     )
+    if status.get("state") != "RUNNING" and status.get("exit_code") not in (None, 0):
+        result["result_status"] = "FAILED"
+        result["items"] = []
+        result["item_count"] = 0
+        result["blockers"] = list(dict.fromkeys([
+            *result.get("blockers", []), "RADAR_PROCESS_FAILED",
+        ]))
+    if orphaned_run:
+        result = {
+            "result_status": "UNVERIFIED", "items": [], "item_count": 0,
+            "blockers": ["RADAR_RUN_OWNERSHIP_UNVERIFIED"],
+        }
     return {
         **fields(
             status,

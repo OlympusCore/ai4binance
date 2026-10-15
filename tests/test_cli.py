@@ -3181,3 +3181,95 @@ def test_runtime_builds_private_services_from_allowlisted_file(
         runtime.research_service.audit_store.path.name
         == "runtime_research_events.chained.jsonl"
     )
+
+
+@pytest.mark.parametrize("reported", [False, True])
+def test_virtual_projection_preserves_reported_runtime_and_risk(reported: bool) -> None:
+    outcome = "RUNTIME_DECISION_EVALUATED" if reported else "PRECONDITIONS_BLOCKED"
+    projection = runtime_cli._dashboard_simulation_projection(
+        {},
+        symbols=("TEST_ONLY_A",),
+        observed_at=datetime(2026, 10, 15, tzinfo=UTC),
+        exit_code=0,
+        cycle_report={
+            "symbol": "TEST_ONLY_A",
+            "candidate_count": 1,
+            "virtual_runtime_evaluated": reported,
+            "risk_approved": reported,
+            "virtual_order_ready": reported,
+            "virtual_simulation_outcome": outcome,
+        },
+    )
+    row = cast(list[dict[str, object]], projection["symbol_observations"])[0]
+    assert row["virtual_runtime_evaluated"] is reported
+    assert row["risk_approved"] is reported
+    assert row["virtual_order_ready"] is reported
+    assert row["virtual_simulation_outcome"] == outcome
+    assert projection["order_ready_symbol_count"] == int(reported)
+
+
+@pytest.mark.parametrize("invalid_count", [None, -1, "0", False, 0.5])
+def test_virtual_projection_does_not_invent_missing_values(
+    invalid_count: object,
+) -> None:
+    projection = runtime_cli._dashboard_simulation_projection(
+        {},
+        symbols=("TEST_ONLY_A",),
+        observed_at=datetime(2026, 10, 15, tzinfo=UTC),
+        exit_code=2,
+        cycle_report={
+            "symbol": "TEST_ONLY_A",
+            "candidate_count": invalid_count,
+            "virtual_runtime_evaluated": None,
+            "risk_approved": "true",
+            "virtual_order_ready": 1,
+            "research_blockers": ("TEST_ONLY_FAILED",),
+        },
+    )
+    row = cast(list[dict[str, object]], projection["symbol_observations"])[0]
+    assert row["state"] == "FAILED"
+    assert row["candidate_count"] is None
+    assert row["blockers"] == ["TEST_ONLY_FAILED"]
+    for name in ("virtual_runtime_evaluated", "risk_approved", "virtual_order_ready"):
+        assert name not in row
+    assert projection["order_ready_symbol_count"] == 0
+
+
+def test_virtual_projection_preserves_other_symbol_and_clears_failed_verdict() -> None:
+    first = runtime_cli._dashboard_simulation_projection(
+        {},
+        symbols=("TEST_ONLY_A", "TEST_ONLY_B"),
+        observed_at=datetime(2026, 10, 15, tzinfo=UTC),
+        exit_code=0,
+        cycle_report={
+            "symbol": "TEST_ONLY_A",
+            "candidate_count": 1,
+            "virtual_runtime_evaluated": True,
+            "risk_approved": True,
+            "virtual_order_ready": True,
+        },
+    )
+    second = runtime_cli._dashboard_simulation_projection(
+        first,
+        symbols=("TEST_ONLY_A", "TEST_ONLY_B"),
+        observed_at=datetime(2026, 10, 15, 0, 1, tzinfo=UTC),
+        exit_code=0,
+        cycle_report={"symbol": "TEST_ONLY_B", "candidate_count": 0},
+    )
+    preserved_rows = cast(list[dict[str, object]], second["symbol_observations"])
+    assert preserved_rows[0]["risk_approved"] is True
+    assert "risk_approved" not in preserved_rows[1]
+    failed = runtime_cli._dashboard_simulation_projection(
+        second,
+        symbols=("TEST_ONLY_A", "TEST_ONLY_B"),
+        observed_at=datetime(2026, 10, 15, 0, 2, tzinfo=UTC),
+        exit_code=2,
+        cycle_report={
+            "symbol": "TEST_ONLY_A",
+            "research_blockers": ("TEST_ONLY_FAILED",),
+        },
+    )
+    failed_row = cast(list[dict[str, object]], failed["symbol_observations"])[0]
+    assert "risk_approved" not in failed_row
+    assert "virtual_order_ready" not in failed_row
+    assert failed["order_ready_symbol_count"] == 0

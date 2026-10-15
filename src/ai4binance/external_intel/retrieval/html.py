@@ -12,6 +12,7 @@ from ai4binance.external_intel.normalization.urls import canonicalize_url
 from ai4binance.external_intel.retrieval.transport import FetchedResource
 
 _TEXT_LIMIT = 8_000
+_IGNORED_TAGS = {"script", "style", "noscript", "svg", "nav", "footer", "aside"}
 
 
 class _ArticleParser(HTMLParser):
@@ -28,15 +29,20 @@ class _ArticleParser(HTMLParser):
         self._capture_title = False
         self._capture_heading = False
         self._ignored_depth = 0
+        self.article_parts: list[str] = []
+        self.article_headings: list[str] = []
+        self._article_depth = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = {key.casefold(): value or "" for key, value in attrs}
         normalized = tag.casefold()
         if normalized == "html" and attributes.get("lang"):
             self.language = attributes["lang"][:40]
-        if normalized in {"script", "style", "noscript", "svg"}:
+        if normalized in _IGNORED_TAGS:
             self._ignored_depth += 1
             return
+        if normalized == "article":
+            self._article_depth += 1
         if normalized == "title":
             self._capture_title = True
         if normalized in {"h1", "h2", "h3"}:
@@ -59,8 +65,10 @@ class _ArticleParser(HTMLParser):
 
     def handle_endtag(self, tag: str) -> None:
         normalized = tag.casefold()
-        if normalized in {"script", "style", "noscript", "svg"}:
+        if normalized in _IGNORED_TAGS:
             self._ignored_depth = max(0, self._ignored_depth - 1)
+        if normalized == "article":
+            self._article_depth = max(0, self._article_depth - 1)
         if normalized == "title":
             self._capture_title = False
         if normalized in {"h1", "h2", "h3"}:
@@ -76,6 +84,11 @@ class _ArticleParser(HTMLParser):
             self.title = text[:1_000]
         if self._capture_heading and text not in self.headings:
             self.headings.append(text[:500])
+        if self._article_depth:
+            if self._capture_heading and text not in self.article_headings:
+                self.article_headings.append(text[:500])
+            if sum(len(part) for part in self.article_parts) < _TEXT_LIMIT:
+                self.article_parts.append(text)
         if sum(len(part) for part in self.text_parts) < _TEXT_LIMIT:
             self.text_parts.append(text)
 
@@ -91,7 +104,7 @@ def extract_html_document(
     parser.feed(resource.body.decode("utf-8", errors="replace"))
     parser.close()
     title = parser.title.strip() or (urlsplit(resource.final_url).hostname or "UNKNOWN")
-    excerpt = " ".join(parser.text_parts)[:_TEXT_LIMIT]
+    excerpt = " ".join(parser.article_parts or parser.text_parts)[:_TEXT_LIMIT]
     return RetrievedDocument(
         document_id=eief_id("webdoc", resource.final_url, resource.content_sha256),
         observation_id=observation_id,
@@ -105,7 +118,9 @@ def extract_html_document(
         author_or_origin=parser.author,
         published_at=parser.published_at,
         language=parser.language,
-        headings=tuple(parser.headings[:50]),
+        headings=tuple(
+            (parser.article_headings if parser.article_parts else parser.headings)[:50]
+        ),
         references=tuple(parser.references[:100]),
     )
 

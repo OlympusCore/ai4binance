@@ -99,6 +99,118 @@ console.log('KAIZEN_CLICK_BOUNDARY_PASS');
     assert "KAIZEN_CLICK_BOUNDARY_PASS" in completed.stdout
 
 
+def test_virtual_simulation_scope_and_missing_values_preserve_reported_evidence() -> (
+    None
+):
+    """Test-only reports must not borrow another coin's or market's approval."""
+    node = shutil.which("node")
+    assert node is not None
+    script = r"""
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {stripTypeScriptTypes} from 'node:module';
+import vm from 'node:vm';
+const now='2026-10-15T00:00:00+00:00';
+const spot={status:'COMPLETE',symbol_observations:[
+  {symbol:'TEST_ONLY_A',observed_at:now,state:'COMPLETED',candidate_count:2,
+   virtual_decision_status:'NO_ACTION',blockers:['TEST_ONLY_A_BLOCKER']},
+  {symbol:'TEST_ONLY_B',observed_at:now,state:'COMPLETED',candidate_count:3,
+   virtual_runtime_evaluated:true,risk_approved:false,virtual_order_ready:false,
+   blockers:['TEST_ONLY_B_BLOCKER']}]};
+const futures={status:'COMPLETE',symbol_observations:[
+  {symbol:'TEST_ONLY_F',observed_at:now,state:'COMPLETED',candidate_count:0,
+   virtual_runtime_evaluated:false,risk_approved:false,virtual_order_ready:false,
+   virtual_decision_status:'NO_ACTION',blockers:['NO_READY_CANDIDATE']}]};
+const daemon={market:'USD_M_FUTURES',symbol:'TEST_ONLY_F',candidate_count:0,
+  virtual_runtime_evaluated:true,risk_approved:true,last_success_at:now,
+  blockers:['TEST_ONLY_OTHER_MARKET'],dashboard_simulation_projection:spot,
+  dashboard_futures_simulation_projection:futures};
+const context=vm.createContext({state:{language:'en'},localData:{virtual:daemon}});
+class Element {
+  constructor(tag) {this.tagName=tag;this.children=[];}
+  append(...nodes) {this.children.push(...nodes);}
+}
+context.document={createElement:tag=>new Element(tag)};
+vm.runInContext(stripTypeScriptTypes(readFileSync('frontend/src/command_center.ts','utf8')),context);
+const evaluate=value=>vm.runInContext(value,context);
+context.spot=spot;context.futures=futures;context.daemon=daemon;
+const all=evaluate(`commandVirtualSimulationView(
+  'SPOT',daemon,spot,'all','TEST_ONLY_A',{})`);
+assert.equal(all.candidate_count,5);
+assert.equal(all.virtual_decision_status,'Per-coin decisions — see table');
+assert.equal(all.runtime_display,'1 / 2 · 1 not reported');
+assert.equal(all.risk_display,'0 / 2 · 1 not reported');
+assert.deepEqual(Array.from(all.blockers),['TEST_ONLY_A_BLOCKER','TEST_ONLY_B_BLOCKER']);
+assert.match(all.note,/not a shared trade decision/);
+context.view=all;
+const rendered=evaluate('commandVirtualSimulationBlockers(view)');
+assert.equal(rendered.children.length,2);
+assert.match(rendered.children[0].children[0].textContent,/TEST_ONLY_A/);
+assert.equal(rendered.children[0].children[1].textContent,'TEST_ONLY_A_BLOCKER');
+assert.match(rendered.children[1].children[0].textContent,/TEST_ONLY_B/);
+assert.equal(rendered.children[1].children[1].textContent,'TEST_ONLY_B_BLOCKER');
+const background=evaluate("commandVirtualMarketState('SPOT')");
+assert.equal(background.market,'SPOT');
+assert.equal(background.symbol,'TEST_ONLY_A');
+assert.equal(background.risk_approved,undefined);
+assert.deepEqual(Array.from(background.blockers),['TEST_ONLY_A_BLOCKER']);
+const selected=evaluate(`commandVirtualSimulationView(
+  'SPOT',daemon,spot,'selected','TEST_ONLY_A',{})`);
+assert.equal(selected.runtime_display,'Not reported');
+assert.equal(selected.risk_display,'Not reported');
+assert.equal(selected.order_display,'Not reported');
+const absent=evaluate(`commandVirtualSimulationView(
+  'SPOT',daemon,spot,'selected','TEST_ONLY_MISSING',
+  {symbol:'TEST_ONLY_F',market:'USD_M_FUTURES',risk_approved:true})`);
+assert.equal(absent.state,'DATA_UNAVAILABLE');
+assert.equal(absent.risk_display,'Not reported');
+const future=evaluate(`commandVirtualSimulationView(
+  'USD_M_FUTURES',{},futures,'selected','TEST_ONLY_F',{})`);
+assert.equal(future.runtime_display,'No');
+assert.match(future.note,/no ready trade candidate/);
+assert.deepEqual(Array.from(future.blockers),['NO_READY_CANDIDATE']);
+const missing=evaluate(`commandVirtualSimulationView(
+  'SPOT',daemon,{},'all','TEST_ONLY_A',{})`);
+assert.equal(missing.candidate_count,undefined);
+assert.equal(missing.runtime_display,'Not reported');
+for(const bad of [null,-1,1.5,'2',Infinity]) {
+  context.bad=bad;
+  assert.equal(evaluate('commandVirtualObservation({candidate_count:bad}).candidate_count'),undefined);
+}
+assert.equal(evaluate('commandVirtualFlag(null)'),'Not reported');
+assert.equal(evaluate("commandVirtualFlag('true')"),'Not reported');
+assert.equal(evaluate('commandVirtualFlag(true)'),'Yes');
+assert.equal(evaluate('commandVirtualFlag(false)'),'No');
+assert.equal(evaluate('commandVirtualOrderLabel(undefined)'),'Not reported');
+assert.equal(evaluate('commandVirtualOrderLabel(true)'),'Ready');
+assert.equal(evaluate('commandVirtualOrderLabel(false)'),'Not ready');
+context.daemon={...daemon,market:'SPOT',symbol:'TEST_ONLY_A',risk_approved:true,
+  last_success_at:'2026-10-15T00:01:00+00:00'};
+const selectedRisk=`commandVirtualSimulationView(
+  'SPOT',daemon,spot,'selected','TEST_ONLY_A',{}).risk_display`;
+assert.equal(evaluate(selectedRisk),'Not reported');
+context.daemon.last_success_at='2026-10-15T03:00:00+03:00';
+assert.equal(evaluate("commandVirtualSimulationView('SPOT',daemon,spot,'selected','TEST_ONLY_A',{}).risk_display"),'Yes');
+assert.equal(evaluate(`commandVirtualSimulationView(
+  'SPOT',daemon,spot,'all','TEST_ONLY_A',{}).risk_display`),'1 / 2');
+context.daemon.market='USD_M_FUTURES';
+assert.equal(evaluate(selectedRisk),'Not reported');
+context.state.language='tr';
+assert.equal(evaluate('commandVirtualFlag(undefined)'),'Bildirilmedi');
+console.log('VIRTUAL_SIMULATION_PRESENTATION_PASS');
+"""
+    completed = subprocess.run(  # noqa: S603 - fixed test-only local script.
+        [node, "--input-type=module", "-e", script],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "VIRTUAL_SIMULATION_PRESENTATION_PASS"
+
+
 def test_dashboard_types_are_strictly_checked() -> None:
     completed = subprocess.run(
         [sys.executable, "-B", "scripts/check_dashboard_types.py"],
@@ -548,6 +660,152 @@ console.log('OPPORTUNITY_SYMBOL_FILTER_PASS');
     )
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "OPPORTUNITY_SYMBOL_FILTER_PASS"
+
+
+def test_research_radar_history_empty_results_and_idle_activity_are_explicit() -> None:
+    """Deterministic test-only state, no real network or service operations."""
+    node = shutil.which("node")
+    assert node is not None
+    script = r"""
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {stripTypeScriptTypes} from 'node:module';
+import vm from 'node:vm';
+const context=vm.createContext({state:{language:'en'}});
+vm.runInContext(stripTypeScriptTypes(readFileSync('frontend/src/command_center.ts','utf8')),context);
+const evaluate=code=>vm.runInContext(code,context);
+context.now=Date.parse('2026-10-15T00:00:00Z');
+context.info={state:'COMPLETED',completed_at:'2026-09-14T00:00:00Z',exit_code:0,
+  result:{result_status:'NO_CANDIDATES',item_count:0,blockers:[]}};
+let view=evaluate('commandRadarPresentation(info,now)');
+assert.equal(view.label,'Past run completed');
+assert.equal(view.age,'31 days ago');
+assert.equal(view.result,'No candidates found');
+assert.match(view.note,/Stored result/);
+assert.doesNotMatch(view.empty,/blocker/i);
+context.info={state:'COMPLETED',result:{result_status:'READY'}};
+view=evaluate('commandRadarPresentation(info,now)');
+assert.equal(view.result,'READY');
+assert.equal(view.age,'Not reported');
+assert.match(view.note,/last scan/);
+context.info={state:'COMPLETED_WITH_BLOCKERS',exit_code:1,result:{result_status:'INVALID'}};
+view=evaluate('commandRadarPresentation(info,now)');
+assert.equal(view.label,'Last run blocked');
+assert.match(view.empty,/blockers/);
+context.info={state:'RUNNING'};
+assert.equal(evaluate('commandRadarPresentation(info,now).label'),'Running');
+context.progress={eligible_symbol_count:5,completed_symbol_count:5,pending_symbol_count:0};
+context.source={status:'READY',freshness_status:'CURRENT',producer_status:'READY'};
+view=evaluate('commandResearchActivity(progress,source)');
+assert.equal(view.symbol,'No active symbol');
+assert.match(view.note,/Scan complete/);
+context.source.freshness_status='STALE';
+assert.match(evaluate('commandResearchActivity(progress,source).note'),/not verified/);
+context.progress={active_symbol:'TEST_ONLY_COIN',active_timeframe:'15m'};
+context.source.freshness_status='CURRENT';
+view=evaluate('commandResearchActivity(progress,source)');
+assert.equal(view.symbol,'TEST_ONLY_COIN');assert.equal(view.timeframe,'15m');
+assert.match(view.note,/processing/);
+context.state.language='tr';context.info={state:'COMPLETED',result:{result_status:'NO_CANDIDATES'}};
+assert.equal(evaluate('commandRadarPresentation(info,now).result'),
+  'Aday bulunamad\u0131');
+console.log('RESEARCH_RADAR_PRESENTATION_PASS');
+"""
+    completed = subprocess.run(  # noqa: S603
+        [node, "--input-type=module", "-e", script],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "RESEARCH_RADAR_PRESENTATION_PASS"
+
+
+def test_audit_cards_preserve_evidence_and_route_status() -> None:
+    """Test-only DOM and audit records; no real audits or actions are executed."""
+    node = shutil.which("node")
+    assert node is not None
+    script = r"""
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {stripTypeScriptTypes} from 'node:module';
+import vm from 'node:vm';
+class Element {
+  constructor(tag) {this.tagName=tag;this.children=[];this.dataset={};
+    this.attributes={};this.value='';}
+  set textContent(value) {this.value=value;}
+  get textContent() {
+    return [this.value,...this.children.map(c=>c.textContent)].join(' ');}
+  set innerHTML(value) {throw new Error('UNSAFE_TEST_ONLY_HTML');}
+  append(...nodes) {this.children.push(...nodes);}
+  setAttribute(key,value) {this.attributes[key]=value;}
+}
+let renders=0;
+const context=vm.createContext({state:{language:'en'},render:()=>{renders++;},
+  observedTime:value=>value||'DATA_UNAVAILABLE',
+  document:{createElement:tag=>new Element(tag)}});
+const source=readFileSync('frontend/src/command_center.ts','utf8');
+vm.runInContext(stripTypeScriptTypes(source),context);
+const evaluate=code=>vm.runInContext(code,context);
+const walk=node=>[node,...node.children.flatMap(walk)];
+const action={recommendation:'check:security:appsec',
+  method:'CONTINUOUS_ASSURANCE:SCHEDULED_DAILY_QUICK',
+  method_result:'ACCEPTED',observed_at:'TEST_ONLY_OBSERVATION',evidence_ref:'TEST_ONLY_EVIDENCE'};
+context.observer={status:'RUNNING_WITH_BLOCKERS',loop_id:'TEST_ONLY_LOOP',
+  workflow_pattern:'TEST_ONLY_WORKFLOW',
+  recommendations:[action,...Array.from({length:7},(_,i)=>({...action,recommendation:`TEST_ONLY_ACTION_${i}`}))],
+  movements:[{cycle_index:1,system_status:'RUNNING_WITH_BLOCKERS',observed_at:'TEST_ONLY_OBSERVATION',
+    new_blockers:Array.from({length:80},(_,i)=>`TEST_ONLY_BLOCKER_${i}`),persistent_blockers:[],
+    evidence_ref:'TEST_ONLY_CYCLE_EVIDENCE'}]};
+let panel=evaluate('commandAuditObserverPanel(observer)');
+assert.equal(walk(panel).filter(n=>n.tagName==='table').length,0);
+assert.match(panel.textContent,/Review application security/);
+assert.match(panel.textContent,/Daily quick audit/);
+assert.match(panel.textContent,/Routing accepted; completion not reported/);
+for(const value of ['ACCEPTED','CONTINUOUS_ASSURANCE:SCHEDULED_DAILY_QUICK',
+  'check:security:appsec',
+  'TEST_ONLY_EVIDENCE','TEST_ONLY_BLOCKER_79','TEST_ONLY_CYCLE_EVIDENCE'])assert.ok(panel.textContent.includes(value));
+assert.match(panel.textContent,/New: 80/);
+assert.match(panel.textContent,/Persistent: 0/);
+assert.match(panel.textContent,/Resolved: DATA_UNAVAILABLE/);
+assert.equal(walk(panel).filter(n=>n.className==='cc-audit-action').length,6);
+const next=walk(panel).find(n=>n.dataset.commandKey==='audit-actions-next');
+assert.equal(next.disabled,false);next.onclick();assert.equal(renders,1);
+panel=evaluate('commandAuditObserverPanel(observer)');
+assert.match(panel.textContent,/TEST_ONLY_ACTION_6/);
+assert.equal(walk(panel).filter(n=>n.className==='cc-audit-action').length,2);
+assert.equal(walk(panel).find(n=>n.dataset.commandKey==='audit-actions-next').disabled,true);
+context.observer.recommendations=[{...action,
+  recommendation:'<img src=x onerror=TEST_ONLY>',
+  method:'TEST_ONLY_UNKNOWN_METHOD',method_result:'FAILED',evidence_ref:'TEST_ONLY_'+'x'.repeat(1000)}];
+panel=evaluate('commandAuditObserverPanel(observer)');
+assert.match(panel.textContent,/<img src=x onerror=TEST_ONLY>/);
+assert.match(panel.textContent,/TEST_ONLY_UNKNOWN_METHOD/);
+assert.match(panel.textContent,/FAILED/);
+assert.equal(evaluate('commandAuditPage'),0);
+assert.equal(walk(panel).filter(n=>n.tagName==='img').length,0);
+context.state.language='tr';context.observer.recommendations=[action];
+panel=evaluate('commandAuditObserverPanel(observer)');
+assert.match(panel.textContent,/Yönlendirmeye kabul edildi/);
+assert.match(panel.textContent,/tamamlanma bildirilmedi/);
+assert.equal(walk(panel).find(n=>n.dataset.commandKey==='audit-actions-next').disabled,true);
+context.observer={};panel=evaluate('commandAuditObserverPanel(observer)');
+assert.match(panel.textContent,/DATA_UNAVAILABLE/);
+assert.equal(walk(panel).filter(n=>n.className==='cc-audit-action').length,0);
+console.log('AUDIT_RECOMMENDATIONS_PRESENTATION_PASS');
+"""
+    completed = subprocess.run(  # noqa: S603
+        [node, "--input-type=module", "-e", script],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "AUDIT_RECOMMENDATIONS_PRESENTATION_PASS"
 
 
 def test_localized_and_missing_row_values_remain_dom_nodes() -> None:

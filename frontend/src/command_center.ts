@@ -6,6 +6,64 @@ interface SourceMeta {
   file?: string;
   producer_status?: string | null;
 }
+interface RadarRun {
+  state?: string; completed_at?: string; started_at?: string; exit_code?: number;
+  result?: {result_status?: string; item_count?: number; blockers?: string[]};
+}
+function commandRadarPresentation(info: RadarRun, now = Date.now()) {
+  const running = info.state === 'RUNNING';
+  const notRun = !info.state || info.state === 'NOT_RUN';
+  const failed = !running && (info.state === 'COMPLETED_WITH_BLOCKERS'
+    || (typeof info.exit_code === 'number' && info.exit_code !== 0));
+  const completed = Date.parse(info.completed_at || '');
+  const age = Number.isFinite(completed) && completed <= now ? now - completed : null;
+  const minutes = age === null ? null : Math.floor(age / 60000);
+  const ageText = minutes === null ? ccLabel('Not reported', 'Bildirilmedi')
+    : minutes < 60 ? ccLabel(`${minutes} min ago`, `${minutes} dakika önce`)
+    : minutes < 1440 ? ccLabel(`${Math.floor(minutes / 60)} h ago`, `${Math.floor(minutes / 60)} saat önce`)
+    : ccLabel(`${Math.floor(minutes / 1440)} days ago`, `${Math.floor(minutes / 1440)} gün önce`);
+  const status = info.result?.result_status || 'UNKNOWN';
+  const empty = status === 'NO_CANDIDATES' && !failed;
+  return {
+    label: running ? ccLabel('Running', 'Çalışıyor') : notRun
+      ? ccLabel('Not run', 'Çalıştırılmadı') : failed
+        ? ccLabel('Last run blocked', 'Son tarama engellendi')
+        : info.state === 'COMPLETED' ? ccLabel('Past run completed', 'Geçmiş tarama tamamlandı')
+        : ccLabel('Run status unavailable', 'Tarama durumu mevcut değil'),
+    result: empty ? ccLabel('No candidates found', 'Aday bulunamadı') : status,
+    age: ageText,
+    note: running ? ccLabel('A new scan is running.', 'Yeni tarama sürüyor.') : notRun
+      ? ccLabel('Select Refresh to start a bounded research scan.', 'Sınırlı araştırma taraması için Yenile seçin.')
+      : ccLabel('Stored result from the last scan. Select Refresh for a new scan.',
+        'Son taramanın kayıtlı sonucu. Yeni tarama için Yenile seçin.'),
+    empty: empty ? ccLabel('The scan completed without candidates. This is a research result.',
+      'Tarama aday bulmadan tamamlandı. Bu bir araştırma sonucudur.')
+      : ccLabel('No findings are available. Review the result and reported blockers.',
+        'Bulgu mevcut değil. Sonucu ve bildirilen engelleri inceleyin.'),
+  };
+}
+interface ResearchProgress {
+  active_symbol?: string; active_timeframe?: string;
+  completed_symbol_count?: number; eligible_symbol_count?: number; pending_symbol_count?: number;
+}
+function commandResearchActivity(research: ResearchProgress, source: SourceMeta = {}) {
+  const current = source.freshness_status === 'CURRENT'
+    && source.status === 'READY' && source.producer_status === 'READY';
+  const idle = current && !research.active_symbol && research.pending_symbol_count === 0
+    && typeof research.eligible_symbol_count === 'number' && research.eligible_symbol_count > 0
+    && research.completed_symbol_count === research.eligible_symbol_count;
+  return {
+    symbol: research.active_symbol || ccLabel('No active symbol', 'Aktif koin yok'),
+    timeframe: research.active_timeframe || ccLabel('No active timeframe', 'Aktif zaman dilimi yok'),
+    note: !current ? ccLabel('Research activity is not verified as current. Inspect source status.',
+      'Araştırma faaliyeti güncel olarak doğrulanmadı. Kaynak durumunu inceleyin.') : idle
+      ? ccLabel('Scan complete; no symbol is being processed.', 'Tarama tamamlandı; şu anda işlenen koin yok.')
+      : research.active_symbol ? ccLabel('Research is processing the reported symbol.',
+        'Araştırma bildirilen koini işliyor.')
+      : ccLabel('No active work is reported. Review queued symbols and source status.',
+        'Aktif çalışma bildirilmedi. Bekleyen koinleri ve kaynak durumunu inceleyin.'),
+  };
+}
 interface BackgroundObservation {
   market?: string | null;
   symbol?: string | null;
@@ -22,11 +80,123 @@ function commandVirtualMarketState(market: string): BackgroundObservation {
   const projection = market === 'USD_M_FUTURES'
     ? daemon.dashboard_futures_simulation_projection
     : daemon.dashboard_simulation_projection;
+  if (daemon.market === market) return {...daemon, dashboard_simulation_projection: projection};
+  const rows = commandVirtualObservations(projection);
+  const latest = rows.slice().sort((a, b) =>
+    String(b.observed_at || '').localeCompare(String(a.observed_at || '')))[0];
+  return {...latest, market, dashboard_simulation_projection: projection};
+}
+
+interface VirtualObservation extends BackgroundObservation {
+  state?: string;
+  status?: string;
+  observed_at?: string;
+  completed_at?: string;
+  scan_lane?: string;
+  candidate_count?: number;
+  virtual_runtime_evaluated?: boolean;
+  virtual_simulation_outcome?: string;
+  virtual_order_ready?: boolean;
+}
+function commandVirtualObservation(value: unknown): VirtualObservation {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const raw = value as Record<string, unknown>;
+  const result: VirtualObservation = {};
+  for (const key of ['symbol', 'market', 'state', 'status', 'observed_at',
+    'completed_at', 'last_success_at', 'scan_lane', 'virtual_decision_status', 'virtual_simulation_outcome'] as const) {
+    if (typeof raw[key] === 'string') result[key] = raw[key];
+  }
+  for (const key of ['virtual_runtime_evaluated', 'risk_approved', 'virtual_order_ready'] as const) {
+    if (typeof raw[key] === 'boolean') result[key] = raw[key];
+  }
+  if (typeof raw.candidate_count === 'number' && Number.isSafeInteger(raw.candidate_count)
+    && raw.candidate_count >= 0) result.candidate_count = raw.candidate_count;
+  result.blockers = Array.isArray(raw.blockers)
+    ? raw.blockers.filter((item): item is string => typeof item === 'string') : [];
+  return result;
+}
+function commandVirtualObservations(value: unknown): VirtualObservation[] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+  const rows = (value as Record<string, unknown>).symbol_observations;
+  return Array.isArray(rows) ? rows.map(commandVirtualObservation)
+    .filter(row => typeof row.symbol === 'string' && row.symbol.trim().length > 0) : [];
+}
+function commandVirtualFlag(value: unknown): string {
+  return value === true ? ccLabel('Yes', 'Evet') : value === false
+    ? ccLabel('No', 'Hayır') : ccLabel('Not reported', 'Bildirilmedi');
+}
+function commandVirtualOrderLabel(value: unknown): string {
+  return value === true ? ccLabel('Ready', 'Hazır') : value === false
+    ? ccLabel('Not ready', 'Hazır değil') : ccLabel('Not reported', 'Bildirilmedi');
+}
+function commandVirtualFlagCount(rows: VirtualObservation[],
+  key: 'virtual_runtime_evaluated' | 'risk_approved' | 'virtual_order_ready'): string {
+  const reported = rows.filter(row => typeof row[key] === 'boolean');
+  if (!reported.length) return ccLabel('Not reported', 'Bildirilmedi');
+  const yes = reported.filter(row => row[key] === true).length;
+  const unknown = rows.length - reported.length;
+  return `${yes} / ${rows.length}` + (unknown
+    ? ccLabel(` · ${unknown} not reported`, ` · ${unknown} bildirilmedi`) : '');
+}
+interface VirtualSimulationView extends VirtualObservation {
+  runtime_display: string; risk_display: string; order_display: string; note: string;
+  blocker_records: VirtualObservation[];
+}
+function commandVirtualSimulationView(market: string, daemon: unknown, projection: unknown,
+  scope: string, symbol: string, manual: unknown): VirtualSimulationView {
+  const background = commandVirtualObservation(daemon);
+  // Merge only the exact symbol, market and observation time; never borrow approvals.
+  const rows = commandVirtualObservations(projection).map(row => {
+    const sameObservation = background.symbol === row.symbol && background.market === market
+      && Date.parse(background.last_success_at || background.observed_at || '') === Date.parse(row.observed_at || '');
+    return sameObservation ? {...background, ...row} : row;
+  });
+  if (scope === 'all') {
+    const raw = projection && typeof projection === 'object'
+      ? projection as Record<string, unknown> : {};
+    const completeCounts = rows.length > 0 && rows.every(row => row.candidate_count !== undefined);
+    const total = completeCounts ? rows.reduce((sum, row) => sum + row.candidate_count!, 0) : undefined;
+    return {
+      state: typeof raw.status === 'string' ? raw.status : 'DATA_UNAVAILABLE',
+      virtual_decision_status: ccLabel('Per-coin decisions — see table', 'Koin bazlı kararlar — tabloya bakın'),
+      candidate_count: total !== undefined && Number.isSafeInteger(total) ? total : undefined,
+      runtime_display: commandVirtualFlagCount(rows, 'virtual_runtime_evaluated'),
+      risk_display: commandVirtualFlagCount(rows, 'risk_approved'),
+      order_display: commandVirtualFlagCount(rows, 'virtual_order_ready'),
+      blockers: [...new Set(rows.flatMap(row => row.blockers || []))],
+      blocker_records: rows,
+      note: ccLabel('Summary of the latest observation for each coin. Blockers belong to individual coin records; this is not a shared trade decision.',
+        'Her koinin son gözleminin özeti. Engeller ilgili koin kayıtlarına aittir; bu ortak bir işlem kararı değildir.'),
+    };
+  }
+  const requested = commandVirtualObservation(manual);
+  const selected = rows.find(row => row.symbol === symbol);
+  const observation = selected || (requested.symbol === symbol && requested.market === market ? requested : {});
+  const noReadyCandidate = observation.blockers?.includes('NO_READY_CANDIDATE') === true;
   return {
-    ...daemon,
-    symbol: daemon.market === market ? daemon.symbol : null,
-    dashboard_simulation_projection: projection,
+    ...observation,
+    state: observation.virtual_simulation_outcome || observation.state || 'DATA_UNAVAILABLE',
+    runtime_display: commandVirtualFlag(observation.virtual_runtime_evaluated),
+    risk_display: commandVirtualFlag(observation.risk_approved),
+    order_display: commandVirtualFlag(observation.virtual_order_ready),
+    blocker_records: [observation],
+    note: noReadyCandidate
+      ? ccLabel('Analysis found no ready trade candidate. Virtual execution waits for a complete candidate, risk assessment and the existing validation/governance gates.',
+        'Analizde işleme hazır aday bulunmadı. Sanal işlem; tam aday, risk değerlendirmesi ve mevcut doğrulama/yönetişim kapılarını bekliyor.')
+      : ccLabel('Only reported values for this coin are shown. Missing evidence is not a negative verdict.',
+        'Yalnızca bu koin için bildirilen değerler gösterilir. Eksik kanıt, olumsuz değerlendirme sonucu değildir.'),
   };
+}
+function commandVirtualSimulationBlockers(view: VirtualSimulationView): HTMLElement {
+  const container = ccNode('div');
+  for (const record of view.blocker_records) {
+    if (!record.blockers?.length) continue;
+    const detail = ccNode('details');
+    detail.append(ccNode('summary', `${record.symbol || ccLabel('Selected coin', 'Seçili koin')} · ${record.blockers.length} ${ccLabel('reported blockers', 'bildirilen engel')}`));
+    for (const blocker of record.blockers) detail.append(ccNode('div', blocker, 'aw-status'));
+    container.append(detail);
+  }
+  return container;
 }
 interface HealthFinding {
   finding_id?: string;
@@ -248,6 +418,150 @@ function ccRatioPercent(value: unknown): string {
 }
 function ccReportedCount(value: unknown): string {
   return Array.isArray(value) ? String(value.length) : 'DATA_UNAVAILABLE';
+}
+interface AuditRecommendation {
+  recommendation?: string | null; method?: string | null; method_result?: string | null;
+  observed_at?: string | null; evidence_ref?: string | null;
+}
+interface AuditMovement {
+  cycle_index?: number; system_status?: string | null; observed_at?: string | null;
+  new_blockers?: string[]; persistent_blockers?: string[]; resolved_blockers?: string[];
+  evidence_ref?: string | null;
+}
+interface AuditObserver {
+  status?: string; loop_id?: string; workflow_pattern?: string;
+  movements?: AuditMovement[]; recommendations?: AuditRecommendation[];
+}
+let commandAuditPage = 0;
+function commandAuditTrigger(value: string): string {
+  const labels: Record<string, [string, string]> = {
+    SCHEDULED_DAILY_QUICK: ['Daily quick audit', 'Günlük hızlı denetim'],
+    SCHEDULED_WEEKLY_DEEP: ['Weekly deep audit', 'Haftalık derin denetim'],
+    SYSTEM_BLOCKER: ['Reported system blocker', 'Bildirilen sistem engeli'],
+    DECISION_AUDIT: ['Decision audit', 'Karar denetimi'],
+    PARAMETER_PROMOTION: ['Parameter promotion review', 'Parametre terfi incelemesi'],
+    PERFORMANCE_DRIFT: ['Performance drift', 'Performans sapması'],
+    SCHEDULED_AUDIT: ['Scheduled audit', 'Zamanlanmış denetim'],
+  };
+  const label = labels[value]; return label ? ccLabel(...label) : value;
+}
+function commandAuditAction(value: string): string {
+  const labels: Record<string, [string, string]> = {
+    appsec: ['Review application security', 'Uygulama güvenliğini incele'],
+    vulnerability: ['Review vulnerabilities', 'Güvenlik açıklarını incele'],
+    dlp: ['Review data loss prevention', 'Veri kaybı önleme kontrollerini incele'],
+    audit: ['Review security audit evidence', 'Güvenlik denetimi kanıtlarını incele'],
+    recovery: ['Review recovery controls', 'Kurtarma kontrollerini incele'],
+    privacy: ['Review privacy controls', 'Gizlilik kontrollerini incele'],
+    access: ['Review access controls', 'Erişim kontrollerini incele'],
+    secrets: ['Review credential protection', 'Kimlik bilgisi korumasını incele'],
+    'security-daily-quick': ['Run the daily security audit', 'Günlük güvenlik denetimini çalıştır'],
+    'security-core-audit': ['Run the core security audit', 'Temel güvenlik denetimini çalıştır'],
+    'privacy-boundary': ['Review the privacy boundary', 'Gizlilik sınırını incele'],
+    'dge-review': ['Review decision governance', 'Karar yönetişimini incele'],
+    'validate-research': ['Validate research evidence', 'Araştırma kanıtlarını doğrula'],
+    'lean-governance': ['Review process governance', 'Süreç yönetişimini incele'],
+  };
+  const key = value.startsWith('check:security:') ? value.slice(15)
+    : value.startsWith('run:') ? value.slice(4) : '';
+  if (labels[key]) return ccLabel(...labels[key]);
+  if (value.startsWith('route:')) return ccLabel('Route for review: ', 'İncelemeye yönlendir: ')
+    + commandAuditTrigger(value.slice(6).toUpperCase());
+  if (value.startsWith('resolve:')) {
+    const code = value.split(':').slice(2).join(':');
+    const blockers: Record<string, [string, string]> = {
+      RUNTIME_DEGRADED: ['Investigate degraded runtime health', 'Bozulan çalışma sağlığını incele'],
+      SELL_EXCEEDS_RECONSTRUCTED_INVENTORY: ['Reconcile sell quantities with inventory evidence', 'Satış miktarlarını envanter kanıtıyla uzlaştır'],
+      WALLET_TRADE_HISTORY_QUANTITY_MISMATCH: ['Reconcile wallet and trade history quantities', 'Cüzdan ve işlem geçmişi miktarlarını uzlaştır'],
+      TRADE_HISTORY_UNAVAILABLE: ['Restore trade history evidence', 'İşlem geçmişi kanıtını geri yükle'],
+    };
+    return blockers[code] ? ccLabel(...blockers[code])
+      : ccLabel('Investigate reported blocker: ', 'Bildirilen engeli incele: ') + code;
+  }
+  return ccValue(value);
+}
+function commandAuditFields(values: [string, string][]): HTMLElement {
+  const list = ccNode('dl', '', 'cc-audit-meta');
+  for (const [name, value] of values) list.append(ccNode('dt', name), ccNode('dd', value));
+  return list;
+}
+function commandAuditBlockers(label: string, values: string[] | undefined, id: string): HTMLElement {
+  const detail = ccNode('details', '', 'cc-audit-blockers'); detail.dataset.detailId = id;
+  const codes = Array.isArray(values) ? values.filter(value => typeof value === 'string') : undefined;
+  detail.append(ccNode('summary', `${label} · ${codes ? codes.length : ccLabel('Not reported', 'Bildirilmedi')}`));
+  if (codes?.length) {
+    const list = ccNode('ul'); for (const code of codes) list.append(ccNode('li', code));
+    detail.append(list);
+  } else detail.append(ccNode('p', codes ? ccLabel('None reported in this cycle.', 'Bu döngüde bildirilmedi.')
+    : ccLabel('Source did not report this field.', 'Kaynak bu alanı bildirmedi.')));
+  return detail;
+}
+function commandAuditObserverPanel(observer: AuditObserver): HTMLElement {
+  const panel = ccNode('article', '', 'aw-panel cc-audit');
+  panel.dataset.panelKey = 'Observed movements and recommendations';
+  panel.append(ccNode('h2', ccLabel('Observed movements and recommendations', 'Gözlenen hareketler ve öneriler')));
+  const recommendations = Array.isArray(observer.recommendations) ? observer.recommendations.filter(item => item && typeof item === 'object') : [];
+  const movements = Array.isArray(observer.movements) ? observer.movements.filter(item => item && typeof item === 'object') : [];
+  panel.append(commandAuditFields([
+    [ccLabel('Observer method', 'Gözlemci yöntemi'), ccLabel('Auto-Audit Loop + Continuous Assurance', 'Otomatik Denetim Döngüsü + Sürekli Güvence')],
+    [ccLabel('Reported status', 'Bildirilen durum'), ccValue(observer.status)],
+    [ccLabel('Audit loop', 'Denetim döngüsü'), ccValue(observer.loop_id)],
+    [ccLabel('Workflow', 'İş akışı'), ccValue(observer.workflow_pattern)],
+  ]));
+  panel.append(ccNode('p', ccLabel('Actions below come from the canonical audit record. Routing acceptance requires separate completion evidence.',
+    'Aşağıdaki eylemler kanonik denetim kaydından gelir. Yönlendirmeye kabul için tamamlanma kanıtı ayrıca gerekir.'), 'aw-source'));
+  const size = 6, pages = Math.max(1, Math.ceil(recommendations.length / size));
+  commandAuditPage = Math.max(0, Math.min(commandAuditPage, pages - 1));
+  const controls = ccNode('div', '', 'cc-actions');
+  const changePage = (delta: number) => { commandAuditPage += delta; render(); };
+  const previous = ccNode('button', ccLabel('Previous', 'Önceki'), 'aw-button'); previous.type = 'button';
+  previous.dataset.commandKey = 'audit-actions-previous';
+  previous.disabled = commandAuditPage === 0; previous.onclick = () => changePage(-1);
+  const next = ccNode('button', ccLabel('Next', 'Sonraki'), 'aw-button'); next.type = 'button';
+  next.dataset.commandKey = 'audit-actions-next';
+  next.disabled = commandAuditPage === pages - 1; next.onclick = () => changePage(1);
+  const pageStatus = ccNode('span', `${ccLabel('Recorded actions', 'Kayıtlı eylemler')}: ${ccReportedCount(observer.recommendations)} · ${commandAuditPage + 1} / ${pages}`);
+  pageStatus.setAttribute('role', 'status'); pageStatus.setAttribute('aria-live', 'polite');
+  controls.append(previous, pageStatus, next);
+  panel.append(controls);
+  const grid = ccNode('div', '', 'cc-audit-actions');
+  for (const item of recommendations.slice(commandAuditPage * size, (commandAuditPage + 1) * size)) {
+    const action = ccValue(item.recommendation), method = ccValue(item.method), result = ccValue(item.method_result);
+    const card = ccNode('section', '', 'cc-audit-action');
+    card.append(ccNode('h3', commandAuditAction(action)));
+    const routing = method.startsWith('CONTINUOUS_ASSURANCE:');
+    const methodLabel = routing ? ccLabel('Continuous Assurance · ', 'Sürekli Güvence · ')
+      + commandAuditTrigger(method.slice(21)) : method === 'AUTO_AUDIT_LOOP'
+      ? ccLabel('Automatic audit loop', 'Otomatik denetim döngüsü') : method;
+    card.append(commandAuditFields([
+      [ccLabel('Method', 'Yöntem'), methodLabel],
+      [ccLabel('Observed', 'Gözlem zamanı'), observedTime(item.observed_at)],
+      [ccLabel('Method result', 'Yöntem sonucu'), routing && result === 'ACCEPTED'
+        ? ccLabel('Routing accepted; completion not reported', 'Yönlendirmeye kabul edildi; tamamlanma bildirilmedi') : result],
+    ]));
+    const detail = ccNode('details'); detail.dataset.detailId = `audit-action:${action}:${method}:${item.observed_at}`;
+    detail.append(ccNode('summary', ccLabel('Action and evidence references', 'Eylem ve kanıt referansları')),
+      commandAuditFields([[ccLabel('Action code', 'Eylem kodu'), action],
+        [ccLabel('Method code', 'Yöntem kodu'), method], [ccLabel('Result code', 'Sonuç kodu'), result],
+        [ccLabel('Evidence', 'Kanıt'), ccValue(item.evidence_ref)]]));
+    card.append(detail); grid.append(card);
+  }
+  if (!recommendations.length) grid.append(ccNode('p', ccLabel('No recorded action is available.', 'Kayıtlı eylem mevcut değil.')));
+  panel.append(grid, ccNode('h3', ccLabel('Blocker movements by cycle', 'Döngüye göre engel hareketleri')));
+  for (const movement of movements) {
+    const id = `audit-cycle:${observer.loop_id}:${movement.cycle_index}:${movement.observed_at}`;
+    const detail = ccNode('details', '', 'cc-audit-cycle'); detail.dataset.detailId = id;
+    const summary = ccNode('summary', `${ccLabel('Cycle', 'Döngü')} ${movement.cycle_index ?? '—'} · ${ccValue(movement.system_status)} · ${observedTime(movement.observed_at)}`);
+    summary.append(ccNode('span', `${ccLabel('New', 'Yeni')}: ${ccReportedCount(movement.new_blockers)} · ${ccLabel('Persistent', 'Kalıcı')}: ${ccReportedCount(movement.persistent_blockers)} · ${ccLabel('Resolved', 'Çözülen')}: ${ccReportedCount(movement.resolved_blockers)}`, 'cc-audit-counts'));
+    detail.append(summary);
+    detail.append(commandAuditBlockers(ccLabel('New blockers', 'Yeni engeller'), movement.new_blockers, id + ':new'),
+      commandAuditBlockers(ccLabel('Persistent blockers', 'Kalıcı engeller'), movement.persistent_blockers, id + ':persistent'),
+      commandAuditBlockers(ccLabel('Resolved blockers', 'Çözülen engeller'), movement.resolved_blockers, id + ':resolved'),
+      commandAuditFields([[ccLabel('Evidence', 'Kanıt'), ccValue(movement.evidence_ref)]]));
+    panel.append(detail);
+  }
+  if (!movements.length) panel.append(ccNode('p', ccLabel('No cycle movement is reported.', 'Döngü hareketi bildirilmedi.')));
+  return panel;
 }
 function commandOpportunityVisible(row: {measurable_plan?: boolean} | undefined): boolean {
   return row?.measurable_plan === true;
