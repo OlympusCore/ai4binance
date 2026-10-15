@@ -324,16 +324,16 @@ def prospective_document_approvals(
         )
         if selected is None and not context_path.is_file():
             return frozenset(), None
-        if (
-            isinstance(marker, dict)
-            and marker.get("contract_version") == UPDATE_MANIFEST
-        ):
+        if not isinstance(marker, dict):
+            raise ValueError("DOCUMENT_GRANT_NOT_ADOPTED")
+        contract_version = marker.get("contract_version")
+        if contract_version == UPDATE_MANIFEST:
             if expected_root != root.resolve():
                 raise ValueError("DOCUMENT_LOCK_AUTHORITY_CONTEXT_ROOT")
             context = review._object(context_path)
             pairs, _ = _verify_update(root, payload, context, now=datetime.now(UTC))
             return pairs, None
-        if not isinstance(marker, dict) or marker.get("contract_version") not in {
+        if contract_version not in {
             MANIFEST_CONTRACT,
             COMPLETED_MANIFEST_CONTRACT,
         }:
@@ -341,7 +341,7 @@ def prospective_document_approvals(
         if expected_root != root.resolve():
             raise ValueError("DOCUMENT_LOCK_AUTHORITY_CONTEXT_ROOT")
         context = review._object(context_path)
-        if (marker["contract_version"] == COMPLETED_MANIFEST_CONTRACT) != (
+        if (contract_version == COMPLETED_MANIFEST_CONTRACT) != (
             context.get("contract_version")
             in {
                 "DocumentLockAuthorityContext/v2",
