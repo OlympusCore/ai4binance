@@ -7,6 +7,7 @@ from hashlib import sha256
 from itertools import pairwise
 from typing import Protocol
 
+from ai4binance.data.timeframes import timeframe_duration
 from ai4binance.domain import ValidationStatus
 from ai4binance.research.backtesting.engine import BacktestEngine, SignalProvider
 from ai4binance.research.backtesting.futures_engine import (
@@ -760,11 +761,17 @@ class FuturesWalkForwardValidator:
         candles = dataset.candles[start:end]
         first_timestamp = candles[0].timestamp
         last_timestamp = candles[-1].timestamp
+        window_end = last_timestamp + timeframe_duration(dataset.timeframe)
         series = {
             metric: tuple(
                 point
                 for point in points
-                if first_timestamp <= point.timestamp <= last_timestamp
+                if first_timestamp <= point.timestamp
+                and (
+                    point.timestamp < window_end
+                    if metric is DerivativesMetric.FUNDING_RATE
+                    else point.timestamp <= last_timestamp
+                )
             )
             for metric, points in dataset.derivatives.series.items()
         }

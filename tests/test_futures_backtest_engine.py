@@ -141,6 +141,38 @@ def _one_signal_provider(intent: FuturesBacktestIntent) -> FuturesSignalProvider
     return provider
 
 
+@pytest.mark.parametrize("direction", [TradeDirection.LONG, TradeDirection.SHORT])
+def test_end_of_data_reconciles_futures_cash_and_flat_position(
+    direction: TradeDirection,
+) -> None:
+    candles = tuple(_candle(i, high="102", low="98", close="100") for i in range(3))
+    long = direction is TradeDirection.LONG
+    result = FuturesBacktestEngine().run(
+        dataset=_dataset(candles),
+        signal_provider=_one_signal_provider(
+            _intent(
+                candles[0].timestamp,
+                direction,
+                stop_loss="90" if long else "110",
+                take_profit="120" if long else "80",
+            )
+        ),
+    )
+
+    assert len(result.trades) == 1
+    assert result.trades[0].exit_reason is BacktestExitReason.END_OF_DATA
+    assert result.trades[0].funding_cost_usdt != 0
+    final = result.equity_curve[-1]
+    assert final.position_quantity == 0
+    assert (
+        final.equity_usdt
+        == result.assumptions.initial_cash_usdt + result.trades[0].net_pnl_usdt
+    )
+    assert final.timestamp == candles[-1].timestamp
+    assert len(result.equity_curve) == len(candles)
+    assert dict(result.funnel_telemetry.stage_counts)["CLOSED"] == 1
+
+
 def test_futures_config_rejects_unsafe_margin_assumptions() -> None:
     with pytest.raises(ValueError, match="between 1 and 125"):
         FuturesBacktestConfig(leverage=126)

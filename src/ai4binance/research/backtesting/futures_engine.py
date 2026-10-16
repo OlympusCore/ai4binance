@@ -481,6 +481,7 @@ class FuturesBacktestEngine:
             trades.append(trade)
             stage_counts[VirtualMarketFunnelStage.CLOSED.value] += 1
             available_cash += trade.net_pnl_usdt
+            equity_curve[-1] = self._equity_point(last, available_cash, None)
             audit.append(
                 self._event(
                     decision.reason.value,

@@ -4,6 +4,8 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+import pytest
+
 from ai4binance.domain import ValidationStatus
 from ai4binance.research.backtesting import (
     BacktestConfig,
@@ -103,6 +105,44 @@ def test_multiple_targets_create_partial_then_complete_exit() -> None:
     assert any(
         event["event_type"] == "PARTIAL_TAKE_PROFIT" for event in result.audit_events
     )
+
+
+@pytest.mark.parametrize("partial_exit", [False, True])
+def test_end_of_data_reconciles_cash_position_and_closed_count(
+    partial_exit: bool,
+) -> None:
+    candles = (
+        candle(0, high="101"),
+        candle(
+            1,
+            high="106" if partial_exit else "101",
+            close="104" if partial_exit else "100",
+        ),
+    )
+    result = BacktestEngine().run(
+        symbol="HOTUSDT",
+        timeframe="1h",
+        candles=candles,
+        signal_provider=lambda history: (
+            staged_intent(history[-1].timestamp) if len(history) == 1 else None
+        ),
+    )
+
+    assert len(result.trades) == 1
+    assert bool(result.trades[0].staged_exits) is partial_exit
+    final = result.equity_curve[-1]
+    expected_cash = result.assumptions.initial_cash_usdt + result.trades[0].net_pnl_usdt
+    assert final.timestamp == candles[-1].timestamp
+    assert final.position_quantity == 0
+    assert final.equity_usdt == expected_cash
+    assert len(result.equity_curve) == len(candles)
+    assert dict(result.funnel_telemetry.stage_counts)["CLOSED"] == 1
+    if not partial_exit:
+        expected_drawdown = float(
+            (result.assumptions.initial_cash_usdt - expected_cash)
+            / result.assumptions.initial_cash_usdt
+        )
+        assert result.metrics.max_drawdown == pytest.approx(expected_drawdown)
 
 
 def test_mark_to_market_drawdown_captures_recovered_intratrade_loss() -> None:

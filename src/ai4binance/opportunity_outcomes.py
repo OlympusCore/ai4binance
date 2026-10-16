@@ -8,15 +8,18 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
+from functools import partial
 from hashlib import sha256
+from itertools import pairwise
 
 from ai4binance.opportunity_intelligence import TIMEFRAME_DURATIONS
 from ai4binance.schemas import OHLCVCandle
 
 ZERO = Decimal("0")
+OUTCOME_EVALUATION_VERSION = "opportunity-outcome:v2"
 
 
 class OpportunityOutcomeStatus(StrEnum):
@@ -81,7 +84,7 @@ class OpportunityOutcomeEvaluation:
     final_outcome_class: OpportunityOutcomeClass
     outcome_reason_codes: tuple[str, ...]
     dataset_id: str
-    evaluation_version: str = "opportunity-outcome:v1"
+    evaluation_version: str = OUTCOME_EVALUATION_VERSION
     status: OpportunityOutcomeStatus = OpportunityOutcomeStatus.EVALUATED
     execution_allowed: bool = False
     live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
@@ -192,13 +195,9 @@ def evaluate_opportunity_outcome(
 ) -> OpportunityOutcomeEvaluation:
     """Evaluate only candles that became available strictly after observation."""
     _require_aware(observed_at, "opportunity observation time")
-    if direction not in {"BULLISH", "BEARISH"}:
-        raise ValueError("opportunity outcome direction is invalid")
-    if timeframe not in TIMEFRAME_DURATIONS:
-        raise ValueError("opportunity outcome timeframe is unsupported")
-    if evaluation_horizon < 1 or reference_price <= ZERO:
-        raise ValueError("opportunity outcome inputs are invalid")
-    duration = TIMEFRAME_DURATIONS[timeframe]
+    duration = _validate_outcome_inputs(
+        direction, timeframe, evaluation_horizon, reference_price
+    )
     eligible = tuple(
         candle
         for candle in future_candles
@@ -206,27 +205,31 @@ def evaluate_opportunity_outcome(
     )
     selected = eligible[:evaluation_horizon]
     outcome_id = _outcome_id(opportunity_id, dataset_id, evaluation_horizon)
+    unavailable = partial(
+        _unresolved_outcome,
+        opportunity_id=opportunity_id,
+        dataset_id=dataset_id,
+        evaluation_horizon=evaluation_horizon,
+        observed_at=observed_at,
+        reference_price=reference_price,
+    )
+    if any(b.timestamp <= a.timestamp for a, b in pairwise(selected)):
+        return unavailable(
+            status=OpportunityOutcomeStatus.NOT_EVALUABLE,
+            reason="OUTCOME_TIMEFRAME_SEQUENCE_INVALID",
+        )
+    if selected and (
+        selected[0].timestamp - observed_at >= duration
+        or any(b.timestamp - a.timestamp != duration for a, b in pairwise(selected))
+    ):
+        return unavailable(
+            status=OpportunityOutcomeStatus.NOT_EVALUABLE,
+            reason="OUTCOME_DATA_GAP",
+        )
     if len(selected) < evaluation_horizon:
-        return OpportunityOutcomeEvaluation(
-            outcome_id=outcome_id,
-            opportunity_id=opportunity_id,
-            evaluation_horizon=evaluation_horizon,
-            evaluation_started_at=observed_at,
-            evaluation_completed_at=None,
-            reference_price=reference_price,
-            maximum_favorable_excursion=None,
-            maximum_adverse_excursion=None,
-            time_to_mfe_bars=None,
-            time_to_mae_bars=None,
-            invalidation_hit=None,
-            target_reference_hit=None,
-            target_before_invalidation=None,
-            invalidation_before_target=None,
-            potential_r_multiple=None,
-            final_outcome_class=OpportunityOutcomeClass.UNRESOLVED,
-            outcome_reason_codes=("OUTCOME_HORIZON_INCOMPLETE",),
-            dataset_id=dataset_id,
+        return unavailable(
             status=OpportunityOutcomeStatus.PENDING_HORIZON,
+            reason="OUTCOME_HORIZON_INCOMPLETE",
         )
     bullish = direction == "BULLISH"
     favorable = tuple(
@@ -253,6 +256,11 @@ def evaluate_opportunity_outcome(
         bullish=bullish,
         favorable=True,
     )
+    if target_index is not None and target_index == invalidation_index:
+        return unavailable(
+            status=OpportunityOutcomeStatus.NOT_EVALUABLE,
+            reason="OUTCOME_INTRABAR_ORDER_UNRESOLVED",
+        )
     invalidation_hit = invalidation_index is not None if invalidation_price else None
     target_hit = target_index is not None if target_price else None
     target_first = (
@@ -394,8 +402,53 @@ def _first_level_hit(
     return None
 
 
+def _validate_outcome_inputs(
+    direction: str, timeframe: str, horizon: int, reference_price: Decimal
+) -> timedelta:
+    if direction not in {"BULLISH", "BEARISH"}:
+        raise ValueError("opportunity outcome direction is invalid")
+    if timeframe not in TIMEFRAME_DURATIONS:
+        raise ValueError("opportunity outcome timeframe is unsupported")
+    if horizon < 1 or reference_price <= ZERO:
+        raise ValueError("opportunity outcome inputs are invalid")
+    return TIMEFRAME_DURATIONS[timeframe]
+
+
+def _unresolved_outcome(
+    *,
+    opportunity_id: str,
+    dataset_id: str,
+    evaluation_horizon: int,
+    observed_at: datetime,
+    reference_price: Decimal,
+    status: OpportunityOutcomeStatus,
+    reason: str,
+) -> OpportunityOutcomeEvaluation:
+    return OpportunityOutcomeEvaluation(
+        outcome_id=_outcome_id(opportunity_id, dataset_id, evaluation_horizon),
+        opportunity_id=opportunity_id,
+        evaluation_horizon=evaluation_horizon,
+        evaluation_started_at=observed_at,
+        evaluation_completed_at=None,
+        reference_price=reference_price,
+        maximum_favorable_excursion=None,
+        maximum_adverse_excursion=None,
+        time_to_mfe_bars=None,
+        time_to_mae_bars=None,
+        invalidation_hit=None,
+        target_reference_hit=None,
+        target_before_invalidation=None,
+        invalidation_before_target=None,
+        potential_r_multiple=None,
+        final_outcome_class=OpportunityOutcomeClass.UNRESOLVED,
+        outcome_reason_codes=(reason,),
+        dataset_id=dataset_id,
+        status=status,
+    )
+
+
 def _outcome_id(opportunity_id: str, dataset_id: str, horizon: int) -> str:
-    payload = f"{opportunity_id}|{dataset_id}|{horizon}"
+    payload = f"{opportunity_id}|{dataset_id}|{horizon}|{OUTCOME_EVALUATION_VERSION}"
     return f"outcome:{sha256(payload.encode('utf-8')).hexdigest()[:20]}"
 
 
@@ -405,6 +458,7 @@ def _require_aware(value: datetime, name: str) -> None:
 
 
 __all__ = (
+    "OUTCOME_EVALUATION_VERSION",
     "MissedOpportunityAssessment",
     "MissedOpportunityCause",
     "MissedOpportunityReview",

@@ -40,9 +40,10 @@ from ai4binance.exchange.client import BinancePublicClient
 from ai4binance.exchange.models import MarketKline
 from ai4binance.integrations.research_market_universe import manual_selection_digest
 from ai4binance.opportunity_intelligence import TIMEFRAME_DURATIONS
+from ai4binance.opportunity_outcomes import OUTCOME_EVALUATION_VERSION
 from ai4binance.opportunity_radar import build_opportunity_radar_snapshot
 from ai4binance.schemas import AnalysisState, MarketSnapshot, OHLCVCandle
-from ai4binance.storage import JsonlAuditStore
+from ai4binance.storage import AuditEvent, JsonlAuditStore
 
 NOW = datetime(2026, 9, 13, tzinfo=UTC)
 
@@ -823,7 +824,8 @@ def seed(archive: ParquetOHLCVArchive, market: str, *, future: bool = False) -> 
                 timestamp=NOW + duration * index,
                 open=Decimal(100),
                 high=Decimal(105),
-                low=Decimal(98),
+                # Future bars resolve target-first; ambiguity has a separate proof.
+                low=Decimal(99 if index >= 0 else 98),
                 close=Decimal(101),
                 volume=Decimal(100),
             )
@@ -1048,6 +1050,139 @@ def test_refresh_preserves_first_observation_and_evaluates_only_future_bars(
     assert JsonlAuditStore(
         directory / "outcomes.jsonl", tamper_evident=True
     ).verify_chain()
+
+
+@pytest.mark.parametrize("legacy_version", [None, "opportunity-outcome:v1"])
+def test_monitor_recomputes_legacy_outcomes_without_rewriting_audit_history(
+    tmp_path: Path, legacy_version: str | None
+) -> None:
+    archive = ParquetOHLCVArchive(tmp_path / "archive")
+    seed(archive, "USD_M_FUTURES")
+    first = refresh_monitor(
+        tmp_path,
+        archive,
+        market="USD_M_FUTURES",
+        symbol="BTCUSDT",
+        now=NOW,
+        minimum_candles=21,
+        candle_limit=30,
+        futures_builder=futures,
+    )
+    history = cast(list[dict[str, object]], first["history"])
+    identity = str(
+        next(row for row in history if row["timeframe"] == "5m")["opportunity_id"]
+    )
+    directory = monitor_directory(tmp_path, "USD_M_FUTURES", "BTCUSDT")
+    path = directory / "outcomes.jsonl"
+    legacy: dict[str, object] = {
+        "opportunity_id": identity,
+        "status": "EVALUATED",
+        "final_outcome_class": "FAVORABLE",
+    }
+    if legacy_version is not None:
+        legacy["evaluation_version"] = legacy_version
+    store = JsonlAuditStore(path, durable=True, tamper_evident=True)
+    store.append_verified_idempotent(
+        AuditEvent(
+            event_type="OPPORTUNITY_OUTCOME_EVALUATED",
+            timestamp=NOW,
+            payload=legacy,
+            snapshot_id=f"{identity}:3",
+        )
+    )
+    before = path.read_bytes()
+    seed(archive, "USD_M_FUTURES", future=True)
+    result = refresh_monitor(
+        tmp_path,
+        archive,
+        market="USD_M_FUTURES",
+        symbol="BTCUSDT",
+        now=NOW + timedelta(hours=3),
+        minimum_candles=21,
+        candle_limit=30,
+        futures_builder=futures,
+    )
+    current = next(
+        row
+        for row in cast(list[dict[str, object]], result["history"])
+        if row["opportunity_id"] == identity
+    )
+    outcome = cast(dict[str, object], current["outcome"])
+    assert outcome["evaluation_version"] == OUTCOME_EVALUATION_VERSION
+    assert outcome["final_outcome_class"] == "TARGET_FIRST"
+    assert path.read_bytes().startswith(before)
+    assert store.verify_chain()
+    completed = path.read_bytes()
+    refresh_monitor(
+        tmp_path,
+        archive,
+        market="USD_M_FUTURES",
+        symbol="BTCUSDT",
+        now=NOW + timedelta(hours=3, seconds=1),
+        minimum_candles=21,
+        candle_limit=30,
+        futures_builder=futures,
+    )
+    assert path.read_bytes() == completed
+
+
+def test_monitor_does_not_finalize_ambiguous_outcomes(tmp_path: Path) -> None:
+    archive = ParquetOHLCVArchive(tmp_path / "archive")
+    seed(archive, "USD_M_FUTURES")
+    first = refresh_monitor(
+        tmp_path,
+        archive,
+        market="USD_M_FUTURES",
+        symbol="BTCUSDT",
+        now=NOW,
+        minimum_candles=21,
+        candle_limit=30,
+        futures_builder=futures,
+    )
+    identity = next(
+        row["opportunity_id"]
+        for row in cast(list[dict[str, object]], first["history"])
+        if row["timeframe"] == "5m"
+    )
+    archive.update(
+        "BTCUSDT",
+        "5m",
+        tuple(
+            OHLCVCandle(
+                timestamp=NOW + timedelta(minutes=5 * index),
+                open=Decimal(100),
+                high=Decimal(105),
+                low=Decimal(98),
+                close=Decimal(101),
+                volume=Decimal(100),
+            )
+            for index in range(3)
+        ),
+        source="LOCAL_TEST",
+        generated_at=NOW,
+    )
+    result = refresh_monitor(
+        tmp_path,
+        archive,
+        market="USD_M_FUTURES",
+        symbol="BTCUSDT",
+        now=NOW + timedelta(minutes=15),
+        minimum_candles=21,
+        candle_limit=30,
+        futures_builder=futures,
+    )
+    current = next(
+        row
+        for row in cast(list[dict[str, object]], result["history"])
+        if row["opportunity_id"] == identity
+    )
+    outcome = cast(dict[str, object], current["outcome"])
+    assert outcome["status"] == "NOT_EVALUABLE"
+    assert outcome["outcome_reason_codes"] == ["OUTCOME_INTRABAR_ORDER_UNRESOLVED"]
+    directory = monitor_directory(tmp_path, "USD_M_FUTURES", "BTCUSDT")
+    assert monitor_module._history(directory / "outcomes.jsonl") == []
+    assert result["execution_allowed"] is False
+    assert result["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
 
 
 def test_futures_provider_failure_does_not_hide_quality_or_other_timeframes(

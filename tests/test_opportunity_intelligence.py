@@ -393,6 +393,76 @@ def test_hot_path_does_not_import_post_outcome_contracts() -> None:
     assert "opportunity_outcomes" not in source
 
 
+@pytest.mark.parametrize("direction", ["BULLISH", "BEARISH"])
+def test_same_bar_target_and_stop_remain_unresolved(direction: str) -> None:
+    observed = datetime(2026, 10, 1, tzinfo=UTC)
+    result = evaluate_opportunity_outcome(
+        opportunity_id="test-only:ambiguous-outcome",
+        direction=direction,
+        reference_price=Decimal("100"),
+        observed_at=observed,
+        future_candles=(candle(observed, high="110", low="90", close="105"),),
+        evaluation_horizon=1,
+        dataset_id="test-only:ambiguous-dataset",
+        timeframe="15m",
+        invalidation_price=Decimal("98" if direction == "BULLISH" else "102"),
+        target_price=Decimal("106" if direction == "BULLISH" else "94"),
+    )
+    assert result.status is OpportunityOutcomeStatus.NOT_EVALUABLE
+    assert result.final_outcome_class is OpportunityOutcomeClass.UNRESOLVED
+    assert result.outcome_reason_codes == ("OUTCOME_INTRABAR_ORDER_UNRESOLVED",)
+    assert result.potential_r_multiple is None
+    assert result.execution_allowed is False
+    assert result.live_eligibility_status == "LIVE_ORDER_BLOCKED"
+    review = classify_missed_opportunity(
+        opportunity_id=result.opportunity_id,
+        symbol="BTCUSDT",
+        market="SPOT",
+        timeframe="15m",
+        window_start=observed,
+        window_end=observed + timedelta(minutes=15),
+        counterfactual_detection_time=observed,
+        actual_detection_time=None,
+        cause=MissedOpportunityCause.PATTERN_NOT_DETECTED,
+        outcome=result,
+    )
+    assert review.assessment is MissedOpportunityAssessment.UNRESOLVED
+    assert review.lookahead_safe_reconstruction_status == "NOT_EVALUABLE"
+
+
+@pytest.mark.parametrize(
+    ("offsets", "reason"),
+    [
+        ((2, 3, 4), "OUTCOME_DATA_GAP"),
+        ((0, 2, 3), "OUTCOME_DATA_GAP"),
+        ((0, 0, 1), "OUTCOME_TIMEFRAME_SEQUENCE_INVALID"),
+        ((1, 0, 2), "OUTCOME_TIMEFRAME_SEQUENCE_INVALID"),
+    ],
+)
+def test_outcome_rejects_incomplete_or_unordered_windows(
+    offsets: tuple[int, ...], reason: str
+) -> None:
+    observed = datetime(2026, 10, 1, tzinfo=UTC)
+    result = evaluate_opportunity_outcome(
+        opportunity_id="test-only:invalid-window",
+        direction="BULLISH",
+        reference_price=Decimal("100"),
+        observed_at=observed,
+        future_candles=tuple(
+            candle(observed + timedelta(minutes=15 * index), high="104", low="99")
+            for index in offsets
+        ),
+        evaluation_horizon=3,
+        dataset_id="test-only:invalid-window-dataset",
+        timeframe="15m",
+    )
+    assert result.status is OpportunityOutcomeStatus.NOT_EVALUABLE
+    assert result.final_outcome_class is OpportunityOutcomeClass.UNRESOLVED
+    assert result.outcome_reason_codes == (reason,)
+    assert result.maximum_favorable_excursion is None
+    assert result.execution_allowed is False
+
+
 def _confirmed_pattern_structure(
     prices: tuple[str, ...], high_first: bool
 ) -> TimeframeStructureEvidence:

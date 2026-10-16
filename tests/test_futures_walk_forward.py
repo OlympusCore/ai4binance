@@ -226,6 +226,46 @@ def test_futures_windows_preserve_derivatives_scope_and_future_isolation() -> No
             )
 
 
+def test_futures_windows_preserve_final_intrabar_funding_without_boundary_leakage() -> (
+    None
+):
+    original = _replay()
+    funding = tuple(
+        replace(
+            point,
+            timestamp=point.timestamp + timedelta(minutes=30),
+            provenance=replace(
+                point.provenance,
+                observed_at=point.timestamp + timedelta(minutes=30),
+            ),
+        )
+        for point in original.derivatives.series[DerivativesMetric.FUNDING_RATE]
+    )
+    dataset = replace(
+        original,
+        derivatives=replace(
+            original.derivatives,
+            as_of=original.derivatives.as_of + timedelta(hours=1),
+            series={
+                **original.derivatives.series,
+                DerivativesMetric.FUNDING_RATE: funding,
+            },
+        ),
+    )
+
+    for window in FuturesWalkForwardValidator._build_windows(dataset, _config()):
+        for replay in (window.train, window.test):
+            start = replay.candles[0].timestamp
+            end = replay.candles[-1].timestamp + timedelta(hours=1)
+            expected = tuple(
+                point for point in funding if start <= point.timestamp < end
+            )
+            assert replay.derivatives.series[DerivativesMetric.FUNDING_RATE] == expected
+            assert len(expected) == len(replay.candles)
+            assert replay.execution_allowed is False
+            assert replay.live_eligibility_status == "LIVE_ORDER_BLOCKED"
+
+
 def test_futures_walk_forward_rejects_window_without_funding_coverage() -> None:
     dataset = _replay(funding_indices=(0,))
 

@@ -41,7 +41,10 @@ from ai4binance.opportunity_intelligence import (
     opportunity_event_id,
 )
 from ai4binance.opportunity_ledger import OpportunityLedgerWriter
-from ai4binance.opportunity_outcomes import evaluate_opportunity_outcome
+from ai4binance.opportunity_outcomes import (
+    OUTCOME_EVALUATION_VERSION,
+    evaluate_opportunity_outcome,
+)
 from ai4binance.opportunity_radar import (
     VWAPOpportunityEvaluator,
     build_opportunity_radar_snapshot,
@@ -754,7 +757,12 @@ def refresh_monitor(
     outcomes = JsonlAuditStore(
         directory / "outcomes.jsonl", durable=True, tamper_evident=True
     )
-    completed = {str(row["opportunity_id"]): row for row in _history(outcomes.path)}
+    completed = {
+        str(row["opportunity_id"]): row
+        for row in _history(outcomes.path)
+        if row.get("evaluation_version") == OUTCOME_EVALUATION_VERSION
+        and row.get("status") == "EVALUATED"
+    }
     for row in history:
         identity = str(row["opportunity_id"])
         trackable = has_complete_measurable_opportunity(row)
@@ -772,7 +780,9 @@ def refresh_monitor(
                     event_type="OPPORTUNITY_OUTCOME_EVALUATED",
                     timestamp=now,
                     payload=outcome,
-                    snapshot_id=f"{row['opportunity_id']}:3",
+                    snapshot_id=(
+                        f"{row['opportunity_id']}:3:{OUTCOME_EVALUATION_VERSION}"
+                    ),
                 )
             )
     payload: dict[str, object] = {

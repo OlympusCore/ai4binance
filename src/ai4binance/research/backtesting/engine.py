@@ -339,7 +339,9 @@ class BacktestEngine:
                 end_exit.price,
             )
             trades.append(end_trade)
+            stage_counts[VirtualMarketFunnelStage.CLOSED.value] += 1
             available_cash += end_trade.net_pnl_usdt - open_trade.realized_partial_pnl
+            equity_curve[-1] = self._equity_point(last, available_cash, None)
             audit.append(self._event(end_exit.reason.value, end_trade.trade_id, last))
 
         benchmark = self._buy_and_hold_return(candles)
