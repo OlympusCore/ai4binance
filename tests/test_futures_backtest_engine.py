@@ -187,6 +187,81 @@ def test_futures_config_rejects_unsafe_margin_assumptions() -> None:
         FuturesBacktestConfig(liquidation_fee_ratio=Decimal("0.021"))
 
 
+@pytest.mark.parametrize("direction", [TradeDirection.LONG, TradeDirection.SHORT])
+@pytest.mark.parametrize("rate", ["0.001", "-0.001"])
+@pytest.mark.parametrize("timed_exit", [False, True])
+def test_candle_close_exits_settle_intrabar_funding_in_actual_and_counterfactual_replay(
+    direction: TradeDirection, rate: str, timed_exit: bool
+) -> None:
+    candles = tuple(_candle(i, high="102", low="98", close="100") for i in range(4))
+    original = _dataset(candles, funding=((2, rate),))
+    points = (
+        *original.derivatives.series[DerivativesMetric.FUNDING_RATE],
+        _point(
+            DerivativesMetric.FUNDING_RATE,
+            candles[2].timestamp + timedelta(minutes=30),
+            rate,
+        ),
+        _point(DerivativesMetric.FUNDING_RATE, candles[3].timestamp, rate),
+        _point(
+            DerivativesMetric.FUNDING_RATE,
+            candles[3].timestamp + timedelta(minutes=30),
+            rate,
+        ),
+    )
+    dataset = replace(
+        original,
+        derivatives=replace(
+            original.derivatives,
+            series={
+                **original.derivatives.series,
+                DerivativesMetric.FUNDING_RATE: points,
+            },
+        ),
+    )
+    long = direction is TradeDirection.LONG
+    proposed = replace(
+        _intent(
+            candles[0].timestamp,
+            direction,
+            stop_loss="90" if long else "110",
+            take_profit="120" if long else "80",
+        ),
+        maximum_holding_bars=2 if timed_exit else None,
+    )
+    engine = FuturesBacktestEngine()
+    actual = engine.run(dataset=dataset, signal_provider=_one_signal_provider(proposed))
+    trade = actual.trades[0]
+    count = 2 if timed_exit else 4
+    expected = (
+        trade.entry_price * trade.quantity * Decimal(rate) * count * (1 if long else -1)
+    )
+    assert trade.funding_cost_usdt == expected
+    assert trade.exit_reason is (
+        BacktestExitReason.TIME_EXIT if timed_exit else BacktestExitReason.END_OF_DATA
+    )
+    assert trade.exit_timestamp == candles[2 if timed_exit else 3].timestamp
+    assert (
+        actual.equity_curve[-1].equity_usdt
+        == actual.assumptions.initial_cash_usdt + trade.net_pnl_usdt
+    )
+    assert actual.equity_curve[-1].position_quantity == 0
+    rejected = engine.run(
+        dataset=dataset,
+        signal_provider=_one_signal_provider(
+            replace(proposed, timestamp=candles[1].timestamp)
+        ),
+    )
+    assert rejected.trades == ()
+    assert rejected.rejected_signals[0].blockers == ("SIGNAL_TIMESTAMP_MISMATCH",)
+    assert (
+        rejected.missed_opportunity_ledger.records[0].forward_net_pnl
+        == trade.net_pnl_usdt
+    )
+    assert engine.execution_allowed is False
+    assert engine.live_eligibility_status == "LIVE_ORDER_BLOCKED"
+
+
 def test_futures_engine_requires_funding_history() -> None:
     candles = (_candle(0), _candle(1))
     dataset = _dataset(candles, funding=())

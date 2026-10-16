@@ -75,6 +75,43 @@ def test_counterfactual_tail_view_preserves_suffix_without_copying() -> None:
         _ = tail[2]
 
 
+@pytest.mark.parametrize("length", [1, 3, 5])
+@pytest.mark.parametrize(
+    "selection",
+    [
+        slice(None),
+        slice(-3, None),
+        slice(None, None, -1),
+        slice(2, None, -1),
+        slice(None, -2, -1),
+        slice(4, 0, -2),
+        slice(-20, 20, 2),
+    ],
+)
+def test_candle_history_slices_match_only_the_visible_prefix(
+    length: int, selection: slice
+) -> None:
+    candles = tuple(candle(i, "100", "101", "99", "100") for i in range(5))
+    history = backtest_engine._CandleHistory(candles, length)
+    assert history[selection] == candles[:length][selection]
+
+
+def test_backtest_strategy_can_reverse_history_without_losing_visible_bars() -> None:
+    candles = tuple(candle(i, "100", "101", "99", "100") for i in range(4))
+    observed: list[tuple[OHLCVCandle, ...]] = []
+
+    def provider(history: tuple[OHLCVCandle, ...]) -> BacktestIntent | None:
+        observed.append(history[::-1])
+        return intent(history[-1].timestamp) if len(history[::-1]) == 1 else None
+
+    result = BacktestEngine().run(
+        symbol="HOTUSDT", timeframe="1h", candles=candles, signal_provider=provider
+    )
+    assert observed == [tuple(reversed(candles[:i])) for i in range(1, 5)]
+    assert len(result.trades) == 1
+    assert result.trades[0].entry_timestamp == candles[1].timestamp
+
+
 @pytest.mark.parametrize(
     ("future", "take_profit", "maximum_holding_bars"),
     [

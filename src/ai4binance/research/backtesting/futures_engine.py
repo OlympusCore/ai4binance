@@ -378,6 +378,13 @@ class FuturesBacktestEngine:
                     open_trade, candle, mark_candles[index] if mark_candles else None
                 )
                 if exit_decision is not None:
+                    if exit_decision.reason is BacktestExitReason.TIME_EXIT:
+                        self._apply_candle_close_funding(
+                            open_trade,
+                            funding_points,
+                            candle,
+                            candles[1].timestamp - candles[0].timestamp,
+                        )
                     trade = self._close_trade(
                         open_trade,
                         candle.timestamp,
@@ -476,6 +483,12 @@ class FuturesBacktestEngine:
             )
         if open_trade is not None:
             last = candles[-1]
+            self._apply_candle_close_funding(
+                open_trade,
+                funding_points,
+                last,
+                candles[1].timestamp - candles[0].timestamp,
+            )
             decision = _ExitDecision(BacktestExitReason.END_OF_DATA, last.close)
             trade = self._close_trade(open_trade, last.timestamp, decision)
             trades.append(trade)
@@ -863,6 +876,27 @@ class FuturesBacktestEngine:
             brackets=self.config.maintenance_brackets,
         )
 
+    def _apply_candle_close_funding(
+        self,
+        trade: _OpenFuturesTrade,
+        points: tuple[MetricPoint, ...],
+        candle: OHLCVCandle,
+        interval: timedelta,
+    ) -> None:
+        """Settle legacy funding through a known close, excluding the next bar.
+
+        Native mark replay already settles each interval through its own owner.
+        Stop and target exits have unknown intrabar timing and must not use this.
+        """
+        if self.config.require_mark_price_path:
+            return
+        window_end = candle.timestamp + interval
+        self._apply_funding(
+            trade,
+            tuple(point for point in points if point.timestamp < window_end),
+            window_end,
+        )
+
     @staticmethod
     def _apply_funding(
         open_trade: _OpenFuturesTrade,
@@ -1215,8 +1249,21 @@ class FuturesBacktestEngine:
                 open_trade, candle, mark_candles[index] if mark_candles else None
             )
             if decision is not None:
+                if decision.reason is BacktestExitReason.TIME_EXIT:
+                    self._apply_candle_close_funding(
+                        open_trade,
+                        funding_points,
+                        candle,
+                        candles[1].timestamp - candles[0].timestamp,
+                    )
                 return self._close_trade(open_trade, candle.timestamp, decision)
         last = candles[-1]
+        self._apply_candle_close_funding(
+            open_trade,
+            funding_points,
+            last,
+            candles[1].timestamp - candles[0].timestamp,
+        )
         return self._close_trade(
             open_trade,
             last.timestamp,

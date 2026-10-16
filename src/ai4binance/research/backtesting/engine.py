@@ -73,6 +73,10 @@ class _CandleHistory(Sequence[OHLCVCandle]):
     ) -> OHLCVCandle | tuple[OHLCVCandle, ...]:
         if isinstance(index, slice):
             start, stop, step = index.indices(self._length)
+            if step < 0:
+                return tuple(
+                    self._candles[offset] for offset in range(start, stop, step)
+                )
             return self._candles[start:stop:step]
         normalized = index + self._length if index < 0 else index
         if normalized < 0 or normalized >= self._length:
