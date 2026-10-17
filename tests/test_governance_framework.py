@@ -2452,9 +2452,7 @@ def test_core_constitution_defines_mission_authority_cycle_and_rules() -> None:
         ChangeApprovalClass.C3_GOVERNED,
         ChangeApprovalClass.C4_CONSEQUENTIAL,
     )
-    assert constitution.change_control.double_approval_change_classes == (
-        ChangeApprovalClass.C3_GOVERNED,
-    )
+    assert constitution.change_control.double_approval_change_classes == ()
     assert constitution.change_control.high_assurance_change_classes == (
         ChangeApprovalClass.C4_CONSEQUENTIAL,
     )

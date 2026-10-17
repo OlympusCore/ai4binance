@@ -192,7 +192,7 @@ def _record(root: Path, policy: SoleOwnerPolicy, *, path: str = PATH) -> Approva
     )
 
 
-def test_inactive_model_preserves_current_two_person_c3_rule(
+def test_inactive_model_uses_canonical_single_human_c3_rule(
     root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     assert load_sole_owner_policy(root) is None
@@ -202,8 +202,8 @@ def test_inactive_model_preserves_current_two_person_c3_rule(
     )
     report = _report(root)
     assert report.approval_verification is not None
-    assert report.approval_verification.required_approval_count == 2
-    assert report.approval_verification.approval_profile == "LEGACY_C3"
+    assert report.approval_verification.required_approval_count == 1
+    assert report.approval_verification.approval_profile == "SINGLE_HUMAN_C3"
 
 
 def test_c4_high_assurance_requirement_is_unchanged() -> None:

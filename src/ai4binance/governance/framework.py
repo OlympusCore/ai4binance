@@ -131,7 +131,7 @@ class ChangeApprovalClass(StrEnum):
 @dataclass(frozen=True, slots=True)
 class ConstitutionalChangeControl:
     control_id: str = "AI4BINANCE-CONSTITUTIONAL-CHANGE-CONTROL"
-    version: str = "3.0.0"
+    version: str = "3.1.0"
     code_runs_within_constitution: bool = True
     quality_gate_role: str = "TECHNICAL_TRUTH"
     governance_gate_role: str = "POLICY_ELIGIBILITY"
@@ -151,9 +151,7 @@ class ConstitutionalChangeControl:
         ChangeApprovalClass.C3_GOVERNED,
         ChangeApprovalClass.C4_CONSEQUENTIAL,
     )
-    double_approval_change_classes: tuple[ChangeApprovalClass, ...] = (
-        ChangeApprovalClass.C3_GOVERNED,
-    )
+    double_approval_change_classes: tuple[ChangeApprovalClass, ...] = ()
     # Eligibility requires independently accepted predecessor-policy evidence.
     sole_owner_approval_change_classes: tuple[ChangeApprovalClass, ...] = (
         ChangeApprovalClass.C3_GOVERNED,
@@ -266,8 +264,8 @@ class ConstitutionalChangeControl:
             ChangeApprovalClass.C4_CONSEQUENTIAL,
         ):
             raise ValueError("constitution sync must remain required for C3/C4 changes")
-        if self.double_approval_change_classes != (ChangeApprovalClass.C3_GOVERNED,):
-            raise ValueError("only C3 changes may require double approval")
+        if self.double_approval_change_classes:
+            raise ValueError("one genuine human approval is sufficient for C3")
         if self.sole_owner_approval_change_classes != (
             ChangeApprovalClass.C3_GOVERNED,
         ):

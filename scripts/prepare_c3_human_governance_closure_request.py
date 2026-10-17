@@ -405,6 +405,26 @@ def build_closure_request(
         ),
         "approval_record_template": template_records,
     }
+    if approval_profile == "SINGLE_HUMAN_C3":
+        if change_class != "C3_GOVERNED" or required_approval_count != 1:
+            raise ValueError("single-human C3 closure profile is inconsistent")
+        result["independent_human_review"] = False
+        result["required_human_person_count"] = 1
+        template_records[0]["approval_id"] = "<set-from-genuine-human-decision>"
+        template_records[0]["approved_at_utc"] = "<actual-decision-recorded-at-utc>"
+        result["instructions"] = [
+            "Record one genuine authorized human decision over this exact subject.",
+            "Preserve the actual approver and principal; "
+            "do not invent independent review.",
+            f"Save the actual approval record to {CANONICAL_APPROVAL_TARGET}.",
+            "Re-run scripts/quality.ps1 with -ApprovalRecordPath "
+            "using canonical replay.",
+        ]
+        result["approval_checklist"] = [
+            *APPROVAL_CHECKLIST[:4],
+            "Bind one genuine human decision without claiming independent review.",
+            "Save the actual approval record and re-run the canonical quality profile.",
+        ]
     if owner_identity is not None:
         result["approval_profile"] = "BOUNDED_OWNER_PACKAGE"
         result["independent_human_review"] = False

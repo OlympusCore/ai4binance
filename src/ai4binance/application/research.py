@@ -128,6 +128,10 @@ def _dge_error_type(error: Exception) -> str:
         "DGE_CONTEXT_TYPE_INVALID": "CONTEXT_TYPE",
         "DGE_CONTEXT_SURFACE_INVALID": "CONTEXT_SURFACE",
         "DGE_ENGINE_EVALUATION_FAILED": "ENGINE_EVALUATION",
+        "DGE_EVALUATION_SUBJECT_MISMATCH": "EVIDENCE_SUBJECT",
+        "DGE_EVALUATION_EVIDENCE_MISSING": "EVIDENCE_MISSING",
+        "DGE_EVALUATION_EVIDENCE_INVALID": "EVIDENCE_INVALID",
+        "DGE_EVALUATION_EVIDENCE_TOO_LARGE": "EVIDENCE_SIZE",
     }
     if str(error) in stage_codes:
         return stage_codes[str(error)]
@@ -137,6 +141,8 @@ def _dge_error_type(error: Exception) -> str:
         return "ATTRIBUTE_ERROR"
     if isinstance(error, KeyError):
         return "KEY_ERROR"
+    if isinstance(error, OSError):
+        return "PERSISTENCE"
     if isinstance(error, RuntimeError):
         return "RUNTIME_ERROR"
     if isinstance(error, TypeError):
@@ -768,6 +774,16 @@ class ResearchApplicationService:
         )
         request = workflow.virtual_runtime_request
         runtime_decision = workflow.virtual_runtime_decision
+        dge_evaluation = getattr(request, "dge_evaluation", None)
+        dge_evidence_ref = (
+            {
+                "decision_id": dge_evaluation.decision_id,
+                "snapshot_id": snapshot_id,
+                "evaluation_record_sha256": dge_evaluation.evaluation_record_sha256,
+            }
+            if dge_evaluation is not None
+            else None
+        )
         governance_blockers = tuple(
             dict.fromkeys(
                 (
@@ -808,6 +824,7 @@ class ResearchApplicationService:
                         getattr(trade_intent, "decision_id", "UNKNOWN_DECISION")
                     ),
                     "snapshot_id": snapshot_id,
+                    "dge_evidence_ref": dge_evidence_ref,
                 },
             )
             if governance_status is CycleGovernanceStatus.APPROVED_PAPER_ONLY
@@ -817,6 +834,7 @@ class ResearchApplicationService:
         audit_payload = {
             "snapshot_id": snapshot_id,
             "governance_status": governance_status.value,
+            "dge_evidence_ref": dge_evidence_ref,
             "stages": tuple(
                 {
                     "name": stage.name,
@@ -878,6 +896,7 @@ class ResearchApplicationService:
                     "reason_summary": str(
                         getattr(final_decision, "reason_summary", "NO_TRADE")
                     ),
+                    "dge_evidence_ref": dge_evidence_ref,
                     "blockers": tuple(analysis.blockers),
                 },
             ),
@@ -927,6 +946,8 @@ class ResearchApplicationService:
                         )
                     ),
                     "blockers": governance_blockers,
+                    "dge_evaluation": dge_evaluation,
+                    "dge_evidence_ref": dge_evidence_ref,
                     "audit_refs": tuple(
                         getattr(workflow.virtual_runtime_decision, "audit_refs", ())
                     ),
@@ -1049,12 +1070,7 @@ class ResearchApplicationService:
         if portfolio_builder is None:
             portfolio_builder = self._default_virtual_portfolio_builder
         portfolio = portfolio_builder(snapshot, candidate)
-        (
-            dge_decision_id,
-            dge_status,
-            dge_blockers,
-            dge_simulation_allowed,
-        ) = self._evaluate_virtual_governance(
+        dge_evaluation = self._evaluate_virtual_governance(
             snapshot=getattr(analysis, "market_snapshot", snapshot),
             analysis=analysis,
             candidate=candidate,
@@ -1069,7 +1085,7 @@ class ResearchApplicationService:
         )
         request = cast(Any, VirtualRuntimeRequest)(
             snapshot_id=snapshot.snapshot_id,
-            decision_id=dge_decision_id,
+            decision_id=dge_evaluation.decision_id,
             candidate_id=candidate.candidate_id,
             symbol=candidate.symbol,
             market=market,
@@ -1101,9 +1117,10 @@ class ResearchApplicationService:
             candidate_blockers=tuple(candidate.blockers),
             risk_blockers=self._risk_blockers(analysis),
             validation_blockers=execution_blockers,
-            dge_blockers=dge_blockers,
-            dge_decision=dge_status,
-            dge_simulation_allowed=dge_simulation_allowed,
+            dge_blockers=dge_evaluation.blockers,
+            dge_decision=dge_evaluation.status,
+            dge_simulation_allowed=dge_evaluation.simulation_allowed,
+            dge_evaluation=dge_evaluation,
             require_structural_margin_proof=(
                 market == "USD_M_FUTURES" and "STRUCTURAL_PLAN_V2" in candidate.evidence
             ),
@@ -1399,18 +1416,17 @@ class ResearchApplicationService:
         portfolio: object,
         market: str,
         risk_assessment: _RiskAssessmentSnapshot,
-    ) -> tuple[str, str, tuple[str, ...], bool]:
+    ) -> VirtualGovernanceResult:
         fallback_id = (
             f"virtual-dge:{getattr(snapshot, 'snapshot_id', 'unknown')}:"
             f"{getattr(candidate, 'candidate_id', 'unknown')}"
         )
         evaluator = self.virtual_governance_evaluator
         if evaluator is None:
-            return (
-                fallback_id,
-                DGE_DATA_UNAVAILABLE,
-                (DGE_EVALUATION_UNAVAILABLE,),
-                False,
+            return VirtualGovernanceResult(
+                decision_id=fallback_id,
+                status=DGE_DATA_UNAVAILABLE,
+                blockers=(DGE_EVALUATION_UNAVAILABLE,),
             )
         try:
             result = evaluator.evaluate(
@@ -1427,29 +1443,31 @@ class ResearchApplicationService:
                 raise TypeError(
                     "virtual governance evaluator must return VirtualGovernanceResult"
                 )
+            result.validate_evaluation_subject(
+                snapshot_id=str(getattr(snapshot, "snapshot_id", "")),
+                candidate_id=candidate.candidate_id,
+                symbol=candidate.symbol,
+                market=market,
+                timestamp=cast(Any, snapshot).created_at.isoformat(),
+            )
         except (
             ArithmeticError,
             AttributeError,
             KeyError,
+            OSError,
             RuntimeError,
             TypeError,
             ValueError,
         ) as error:
-            return (
-                fallback_id,
-                DGE_DATA_UNAVAILABLE,
-                (
+            return VirtualGovernanceResult(
+                decision_id=fallback_id,
+                status=DGE_DATA_UNAVAILABLE,
+                blockers=(
                     DGE_EVALUATION_FAILED,
                     f"DGE_EVALUATION_ERROR_TYPE:{_dge_error_type(error)}",
                 ),
-                False,
             )
-        return (
-            result.decision_id,
-            result.status,
-            result.blockers,
-            result.simulation_allowed,
-        )
+        return result
 
     @staticmethod
     def _risk_blockers(analysis: Any) -> tuple[str, ...]:

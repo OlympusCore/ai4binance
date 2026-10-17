@@ -2256,6 +2256,8 @@ def _build_approval_verification(
             if package_owner is not None
             else "PERSONAL_RESEARCH"
             if research_policy
+            else "SINGLE_HUMAN_C3"
+            if change_class is ChangeApprovalClass.C3_GOVERNED
             else "LEGACY_C3"
         ),
         independent_human_review=(
@@ -2264,6 +2266,7 @@ def _build_approval_verification(
             or sole_owner_applies
             or research_policy
             or package_owner
+            or change_class is ChangeApprovalClass.C3_GOVERNED
             else None
         ),
         human_person_count=(
@@ -2272,6 +2275,8 @@ def _build_approval_verification(
             or sole_owner_applies
             or research_policy
             or package_owner
+            else valid_count
+            if change_class is ChangeApprovalClass.C3_GOVERNED
             else None
         ),
         subject_id=subject_digest.subject_id,

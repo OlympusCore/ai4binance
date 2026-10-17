@@ -10,6 +10,7 @@ from types import MappingProxyType
 from ai4binance.core.contracts.virtual_governance import (
     DGE_APPROVED_PAPER_ONLY,
     DGE_SIMULATION_NOT_APPROVED,
+    VirtualGovernanceResult,
 )
 from ai4binance.domain import Action
 from ai4binance.domain.execution_authority import ExecutionSurface
@@ -82,6 +83,7 @@ class VirtualRuntimeRequest:
     dge_blockers: tuple[str, ...] = ()
     dge_decision: str = "UNKNOWN"
     dge_simulation_allowed: bool = False
+    dge_evaluation: VirtualGovernanceResult | None = None
     risk_policy_version: str = "unknown"
     validation_version: str = "unknown"
     entry_reason: tuple[str, ...] = ("VIRTUAL_MARKET_ENTRY",)
@@ -157,6 +159,13 @@ class VirtualRuntimeRequest:
             raise ValueError(
                 "virtual runtime request DGE simulation allowance must be boolean"
             )
+        if self.dge_evaluation is not None and (
+            self.dge_evaluation.decision_id != self.decision_id
+            or self.dge_evaluation.status != self.dge_decision
+            or self.dge_evaluation.simulation_allowed != self.dge_simulation_allowed
+            or self.dge_evaluation.blockers != self.dge_blockers
+        ):
+            raise ValueError("virtual runtime DGE evaluation does not match request")
         if self.quantity <= ZERO or self.entry_price <= ZERO or self.stop_loss <= ZERO:
             raise ValueError("virtual runtime request geometry must be positive")
         if not self.take_profit_levels:

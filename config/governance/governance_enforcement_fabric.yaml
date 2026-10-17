@@ -1,6 +1,6 @@
 document_id: AI4B-GOV-FABRIC-001
 fabric_id: AI4B-GOV-FABRIC-001
-version: 1.4.4
+version: 1.4.5
 status: ACTIVE
 authority_layer: L4_REPOSITORY_STANDARDS_CONTROLS_QUALITY_POLICIES
 authority_effect: IMPLEMENTATION
@@ -145,7 +145,7 @@ repository_git:
   rule_id: AI4B-GOV-GIT-001
   core_ref: docs/governance/framework_core_vnext_governance.md
   core_section: '3.2'
-  core_sha256: daff7033ccab19ad0043c461db9fa07a24b66d09135147fd4b3712b55cc090e9
+  core_sha256: 61ec0dae7f9607685e67f27ad17b8e56570fdeb8ca90bada1ea138a749a40cbe
   policy_ref: docs/governance/policy_manifest_governance.md
   policy_sha256: b4b4d961e4c9157193872650323bdbf00d7dc1ed0a6043042b9a506365242aaa
   canonical_root: C:/vscode-projects/ai4binance
@@ -157,7 +157,7 @@ bounded_owner_acceptance:
   rule_id: AI4B-GOV-C3-REPAIR-20261015
   core_ref: docs/governance/framework_core_vnext_governance.md
   core_section: 3.1.3
-  core_sha256: daff7033ccab19ad0043c461db9fa07a24b66d09135147fd4b3712b55cc090e9
+  core_sha256: 61ec0dae7f9607685e67f27ad17b8e56570fdeb8ca90bada1ea138a749a40cbe
   canonical_root: C:/vscode-projects/ai4binance
   epoch_id: AI4B_DECISION_WORKBENCH_OWNER_REPAIR_20261015
   package_base_commit: 51aa502297903c52f98d58e63f6c916b43bce433

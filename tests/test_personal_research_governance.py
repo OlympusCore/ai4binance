@@ -258,12 +258,12 @@ def test_failed_technical_gate_stays_blocked(research_root: Path) -> None:
     assert "DETERMINISTIC_QUALITY_GATE_NOT_PASSING" in report.blockers
 
 
-def test_inactive_policy_keeps_two_record_legacy_rule(research_root: Path) -> None:
+def test_inactive_policy_uses_canonical_single_human_rule(research_root: Path) -> None:
     _policy(research_root, active=False)
     report = _report(research_root)
     assert report.approval_verification is not None
-    assert report.approval_verification.required_approval_count == 2
-    assert report.approval_verification.approval_profile == "LEGACY_C3"
+    assert report.approval_verification.required_approval_count == 1
+    assert report.approval_verification.approval_profile == "SINGLE_HUMAN_C3"
 
 
 @pytest.mark.parametrize(

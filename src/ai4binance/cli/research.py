@@ -828,6 +828,7 @@ def _run_research_or_analysis(
         as_of=snapshot.created_at,
     )
     service = build_research_application_service(
+        dge_record_root=Path("."),
         orchestrator=EnterpriseOrchestrator(
             minimum_candles=settings.minimum_closed_candles,
             strategy_engine=StrategyEngine(candidate_timeframes=snapshot.timeframes),

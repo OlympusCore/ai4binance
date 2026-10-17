@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-FRM-001
 title: AI4BINANCE Core vNext Governance Framework
 document_type: FRAMEWORK
-version: 2.0.16
+version: 2.0.17
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -213,8 +213,8 @@ consequential:
 3. `C2_BEHAVIORAL`: behavior-changing logic within approved policy boundaries.
    An `Approval Packet` and explicit human approval are required.
 4. `C3_GOVERNED`: policy, constitution, validation, repository governance, or
-   risk-control changes. Double approval and same-diff constitution sync are
-   required.
+   risk-control changes. One genuine authorized human approval and same-diff
+   constitution sync are required.
 5. `C4_CONSEQUENTIAL`: live execution, credentials, risk-limit changes,
    promotion authority, or other high-impact changes. Explicit high-assurance
    approval is required.
@@ -260,7 +260,7 @@ DETERMINISTIC_QUALITY_GATE = TECHNICAL_TRUTH.
 DETERMINISTIC_GOVERNANCE_GATE = POLICY_ELIGIBILITY.
 HUMAN_GOVERNANCE = CONSEQUENTIAL_AUTHORITY.
 Risk-tiered human governance applies only when the proven change is consequential.
-Only C3 changes require double approval.
+One genuine authorized human approval is sufficient for C3 changes.
 Only C4 changes require high-assurance approval.
 Approval Packet approval binds to scope_hash.
 Code/constitution divergence is prohibited.
@@ -337,7 +337,7 @@ document_update_contract=WrittenOwnerDocumentLockUpdate/v1
 
 DocumentLockAuthorityContext/v4 separates a completed historical installation
 from a separately reviewed document update. This implementation procedure does
-not replace the classification, Approval Packet, double C3 approval, high-
+not replace the classification, Approval Packet, single human C3 approval, high-
 assurance C4 approval or exact-subject requirements in section 3.1.
 A written owner decision may authorize only the bounded candidate application.
 It does not establish policy eligibility, final acceptance or execution authority.
@@ -493,12 +493,28 @@ ConstitutionalChangeControl
   -> change_classes_without_human_governance=C0,C1
   -> approval_packet_required_change_classes=C2,C3,C4
   -> constitution_sync_change_classes=C3,C4
-  -> double_approval_change_classes=C3
+  -> double_approval_change_classes=NONE
+  -> single_human_approval_change_classes=C3
   -> high_assurance_change_classes=C4
   -> constitution_sync_required=true
   -> code_constitution_divergence_allowed=false
   -> live_eligibility_status=LIVE_ORDER_BLOCKED
 ```
+
+The current single-human C3 rule is an explicit normative amendment requested
+by Huseyin Cicek on 2026-10-17: "One human approval should be sufficient; check
+and change it if necessary." It replaces the preceding project-authored
+two-human default prospectively for C3 changes. It does not claim that earlier
+double-approval requirements were satisfied, activate the optional sole-owner
+model, or close historical approval gaps. The same human may authorize the
+bounded implementation and publication in one decision; separate technical and
+policy gates remain mandatory. Record that genuine decision once and bind it
+to the resulting exact scope and evidence without inventing a second person,
+an independent review, a later human action, or an identity verification.
+Changed scope or invalid evidence still invalidates acceptance. The existing
+expiry, revocation, authority, lifecycle and constitution-sync checks remain
+hard vetoes. C4 high-assurance requirements and all trading safety boundaries
+remain unchanged.
 
 #### 3.1.2 Bounded Owner Acceptance for the Canonical Git Rule Package
 

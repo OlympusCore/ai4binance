@@ -217,7 +217,7 @@ def test_fixture_uses_canonical_v4_context_contract(package: dict[str, Any]) -> 
     assert "epoch_id" not in package["context"]
 
 
-def test_missing_projection_preserves_legacy_defaults(tmp_path: Path) -> None:
+def test_missing_projection_uses_canonical_single_human_default(tmp_path: Path) -> None:
     scope = gate.GovernanceChangeSet(tmp_path, "a" * 40, changed_paths=("tests/x.py",))
     assert (
         owner.load_package_owner_acceptance(
@@ -225,7 +225,7 @@ def test_missing_projection_preserves_legacy_defaults(tmp_path: Path) -> None:
         )
         is None
     )
-    assert gate._approval_requirements(ChangeApprovalClass.C3_GOVERNED)[0] == 2
+    assert gate._approval_requirements(ChangeApprovalClass.C3_GOVERNED)[0] == 1
 
 
 @pytest.mark.parametrize("package", ["repair"], indirect=True)
@@ -247,7 +247,7 @@ def test_repair_recognition_requires_its_new_exact_owner_decision(
     )
     assert result is not None
     assert result.owner_person_id == "Huseyin Cicek"
-    assert gate._approval_requirements(ChangeApprovalClass.C3_GOVERNED)[0] == 2
+    assert gate._approval_requirements(ChangeApprovalClass.C3_GOVERNED)[0] == 1
     assert (
         owner.load_package_owner_acceptance(
             root,
@@ -558,7 +558,9 @@ def test_candidate_gate_single_owner_keeps_scope_veto(
     )
 
 
-@pytest.mark.parametrize("profile", ["BOUNDED_OWNER_PACKAGE", "LEGACY_C3"])
+@pytest.mark.parametrize(
+    "profile", ["BOUNDED_OWNER_PACKAGE", "LEGACY_C3", "SINGLE_HUMAN_C3"]
+)
 def test_closure_uses_actual_human_profile(tmp_path: Path, profile: str) -> None:
     from scripts.prepare_c3_human_governance_closure_request import (
         build_closure_request,
@@ -573,6 +575,8 @@ def test_closure_uses_actual_human_profile(tmp_path: Path, profile: str) -> None
         "lifecycle_definition_sha256": "7" * 64,
         "approval_profile": profile,
     }
+    if profile == "SINGLE_HUMAN_C3":
+        verification.update(required_approval_count=1, independent_human_review=False)
     if profile == "BOUNDED_OWNER_PACKAGE":
         verification.update(
             required_approval_count=1,
@@ -610,6 +614,12 @@ def test_closure_uses_actual_human_profile(tmp_path: Path, profile: str) -> None
         assert "set-by-independent-approver" not in render_closure_request_markdown(
             request
         )
+    elif profile == "SINGLE_HUMAN_C3":
+        assert request["required_roles"] == ["GovernanceOwner"]
+        assert request["required_approval_count"] == 1
+        assert request["required_human_person_count"] == 1
+        assert request["independent_human_review"] is False
+        assert len(request["approval_record_template"]) == 1
     else:
         assert request["required_roles"] == ["GovernanceOwner", "ConstitutionOwner"]
         assert request["required_approval_count"] == 2

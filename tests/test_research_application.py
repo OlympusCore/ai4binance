@@ -1,5 +1,6 @@
 """End-to-end contract tests for the safe research application service."""
 
+import hashlib
 import json
 from dataclasses import replace
 from decimal import Decimal
@@ -20,6 +21,7 @@ from ai4binance.application import (
 )
 from ai4binance.application.context.memory import GovernedMemoryCycleBridge
 from ai4binance.application.learning_loop import ControlledLearningLoop
+from ai4binance.core.contracts.virtual_governance import VirtualGovernanceResult
 from ai4binance.domain import (
     Action,
     CandidateStatus,
@@ -695,6 +697,177 @@ def test_research_service_default_dge_context_fails_closed_without_evidence() ->
         == workflow.virtual_runtime_decision.portfolio_before
     )
     assert workflow.stages[-2].status is ResearchStageStatus.BLOCKED
+
+
+def test_paper_dge_evidence_survives_persistence_and_replays_once(
+    tmp_path: Path,
+) -> None:
+    """Test-only paper cycle binds the original evaluation through durable receipts."""
+    from ai4binance.governance.audit import dge_decision_log_path, dge_event_log_path
+    from ai4binance.governance.replay import replay_dge_decision
+    from ai4binance.infrastructure.persistence.canonical_payloads import (
+        CanonicalExplanationStore,
+    )
+
+    dge = _RecordingDge()
+    store = CanonicalExplanationStore(tmp_path / "explanations", boundary=tmp_path)
+    audit = JsonlAuditStore(tmp_path / "paper.jsonl", tamper_evident=True)
+
+    def _test_primitive(value: object) -> object:
+        if isinstance(value, _RuntimeReadyAnalysis):
+            return to_primitive(
+                {
+                    "snapshot_id": value.snapshot_id,
+                    "candidates": value.candidate_setups,
+                    "market_snapshot": value.market_snapshot,
+                }
+            )
+        if type(value).__name__ == "Outlook":
+            return {"snapshot_id": cast(Any, value).snapshot_id}
+        return to_primitive(value)
+
+    service = build_research_application_service(
+        orchestrator=_RuntimeReadyOrchestrator(),
+        outlook_engine=_RuntimeReadyOutlook(),
+        virtual_dge_engine=dge,
+        virtual_dge_context_builder=_approved_virtual_dge_context,
+        dge_record_root=tmp_path,
+        audit_store=audit,
+        canonical_explanation_store=store,
+        primitive_converter=_test_primitive,
+    )
+    workflow = service.run(public_snapshot())
+    cycle = workflow.canonical_cycle
+    assert cycle is not None
+    assert cycle.execution_plan is not None
+    assert workflow.virtual_runtime_request is not None
+    evaluation = workflow.virtual_runtime_request.dge_evaluation
+    record = json.loads(evaluation.evaluation_record_json)
+    assert len(dge.calls) == 1
+    assert record["candidate"] == to_primitive(dge.calls[0][0])
+    assert record["context"] == to_primitive(dge.calls[0][1])
+    assert record["decision"] == to_primitive(dge.decisions[0])
+    assert record["decision"]["passed_rules"]
+    assert record["decision"]["config_hash"] == "config:test:approved"
+    digest = hashlib.sha256(evaluation.evaluation_record_json.encode()).hexdigest()
+    for reference in (
+        cycle.decision,
+        cycle.governance_result,
+        cycle.audit_trail,
+        cycle.execution_plan,
+    ):
+        body = store.read(reference)
+        assert body is not None
+        payload = cast(dict[str, Any], body["payload"])
+        assert payload["dge_evidence_ref"]["evaluation_record_sha256"] == digest
+        assert payload["dge_evidence_ref"]["decision_id"] == evaluation.decision_id
+    governance_body = store.read(cycle.governance_result)
+    assert governance_body is not None
+    assert cast(dict[str, Any], governance_body["payload"])[
+        "dge_evaluation"
+    ] == to_primitive(evaluation)
+    replay_payload = next(
+        event["payload"]
+        for line in dge_decision_log_path(tmp_path).read_text().splitlines()
+        if (event := json.loads(line))["event_type"] == "DGE_DECISION_REPLAY_RECORD"
+    )
+    assert replay_payload == record
+    replay = replay_dge_decision(tmp_path, evaluation.decision_id)
+    assert replay.status == "MATCH"
+    assert replay.execution_allowed is False
+    assert replay.live_eligibility_status == "LIVE_ORDER_BLOCKED"
+    before = {
+        path: path.read_bytes()
+        for path in (
+            audit.path,
+            dge_decision_log_path(tmp_path),
+            dge_event_log_path(tmp_path),
+        )
+    }
+    repeated = service.run(public_snapshot())
+    assert repeated.canonical_cycle == cycle
+    assert all(path.read_bytes() == content for path, content in before.items())
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "missing",
+        "snapshot",
+        "candidate",
+        "market",
+        "stale",
+        "status",
+        "oversize",
+        "invalid",
+    ],
+)
+def test_paper_dge_evidence_mismatch_fails_closed(mutation: str) -> None:
+    from ai4binance.governance.adapters import VirtualMarketDgeAdapter
+
+    class _ChangedEvidence:
+        def evaluate(self, **kwargs: object) -> VirtualGovernanceResult:
+            result = VirtualMarketDgeAdapter(
+                context_builder=_approved_virtual_dge_context
+            ).evaluate(**cast(Any, kwargs))
+            record = json.loads(result.evaluation_record_json or "{}")
+            if mutation == "missing":
+                return replace(result, evaluation_record_json=None)
+            if mutation == "oversize":
+                return replace(result, evaluation_record_json="x" * 10_001)
+            if mutation == "invalid":
+                return replace(result, evaluation_record_json="{}")
+            section, key = {
+                "snapshot": ("context", "data_snapshot_id"),
+                "candidate": ("candidate", "candidate_id"),
+                "market": ("decision", "market_type"),
+                "stale": ("context", "evaluation_timestamp_utc"),
+                "status": ("decision", "governance_status"),
+            }[mutation]
+            record[section][key] = "TEST_ONLY_CONTRADICTORY_EVIDENCE"
+            return replace(result, evaluation_record_json=json.dumps(record))
+
+    workflow = build_research_application_service(
+        orchestrator=_RuntimeReadyOrchestrator(),
+        outlook_engine=_RuntimeReadyOutlook(),
+        virtual_governance_evaluator=_ChangedEvidence(),
+    ).run(public_snapshot())
+    decision = workflow.virtual_runtime_decision
+    assert decision is not None
+    assert decision.trade_intent is None
+    assert decision.portfolio_before == decision.portfolio_after
+    assert "DGE_EVALUATION_FAILED" in decision.eligibility.blockers
+    assert workflow.canonical_cycle is not None
+    assert workflow.canonical_cycle.execution_plan is None
+    assert workflow.canonical_cycle.execution_allowed is False
+
+
+def test_paper_dge_persistence_failure_cannot_produce_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _failed_write(*args: object, **kwargs: object) -> None:
+        raise OSError("TEST_ONLY_DESTINATION_UNAVAILABLE")
+
+    monkeypatch.setattr(
+        "ai4binance.research_runtime.persist_dge_evaluation_record", _failed_write
+    )
+    workflow = build_research_application_service(
+        orchestrator=_RuntimeReadyOrchestrator(),
+        outlook_engine=_RuntimeReadyOutlook(),
+        virtual_dge_context_builder=_approved_virtual_dge_context,
+        dge_record_root=tmp_path,
+    ).run(public_snapshot())
+    assert workflow.virtual_runtime_decision is not None
+    assert workflow.virtual_runtime_decision.trade_intent is None
+    assert (
+        "DGE_EVALUATION_FAILED"
+        in workflow.virtual_runtime_decision.eligibility.blockers
+    )
+    assert (
+        "DGE_EVALUATION_ERROR_TYPE:PERSISTENCE"
+        in workflow.virtual_runtime_decision.eligibility.blockers
+    )
 
 
 def test_research_application_without_governance_evaluator_fails_closed() -> None:

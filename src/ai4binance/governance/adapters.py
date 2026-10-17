@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Protocol, cast
 
 from ai4binance.core.contracts.virtual_governance import VirtualGovernanceResult
+from ai4binance.core.serialization import to_primitive
 from ai4binance.governance.dge_engine import DecisionGovernanceEngine
 from ai4binance.governance.dge_models import (
     DgeGovernanceContext,
@@ -92,6 +94,7 @@ class VirtualMarketDgeAdapter:
     context_builder: (
         Callable[[object, object, object, object], DgeGovernanceContext] | None
     ) = None
+    record_sink: Callable[[DgeEvaluationRecord], object] | None = None
 
     def evaluate(
         self,
@@ -147,6 +150,8 @@ class VirtualMarketDgeAdapter:
             raise ValueError("DGE_CONTEXT_TYPE_INVALID")
         if context.execution_surface is not ExecutionSurface.VIRTUAL_MARKET:
             raise ValueError("DGE_CONTEXT_SURFACE_INVALID")
+        if context.data_snapshot_id != str(getattr(snapshot, "snapshot_id", "")):
+            raise ValueError("DGE_EVALUATION_SUBJECT_MISMATCH")
         try:
             decision = self.dge.evaluate(dge_candidate, context)
         except (
@@ -166,14 +171,45 @@ class VirtualMarketDgeAdapter:
             if market == "SPOT"
             else decision.simulated_futures_allowed
         )
-        return VirtualGovernanceResult(
+        record = DgeEvaluationRecord(
+            source="paper_cycle",
+            candidate=dge_candidate,
+            context=context,
+            decision=decision,
+        )
+        if (
+            decision.data_snapshot_id != context.data_snapshot_id
+            or decision.execution_surface is not context.execution_surface
+            or decision.symbol != dge_candidate.symbol
+            or decision.market_type != dge_candidate.market
+        ):
+            raise ValueError("DGE_EVALUATION_SUBJECT_MISMATCH")
+        record_json = json.dumps(
+            to_primitive(record),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+        result = VirtualGovernanceResult(
             decision_id=decision.decision_id,
             status=decision.governance_status.value,
             blockers=blockers,
             simulation_allowed=(
                 decision.simulated_execution_allowed and market_allowed
             ),
+            evaluation_record_json=record_json,
         )
+        result.validate_evaluation_subject(
+            snapshot_id=context.data_snapshot_id,
+            candidate_id=dge_candidate.candidate_id,
+            symbol=dge_candidate.symbol,
+            market=market,
+            timestamp=cast(MarketSnapshot, snapshot).created_at.isoformat(),
+        )
+        if self.record_sink is not None:
+            self.record_sink(record)
+        return result
 
 
 def _virtual_dge_candidate(

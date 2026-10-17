@@ -12,7 +12,6 @@ import pytest
 
 from ai4binance.application import ResearchApplicationService
 from ai4binance.core.contracts.virtual_governance import (
-    DGE_APPROVED_PAPER_ONLY,
     VirtualGovernanceResult,
 )
 from ai4binance.domain import (
@@ -125,13 +124,12 @@ class _Outlook:
 
 class _ApprovedGovernance:
     def evaluate(self, **kwargs: object) -> VirtualGovernanceResult:
-        snapshot = cast(Any, kwargs["snapshot"])
-        return VirtualGovernanceResult(
-            decision_id=f"dge:{snapshot.snapshot_id}",
-            status=DGE_APPROVED_PAPER_ONLY,
-            blockers=(),
-            simulation_allowed=True,
-        )
+        from ai4binance.governance.adapters import VirtualMarketDgeAdapter
+        from tests.test_research_application import _approved_virtual_dge_context
+
+        return VirtualMarketDgeAdapter(
+            context_builder=_approved_virtual_dge_context,
+        ).evaluate(**cast(Any, kwargs))
 
 
 def _system_version() -> VirtualSystemVersionSegment:

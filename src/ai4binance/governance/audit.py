@@ -10,7 +10,7 @@ from pathlib import Path
 from ai4binance.governance.adapters import DgeEvaluationRecord
 from ai4binance.governance.dge_models import GovernedDecision
 from ai4binance.reporting import to_primitive
-from ai4binance.storage.destination_verification import VerifiedWriteResult
+from ai4binance.storage.destination_verification import VerifiedWriteResult, verified
 from ai4binance.storage.jsonl import AuditEvent, JsonlAuditStore
 
 
@@ -28,13 +28,17 @@ def persist_dge_decision_event(
     decision: GovernedDecision,
     *,
     source: str,
+    timestamp: datetime | None = None,
+    idempotent: bool = False,
 ) -> VerifiedWriteResult:
     """Append one secret-redacted DGE decision event."""
 
-    return _audit_store(_event_path(root)).append_verified(
+    store = _audit_store(_event_path(root))
+    return _append_record(
+        store,
         AuditEvent(
             "DGE_DECISION_RECORDED",
-            datetime.now(UTC),
+            timestamp if timestamp is not None else datetime.now(UTC),
             {
                 "source": source,
                 "decision": _mapping(to_primitive(decision)),
@@ -42,25 +46,37 @@ def persist_dge_decision_event(
                 "live_eligibility_status": "LIVE_ORDER_BLOCKED",
             },
             snapshot_id=decision.decision_id,
-        )
+        ),
+        idempotent=idempotent,
     )
 
 
 def persist_dge_evaluation_record(
     root: Path,
     record: DgeEvaluationRecord,
+    *,
+    idempotent: bool = False,
 ) -> DgePersistenceResult:
     """Persist one DGE event plus replay-ready candidate/context snapshot."""
 
+    timestamp = (
+        datetime.fromisoformat(record.decision.timestamp_utc)
+        if idempotent
+        else datetime.now(UTC)
+    )
     event_result = persist_dge_decision_event(
         root,
         record.decision,
         source=record.source,
+        timestamp=timestamp,
+        idempotent=idempotent,
     )
-    replay_result = _audit_store(_decision_path(root)).append_verified(
+    store = _audit_store(_decision_path(root))
+    replay_result = _append_record(
+        store,
         AuditEvent(
             "DGE_DECISION_REPLAY_RECORD",
-            datetime.now(UTC),
+            timestamp,
             {
                 "source": record.source,
                 "candidate": _mapping(to_primitive(record.candidate)),
@@ -70,12 +86,34 @@ def persist_dge_evaluation_record(
                 "live_eligibility_status": "LIVE_ORDER_BLOCKED",
             },
             snapshot_id=record.decision.decision_id,
-        )
+        ),
+        idempotent=idempotent,
     )
     return DgePersistenceResult(
         decision_id=record.decision.decision_id,
         event_result=event_result,
         replay_result=replay_result,
+    )
+
+
+def _append_record(
+    store: JsonlAuditStore,
+    event: AuditEvent,
+    *,
+    idempotent: bool,
+) -> VerifiedWriteResult:
+    if not idempotent:
+        return store.append_verified(event)
+    result = store.append_verified_idempotent(event)
+    # An exact duplicate has already been compared under the journal lock.
+    return (
+        result
+        if result is not None
+        else verified(
+            store.path,
+            event.snapshot_id or event.event_type,
+            operation="jsonl_existing_verified",
+        )
     )
 
 

@@ -464,6 +464,7 @@ def build_read_only_runtime(settings: Settings) -> ReadOnlyRuntimeCycle:
         ),
         cost_basis_service=cost_basis_service,
         research_service=build_research_application_service(
+            dge_record_root=Path("."),
             orchestrator=EnterpriseOrchestrator(
                 minimum_candles=settings.minimum_closed_candles
             ),

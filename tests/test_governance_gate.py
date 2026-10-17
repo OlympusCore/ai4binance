@@ -1005,7 +1005,10 @@ def test_governance_gate_replay_reuses_frozen_traceability_audit(
     assert second.traceability_audit.record_count == 7
 
 
-def test_governance_gate_verifies_bound_approval_records(tmp_path: Path) -> None:
+@pytest.mark.parametrize("approval_count", [1, 2])
+def test_governance_gate_verifies_bound_approval_records(
+    tmp_path: Path, approval_count: int
+) -> None:
     write_core_documents(
         tmp_path,
         compliance_extra="src/ai4binance/governance/framework.py",
@@ -1097,7 +1100,7 @@ def test_governance_gate_verifies_bound_approval_records(tmp_path: Path) -> None
         constitution_sync_tests=_constitution_sync_tests(True),
         deterministic_quality_gate=quality_report,
         change_set=change_set,
-        approval_records=approvals,
+        approval_records=approvals[:approval_count],
         require_change_set=True,
     )
 
@@ -1107,9 +1110,15 @@ def test_governance_gate_verifies_bound_approval_records(tmp_path: Path) -> None
         GovernanceEvidenceLifecycleStage.CONSEQUENTIAL_AUTHORITY_CONFIRMED
     )
     assert report.approval_verification.hard_veto is True
-    assert report.approval_verification.observed_approval_count == 2
-    assert report.approval_verification.required_approval_count == 2
-    assert report.approval_verification.principal_ids == ("reviewer-a", "reviewer-b")
+    assert report.approval_verification.observed_approval_count == approval_count
+    assert report.approval_verification.required_approval_count == 1
+    assert (
+        report.approval_verification.principal_ids
+        == ("reviewer-a", "reviewer-b")[:approval_count]
+    )
+    assert report.approval_verification.approval_profile == "SINGLE_HUMAN_C3"
+    assert report.approval_verification.independent_human_review is False
+    assert report.approval_verification.human_person_count == approval_count
 
 
 def test_governance_gate_blocks_duplicate_principal_ids_across_roles(

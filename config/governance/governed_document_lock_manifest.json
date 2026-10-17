@@ -2128,13 +2128,13 @@
       "authority_scope": "compliance_matrix",
       "canonical_path": "docs/compliance/registry_compliance_matrix.md",
       "document_status": "ACTIVE",
-      "expected_hash": "459a2945a35331c3e9d15cd2a9f6bbf3d4c3d099b7ecc0a1895ec4d949490c0d",
+      "expected_hash": "29e8a8065098c33f5d26bb0a5bb9638491b08c28bfd4834aa8a511942fbdda08",
       "lock_state": "LOCKED",
       "path": "docs/compliance/registry_compliance_matrix.md",
-      "sha256": "459a2945a35331c3e9d15cd2a9f6bbf3d4c3d099b7ecc0a1895ec4d949490c0d",
+      "sha256": "29e8a8065098c33f5d26bb0a5bb9638491b08c28bfd4834aa8a511942fbdda08",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "2.10.22"
+      "version": "2.10.23"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -2298,13 +2298,13 @@
       "authority_scope": "core_constitution",
       "canonical_path": "docs/governance/framework_core_vnext_governance.md",
       "document_status": "ACTIVE",
-      "expected_hash": "daff7033ccab19ad0043c461db9fa07a24b66d09135147fd4b3712b55cc090e9",
+      "expected_hash": "61ec0dae7f9607685e67f27ad17b8e56570fdeb8ca90bada1ea138a749a40cbe",
       "lock_state": "LOCKED",
       "path": "docs/governance/framework_core_vnext_governance.md",
-      "sha256": "daff7033ccab19ad0043c461db9fa07a24b66d09135147fd4b3712b55cc090e9",
+      "sha256": "61ec0dae7f9607685e67f27ad17b8e56570fdeb8ca90bada1ea138a749a40cbe",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "2.0.16"
+      "version": "2.0.17"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -2366,13 +2366,13 @@
       "authority_scope": "core_custom_instructions",
       "canonical_path": "docs/governance/instruction_core_custom_instructions.md",
       "document_status": "ACTIVE",
-      "expected_hash": "f965625c3196abd32effa946c18b566a400b47a3c33612708b85a5ad9c6d87eb",
+      "expected_hash": "7b9718587bbb20b63835833b45242f20fd64b618dec913ee2fb05b4cc2893f10",
       "lock_state": "LOCKED",
       "path": "docs/governance/instruction_core_custom_instructions.md",
-      "sha256": "f965625c3196abd32effa946c18b566a400b47a3c33612708b85a5ad9c6d87eb",
+      "sha256": "7b9718587bbb20b63835833b45242f20fd64b618dec913ee2fb05b4cc2893f10",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "2.0.4"
+      "version": "2.0.5"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -4675,12 +4675,12 @@
   "prospective_lock_grant": {
     "contract_version": "DocumentLockRegistration/v3",
     "grant": {
-      "path": "runtime/artifacts/quality/gate/decision-workbench-review/maintainability-correction/owner-application-grant.json",
-      "sha256": "246aa8165a1a31a8accee64f62d39dbe0c02c334fbd19937b3027584eab0c29d"
+      "path": "runtime/artifacts/governance/single-human-c3-20261017/owner-application-grant-v2.json",
+      "sha256": "f69859a496991352b8955cec677d5c2da92619b638011f670c59ddb0e74671fe"
     },
     "predecessor": {
-      "path": "runtime/artifacts/quality/gate/decision-workbench-review/maintainability-correction/predecessor-context.raw.json",
-      "sha256": "8c0e79d48a4534d531da5c3eaab43b5cf1f3657c5ca83e3e92b7772aba2e60c3"
+      "path": "runtime/artifacts/governance/single-human-c3-20261017/predecessor-context.raw.json",
+      "sha256": "5fb4c0ce04651e0c8f169ca590f709a18ebb8499e67a4ea017e25d9e58f38f06"
     }
   }
 }

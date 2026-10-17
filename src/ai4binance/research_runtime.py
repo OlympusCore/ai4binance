@@ -7,6 +7,8 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
+from functools import partial
+from pathlib import Path
 from typing import Any, cast
 
 from ai4binance.agents.orchestrator import EnterpriseOrchestrator
@@ -21,6 +23,7 @@ from ai4binance.data.timeframes import timeframe_duration
 from ai4binance.events.clock import SimulatedClock
 from ai4binance.governance import RunContext
 from ai4binance.governance.adapters import VirtualMarketDgeAdapter
+from ai4binance.governance.audit import persist_dge_evaluation_record
 from ai4binance.market_context import MarketContextRequest
 from ai4binance.outlook import MarketOutlookEngine
 from ai4binance.reporting import to_primitive
@@ -82,6 +85,12 @@ def build_research_application_service(**kwargs: object) -> ResearchApplicationS
 
 def _virtual_governance_evaluator(options: dict[str, Any]) -> object:
     evaluator = options.pop("virtual_governance_evaluator", None)
+    record_root = options.pop("dge_record_root", None)
+    record_sink = (
+        partial(persist_dge_evaluation_record, Path(record_root), idempotent=True)
+        if record_root is not None
+        else None
+    )
     legacy_engine = options.pop("virtual_dge_engine", None)
     legacy_context_builder = options.pop("virtual_dge_context_builder", None)
     if evaluator is not None and (
@@ -94,11 +103,13 @@ def _virtual_governance_evaluator(options: dict[str, Any]) -> object:
         return evaluator
     if legacy_engine is None:
         return VirtualMarketDgeAdapter(
-            context_builder=cast(Any, legacy_context_builder)
+            context_builder=cast(Any, legacy_context_builder),
+            record_sink=record_sink,
         )
     return VirtualMarketDgeAdapter(
         dge=cast(Any, legacy_engine),
         context_builder=cast(Any, legacy_context_builder),
+        record_sink=record_sink,
     )
 
 
