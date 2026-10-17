@@ -1,6 +1,6 @@
 document_id: AI4B-GOV-FABRIC-001
 fabric_id: AI4B-GOV-FABRIC-001
-version: 1.4.5
+version: 1.4.6
 status: ACTIVE
 authority_layer: L4_REPOSITORY_STANDARDS_CONTROLS_QUALITY_POLICIES
 authority_effect: IMPLEMENTATION
@@ -18,8 +18,8 @@ families:
     authority_scope: terminology_governance
     standard_path: docs/standards/standard_terminology_governance.md
     standard_id: AI4B-GOV-STD-TERM-001
-    standard_version: 1.2.1
-    standard_content_sha256: 3afc73fd1c11e960c33445d184754e0a3c1a998c222660e88e14d0d4a673e954
+    standard_version: 1.2.2
+    standard_content_sha256: 8572df3de591cf6fa54428f62aecec0fb7a575e3931d90a02483496a1301a598
     projection_path: config/governance/canonical_terminology_registry.yaml
     schema_path: schemas/governance/canonical_terminology_registry.schema.json
   repository_naming:

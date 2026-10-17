@@ -165,6 +165,35 @@ class LogicalArchitectureRelation:
 
 
 @dataclass(frozen=True, slots=True)
+class CoreModule:
+    """A logical module boundary; membership never grants runtime authority."""
+
+    core_id: str
+    term_id: str
+    component_ids: tuple[str, ...]
+    enforcement_entrypoints: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if not self.core_id.strip() or not self.term_id.strip():
+            raise ValueError("core module identity is required")
+        if not self.component_ids:
+            raise ValueError("core module requires existing components")
+        for values in (self.component_ids, self.enforcement_entrypoints):
+            if len(values) != len(set(values)) or any(
+                not item.strip() for item in values
+            ):
+                raise ValueError("core module references must be unique and nonblank")
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "core_id": self.core_id,
+            "term_id": self.term_id,
+            "component_ids": list(self.component_ids),
+            "enforcement_entrypoints": list(self.enforcement_entrypoints),
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class LogicalArchitectureRegistry:
     """Validated enforcement mirror of declared logical architecture only."""
 
@@ -176,6 +205,7 @@ class LogicalArchitectureRegistry:
     live_eligibility_status: str
     components: tuple[LogicalArchitectureComponent, ...]
     relations: tuple[LogicalArchitectureRelation, ...]
+    core_modules: tuple[CoreModule, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.registry_id.strip() or not self.version.strip():
@@ -238,6 +268,7 @@ class LogicalArchitectureRegistry:
             "live_eligibility_status": "LIVE_ORDER_BLOCKED",
             "components": [component.to_payload() for component in self.components],
             "relations": [relation.to_payload() for relation in self.relations],
+            "core_modules": [module.to_payload() for module in self.core_modules],
         }
 
 

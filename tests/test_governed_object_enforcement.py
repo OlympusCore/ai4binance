@@ -349,6 +349,127 @@ def test_registered_entrypoint_denies_unadmitted_or_mismatched_routes(
     assert result.execution_allowed is False
 
 
+def test_registered_entrypoint_denies_missing_inventory(tmp_path: Path) -> None:
+    engine = DeterministicEnforcementEngine(
+        registry=load_enforcement_profile_registry(), evidence_root=tmp_path
+    )
+    envelope = envelope_from_governed_knowledge(_knowledge_object())
+    request = EnforcementRequest(
+        request_id="test-only-missing-inventory",
+        actor="test-only",
+        action="UPDATE",
+        environment="test",
+        execution_mode="RESEARCH_ONLY",
+    )
+    result = engine.evaluate_entrypoint("policy_document_update", envelope, request)
+    assert result.outcome is EnforcementOutcome.DENY
+    assert result.blockers == ("ENFORCEMENT_INVENTORY_INVALID",)
+    assert result.execution_allowed is False
+
+
+def test_registered_route_identity_is_bound_to_replay_and_scope() -> None:
+    engine = DeterministicEnforcementEngine(
+        registry=load_enforcement_profile_registry(),
+        evidence_root=Path(__file__).parents[1],
+    )
+    envelope = envelope_from_governed_knowledge(_knowledge_object())
+    request = EnforcementRequest(
+        request_id="test-only-route-binding",
+        actor="test-only",
+        action="UPDATE",
+        environment="test",
+        execution_mode="RESEARCH_ONLY",
+    )
+    first = engine.evaluate_entrypoint("test-only-unknown-one", envelope, request)
+    replay = engine.evaluate_entrypoint("test-only-unknown-one", envelope, request)
+    second = engine.evaluate_entrypoint("test-only-unknown-two", envelope, request)
+    assert first.replay_fingerprint == replay.replay_fingerprint
+    assert first.scope_hash == replay.scope_hash
+    assert first.replay_fingerprint != second.replay_fingerprint
+    assert first.scope_hash != second.scope_hash
+    assert all(
+        item.outcome is EnforcementOutcome.DENY for item in (first, replay, second)
+    )
+
+
+def test_registered_entrypoint_rejects_object_action_scope_mismatch() -> None:
+    engine = DeterministicEnforcementEngine(
+        registry=load_enforcement_profile_registry(),
+        evidence_root=Path(__file__).parents[1],
+    )
+    result = engine.evaluate_entrypoint(
+        "workflow_job_admission",
+        envelope_from_governed_knowledge(_knowledge_object()),
+        EnforcementRequest(
+            request_id="test-only-scope",
+            actor="test-only",
+            action="UPDATE",
+            environment="test",
+            execution_mode="RESEARCH_ONLY",
+        ),
+    )
+    assert result.blockers == ("ENFORCEMENT_ENTRYPOINT_SCOPE_MISMATCH",)
+    assert result.execution_allowed is False
+
+
+def test_registered_route_with_a_declared_bypass_remains_denied(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai4binance.governance.enforcement import engine as engine_module
+
+    inventory = load_enforcement_inventory()
+    inventory = replace(
+        inventory,
+        entries=tuple(
+            replace(entry, bypass_possible=True)
+            if entry.entrypoint_id == "repository_artifact_update"
+            else entry
+            for entry in inventory.entries
+        ),
+    )
+    monkeypatch.setattr(
+        engine_module, "load_enforcement_inventory", lambda _path: inventory
+    )
+    engine = DeterministicEnforcementEngine(
+        registry=load_enforcement_profile_registry()
+    )
+    result = engine.evaluate_entrypoint(
+        "repository_artifact_update",
+        envelope_from_repository_artifact(_repository_artifact()),
+        EnforcementRequest(
+            request_id="test-only-bypass",
+            actor="test-only",
+            action="UPDATE",
+            environment="test",
+            execution_mode="RESEARCH_ONLY",
+        ),
+    )
+    assert result.blockers == ("ENFORCEMENT_ENTRYPOINT_BLOCKED",)
+    assert result.execution_allowed is False
+
+
+def test_unknown_action_is_denied_even_without_a_lifecycle_gate() -> None:
+    registry = load_enforcement_profile_registry()
+    profile = registry.profile_for_object_type("POLICY")
+    assert profile is not None
+    registry = replace(
+        registry,
+        profiles=(replace(profile, required_gates=(EnforcementGate.IDENTITY,)),),
+    )
+    result = DeterministicEnforcementEngine(registry=registry).evaluate(
+        envelope_from_governed_knowledge(_knowledge_object()),
+        EnforcementRequest(
+            request_id="test-only-action",
+            actor="test-only",
+            action="TEST_ONLY_UNKNOWN",
+            environment="test",
+            execution_mode="RESEARCH_ONLY",
+        ),
+    )
+    assert result.outcome is EnforcementOutcome.DENY
+    assert result.blockers == ("ACTION_NOT_ALLOWED",)
+
+
 def test_enforcement_profile_registry_covers_all_governed_object_types() -> None:
     registry = load_enforcement_profile_registry()
 

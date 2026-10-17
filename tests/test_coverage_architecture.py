@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from ai4binance.governance.architecture import (
+    CoreModule,
     LogicalArchitectureComponent,
     LogicalArchitectureRegistry,
     LogicalArchitectureRelation,
@@ -28,6 +29,62 @@ from ai4binance.ops.coverage_architecture import (
     load_coverage_architecture_config,
 )
 from ai4binance.ops.coverage_policy import FileCoverage
+
+
+@pytest.mark.parametrize(
+    "case", ["covered", "unmeasured", "stale", "below_minimum", "missing_test"]
+)
+def test_core_coverage_uses_existing_measurements_and_exposes_gaps(
+    tmp_path: Path,
+    case: str,
+) -> None:
+    _write_refs(tmp_path, expected_outcome="NO_TRADE")
+    registry = _registry()
+    component = registry.components[0]
+    registry = replace(
+        registry,
+        core_modules=(
+            CoreModule(
+                core_id="DecisionCore",
+                term_id="AI4B-TERM-DECISION-CORE-001",
+                component_ids=(component.component_id,),
+                enforcement_entrypoints=(),
+            ),
+        ),
+    )
+    coverage = _coverage()
+    if case == "below_minimum":
+        coverage = replace(coverage, covered_lines=0, missing_lines=coverage.statements)
+    if case == "missing_test":
+        (tmp_path / component.test_refs[0]).unlink()
+    report = evaluate_coverage_architecture(
+        _config(),
+        registry,
+        () if case == "unmeasured" else (coverage,),
+        repository_root=tmp_path,
+        coverage_generated_at=datetime(2000, 1, 1, tzinfo=UTC)
+        if case == "stale"
+        else None,
+    )
+    row = report.core_view[0]
+    expected = {
+        "covered": "IMPLEMENTED_AND_COVERED",
+        "unmeasured": "NOT_MEASURED",
+        "stale": "STALE_EVIDENCE",
+        "below_minimum": "IMPLEMENTED_TEST_GAP",
+        "missing_test": "IMPLEMENTED_TEST_GAP",
+    }[case]
+    assert row.state == expected
+    assert row.source_refs == component.source_paths
+    assert row.unmeasured_source_refs == (
+        component.source_paths if case == "unmeasured" else ()
+    )
+    assert (f"core:DecisionCore:{expected}" in report.architecture_failures) is (
+        case != "covered"
+    )
+    assert report.to_payload()["core_view"]
+    assert report.execution_allowed is False
+    assert report.live_eligibility_status == "LIVE_ORDER_BLOCKED"
 
 
 def test_repository_architecture_assurance_config_uses_registry_selectors() -> None:

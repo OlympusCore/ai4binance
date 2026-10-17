@@ -2,7 +2,7 @@
 document_id: AI4B-ARCH-FRM-001
 title: AI4BINANCE Architecture Overview
 document_type: FRAMEWORK
-version: 1.11.7
+version: 1.11.8
 status: ACTIVE
 owner: Enterprise Knowledge Governance
 authority_level: NORMATIVE
@@ -29,6 +29,57 @@ Core vNext's canonical governance, schema, entity rule, relationship rule,
 policy and output-format source:
 [`docs/governance/framework_core_vnext_governance.md`](/docs/governance/framework_core_vnext_governance.md).
 
+
+## Twelve-Core Modular Monolith
+
+The twelve logical modules package the existing implementations in one application.
+They coexist with the nineteen canonical domains and do not replace domain identity,
+contracts, vetoes, or authority ownership. They are not twelve runtime agents or
+independently deployed services. Their membership is projected by
+`docs/registries/registry_logical_architecture.yaml` and validated by its existing loader.
+
+| Core | Existing responsibility |
+| --- | --- |
+| DataCore | Owns ingestion orchestration, immutable snapshots and data quality. |
+| TradeCore | Owns trade plans and the gated paper execution lifecycle; never grants live authority. |
+| SystemCore | Owns shared runtime governance integration and the existing governed object enforcement fabric. |
+| SecurityCore | Owns security controls and bounded provider and tool permissions. |
+| AuditCore | Owns audit traceability, assurance observations and closure review evidence. |
+| RiskCore | Owns deterministic risk assessment and independent hard risk vetoes. |
+| TechnologyCore | Owns technology and language conformance; introduces no execution authority. |
+| ServiceCore | Names existing application service orchestration; adds no second orchestrator or decision producer. |
+| LearningCore | Owns research lessons and learning candidates without autonomous promotion. |
+| ValidationCore | Owns independent evidence validation and hard validation vetoes. |
+| DecisionCore | Owns the existing governed candidate-to-trade-decision handoff after risk and validation vetoes. |
+| DeterministicCore | Owns deterministic candidate calculation; a candidate is not a final trade decision. |
+
+ServiceCore reuses `ResearchApplicationService`, `EnterpriseOrchestrator` and the
+existing composition function `build_research_application_service`; it does not
+calculate a second decision. The composition boundary validates the registry before
+constructing research dependencies. DeterministicCore produces candidate evidence.
+RiskCore and ValidationCore retain independent hard vetoes. DecisionCore retains
+the existing Decision Governance Engine as the sole canonical TradeDecision producer.
+TradeCore consumes the existing execution gates and paper lifecycle.
+
+SystemCore hosts the existing Governed Object Enforcement Fabric and Deterministic
+Enforcement Engine. Component membership and enforcement entrypoint ownership must
+be complete and singular. Unknown cores, missing terminology, missing or duplicated
+components, and missing or duplicated inventory routes fail validation. A BLOCKED
+route stays blocked. Governed parameter activation calls that route before writing
+parameters or emitting an activation success trace; a legacy approval object is
+insufficient. Missing or invalid inventory and mismatched object/action scopes deny.
+Route identity and inventory content participate in replay and approval scope binding.
+
+The existing coverage architecture report includes a core_view derived from the
+registered source paths and current coverage measurements. Shared files are counted
+once within a core. Core percentages are separate views and must not be added.
+Missing measurements and stale evidence remain visible. Registered-source coverage
+is not proof of complete repository coverage, import isolation, production operation,
+or human authorization. These claims require separate observed evidence.
+
+RESEARCH_ONLY, PAPER_TRADING, MANUAL_CONFIRMATION, LIVE_EXECUTION_DISABLED and
+LIVE_ORDER_BLOCKED remain unchanged. No risk threshold, promotion permission or
+live authority is introduced by this packaging view.
 
 ## Big image
 

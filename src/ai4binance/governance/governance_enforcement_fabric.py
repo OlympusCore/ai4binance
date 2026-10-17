@@ -312,6 +312,23 @@ def _quality_gate_violations(
                 True,
             )
 
+    architecture_path = root / "docs/registries/registry_logical_architecture.yaml"
+    if architecture_path.is_file():
+        from ai4binance.governance.architecture import (
+            load_logical_architecture_registry,
+        )
+
+        try:
+            load_logical_architecture_registry(architecture_path, repository_root=root)
+        except (OSError, ValueError) as exc:
+            yield FabricViolation(
+                "quality_gate",
+                "LOGICAL_ARCHITECTURE_INVALID",
+                architecture_path.relative_to(root).as_posix(),
+                f"Logical architecture validation failed: {exc}",
+                True,
+            )
+
     try:
         policy_payload = yaml.safe_load(
             (root / quality_gate.quality_policy_path).read_text(encoding="utf-8")

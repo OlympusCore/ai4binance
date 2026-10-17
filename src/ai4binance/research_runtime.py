@@ -23,6 +23,7 @@ from ai4binance.data.timeframes import timeframe_duration
 from ai4binance.events.clock import SimulatedClock
 from ai4binance.governance import RunContext
 from ai4binance.governance.adapters import VirtualMarketDgeAdapter
+from ai4binance.governance.architecture import load_logical_architecture_registry
 from ai4binance.governance.audit import persist_dge_evaluation_record
 from ai4binance.market_context import MarketContextRequest
 from ai4binance.outlook import MarketOutlookEngine
@@ -50,6 +51,11 @@ from ai4binance.whale_fusion.models import DerivativesMetric
 def build_research_application_service(**kwargs: object) -> ResearchApplicationService:
     """Bind concrete research dependencies at the composition boundary."""
 
+    root = Path(__file__).resolve().parents[2]
+    load_logical_architecture_registry(
+        root / "docs/registries/registry_logical_architecture.yaml",
+        repository_root=root,
+    )
     options = cast(dict[str, Any], kwargs)
     virtual_governance_evaluator = _virtual_governance_evaluator(options)
     return ResearchApplicationService(

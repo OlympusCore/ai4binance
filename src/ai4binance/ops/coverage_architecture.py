@@ -309,6 +309,19 @@ class CriticalBehaviorCoverageRow:
 
 
 @dataclass(frozen=True, slots=True)
+class CoreModuleCoverageRow:
+    """Measured coverage of registered sources, without implying module isolation."""
+
+    core_id: str
+    component_ids: tuple[str, ...]
+    source_refs: tuple[str, ...]
+    unmeasured_source_refs: tuple[str, ...]
+    statement_coverage: float | None
+    branch_coverage: float | None
+    state: str
+
+
+@dataclass(frozen=True, slots=True)
 class CoverageArchitectureReport:
     """Unified, non-authoritative architecture-assurance evidence."""
 
@@ -321,6 +334,7 @@ class CoverageArchitectureReport:
     architecture_failures: tuple[str, ...]
     critical_behavior_failures: tuple[str, ...]
     result: str
+    core_view: tuple[CoreModuleCoverageRow, ...] = ()
     execution_allowed: bool = False
     promotion_status: str = "RESEARCH_ONLY"
     live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
@@ -586,6 +600,14 @@ def evaluate_coverage_architecture(
         for row in ordered_architecture
         if row.state != "IMPLEMENTED_AND_COVERED"
     )
+    core_view = _core_module_coverage(
+        config, registry, coverage_by_path, root, coverage_generated_at
+    )
+    architecture_failures += tuple(
+        f"core:{row.core_id}:{row.state}"
+        for row in core_view
+        if row.state != "IMPLEMENTED_AND_COVERED"
+    )
     critical_behavior_failures = tuple(
         f"{row.obligation_id}:{row.state}"
         for row in behavior_rows
@@ -599,6 +621,7 @@ def evaluate_coverage_architecture(
         architecture_view=ordered_architecture,
         critical_behavior_view=behavior_rows,
         architecture_failures=architecture_failures,
+        core_view=core_view,
         critical_behavior_failures=critical_behavior_failures,
         result=(
             "PASS"
@@ -606,6 +629,66 @@ def evaluate_coverage_architecture(
             else "BASELINE_DEBT"
         ),
     )
+
+
+def _core_module_coverage(
+    config: CoverageArchitectureConfig,
+    registry: LogicalArchitectureRegistry,
+    coverage_by_path: dict[str, SourceCoverage],
+    root: Path,
+    generated_at: datetime | None,
+) -> tuple[CoreModuleCoverageRow, ...]:
+    components = {
+        component.component_id: component for component in registry.components
+    }
+    rows: list[CoreModuleCoverageRow] = []
+    for module in registry.core_modules:
+        sources = tuple(
+            sorted(
+                {
+                    _normalize_path(path)
+                    for component_id in module.component_ids
+                    for path in components[component_id].source_paths
+                }
+            )
+        )
+        missing = tuple(path for path in sources if path not in coverage_by_path)
+        measured = tuple(
+            coverage_by_path[path] for path in sources if path in coverage_by_path
+        )
+        statement, branch = _aggregate_coverage(measured)
+        references = tuple(
+            path
+            for component_id in module.component_ids
+            for path in (
+                *components[component_id].source_paths,
+                *components[component_id].test_refs,
+                *components[component_id].contract_refs,
+            )
+        )
+        state = (
+            "NOT_MEASURED"
+            if missing or _missing_paths(root, sources)
+            else "IMPLEMENTED_TEST_GAP"
+            if _missing_paths(root, references)
+            else "STALE_EVIDENCE"
+            if _has_newer_reference(root, references, generated_at)
+            else "IMPLEMENTED_TEST_GAP"
+            if _below_minimum(config, statement, branch)
+            else "IMPLEMENTED_AND_COVERED"
+        )
+        rows.append(
+            CoreModuleCoverageRow(
+                core_id=module.core_id,
+                component_ids=module.component_ids,
+                source_refs=sources,
+                unmeasured_source_refs=missing,
+                statement_coverage=statement,
+                branch_coverage=branch,
+                state=state,
+            )
+        )
+    return tuple(rows)
 
 
 def _architecture_row(

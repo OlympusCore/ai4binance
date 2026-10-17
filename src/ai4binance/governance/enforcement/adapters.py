@@ -8,6 +8,7 @@ from pathlib import Path
 
 from ai4binance.governance.enforcement.contracts import (
     EnforcementDecision,
+    EnforcementOutcome,
     EnforcementRequest,
     GovernedObjectEnvelope,
 )
@@ -54,6 +55,26 @@ def evaluate_registered_entrypoint(
     return engine.evaluate_entrypoint(
         entrypoint_id, envelope, request, execution_profile=execution_profile
     )
+
+
+def require_registered_entrypoint(
+    repository_root: Path,
+    entrypoint_id: str,
+    envelope: GovernedObjectEnvelope,
+    request: EnforcementRequest,
+) -> EnforcementDecision:
+    """Require the shared gate before a caller performs any governed mutation."""
+    decision = evaluate_registered_entrypoint(
+        repository_root, entrypoint_id, envelope, request
+    )
+    if decision.outcome is not EnforcementOutcome.ALLOW:
+        raise ValueError(
+            "GOVERNED_MUTATION_BLOCKED:"
+            + entrypoint_id
+            + ":"
+            + ",".join(decision.reason_codes)
+        )
+    return decision
 
 
 def envelope_from_governed_knowledge(

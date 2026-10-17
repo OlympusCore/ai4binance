@@ -8,6 +8,7 @@ from ai4binance.governance.architecture.loader import (
     validate_runtime_architecture_conformance,
 )
 from ai4binance.governance.architecture.model import (
+    CoreModule,
     LogicalArchitectureComponent,
     LogicalArchitectureRegistry,
     LogicalArchitectureRelation,
@@ -17,6 +18,7 @@ from ai4binance.governance.architecture.model import (
 
 __all__ = [
     "DEFAULT_LOGICAL_ARCHITECTURE_REGISTRY_PATH",
+    "CoreModule",
     "LogicalArchitectureComponent",
     "LogicalArchitectureGraph",
     "LogicalArchitectureRegistry",

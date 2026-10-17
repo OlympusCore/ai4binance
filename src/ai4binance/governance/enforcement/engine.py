@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -86,18 +86,43 @@ class DeterministicEnforcementEngine:
     ) -> EnforcementDecision:
         """Bind a runtime request to its registered route before evaluating gates."""
         root = self.evidence_root or Path(__file__).resolve().parents[4]
-        inventory = load_enforcement_inventory(
-            root / "config/governance/enforcement_inventory.yaml"
+        inventory_path = root / "config/governance/enforcement_inventory.yaml"
+        try:
+            inventory = load_enforcement_inventory(inventory_path)
+            inventory.assert_profile_registry_alignment(self.registry)
+        except OSError, ValueError:
+            inventory = None
+        request = replace(
+            request,
+            context_hash=_sha256(
+                {
+                    "context_hash": request.context_hash,
+                    "entrypoint_id": entrypoint_id,
+                    "inventory_hash": None
+                    if inventory is None
+                    else _sha256(
+                        {
+                            "version": inventory.version,
+                            "entries": [asdict(item) for item in inventory.entries],
+                        }
+                    ),
+                }
+            ),
         )
-        entry = inventory.entry_for_entrypoint(entrypoint_id)
+        entry = (
+            None if inventory is None else inventory.entry_for_entrypoint(entrypoint_id)
+        )
         reason = (
-            "ENFORCEMENT_ENTRYPOINT_UNKNOWN"
+            "ENFORCEMENT_INVENTORY_INVALID"
+            if inventory is None
+            else "ENFORCEMENT_ENTRYPOINT_UNKNOWN"
             if entry is None
             else "ENFORCEMENT_ENTRYPOINT_SCOPE_MISMATCH"
             if (entry.object_type, entry.action)
             != (envelope.object_type, request.action)
             else "ENFORCEMENT_ENTRYPOINT_BLOCKED"
             if entry.coverage_state is not EnforcementCoverageState.ROUTED
+            or entry.bypass_possible
             else None
         )
         if reason is None:
@@ -131,6 +156,23 @@ class DeterministicEnforcementEngine:
         profile = self.registry.profile_for_object_type(envelope.object_type)
         if profile is None:
             return self._deny_without_profile(envelope, request)
+
+        if request.action not in profile.allowed_actions:
+            return self._decision(
+                envelope,
+                request,
+                profile,
+                (
+                    EnforcementControlResult(
+                        gate=EnforcementGate.LIFECYCLE,
+                        outcome=EnforcementOutcome.DENY,
+                        reason_codes=("ACTION_NOT_ALLOWED",),
+                        blockers=("ACTION_NOT_ALLOWED",),
+                    ),
+                ),
+                EnforcementOutcome.DENY,
+                consequence=self._consequence(request.action, profile),
+            )
 
         controls: list[EnforcementControlResult] = []
         for gate in self._ordered_gates(profile.required_gates):
@@ -872,6 +914,11 @@ class DeterministicEnforcementEngine:
                 "object_type": envelope.object_type,
                 "profile_id": profile.profile_id,
                 "requested_transition": request.requested_transition,
+                **(
+                    {"context_hash": request.context_hash}
+                    if request.context_hash is not None
+                    else {}
+                ),
             }
         )
 

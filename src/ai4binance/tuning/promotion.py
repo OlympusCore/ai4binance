@@ -14,6 +14,11 @@ from ai4binance.events.traceability import (
     canonical_trace_root_for_artifact,
     canonical_trace_sha256,
 )
+from ai4binance.governance.enforcement.adapters import require_registered_entrypoint
+from ai4binance.governance.enforcement.contracts import (
+    EnforcementRequest,
+    GovernedObjectEnvelope,
+)
 from ai4binance.reporting import to_primitive
 from ai4binance.storage import write_json_object_verified
 from ai4binance.storage.jsonl import AuditEvent, JsonlAuditStore
@@ -305,11 +310,45 @@ class GovernedParameterStore:
         approval: HumanApproval,
         *,
         expected_revision: int,
+        enforcement_request: EnforcementRequest | None = None,
     ) -> int:
         PromotionBoard._validate(report, approval)
         current_revision = self.current_revision()
         if expected_revision != current_revision:
             raise ValueError("parameter revision conflict")
+        require_registered_entrypoint(
+            self.repository_root or Path(__file__).resolve().parents[3],
+            "governed_parameter_activation",
+            GovernedObjectEnvelope(
+                object_id=report.report_id,
+                object_type="PARAMETER_SET",
+                version=str(current_revision),
+                lifecycle_state=report.promotion_status.value,
+                owner="Parameter Governance",
+                authority_layer="L8_REPORTS_EVIDENCE_INVENTORIES",
+                authority_effect="EVIDENCE_ONLY",
+                authority_scope="parameter_promotion",
+                source_of_truth=False,
+                canonical_ref="src/ai4binance/tuning/promotion.py",
+                schema_ref="schemas/governance/governed_object_enforcement.schema.json",
+                content_hash=canonical_trace_sha256(
+                    {
+                        "report_id": report.report_id,
+                        "parameters": dict(report.selected_parameters.values),
+                        "destination": str(self.path.resolve()),
+                        "expected_revision": expected_revision,
+                    }
+                ),
+            ),
+            enforcement_request
+            or EnforcementRequest(
+                request_id=approval.approval_id,
+                actor=approval.approver,
+                action="CHANGE_PARAMETER",
+                environment="paper",
+                execution_mode="RESEARCH_ONLY",
+            ),
+        )
         next_revision = current_revision + 1
         payload = {
             "revision": next_revision,

@@ -1,6 +1,6 @@
 document_id: "AI4B-GOV-TERM-REG-001"
 registry_id: "AI4B-GOV-TERM-REG-001"
-version: "1.0.0"
+version: "1.1.0"
 status: "ACTIVE"
 authority_layer: "L4_REPOSITORY_STANDARDS_CONTROLS_QUALITY_POLICIES"
 authority_effect: "IMPLEMENTATION"
@@ -12,7 +12,7 @@ canonical_path: "config/governance/canonical_terminology_registry.yaml"
 authority:
   standard_id: "AI4B-GOV-STD-TERM-001"
   standard_path: "docs/standards/standard_terminology_governance.md"
-  standard_version: "1.2.1"
+  standard_version: "1.2.2"
   authority_scope: "terminology_governance"
   projection_role: "ENFORCEMENT_PROJECTION"
   source_of_truth: false
@@ -51,6 +51,258 @@ terms:
     compatibility:
       migration_status: "KEEP"
       verification_status: "VERIFIED"
+  - term_id: "AI4B-TERM-DATA-CORE-001"
+    canonical_concept: "DataCore"
+    canonical_term: "data core"
+    domain: "modular_monolith"
+    definition: "Owns ingestion orchestration, immutable snapshots and data quality."
+    artifact_forms:
+      prose: "data core"
+      abbreviation: null
+      python_identifier: "data_core"
+      schema_property: "data_core"
+      enum_token: "DATA_CORE"
+      event_type: null
+      cli_form: "data-core"
+      display_label: "DataCore"
+    allowed_aliases: ["DataCore"]
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["canonical domain", "runtime agent", "execution authority"]
+    compatibility:
+      migration_status: "CLARIFY"
+      verification_status: "NOT_VERIFIED"
+  - term_id: "AI4B-TERM-TRADE-CORE-001"
+    canonical_concept: "TradeCore"
+    canonical_term: "trade core"
+    domain: "modular_monolith"
+    definition: "Owns trade plans and the gated paper execution lifecycle; never grants live authority."
+    artifact_forms:
+      prose: "trade core"
+      abbreviation: null
+      python_identifier: "trade_core"
+      schema_property: "trade_core"
+      enum_token: "TRADE_CORE"
+      event_type: null
+      cli_form: "trade-core"
+      display_label: "TradeCore"
+    allowed_aliases: ["TradeCore"]
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["canonical domain", "runtime agent", "execution authority"]
+    compatibility:
+      migration_status: "CLARIFY"
+      verification_status: "NOT_VERIFIED"
+  - term_id: "AI4B-TERM-SYSTEM-CORE-001"
+    canonical_concept: "SystemCore"
+    canonical_term: "system core"
+    domain: "modular_monolith"
+    definition: "Owns shared runtime governance integration and the existing governed object enforcement fabric."
+    artifact_forms:
+      prose: "system core"
+      abbreviation: null
+      python_identifier: "system_core"
+      schema_property: "system_core"
+      enum_token: "SYSTEM_CORE"
+      event_type: null
+      cli_form: "system-core"
+      display_label: "SystemCore"
+    allowed_aliases: ["SystemCore"]
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["canonical domain", "runtime agent", "execution authority"]
+    compatibility:
+      migration_status: "CLARIFY"
+      verification_status: "NOT_VERIFIED"
+  - term_id: "AI4B-TERM-SECURITY-CORE-001"
+    canonical_concept: "SecurityCore"
+    canonical_term: "security core"
+    domain: "modular_monolith"
+    definition: "Owns security controls and bounded provider and tool permissions."
+    artifact_forms:
+      prose: "security core"
+      abbreviation: null
+      python_identifier: "security_core"
+      schema_property: "security_core"
+      enum_token: "SECURITY_CORE"
+      event_type: null
+      cli_form: "security-core"
+      display_label: "SecurityCore"
+    allowed_aliases: ["SecurityCore"]
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["canonical domain", "runtime agent", "execution authority"]
+    compatibility:
+      migration_status: "CLARIFY"
+      verification_status: "NOT_VERIFIED"
+  - term_id: "AI4B-TERM-AUDIT-CORE-001"
+    canonical_concept: "AuditCore"
+    canonical_term: "audit core"
+    domain: "modular_monolith"
+    definition: "Owns audit traceability, assurance observations and closure review evidence."
+    artifact_forms:
+      prose: "audit core"
+      abbreviation: null
+      python_identifier: "audit_core"
+      schema_property: "audit_core"
+      enum_token: "AUDIT_CORE"
+      event_type: null
+      cli_form: "audit-core"
+      display_label: "AuditCore"
+    allowed_aliases: ["AuditCore"]
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["canonical domain", "runtime agent", "execution authority"]
+    compatibility:
+      migration_status: "CLARIFY"
+      verification_status: "NOT_VERIFIED"
+  - term_id: "AI4B-TERM-RISK-CORE-001"
+    canonical_concept: "RiskCore"
+    canonical_term: "risk core"
+    domain: "modular_monolith"
+    definition: "Owns deterministic risk assessment and independent hard risk vetoes."
+    artifact_forms:
+      prose: "risk core"
+      abbreviation: null
+      python_identifier: "risk_core"
+      schema_property: "risk_core"
+      enum_token: "RISK_CORE"
+      event_type: null
+      cli_form: "risk-core"
+      display_label: "RiskCore"
+    allowed_aliases: ["RiskCore"]
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["canonical domain", "runtime agent", "execution authority"]
+    compatibility:
+      migration_status: "CLARIFY"
+      verification_status: "NOT_VERIFIED"
+  - term_id: "AI4B-TERM-TECHNOLOGY-CORE-001"
+    canonical_concept: "TechnologyCore"
+    canonical_term: "technology core"
+    domain: "modular_monolith"
+    definition: "Owns technology and language conformance; introduces no execution authority."
+    artifact_forms:
+      prose: "technology core"
+      abbreviation: null
+      python_identifier: "technology_core"
+      schema_property: "technology_core"
+      enum_token: "TECHNOLOGY_CORE"
+      event_type: null
+      cli_form: "technology-core"
+      display_label: "TechnologyCore"
+    allowed_aliases: ["TechnologyCore"]
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["canonical domain", "runtime agent", "execution authority"]
+    compatibility:
+      migration_status: "CLARIFY"
+      verification_status: "NOT_VERIFIED"
+  - term_id: "AI4B-TERM-SERVICE-CORE-001"
+    canonical_concept: "ServiceCore"
+    canonical_term: "service core"
+    domain: "modular_monolith"
+    definition: "Names existing application service orchestration; adds no second orchestrator or decision producer."
+    artifact_forms:
+      prose: "service core"
+      abbreviation: null
+      python_identifier: "service_core"
+      schema_property: "service_core"
+      enum_token: "SERVICE_CORE"
+      event_type: null
+      cli_form: "service-core"
+      display_label: "ServiceCore"
+    allowed_aliases: ["ServiceCore"]
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["canonical domain", "runtime agent", "execution authority"]
+    compatibility:
+      migration_status: "CLARIFY"
+      verification_status: "NOT_VERIFIED"
+  - term_id: "AI4B-TERM-LEARNING-CORE-001"
+    canonical_concept: "LearningCore"
+    canonical_term: "learning core"
+    domain: "modular_monolith"
+    definition: "Owns research lessons and learning candidates without autonomous promotion."
+    artifact_forms:
+      prose: "learning core"
+      abbreviation: null
+      python_identifier: "learning_core"
+      schema_property: "learning_core"
+      enum_token: "LEARNING_CORE"
+      event_type: null
+      cli_form: "learning-core"
+      display_label: "LearningCore"
+    allowed_aliases: ["LearningCore"]
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["canonical domain", "runtime agent", "execution authority"]
+    compatibility:
+      migration_status: "CLARIFY"
+      verification_status: "NOT_VERIFIED"
+  - term_id: "AI4B-TERM-VALIDATION-CORE-001"
+    canonical_concept: "ValidationCore"
+    canonical_term: "validation core"
+    domain: "modular_monolith"
+    definition: "Owns independent evidence validation and hard validation vetoes."
+    artifact_forms:
+      prose: "validation core"
+      abbreviation: null
+      python_identifier: "validation_core"
+      schema_property: "validation_core"
+      enum_token: "VALIDATION_CORE"
+      event_type: null
+      cli_form: "validation-core"
+      display_label: "ValidationCore"
+    allowed_aliases: ["ValidationCore"]
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["canonical domain", "runtime agent", "execution authority"]
+    compatibility:
+      migration_status: "CLARIFY"
+      verification_status: "NOT_VERIFIED"
+  - term_id: "AI4B-TERM-DECISION-CORE-001"
+    canonical_concept: "DecisionCore"
+    canonical_term: "decision core"
+    domain: "modular_monolith"
+    definition: "Owns the existing governed candidate-to-trade-decision handoff after risk and validation vetoes."
+    artifact_forms:
+      prose: "decision core"
+      abbreviation: null
+      python_identifier: "decision_core"
+      schema_property: "decision_core"
+      enum_token: "DECISION_CORE"
+      event_type: null
+      cli_form: "decision-core"
+      display_label: "DecisionCore"
+    allowed_aliases: ["DecisionCore"]
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["canonical domain", "runtime agent", "execution authority"]
+    compatibility:
+      migration_status: "CLARIFY"
+      verification_status: "NOT_VERIFIED"
+  - term_id: "AI4B-TERM-DETERMINISTIC-CORE-001"
+    canonical_concept: "DeterministicCore"
+    canonical_term: "deterministic core"
+    domain: "modular_monolith"
+    definition: "Owns deterministic candidate calculation; a candidate is not a final trade decision."
+    artifact_forms:
+      prose: "deterministic core"
+      abbreviation: null
+      python_identifier: "deterministic_core"
+      schema_property: "deterministic_core"
+      enum_token: "DETERMINISTIC_CORE"
+      event_type: null
+      cli_form: "deterministic-core"
+      display_label: "DeterministicCore"
+    allowed_aliases: ["DeterministicCore"]
+    deprecated_aliases: []
+    prohibited_terms: []
+    semantic_boundaries: ["canonical domain", "runtime agent", "execution authority"]
+    compatibility:
+      migration_status: "CLARIFY"
+      verification_status: "NOT_VERIFIED"
   - term_id: "AI4B-TERM-SIGNAL-001"
     canonical_concept: "Signal"
     canonical_term: "signal"

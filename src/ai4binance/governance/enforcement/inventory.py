@@ -8,15 +8,24 @@ from dataclasses import dataclass
 from enum import StrEnum
 from hashlib import sha256
 from pathlib import Path
+from typing import Protocol
 
 import yaml
 
-from ai4binance.governance.enforcement.registry import EnforcementProfileRegistry
+from ai4binance.governance.enforcement.contracts import EnforcementProfile
 from ai4binance.schema_validation import validate_local_definition
 
 DEFAULT_ENFORCEMENT_INVENTORY_PATH = Path(
     "config/governance/enforcement_inventory.yaml"
 )
+
+
+class _ProfileLookup(Protocol):
+    """Keep inventory validation independent of validator orchestration."""
+
+    def profile_for_object_type(
+        self, object_type: str
+    ) -> EnforcementProfile | None: ...
 
 
 class EnforcementCoverageState(StrEnum):
@@ -594,7 +603,7 @@ class EnforcementInventory:
             )
 
     def assert_profile_registry_alignment(
-        self, profile_registry: EnforcementProfileRegistry
+        self, profile_registry: _ProfileLookup
     ) -> None:
         missing = sorted(
             {

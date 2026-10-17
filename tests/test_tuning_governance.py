@@ -283,7 +283,7 @@ def approval_for(report_id: str, parameters: ParameterSet) -> HumanApproval:
     )
 
 
-def test_human_board_and_revision_store_activates_parameters(
+def test_legacy_human_approval_cannot_activate_a_blocked_parameter_route(
     tmp_path: Path,
 ) -> None:
     report = tuning_report()
@@ -293,22 +293,16 @@ def test_human_board_and_revision_store_activates_parameters(
     parameter_store = GovernedParameterStore(tmp_path / "production-parameters.json")
 
     board.record(report, approval)
-    revision = parameter_store.activate(report, approval, expected_revision=0)
-
-    persisted = json.loads(parameter_store.path.read_text(encoding="utf-8"))
-    assert revision == 1
-    assert persisted["revision"] == 1
-    assert persisted["status"] == "PAPER_APPROVED"
-    assert persisted["approval_id"] == "approval-1"
+    with pytest.raises(ValueError, match="ENFORCEMENT_ENTRYPOINT_BLOCKED"):
+        parameter_store.activate(report, approval, expected_revision=0)
+    assert not parameter_store.path.exists()
+    assert parameter_store.current_revision() == 0
     assert json.loads(board_path.read_text(encoding="utf-8"))["event_type"] == (
         "PARAMETER_PROMOTION_APPROVED"
     )
-    with pytest.raises(ValueError, match="revision conflict"):
-        parameter_store.activate(report, approval, expected_revision=0)
     journal = CanonicalTraceJournal(canonical_trace_journal_path(tmp_path))
     assert {record.trace_kind for record in journal.records()} == {
         ConsequentialTraceKind.APPROVAL,
-        ConsequentialTraceKind.CONFIG_CHANGE,
     }
 
 
@@ -322,17 +316,41 @@ def test_nested_runtime_defaults_share_the_repository_trace_journal(
     )
     store = GovernedParameterStore(tmp_path / "runtime/state/tuning/parameters.json")
     board.record(report, approval)
-    store.activate(report, approval, expected_revision=0)
+    with pytest.raises(ValueError, match="ENFORCEMENT_ENTRYPOINT_BLOCKED"):
+        store.activate(report, approval, expected_revision=0)
+    assert not store.path.exists()
     journal = CanonicalTraceJournal(canonical_trace_journal_path(tmp_path))
     assert {record.event_name for record in journal.records()} == {
         "PARAMETER_PROMOTION_APPROVED",
-        "GOVERNED_PARAMETER_ACTIVATED",
     }
     assert not (tmp_path / "runtime/state/tuning/runtime").exists()
     assert not (tmp_path / "runtime/audit/tuning/runtime").exists()
 
 
-def test_parameter_promotion_and_activation_emit_canonical_trace_records(
+@pytest.mark.parametrize("expected_revision", [0, 1])
+def test_blocked_parameter_activation_preserves_existing_file_and_revision(
+    tmp_path: Path,
+    expected_revision: int,
+) -> None:
+    report = tuning_report()
+    approval = approval_for(report.report_id, report.selected_parameters)
+    path = tmp_path / "parameters.json"
+    original = b'{"revision":1,"status":"TEST_ONLY_EXISTING_PARAMETER_FIXTURE"}'
+    path.write_bytes(original)
+    store = GovernedParameterStore(path)
+    reason = (
+        "revision conflict"
+        if expected_revision == 0
+        else "ENFORCEMENT_ENTRYPOINT_BLOCKED"
+    )
+    with pytest.raises(ValueError, match=reason):
+        store.activate(report, approval, expected_revision=expected_revision)
+    assert path.read_bytes() == original
+    assert store.current_revision() == 1
+    assert not canonical_trace_journal_path(tmp_path).exists()
+
+
+def test_denied_parameter_activation_cannot_emit_a_success_trace(
     tmp_path: Path,
 ) -> None:
     report = tuning_report()
@@ -355,7 +373,11 @@ def test_parameter_promotion_and_activation_emit_canonical_trace_records(
         build_playbook_registry(),
         governed_registry=complete_governed_strategy_registry(tmp_path),
     )
-    parameter_store.activate(report, approval, expected_revision=0)
+    before = tuple(trace_journal.records())
+    with pytest.raises(ValueError, match="ENFORCEMENT_ENTRYPOINT_BLOCKED"):
+        parameter_store.activate(report, approval, expected_revision=0)
+    assert not parameter_store.path.exists()
+    assert tuple(trace_journal.records()) == before
     audit = trace_journal.audit(
         (
             TraceabilityRequirement(
@@ -372,13 +394,6 @@ def test_parameter_promotion_and_activation_emit_canonical_trace_records(
                 subject_type="STRATEGY_PROMOTION_ARTIFACT",
                 approval_ref=approval.approval_id,
             ),
-            TraceabilityRequirement(
-                trace_kind=ConsequentialTraceKind.CONFIG_CHANGE,
-                subject_ref=str(parameter_store.path.resolve()),
-                event_name="GOVERNED_PARAMETER_ACTIVATED",
-                subject_type="GOVERNED_PARAMETER_STORE",
-                approval_ref=approval.approval_id,
-            ),
         )
     )
 
@@ -386,14 +401,11 @@ def test_parameter_promotion_and_activation_emit_canonical_trace_records(
     assert {record.trace_kind for record in trace_journal.records()} == {
         ConsequentialTraceKind.APPROVAL,
         ConsequentialTraceKind.PROMOTION_CANDIDATE,
-        ConsequentialTraceKind.CONFIG_CHANGE,
     }
-    config_record = next(
-        record
+    assert all(
+        record.trace_kind is not ConsequentialTraceKind.CONFIG_CHANGE
         for record in trace_journal.records()
-        if record.trace_kind is ConsequentialTraceKind.CONFIG_CHANGE
     )
-    assert config_record.governed_paths == (str(parameter_store.path.resolve()),)
 
 
 def test_promotion_board_applies_paper_approval_to_strategy_registry(
@@ -547,8 +559,10 @@ def test_promotion_board_allows_trace_journal_to_be_disabled(tmp_path: Path) -> 
     object.__setattr__(store, "trace_journal", None)
 
     board.record(report, approval)
-    store.activate(report, approval, expected_revision=0)
+    with pytest.raises(ValueError, match="ENFORCEMENT_ENTRYPOINT_BLOCKED"):
+        store.activate(report, approval, expected_revision=0)
 
+    assert not store.path.exists()
     assert not canonical_trace_journal_path(tmp_path).exists()
 
 

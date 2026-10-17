@@ -281,6 +281,8 @@ def test_quality_gate_policy_locks_profile_authority_and_tooling() -> None:
         "critical_authority_layer_development",
         "critical_governance",
         "critical_enforcement_inventory",
+        "critical_governed_parameter_runtime_wiring",
+        "critical_core_coverage_projection",
         "critical_semantic_governance_enforcement_fabric",
         "kaizen_culture",
         "lean_process",
@@ -311,6 +313,37 @@ def test_quality_gate_policy_locks_profile_authority_and_tooling() -> None:
 
 
 @pytest.mark.parametrize(
+    ("source_path", "expected_tests"),
+    [
+        (
+            "src/ai4binance/tuning/promotion.py",
+            {
+                "tests/test_tuning_governance.py",
+                "tests/test_governed_object_enforcement.py",
+            },
+        ),
+        (
+            "src/ai4binance/ops/coverage_architecture.py",
+            {
+                "tests/test_coverage_architecture.py",
+                "tests/test_coverage_audit.py",
+                "tests/test_coverage_policy.py",
+            },
+        ),
+    ],
+)
+def test_standard_routes_core_runtime_and_coverage_regressions(
+    source_path: str,
+    expected_tests: set[str],
+) -> None:
+    selected = resolve_standard_pytest_arguments(
+        load_quality_gate_policy(POLICY_PATH), ROOT, (source_path,)
+    )
+    assert expected_tests.issubset(selected)
+    assert set(REQUIRED_TESTS).issubset(selected)
+
+
+@pytest.mark.parametrize(
     "source_path",
     [
         "src/ai4binance/application/virtual_runtime_engine.py",
@@ -335,6 +368,27 @@ def test_canonical_runtime_owners_keep_safety_tests_in_both_profiles(
             "tests/test_execution_authority.py",
             "tests/test_continuous_assurance.py",
         } <= set(selected)
+
+
+@pytest.mark.parametrize(
+    "source_path",
+    [
+        "src/ai4binance/agents/orchestrator.py",
+        "src/ai4binance/application/research.py",
+        "src/ai4binance/ops/jobs.py",
+        "src/ai4binance/research_runtime.py",
+    ],
+)
+def test_service_core_boundaries_are_selected_in_both_profiles(
+    source_path: str,
+) -> None:
+    policy = load_quality_gate_policy(POLICY_PATH)
+    for resolver in (
+        resolve_affected_pytest_arguments,
+        resolve_standard_pytest_arguments,
+    ):
+        selected = resolver(policy, ROOT, (source_path,))
+        assert "tests/test_service_core_boundaries.py" in selected
 
 
 def test_quality_gate_selector_resolves_affected_and_standard_scopes() -> None:
@@ -424,6 +478,7 @@ def test_quality_gate_selector_resolves_affected_and_standard_scopes() -> None:
         "tests/test_dge_models.py",
         "tests/test_dge_engine.py",
         "tests/test_research_application.py",
+        "tests/test_service_core_boundaries.py",
         "--no-cov",
     )
     assert docs_args == (
@@ -536,6 +591,7 @@ def test_standard_scope_adds_critical_impacted_contract_and_determinism_tests() 
         "tests/test_dge_models.py",
         "tests/test_dge_engine.py",
         "tests/test_research_application.py",
+        "tests/test_service_core_boundaries.py",
         "--no-cov",
     )
     assert risk_args == (

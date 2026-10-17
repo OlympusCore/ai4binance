@@ -52,6 +52,23 @@ from tests.test_cli import public_snapshot
 from tests.test_wallet_learning import closed_position
 
 
+def test_service_composition_checks_architecture_before_constructing_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai4binance import research_runtime
+
+    def reject(*args: object, **kwargs: object) -> None:
+        raise ValueError("TEST_ONLY_CORE_BINDING_INVALID")
+
+    def unexpected_runtime() -> None:
+        pytest.fail("Runtime constructed before architecture validation")
+
+    monkeypatch.setattr(research_runtime, "load_logical_architecture_registry", reject)
+    monkeypatch.setattr(research_runtime, "EnterpriseOrchestrator", unexpected_runtime)
+    with pytest.raises(ValueError, match="TEST_ONLY_CORE_BINDING_INVALID"):
+        build_research_application_service()
+
+
 @pytest.mark.parametrize(
     ("status", "blockers", "expected"),
     [

@@ -1,5 +1,5 @@
 registry_id: AI4B-LOGICAL-ARCHITECTURE-REGISTRY-001
-version: 1.12.1
+version: 1.13.0
 status: ACTIVE
 source_of_truth: false
 execution_allowed: false
@@ -139,10 +139,15 @@ components:
     authority_effect: IMPLEMENTATION
     source_paths:
       - src/ai4binance/governance/framework.py
+      - src/ai4binance/strategies/engine.py
+      - src/ai4binance/strategies/arbitration.py
+      - src/ai4binance/scoring.py
     contract_refs:
       - docs/governance/framework_core_vnext_governance.md
     test_refs:
       - tests/test_governance_framework.py
+      - tests/test_strategy_risk.py
+      - tests/test_scoring.py
     hot_path: true
     deterministic: true
     llm_dependency: false
@@ -187,10 +192,13 @@ components:
     authority_effect: VETO
     source_paths:
       - src/ai4binance/governance/framework.py
+      - src/ai4binance/governance/execution_authority.py
+      - src/ai4binance/application/virtual_runtime_eligibility.py
     contract_refs:
       - docs/governance/framework_core_vnext_governance.md
     test_refs:
       - tests/test_governance_framework.py
+      - tests/test_execution_authority.py
     hot_path: true
     deterministic: true
     llm_dependency: false
@@ -216,6 +224,34 @@ components:
     test_refs:
       - tests/test_governance_framework.py
     hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: governed-object-enforcement
+    component_kind: ENGINE
+    canonical_domain: 13_GOVERNANCE
+    logical_plane: CONTROL & ASSURANCE PLANE
+    dependency_layer: governance
+    runtime_class: GOVERNED_DETERMINISTIC
+    owner: Enterprise Governance
+    authority_effect: IMPLEMENTATION
+    source_paths:
+      - src/ai4binance/governance/enforcement/engine.py
+      - src/ai4binance/governance/enforcement/adapters.py
+      - src/ai4binance/governance/enforcement/inventory.py
+      - src/ai4binance/tuning/promotion.py
+    contract_refs:
+      - docs/standards/standard_governed_object_enforcement.md
+    test_refs:
+      - tests/test_governed_object_enforcement.py
+      - tests/test_tuning_governance.py
+    hot_path: false
     deterministic: true
     llm_dependency: false
     side_effects: false
@@ -259,10 +295,12 @@ components:
     authority_effect: EVIDENCE_ONLY
     source_paths:
       - src/ai4binance/governance/framework.py
+      - src/ai4binance/learning/engine.py
     contract_refs:
       - docs/governance/framework_core_vnext_governance.md
     test_refs:
       - tests/test_governance_framework.py
+      - tests/test_wallet_learning.py
     hot_path: true
     deterministic: true
     llm_dependency: false
@@ -283,10 +321,12 @@ components:
     authority_effect: EVIDENCE_ONLY
     source_paths:
       - src/ai4binance/governance/framework.py
+      - src/ai4binance/learning/governance.py
     contract_refs:
       - docs/governance/framework_core_vnext_governance.md
     test_refs:
       - tests/test_governance_framework.py
+      - tests/test_agent_runtime_governance.py
     hot_path: true
     deterministic: true
     llm_dependency: false
@@ -482,10 +522,14 @@ components:
     authority_effect: VETO
     source_paths:
       - src/ai4binance/governance/framework.py
+      - src/ai4binance/risk.py
+      - src/ai4binance/agents/risk_gate.py
     contract_refs:
       - docs/governance/framework_core_vnext_governance.md
     test_refs:
       - tests/test_governance_framework.py
+      - tests/test_strategy_risk.py
+      - tests/test_agents.py
     hot_path: true
     deterministic: true
     llm_dependency: false
@@ -511,6 +555,35 @@ components:
     test_refs:
       - tests/test_governance_tool_gateway.py
     hot_path: true
+    deterministic: true
+    llm_dependency: false
+    side_effects: false
+    decision_authority: false
+    risk_override: false
+    validation_override: false
+    source_of_truth: false
+    execution_allowed: false
+    live_eligibility_status: LIVE_ORDER_BLOCKED
+  - component_id: service-orchestration
+    component_kind: ORCHESTRATOR
+    canonical_domain: 17_EVENT_FABRIC
+    logical_plane: ORCHESTRATION + EVENT FABRIC
+    dependency_layer: application
+    runtime_class: GOVERNED_DETERMINISTIC
+    owner: Application Orchestration
+    authority_effect: IMPLEMENTATION
+    source_paths:
+      - src/ai4binance/research_runtime.py
+      - src/ai4binance/application/research.py
+      - src/ai4binance/agents/orchestrator.py
+      - src/ai4binance/ops/jobs.py
+    contract_refs:
+      - docs/architecture/framework_architecture_overview.md
+    test_refs:
+      - tests/test_research_application.py
+      - tests/test_agents.py
+      - tests/test_agent_runtime_governance.py
+    hot_path: false
     deterministic: true
     llm_dependency: false
     side_effects: false
@@ -628,10 +701,13 @@ components:
     authority_effect: VETO
     source_paths:
       - src/ai4binance/governance/framework.py
+      - src/ai4binance/agents/validation_gate.py
+      - src/ai4binance/validation/oos_maturity.py
     contract_refs:
       - docs/governance/framework_core_vnext_governance.md
     test_refs:
       - tests/test_governance_framework.py
+      - tests/test_agents.py
     hot_path: true
     deterministic: true
     llm_dependency: false
@@ -642,6 +718,55 @@ components:
     source_of_truth: false
     execution_allowed: false
     live_eligibility_status: LIVE_ORDER_BLOCKED
+core_modules:
+  - core_id: DataCore
+    term_id: AI4B-TERM-DATA-CORE-001
+    component_ids: [data-quality]
+    enforcement_entrypoints: [market_snapshot_wire_validation]
+  - core_id: TradeCore
+    term_id: AI4B-TERM-TRADE-CORE-001
+    component_ids: [execution-gate-result, execution-record, opportunity-lifecycle-ledger, portfolio-accounting, position-lifecycle, trade-plan]
+    enforcement_entrypoints: [execution_profile_evaluate, live_order_execution_intent, strategy_definition_profile_contract, tuning_strategy_promotion_board, strategy_registry_mutation_write]
+  - core_id: SystemCore
+    term_id: AI4B-TERM-SYSTEM-CORE-001
+    component_ids: [core-architecture-framework, event-replay, governed-object-enforcement, logical-architecture-registry, policy]
+    enforcement_entrypoints: [repository_artifact_update, policy_document_update, governance_control_plane_update, approval_record_runtime_mutation, governed_parameter_activation]
+  - core_id: SecurityCore
+    term_id: AI4B-TERM-SECURITY-CORE-001
+    component_ids: [security-controls]
+    enforcement_entrypoints: [tool_permission_grant, provider_model_selection_decision]
+  - core_id: AuditCore
+    term_id: AI4B-TERM-AUDIT-CORE-001
+    component_ids: [closure-review, kaizen-quality-snapshot]
+    enforcement_entrypoints: []
+  - core_id: RiskCore
+    term_id: AI4B-TERM-RISK-CORE-001
+    component_ids: [risk-assessment]
+    enforcement_entrypoints: []
+  - core_id: TechnologyCore
+    term_id: AI4B-TERM-TECHNOLOGY-CORE-001
+    component_ids: [technology-language-policy-enforcement]
+    enforcement_entrypoints: []
+  - core_id: ServiceCore
+    term_id: AI4B-TERM-SERVICE-CORE-001
+    component_ids: [service-orchestration]
+    enforcement_entrypoints: [workflow_job_admission, development_run_card_completion, graph_workflow_manifest_admission]
+  - core_id: LearningCore
+    term_id: AI4B-TERM-LEARNING-CORE-001
+    component_ids: [learning-candidate, lesson]
+    enforcement_entrypoints: [governed_lesson_activation, model_adaptation_candidate_review, governed_memory_candidate_intake]
+  - core_id: ValidationCore
+    term_id: AI4B-TERM-VALIDATION-CORE-001
+    component_ids: [opportunity-outcome-evaluation, validation]
+    enforcement_entrypoints: []
+  - core_id: DecisionCore
+    term_id: AI4B-TERM-DECISION-CORE-001
+    component_ids: [decision-candidate, decision-governance, trade-decision]
+    enforcement_entrypoints: []
+  - core_id: DeterministicCore
+    term_id: AI4B-TERM-DETERMINISTIC-CORE-001
+    component_ids: [deterministic-core, opportunity-intelligence, setup]
+    enforcement_entrypoints: []
 relations:
   - relation_id: candidate-constrained-by-risk-assessment
     from_component_id: decision-candidate

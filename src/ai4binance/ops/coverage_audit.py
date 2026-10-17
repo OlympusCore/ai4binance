@@ -19,6 +19,7 @@ from ai4binance.governance.architecture import (
 )
 from ai4binance.ops.coverage_architecture import (
     ArchitectureCoverageRow,
+    CoreModuleCoverageRow,
     CoverageArchitectureConfig,
     CriticalBehaviorCoverageRow,
     evaluate_coverage_architecture,
@@ -186,6 +187,7 @@ class CoverageAuditReport:
     remediation_view: tuple[CoverageAuditRow, ...]
     architecture_view: tuple[ArchitectureCoverageRow, ...]
     critical_behavior_view: tuple[CriticalBehaviorCoverageRow, ...]
+    core_view: tuple[CoreModuleCoverageRow, ...] = ()
     execution_allowed: bool = False
     promotion_status: str = "RESEARCH_ONLY"
     live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
@@ -355,6 +357,7 @@ def build_coverage_audit_report(
     )
     architecture_view: tuple[ArchitectureCoverageRow, ...] = ()
     critical_behavior_view: tuple[CriticalBehaviorCoverageRow, ...] = ()
+    core_view: tuple[CoreModuleCoverageRow, ...] = ()
     if config.architecture_assurance is not None and architecture_registry is not None:
         if source_root is None:
             raise ValueError(
@@ -370,6 +373,7 @@ def build_coverage_audit_report(
         )
         architecture_view = architecture_report.architecture_view
         critical_behavior_view = architecture_report.critical_behavior_view
+        core_view = architecture_report.core_view
     return CoverageAuditReport(
         report_id="AI4B-COVERAGE-AUDIT-DECISION-READY",
         generated_at_utc=generated_at or datetime.now(UTC),
@@ -395,6 +399,7 @@ def build_coverage_audit_report(
         remediation_view=_sort_rows(filtered, CoverageAuditSort.REMEDIATION),
         architecture_view=architecture_view,
         critical_behavior_view=critical_behavior_view,
+        core_view=core_view,
     )
 
 

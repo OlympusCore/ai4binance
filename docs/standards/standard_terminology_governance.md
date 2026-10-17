@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-STD-TERM-001
 title: AI4BINANCE Global Terminology and Taxonomy Standard
 document_type: STANDARD
-version: 1.2.1
+version: 1.2.2
 status: ACTIVE
 owner: Enterprise Knowledge Governance
 authority_level: NORMATIVE
@@ -106,6 +106,34 @@ Terminology governance must distinguish at minimum:
 - user-facing display label.
 
 Multiple artifact forms may represent one concept without creating multiple concepts.
+
+## Modular Monolith Core Vocabulary
+
+The following logical module names identify packaging boundaries, not new domains,
+runtime agents, authorization roles, or independent decision engines.
+
+| Core | Existing responsibility |
+| --- | --- |
+| DataCore | Owns ingestion orchestration, immutable snapshots and data quality. |
+| TradeCore | Owns trade plans and the gated paper execution lifecycle; never grants live authority. |
+| SystemCore | Owns shared runtime governance integration and the existing governed object enforcement fabric. |
+| SecurityCore | Owns security controls and bounded provider and tool permissions. |
+| AuditCore | Owns audit traceability, assurance observations and closure review evidence. |
+| RiskCore | Owns deterministic risk assessment and independent hard risk vetoes. |
+| TechnologyCore | Owns technology and language conformance; introduces no execution authority. |
+| ServiceCore | Names existing application service orchestration; adds no second orchestrator or decision producer. |
+| LearningCore | Owns research lessons and learning candidates without autonomous promotion. |
+| ValidationCore | Owns independent evidence validation and hard validation vetoes. |
+| DecisionCore | Owns the existing governed candidate-to-trade-decision handoff after risk and validation vetoes. |
+| DeterministicCore | Owns deterministic candidate calculation; a candidate is not a final trade decision. |
+
+Use PascalCase for the display and concept form, lower_snake_case for Python and
+schema forms, UPPER_SNAKE_CASE for enum forms, and lower-kebab-case for CLI forms,
+as recorded in the canonical terminology enforcement projection. Existing public
+interfaces and paths remain compatible; adding a core label does not authorize
+repository-wide renaming. ServiceCore Orchestrator denotes the existing application
+orchestration responsibility inside the twelve modules. DeterministicCore and
+DecisionCore are two of those twelve modules, not additional modules.
 
 ## 5. Canonical Terminology Record
 

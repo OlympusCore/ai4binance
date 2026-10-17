@@ -1,4 +1,4 @@
-version: 1.4.4
+version: 1.4.5
 non_consequential_examples:
   - calculate_rsi
   - calculate_atr
@@ -451,9 +451,9 @@ entries:
     object_type: PARAMETER_SET
     action: CHANGE_PARAMETER
     integration_surface: governed_parameter_store
-    current_enforcer: GovernedParameterStore
+    current_enforcer: GovernedParameterStore+DeterministicEnforcementEngine
     coverage_state: BLOCKED
-    status_rationale: Direct parameter activation remains approval-bound and paper-only; standalone store writes are not an authorized universal promotion route.
+    status_rationale: GovernedParameterStore.activate calls the registered deterministic enforcement gate before any parameter or trace write. The route remains blocked; a legacy human-approval object cannot authorize it.
     authority_source: docs/standards/standard_governed_object_enforcement.md
     policy_source: src/ai4binance/tuning/promotion.py
     blocker_source: config/governance/blocker_registry.yaml

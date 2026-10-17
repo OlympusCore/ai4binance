@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 import yaml
@@ -24,11 +26,149 @@ ROOT = Path(__file__).parents[3]
 REGISTRY_PATH = ROOT / "docs/registries/registry_logical_architecture.yaml"
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("core_id", "", "identity is required"),
+        ("term_id", "", "identity is required"),
+        ("component_ids", (), "requires existing components"),
+        ("component_ids", ("policy", "policy"), "unique and nonblank"),
+        ("component_ids", (" ",), "unique and nonblank"),
+        ("enforcement_entrypoints", (" ",), "unique and nonblank"),
+    ],
+)
+def test_core_module_contract_rejects_ambiguous_identity_and_membership(
+    field: str, value: object, message: str
+) -> None:
+    module = load_logical_architecture_registry(REGISTRY_PATH).core_modules[0]
+    with pytest.raises(ValueError, match=message):
+        replace(module, **{field: cast(Any, value)})
+
+
+def test_twelve_core_modules_have_one_owner_for_every_component_and_route() -> None:
+    from ai4binance.governance.enforcement import load_enforcement_inventory
+
+    registry = load_logical_architecture_registry(REGISTRY_PATH)
+    assert {module.core_id for module in registry.core_modules} == {
+        "DataCore",
+        "TradeCore",
+        "SystemCore",
+        "SecurityCore",
+        "AuditCore",
+        "RiskCore",
+        "TechnologyCore",
+        "ServiceCore",
+        "LearningCore",
+        "ValidationCore",
+        "DecisionCore",
+        "DeterministicCore",
+    }
+    components = [
+        item for module in registry.core_modules for item in module.component_ids
+    ]
+    assert len(components) == len(set(components)) == len(registry.components)
+    routes = [
+        item
+        for module in registry.core_modules
+        for item in module.enforcement_entrypoints
+    ]
+    assert len(routes) == len(set(routes)) == len(load_enforcement_inventory().entries)
+    assert registry.to_payload()["core_modules"] == [
+        module.to_payload() for module in registry.core_modules
+    ]
+    assert len(build_core_architecture().domains) == 19
+    service = next(
+        module for module in registry.core_modules if module.core_id == "ServiceCore"
+    )
+    assert service.component_ids == ("service-orchestration",)
+    assert registry.execution_allowed is False
+    assert registry.live_eligibility_status == "LIVE_ORDER_BLOCKED"
+
+
+def test_core_module_sources_include_existing_runtime_owners() -> None:
+    registry = load_logical_architecture_registry(REGISTRY_PATH)
+    components = {item.component_id: item for item in registry.components}
+    expected = {
+        "deterministic-core": {
+            "src/ai4binance/strategies/engine.py",
+            "src/ai4binance/scoring.py",
+        },
+        "risk-assessment": {
+            "src/ai4binance/risk.py",
+            "src/ai4binance/agents/risk_gate.py",
+        },
+        "validation": {
+            "src/ai4binance/agents/validation_gate.py",
+            "src/ai4binance/validation/oos_maturity.py",
+        },
+        "service-orchestration": {
+            "src/ai4binance/research_runtime.py",
+            "src/ai4binance/agents/orchestrator.py",
+        },
+        "lesson": {"src/ai4binance/learning/governance.py"},
+        "decision-governance": {"src/ai4binance/governance/dge_engine.py"},
+    }
+    assert all(
+        paths.issubset(components[name].source_paths)
+        for name, paths in expected.items()
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "missing_core",
+        "duplicate_core",
+        "unknown_core",
+        "unknown_term",
+        "duplicate_component",
+        "missing_component",
+        "unknown_route",
+        "duplicate_route",
+        "responsibility_swap",
+    ],
+)
+def test_core_module_drift_fails_closed(tmp_path: Path, mutation: str) -> None:
+    payload = yaml.safe_load(REGISTRY_PATH.read_text(encoding="utf-8"))
+    modules = payload["core_modules"]
+    if mutation == "missing_core":
+        modules.pop()
+    elif mutation == "duplicate_core":
+        modules[1]["core_id"] = modules[0]["core_id"]
+    elif mutation == "unknown_core":
+        modules[0]["core_id"] = "TEST_ONLY_UnknownCore"
+    elif mutation == "unknown_term":
+        modules[0]["term_id"] = "AI4B-TERM-TEST-ONLY-UNKNOWN"
+    elif mutation == "duplicate_component":
+        modules[1]["component_ids"].append(modules[0]["component_ids"][0])
+    elif mutation == "missing_component":
+        modules[1]["component_ids"].pop()
+    elif mutation == "unknown_route":
+        modules[0]["enforcement_entrypoints"] = ["TEST_ONLY_UNKNOWN_ROUTE"]
+    elif mutation == "duplicate_route":
+        modules[1]["enforcement_entrypoints"].append(
+            modules[0]["enforcement_entrypoints"][0]
+        )
+    else:
+        service = next(item for item in modules if item["core_id"] == "ServiceCore")
+        risk = next(item for item in modules if item["core_id"] == "RiskCore")
+        service["component_ids"], risk["component_ids"] = (
+            risk["component_ids"],
+            service["component_ids"],
+        )
+    path = tmp_path / "registry.yaml"
+    path.write_text(yaml.safe_dump(payload), encoding="utf-8")
+    with pytest.raises(
+        ValueError, match=r"schema validation|core module|modular monolith"
+    ):
+        load_logical_architecture_registry(path, repository_root=ROOT)
+
+
 def test_registry_is_schema_valid_sorted_and_live_blocked() -> None:
     registry = load_logical_architecture_registry(REGISTRY_PATH)
 
     assert registry.registry_id == "AI4B-LOGICAL-ARCHITECTURE-REGISTRY-001"
-    assert registry.version == "1.12.1"
+    assert registry.version == "1.13.0"
     assert registry.source_of_truth is False
     assert registry.execution_allowed is False
     assert registry.live_eligibility_status == "LIVE_ORDER_BLOCKED"

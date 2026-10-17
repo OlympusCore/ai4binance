@@ -202,18 +202,21 @@ affected_tests:
       path_prefixes:
         - docs/registries/registry_logical_architecture.yaml
         - schemas/architecture/
+        - src/ai4binance/agents/orchestrator.py
         - src/ai4binance/application/research.py
         - src/ai4binance/governance/adapters.py
         - src/ai4binance/governance/architecture/
         - src/ai4binance/governance/dge_engine.py
         - src/ai4binance/governance/dge_models.py
         - src/ai4binance/governance/rules.py
+        - src/ai4binance/ops/jobs.py
         - src/ai4binance/research_runtime.py
       tests:
         - tests/governance/architecture/test_logical_architecture_registry.py
         - tests/test_dge_models.py
         - tests/test_dge_engine.py
         - tests/test_research_application.py
+        - tests/test_service_core_boundaries.py
     - name: governance
       path_prefixes:
         - src/ai4binance/governance/
@@ -245,6 +248,21 @@ affected_tests:
       tests:
         - tests/test_governed_object_enforcement.py
         - tests/test_quality_gate_profiles.py
+    - name: governed_parameter_runtime_wiring
+      path_prefixes:
+        - src/ai4binance/tuning/promotion.py
+      tests:
+        - tests/test_tuning_governance.py
+        - tests/test_governed_object_enforcement.py
+    - name: core_coverage_projection
+      path_prefixes:
+        - src/ai4binance/ops/coverage_architecture.py
+        - src/ai4binance/ops/coverage_audit.py
+        - src/ai4binance/ops/coverage_policy.py
+      tests:
+        - tests/test_coverage_architecture.py
+        - tests/test_coverage_audit.py
+        - tests/test_coverage_policy.py
     - name: semantic_governance_enforcement_fabric
       path_prefixes:
         - .codex/hooks.json
@@ -396,18 +414,21 @@ standard_impact_tests:
       path_prefixes:
         - docs/registries/registry_logical_architecture.yaml
         - schemas/architecture/
+        - src/ai4binance/agents/orchestrator.py
         - src/ai4binance/application/research.py
         - src/ai4binance/governance/adapters.py
         - src/ai4binance/governance/architecture/
         - src/ai4binance/governance/dge_engine.py
         - src/ai4binance/governance/dge_models.py
         - src/ai4binance/governance/rules.py
+        - src/ai4binance/ops/jobs.py
         - src/ai4binance/research_runtime.py
       tests:
         - tests/governance/architecture/test_logical_architecture_registry.py
         - tests/test_dge_models.py
         - tests/test_dge_engine.py
         - tests/test_research_application.py
+        - tests/test_service_core_boundaries.py
     - name: critical_governance
       path_prefixes:
         - src/ai4binance/governance/
@@ -430,6 +451,21 @@ standard_impact_tests:
         - tests/test_governance_gate.py
         - tests/test_repository_validator.py
         - tests/test_requirement_assurance_chain.py
+    - name: critical_governed_parameter_runtime_wiring
+      path_prefixes:
+        - src/ai4binance/tuning/promotion.py
+      tests:
+        - tests/test_tuning_governance.py
+        - tests/test_governed_object_enforcement.py
+    - name: critical_core_coverage_projection
+      path_prefixes:
+        - src/ai4binance/ops/coverage_architecture.py
+        - src/ai4binance/ops/coverage_audit.py
+        - src/ai4binance/ops/coverage_policy.py
+      tests:
+        - tests/test_coverage_architecture.py
+        - tests/test_coverage_audit.py
+        - tests/test_coverage_policy.py
     - name: critical_semantic_governance_enforcement_fabric
       path_prefixes:
         - .codex/hooks.json

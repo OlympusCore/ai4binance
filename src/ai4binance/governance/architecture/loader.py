@@ -12,6 +12,7 @@ import yaml
 
 from ai4binance.governance.architecture.graph import LogicalArchitectureGraph
 from ai4binance.governance.architecture.model import (
+    CoreModule,
     LogicalArchitectureComponent,
     LogicalArchitectureRegistry,
     LogicalArchitectureRelation,
@@ -176,6 +177,10 @@ def load_logical_architecture_registry(
             _relation_from_payload(item)
             for item in _required_list(typed_payload, "relations")
         ),
+        core_modules=tuple(
+            _core_module_from_payload(item)
+            for item in _required_list(typed_payload, "core_modules")
+        ),
     )
     _validate_canonical_domain_planes(registry)
     _validate_canonical_decision_chain(registry)
@@ -184,8 +189,64 @@ def load_logical_architecture_registry(
     _validate_forbidden_learning_self_promotion(registry)
     _validate_repository_references(registry, selected_repository_root)
     validate_runtime_architecture_conformance(registry, selected_repository_root)
+    _validate_core_modules(registry, selected_repository_root)
     LogicalArchitectureGraph(registry).assert_acyclic_dependencies()
     return registry
+
+
+def _validate_core_modules(registry: LogicalArchitectureRegistry, root: Path) -> None:
+    """Bind packaging to existing terminology, components and enforcement routes."""
+    from ai4binance.governance.enforcement.inventory import load_enforcement_inventory
+    from ai4binance.governance.terminology_policy import load_terminology_policy
+
+    modules = registry.core_modules
+    names = tuple(module.core_id for module in modules)
+    if len(names) != 12 or len(set(names)) != 12:
+        raise ValueError("modular monolith requires twelve distinct core modules")
+    components = tuple(item for module in modules for item in module.component_ids)
+    if len(components) != len(set(components)) or set(components) != {
+        component.component_id for component in registry.components
+    }:
+        raise ValueError(
+            "core module component ownership must be complete and singular"
+        )
+    terms = {term.term_id: term for term in load_terminology_policy(root).terms}
+    for module in modules:
+        term = terms.get(module.term_id)
+        if term is None or term.canonical_concept != module.core_id:
+            raise ValueError(f"core module terminology mismatch: {module.core_id}")
+    inventory = load_enforcement_inventory(
+        root / "config/governance/enforcement_inventory.yaml"
+    )
+    routes = tuple(
+        route for module in modules for route in module.enforcement_entrypoints
+    )
+    if len(routes) != len(set(routes)) or set(routes) != {
+        entry.entrypoint_id for entry in inventory.entries
+    }:
+        raise ValueError(
+            "core module enforcement ownership must be complete and singular"
+        )
+    by_name = {module.core_id: module for module in modules}
+    required = {
+        "DataCore": {"data-quality"},
+        "TradeCore": {"execution-gate-result", "position-lifecycle", "trade-plan"},
+        "SecurityCore": {"security-controls"},
+        "AuditCore": {"closure-review", "kaizen-quality-snapshot"},
+        "TechnologyCore": {"technology-language-policy-enforcement"},
+        "LearningCore": {"learning-candidate", "lesson"},
+        "ServiceCore": {"service-orchestration"},
+        "DecisionCore": {"decision-governance", "trade-decision"},
+        "DeterministicCore": {"deterministic-core", "setup"},
+        "RiskCore": {"risk-assessment"},
+        "ValidationCore": {"validation"},
+        "SystemCore": {"governed-object-enforcement"},
+    }
+    if any(
+        not owners.issubset(by_name[name].component_ids)
+        for name, owners in required.items()
+    ):
+        raise ValueError("core module canonical responsibility drift")
 
 
 def _validate_canonical_domain_planes(
@@ -551,6 +612,18 @@ def _component_from_payload(value: object) -> LogicalArchitectureComponent:
         source_of_truth=_required_bool(payload, "source_of_truth"),
         execution_allowed=_required_bool(payload, "execution_allowed"),
         live_eligibility_status=_required_string(payload, "live_eligibility_status"),
+    )
+
+
+def _core_module_from_payload(value: object) -> CoreModule:
+    payload = _required_mapping(value, "core module")
+    return CoreModule(
+        core_id=_required_string(payload, "core_id"),
+        term_id=_required_string(payload, "term_id"),
+        component_ids=tuple(_required_string_list(payload, "component_ids")),
+        enforcement_entrypoints=tuple(
+            _required_string_list(payload, "enforcement_entrypoints")
+        ),
     )
 
 
