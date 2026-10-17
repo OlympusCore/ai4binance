@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import cast
 
@@ -425,13 +426,7 @@ def validate_runtime_architecture_conformance(
             and "GovernedDecision" not in source_text
         ):
             continue
-        try:
-            tree = ast.parse(source_text, filename=relative_path)
-        except SyntaxError as error:
-            raise ValueError(
-                f"runtime architecture source cannot be parsed: {relative_path}"
-            ) from error
-        inspections.append(_inspect_runtime_source(relative_path, tree))
+        inspections.append(_inspect_source_text(relative_path, source_text))
 
     class_owners = tuple(
         inspection.path
@@ -503,6 +498,18 @@ def validate_runtime_architecture_conformance(
         trade_decision_producer_path=observed_producers[0],
         mandatory_dge_handoffs=tuple(sorted(_MANDATORY_DGE_HANDOFFS)),
     )
+
+
+@lru_cache(maxsize=128)
+def _inspect_source_text(path: str, source_text: str) -> _SourceInspection:
+    """Reuse immutable inspection only for the exact path and source contents."""
+    try:
+        tree = ast.parse(source_text, filename=path)
+    except SyntaxError as error:
+        raise ValueError(
+            f"runtime architecture source cannot be parsed: {path}"
+        ) from error
+    return _inspect_runtime_source(path, tree)
 
 
 def _inspect_runtime_source(path: str, tree: ast.Module) -> _SourceInspection:

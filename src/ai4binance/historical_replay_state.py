@@ -9,8 +9,9 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
+from ai4binance.domain.research.virtual_market import HistoricalMarketEquityCurve
 from ai4binance.domain.research.virtual_runtime_attribution import (
     TradeDecisionEvidence,
     TradeParameterMethods,
@@ -36,11 +37,10 @@ from ai4binance.research.virtual_runtime import (
     VirtualPositionLifecycleStatus,
     VirtualPositionSide,
 )
-from ai4binance.research_runtime import (
-    HistoricalMarketEquityCurve,
-    HistoricalReplayRunResult,
-)
 from ai4binance.storage import AuditEvent, JsonlAuditStore, read_bounded_jsonl_tail
+
+if TYPE_CHECKING:
+    from ai4binance.research_runtime import HistoricalReplayRunResult
 
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")

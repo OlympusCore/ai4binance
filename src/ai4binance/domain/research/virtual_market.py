@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
 from typing import Self, cast
 
+from ai4binance.core.serialization import to_primitive
 from ai4binance.domain.execution_authority import (
     VIRTUAL_MARKET_AUTO_PROFILE,
     ExecutionAutomationMode,
@@ -297,6 +298,49 @@ class DailyEquityPoint:
             raise ValueError("daily equity timestamp must be timezone-aware")
         if self.equity_usdt <= ZERO:
             raise ValueError("daily equity must be positive")
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalMarketEquityCurve:
+    """UTC daily equity projection for one independent replay wallet."""
+
+    market: VirtualMarket
+    points: tuple[DailyEquityPoint, ...]
+
+    def __post_init__(self) -> None:
+        market = (
+            self.market
+            if isinstance(self.market, VirtualMarket)
+            else VirtualMarket(str(self.market).strip().upper())
+        )
+        object.__setattr__(self, "market", market)
+        if not self.points:
+            raise ValueError("historical replay equity curve requires observations")
+        timestamps = tuple(point.timestamp for point in self.points)
+        if timestamps != tuple(sorted(timestamps)) or len(set(timestamps)) != len(
+            timestamps
+        ):
+            raise ValueError(
+                "historical replay equity observations must be unique and ordered"
+            )
+        if any(
+            timestamp.utcoffset() != timedelta(0)
+            or timestamp.hour
+            or timestamp.minute
+            or timestamp.second
+            or timestamp.microsecond
+            for timestamp in timestamps
+        ):
+            raise ValueError(
+                "historical replay equity observations must use UTC day boundaries"
+            )
+
+    def to_payload(self) -> dict[str, object]:
+        """Return deterministic market-specific equity evidence."""
+        return {
+            "market": self.market.value,
+            "points": [to_primitive(point) for point in self.points],
+        }
 
 
 @dataclass(frozen=True, slots=True)

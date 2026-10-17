@@ -8,6 +8,9 @@ from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
+from yaml import YAMLError
+
+from ai4binance.application.blocker_registry import load_blocker_registry
 from ai4binance.governance.enforcement.contracts import (
     AuditReceipt,
     BlockerSnapshot,
@@ -175,7 +178,13 @@ class DeterministicEnforcementEngine:
             )
 
         controls: list[EnforcementControlResult] = []
-        for gate in self._ordered_gates(profile.required_gates):
+        required_gates = set(profile.required_gates)
+        if profile.human_approval_class != "NONE" and (
+            request.action in CONSEQUENTIAL_ACTIONS
+            or (request.action != "READ" and profile.side_effect_class != "NONE")
+        ):
+            required_gates.add(EnforcementGate.EXECUTION)
+        for gate in self._ordered_gates(tuple(required_gates)):
             control = self._evaluate_gate(
                 gate,
                 envelope,
@@ -431,32 +440,7 @@ class DeterministicEnforcementEngine:
                 success_reason="LINEAGE_ATTESTATION_VERIFIED",
             )
         if gate is EnforcementGate.BLOCKER:
-            if request.blocker_snapshot is None:
-                return EnforcementControlResult(
-                    gate=gate,
-                    outcome=EnforcementOutcome.DENY,
-                    reason_codes=("BLOCKER_SNAPSHOT_MISSING",),
-                    blockers=("BLOCKER_SNAPSHOT_MISSING",),
-                )
-            if request.blocker_snapshot.subject_id != envelope.object_id:
-                return EnforcementControlResult(
-                    gate=gate,
-                    outcome=EnforcementOutcome.DENY,
-                    reason_codes=("BLOCKER_SUBJECT_MISMATCH",),
-                    blockers=("BLOCKER_SUBJECT_MISMATCH",),
-                )
-            if request.blocker_snapshot.active_blockers:
-                return EnforcementControlResult(
-                    gate=gate,
-                    outcome=EnforcementOutcome.DENY,
-                    reason_codes=("ACTIVE_BLOCKERS_PRESENT",),
-                    blockers=request.blocker_snapshot.active_blockers,
-                )
-            return EnforcementControlResult(
-                gate=gate,
-                outcome=EnforcementOutcome.ALLOW,
-                reason_codes=("NO_ACTIVE_BLOCKERS",),
-            )
+            return self._blocker_gate(envelope, request)
         if gate is EnforcementGate.EXECUTION:
             if (
                 request.action not in CONSEQUENTIAL_ACTIONS
@@ -501,6 +485,98 @@ class DeterministicEnforcementEngine:
                 reason_codes=("AUDIT_NOT_REQUIRED",),
             )
         raise AssertionError(f"unsupported enforcement gate: {gate}")
+
+    def _blocker_gate(
+        self, envelope: GovernedObjectEnvelope, request: EnforcementRequest
+    ) -> EnforcementControlResult:
+        snapshot = request.blocker_snapshot
+        reason = (
+            "BLOCKER_SNAPSHOT_MISSING"
+            if snapshot is None
+            else "BLOCKER_SUBJECT_MISMATCH"
+            if snapshot.subject_id != envelope.object_id
+            else "ACTIVE_BLOCKERS_PRESENT"
+            if snapshot.active_blockers
+            else "BLOCKER_SNAPSHOT_FUTURE"
+            if _parse_timestamp(snapshot.evaluated_at) > _utcnow()
+            else None
+        )
+        if snapshot is not None and reason is None:
+            control = self._verified_attestation_gate(
+                EnforcementGate.BLOCKER,
+                envelope,
+                request,
+                missing_reason="BLOCKER_ATTESTATION_MISSING",
+                success_reason="BLOCKER_ATTESTATION_VERIFIED",
+            )
+            if control.outcome is not EnforcementOutcome.ALLOW:
+                return control
+            attestation = request.gate_attestations[EnforcementGate.BLOCKER]
+            snapshot_time = _parse_timestamp(snapshot.evaluated_at)
+            attestation_time = _parse_timestamp(attestation.evaluated_at)
+            reason = (
+                "BLOCKER_SNAPSHOT_STALE"
+                if snapshot_time < attestation_time
+                else "BLOCKER_SNAPSHOT_TIME_MISMATCH"
+                if snapshot_time != attestation_time
+                else self._blocker_evidence_error(snapshot, attestation)
+            )
+        return EnforcementControlResult(
+            gate=EnforcementGate.BLOCKER,
+            outcome=EnforcementOutcome.DENY if reason else EnforcementOutcome.ALLOW,
+            reason_codes=(reason,) if reason else ("NO_ACTIVE_BLOCKERS",),
+            blockers=(
+                snapshot.active_blockers
+                if snapshot is not None and reason == "ACTIVE_BLOCKERS_PRESENT"
+                else (reason,)
+                if reason
+                else ()
+            ),
+        )
+
+    def _blocker_evidence_error(
+        self, snapshot: BlockerSnapshot, attestation: VerificationAttestation
+    ) -> str | None:
+        """Bind the trusted validity window to exact snapshot and registry evidence."""
+        if self.evidence_root is None:
+            return "BLOCKER_EVIDENCE_UNAVAILABLE"
+        root = self.evidence_root.resolve()
+        registry_ref = "config/governance/blocker_registry.yaml"
+        registry_error = self._blocker_registry_error(root, snapshot, attestation)
+        if registry_error is not None:
+            return registry_error
+        for reference in attestation.evidence_refs:
+            if reference == registry_ref:
+                continue
+            try:
+                path = (root / reference).resolve()
+                if not path.is_relative_to(root):
+                    continue
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except OSError, UnicodeError, ValueError:
+                continue
+            if isinstance(payload, dict) and _sha256(payload) == snapshot.content_hash:
+                return None
+        return "BLOCKER_SNAPSHOT_EVIDENCE_MISSING"
+
+    @staticmethod
+    def _blocker_registry_error(
+        root: Path, snapshot: BlockerSnapshot, attestation: VerificationAttestation
+    ) -> str | None:
+        registry_ref = "config/governance/blocker_registry.yaml"
+        if registry_ref not in attestation.evidence_refs:
+            return "BLOCKER_REGISTRY_EVIDENCE_MISSING"
+        try:
+            registry_path = (root / registry_ref).resolve()
+            if not registry_path.is_relative_to(root):
+                return "BLOCKER_REGISTRY_INVALID"
+            load_blocker_registry(registry_path)
+            registry_hash = hashlib.sha256(registry_path.read_bytes()).hexdigest()
+        except OSError, UnicodeError, ValueError, KeyError, TypeError, YAMLError:
+            return "BLOCKER_REGISTRY_INVALID"
+        if snapshot.blocker_registry_hash != registry_hash:
+            return "BLOCKER_REGISTRY_HASH_MISMATCH"
+        return None
 
     def _ordered_gates(
         self,
@@ -778,6 +854,13 @@ class DeterministicEnforcementEngine:
                 outcome=EnforcementOutcome.DENY,
                 reason_codes=("APPROVAL_STALE",),
                 blockers=("APPROVAL_STALE",),
+            )
+        if _parse_timestamp(approval_set.verified_at) > _utcnow():
+            return EnforcementControlResult(
+                gate=EnforcementGate.EXECUTION,
+                outcome=EnforcementOutcome.DENY,
+                reason_codes=("APPROVAL_FUTURE",),
+                blockers=("APPROVAL_FUTURE",),
             )
         return None
 

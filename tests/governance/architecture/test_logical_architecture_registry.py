@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import ast
+import os
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
@@ -107,11 +109,64 @@ def test_core_module_sources_include_existing_runtime_owners() -> None:
         },
         "lesson": {"src/ai4binance/learning/governance.py"},
         "decision-governance": {"src/ai4binance/governance/dge_engine.py"},
+        "data-quality": {"src/ai4binance/data/acquisition.py"},
+        "governed-object-enforcement": {
+            "src/ai4binance/governance/repository_validator.py",
+            "src/ai4binance/governance/enforcement/contracts.py",
+            "src/ai4binance/governance/enforcement/receipt.py",
+        },
+        "policy": {"src/ai4binance/governance/gate.py"},
+        "kaizen-quality-snapshot": {
+            "src/ai4binance/ops/auto_audit_loop.py",
+            "src/ai4binance/ops/continuous_assurance.py",
+        },
     }
     assert all(
         paths.issubset(components[name].source_paths)
         for name, paths in expected.items()
     )
+
+
+def test_source_inspection_cache_is_content_bound() -> None:
+    from ai4binance.governance.architecture.loader import _inspect_source_text
+
+    path = "TEST_ONLY_source.py"
+    safe = "from ai4binance.governance import TradeDecision\n"
+    unsafe = safe + "decision = TradeDecision()\n"
+    first = _inspect_source_text(path, safe)
+    assert _inspect_source_text(path, safe) is first
+    assert first.decision_constructor_calls == 0
+    assert _inspect_source_text(path, unsafe).decision_constructor_calls == 1
+    assert _inspect_source_text("TEST_ONLY_other.py", safe).path != first.path
+    with pytest.raises(ValueError, match="cannot be parsed"):
+        _inspect_source_text(path, "TradeDecision(\n")
+
+
+def test_runtime_imports_do_not_close_the_trade_service_risk_cycle() -> None:
+    for relative in (
+        "src/ai4binance/risk.py",
+        "src/ai4binance/agents/risk_gate.py",
+    ):
+        tree = ast.parse((ROOT / relative).read_text(encoding="utf-8"))
+        imports = [
+            node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
+        ]
+        assert "ai4binance.domain.execution_authority" in imports
+        assert "ai4binance.governance.execution_authority" not in imports
+    tree = ast.parse(
+        (ROOT / "src/ai4binance/historical_replay_state.py").read_text(encoding="utf-8")
+    )
+    runtime_imports = [
+        node.module for node in tree.body if isinstance(node, ast.ImportFrom)
+    ]
+    assert "ai4binance.research_runtime" not in runtime_imports
+    assert "ai4binance.research.historical_replay" in runtime_imports
+    from ai4binance.domain.research.virtual_market import HistoricalMarketEquityCurve
+    from ai4binance.research_runtime import (
+        HistoricalMarketEquityCurve as CompatibilityCurve,
+    )
+
+    assert CompatibilityCurve is HistoricalMarketEquityCurve
 
 
 @pytest.mark.parametrize(
@@ -168,7 +223,7 @@ def test_registry_is_schema_valid_sorted_and_live_blocked() -> None:
     registry = load_logical_architecture_registry(REGISTRY_PATH)
 
     assert registry.registry_id == "AI4B-LOGICAL-ARCHITECTURE-REGISTRY-001"
-    assert registry.version == "1.13.0"
+    assert registry.version == "1.13.1"
     assert registry.source_of_truth is False
     assert registry.execution_allowed is False
     assert registry.live_eligibility_status == "LIVE_ORDER_BLOCKED"
@@ -229,7 +284,10 @@ def test_registry_maps_coverage_assurance_domains_without_authority_expansion() 
         component.component_id: component for component in registry.components
     }
     expected_sources = {
-        "data-quality": ("src/ai4binance/data/binance_vision.py",),
+        "data-quality": (
+            "src/ai4binance/data/binance_vision.py",
+            "src/ai4binance/data/acquisition.py",
+        ),
         "event-replay": ("src/ai4binance/governance/replay.py",),
         "portfolio-accounting": ("src/ai4binance/portfolio/cost_basis.py",),
         "security-controls": ("src/ai4binance/governance/mcp_gateway.py",),
@@ -1175,6 +1233,32 @@ def test_runtime_conformance_rejects_alternative_trade_decision_producer(
             r"src/ai4binance/agents/rogue_decision_agent\.py"
         ),
     ):
+        validate_runtime_architecture_conformance(registry, tmp_path)
+
+
+def test_warm_inspection_still_detects_added_changed_and_deleted_sources(
+    tmp_path: Path,
+) -> None:
+    registry = load_logical_architecture_registry(REGISTRY_PATH)
+    _write_runtime_decision_sources(tmp_path)
+    validate_runtime_architecture_conformance(registry, tmp_path)
+    source = tmp_path / "src/ai4binance/TEST_ONLY_new_source.py"
+    source.write_text(
+        "from ai4binance.governance import TradeDecision\n", encoding="utf-8"
+    )
+    validate_runtime_architecture_conformance(registry, tmp_path)
+    original_stat = source.stat()
+    source.write_text(
+        "from ai4binance.governance import TradeDecision\nvalue = TradeDecision()\n",
+        encoding="utf-8",
+    )
+    os.utime(source, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+    with pytest.raises(ValueError, match="unauthorized TradeDecision producer"):
+        validate_runtime_architecture_conformance(registry, tmp_path)
+    source.unlink()
+    validate_runtime_architecture_conformance(registry, tmp_path)
+    (tmp_path / "src/ai4binance/governance/dge_engine.py").unlink()
+    with pytest.raises(ValueError, match="one canonical TradeDecision producer"):
         validate_runtime_architecture_conformance(registry, tmp_path)
 
 

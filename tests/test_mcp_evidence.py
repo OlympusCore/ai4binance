@@ -10,6 +10,7 @@ import pytest
 import ai4binance.mcp.evidence as evidence_module
 from ai4binance.mcp.evidence import (
     MARKET_OUTLOOK_SOURCE,
+    QUALITY_TRIAGE_SOURCE,
     EvidenceEnvelope,
     EvidenceGateway,
     EvidenceSource,
@@ -63,8 +64,25 @@ def gateway(root: Path, max_artifact_bytes: int = 1_000_000) -> EvidenceGateway:
     )
 
 
+def test_quality_evidence_path_matches_the_canonical_producer() -> None:
+    from ai4binance.ops.quality_triage import build_parser
+
+    root = Path(__file__).resolve().parents[1]
+    manifest = json.loads(
+        (root / "config/governance/runtime_artifact_layout_manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    expected = Path(manifest["roots"]["quality_triage"])
+    assert build_parser().parse_args([]).output_directory == expected
+    assert (
+        Path("runtime/artifacts") / QUALITY_TRIAGE_SOURCE.relative_path
+        == expected / "state.json"
+    )
+
+
 def test_gateway_reads_allowlisted_fresh_redacted_evidence(tmp_path: Path) -> None:
-    write_artifact(tmp_path, Path("quality-triage/state.json"), quality_payload())
+    write_artifact(tmp_path, Path("quality/triage/state.json"), quality_payload())
 
     report = gateway(tmp_path).get_quality_triage()
 
@@ -134,7 +152,7 @@ def test_gateway_health_and_blocker_aggregation_are_non_executing(
 ) -> None:
     write_artifact(
         tmp_path,
-        Path("quality-triage/state.json"),
+        Path("quality/triage/state.json"),
         quality_payload(status="FAILED", blockers=["QUALITY_PYTEST_FAILED"]),
     )
     write_artifact(
@@ -160,7 +178,7 @@ def test_gateway_health_and_blocker_aggregation_are_non_executing(
 def test_gateway_exposes_bounded_evidence_verification_and_bundle(
     tmp_path: Path,
 ) -> None:
-    write_artifact(tmp_path, Path("quality-triage/state.json"), quality_payload())
+    write_artifact(tmp_path, Path("quality/triage/state.json"), quality_payload())
     write_artifact(
         tmp_path,
         Path("market-outlook/state.json"),
@@ -273,7 +291,7 @@ def test_gateway_blocks_symlinks_outside_paths_and_invalid_clock(
     )
 
     write_artifact(tmp_path, Path("market-outlook/state.json"), quality_payload())
-    symlink = tmp_path / "quality-triage" / "state.json"
+    symlink = tmp_path / "quality" / "triage" / "state.json"
     symlink.parent.mkdir(parents=True)
     if hasattr(symlink, "symlink_to"):
         try:
@@ -287,7 +305,7 @@ def test_gateway_blocks_symlinks_outside_paths_and_invalid_clock(
     with pytest.raises(ValueError, match="clock"):
         EvidenceGateway(tmp_path, clock=lambda: datetime(2026, 7, 13)).health_check()
 
-    write_artifact(tmp_path, Path("quality-triage/state.json"), quality_payload())
+    write_artifact(tmp_path, Path("quality/triage/state.json"), quality_payload())
 
     class ShapeChangingRedactor:
         def redact(self, value: object) -> object:

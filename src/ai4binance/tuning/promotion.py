@@ -130,6 +130,8 @@ class PromotionBoard:
         registry: PlaybookRegistry,
         approval_registry: ValidationArtifactRegistry | None = None,
         governed_registry: GovernedStrategyRegistry | None = None,
+        *,
+        enforcement_request: EnforcementRequest | None = None,
     ) -> StrategyPromotionResult:
         """Record human approval and return immutable paper-governed registries."""
         self._validate(report, approval)
@@ -163,6 +165,42 @@ class PromotionBoard:
             for item in current_approvals.artifacts
         ):
             raise ValueError("strategy approval artifact already exists")
+        require_registered_entrypoint(
+            self.repository_root or Path(__file__).resolve().parents[3],
+            "tuning_strategy_promotion_board",
+            GovernedObjectEnvelope(
+                object_id=report.report_id,
+                object_type="STRATEGY_DEFINITION",
+                version=target.strategy_version,
+                lifecycle_state=report.promotion_status.value,
+                owner="Strategy Governance",
+                authority_layer="L8_REPORTS_EVIDENCE_INVENTORIES",
+                authority_effect="EVIDENCE_ONLY",
+                authority_scope="strategy_promotion",
+                source_of_truth=False,
+                canonical_ref="src/ai4binance/tuning/promotion.py",
+                schema_ref="schemas/governance/governed_object_enforcement.schema.json",
+                content_hash=canonical_trace_sha256(
+                    {
+                        "report_id": report.report_id,
+                        "parameters": dict(report.selected_parameters.values),
+                        "target": to_primitive(target),
+                        "approval": to_primitive(approval),
+                        "registry": to_primitive(registry),
+                        "approval_registry": to_primitive(current_approvals),
+                        "governed_registry": to_primitive(current_governed),
+                    }
+                ),
+            ),
+            enforcement_request
+            or EnforcementRequest(
+                request_id=approval.approval_id,
+                actor=approval.approver,
+                action="PROMOTE",
+                environment="paper",
+                execution_mode="RESEARCH_ONLY",
+            ),
+        )
         next_approvals = ValidationArtifactRegistry(
             (*current_approvals.artifacts, artifact)
         )

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TypedDict
@@ -193,6 +193,13 @@ def _test_engine(
     """Create an explicitly trusted test provider with real test-only evidence."""
     for gate in EnforcementGate:
         (tmp_path / f"{gate.value.lower()}-proof").write_bytes(b"test-only")
+    registry_path = tmp_path / "config/governance/blocker_registry.yaml"
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
+    registry_path.write_bytes(
+        (
+            Path(__file__).parents[1] / "config/governance/blocker_registry.yaml"
+        ).read_bytes()
+    )
     registry = replace(
         registry,
         attestation_providers={
@@ -220,11 +227,47 @@ def _gate_attestations(
 def _blocker_snapshot(subject_id: str, *active_blockers: str) -> BlockerSnapshot:
     return BlockerSnapshot(
         blocker_snapshot_id="blocker-snapshot-1",
-        blocker_registry_hash="c" * 64,
+        blocker_registry_hash=hashlib.sha256(
+            (
+                Path(__file__).parents[1] / "config/governance/blocker_registry.yaml"
+            ).read_bytes()
+        ).hexdigest(),
         active_blockers=active_blockers,
         resolved_blockers=(),
         evaluated_at="2026-08-31T09:00:00Z",
         subject_id=subject_id,
+    )
+
+
+def _attest_blocker_request(
+    engine: DeterministicEnforcementEngine,
+    envelope: GovernedObjectEnvelope,
+    request: EnforcementRequest,
+) -> EnforcementRequest:
+    """Persist and attest an exact TEST_ONLY snapshot and registry pair."""
+    assert engine.evidence_root is not None
+    assert request.blocker_snapshot is not None
+    (engine.evidence_root / "blocker-proof").write_text(
+        json.dumps(asdict(request.blocker_snapshot)), encoding="utf-8"
+    )
+    references = ("blocker-proof", "config/governance/blocker_registry.yaml")
+    proof_hashes = {
+        ref: hashlib.sha256((engine.evidence_root / ref).read_bytes()).hexdigest()
+        for ref in references
+    }
+    attestation = replace(
+        _attestation(EnforcementGate.BLOCKER, envelope.object_hash),
+        evidence_refs=references,
+        evidence_hash=hashlib.sha256(
+            json.dumps(proof_hashes, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+    )
+    return replace(
+        request,
+        gate_attestations={
+            **request.gate_attestations,
+            EnforcementGate.BLOCKER: attestation,
+        },
     )
 
 
@@ -969,6 +1012,7 @@ def test_enforcement_engine_requires_evidence_and_approval_for_policy_change(
         audit_receipt=_audit_receipt(envelope.object_hash, tmp_path),
     )
 
+    request = _attest_blocker_request(engine, envelope, request)
     decision = engine.evaluate(envelope, request)
 
     assert decision.outcome is EnforcementOutcome.REQUIRE_APPROVAL
@@ -1144,10 +1188,18 @@ def test_enforcement_replay_fingerprint_is_deterministic(tmp_path: Path) -> None
         audit_receipt=_audit_receipt(envelope.object_hash, tmp_path),
     )
 
+    request = _attest_blocker_request(engine, envelope, request)
+    request = replace(
+        request,
+        verified_approval_set=_approval_set(
+            engine, envelope, request, change_class="GOVERNED_CHANGE"
+        ),
+    )
     first = engine.evaluate(envelope, request)
     second = engine.evaluate(envelope, request)
 
     assert isinstance(first, EnforcementDecision)
+    assert first.outcome is EnforcementOutcome.ALLOW
     assert first.replay_fingerprint == second.replay_fingerprint
     assert first.outcome is second.outcome
     assert len(first.scope_hash) == 64
@@ -1200,6 +1252,7 @@ def test_enforcement_engine_requires_approval_for_tool_permission_grant(
         audit_receipt=_audit_receipt(envelope.object_hash, tmp_path),
     )
 
+    request = _attest_blocker_request(engine, envelope, request)
     decision = engine.evaluate(envelope, request)
     approved_request = EnforcementRequest(
         request_id="req-8",
@@ -1222,6 +1275,7 @@ def test_enforcement_engine_requires_approval_for_tool_permission_grant(
         blocker_snapshot=_blocker_snapshot(envelope.object_id),
         audit_receipt=_audit_receipt(envelope.object_hash, tmp_path),
     )
+    approved_request = _attest_blocker_request(engine, envelope, approved_request)
     approved_request = replace(
         approved_request,
         verified_approval_set=_approval_set(
@@ -1285,6 +1339,7 @@ def test_enforcement_engine_evaluates_execution_profile_via_universal_contract(
         blocker_snapshot=_blocker_snapshot(envelope.object_id),
         audit_receipt=_audit_receipt(envelope.object_hash, tmp_path),
     )
+    request = _attest_blocker_request(engine, envelope, request)
     request = replace(
         request,
         verified_approval_set=_approval_set(
@@ -1390,6 +1445,13 @@ def test_enforcement_engine_denies_missing_audit_receipt(tmp_path: Path) -> None
         blocker_snapshot=_blocker_snapshot(envelope.object_id),
     )
 
+    request = _attest_blocker_request(engine, envelope, request)
+    request = replace(
+        request,
+        verified_approval_set=_approval_set(
+            engine, envelope, request, change_class="GOVERNED_CHANGE"
+        ),
+    )
     decision = engine.evaluate(envelope, request)
 
     assert decision.outcome is EnforcementOutcome.DENY
@@ -1681,3 +1743,268 @@ def test_enforcement_precondition_gates_reject_incomplete_context(
     assert engine._consequence("READ", replace(profile, side_effect_class="NONE")) == (
         "READ_ONLY"
     )
+
+
+def _attested_artifact_update(
+    tmp_path: Path,
+) -> tuple[DeterministicEnforcementEngine, GovernedObjectEnvelope, EnforcementRequest]:
+    engine = _test_engine(tmp_path, registry=load_enforcement_profile_registry())
+    envelope = envelope_from_repository_artifact(_repository_artifact())
+    request = EnforcementRequest(
+        request_id="test-only-governed-update",
+        actor="test-only-actor",
+        action="UPDATE",
+        environment="TEST_ONLY",
+        execution_mode="RESEARCH_ONLY",
+        authorities=("repository_governance",),
+        gate_attestations=_gate_attestations(envelope.object_hash, *EnforcementGate),
+        blocker_snapshot=_blocker_snapshot(envelope.object_id),
+        audit_receipt=_audit_receipt(envelope.object_hash, tmp_path),
+    )
+    request = _attest_blocker_request(engine, envelope, request)
+    request = replace(
+        request,
+        verified_approval_set=_approval_set(
+            engine, envelope, request, change_class="GOVERNED_CHANGE"
+        ),
+    )
+    return engine, envelope, request
+
+
+@pytest.mark.parametrize(
+    ("mutation", "reason"),
+    [
+        ("missing", "HUMAN_APPROVAL_REQUIRED"),
+        ("subject", "APPROVAL_SUBJECT_MISMATCH"),
+        ("scope", "APPROVAL_SCOPE_MISMATCH"),
+        ("class", "APPROVAL_CHANGE_CLASS_MISMATCH"),
+        ("expired", "APPROVAL_STALE"),
+        ("future", "APPROVAL_FUTURE"),
+    ],
+)
+def test_consequential_approval_cannot_be_omitted_by_profile_gates(
+    tmp_path: Path, mutation: str, reason: str
+) -> None:
+    engine, envelope, request = _attested_artifact_update(tmp_path)
+    profile = engine.registry.profile_for_object_type(envelope.object_type)
+    assert profile is not None
+    assert EnforcementGate.EXECUTION not in profile.required_gates
+    approval = request.verified_approval_set
+    assert approval is not None
+    changed = {
+        "missing": None,
+        "subject": replace(approval, subject_hash="a" * 64),
+        "scope": replace(approval, scope_hash="b" * 64),
+        "class": replace(approval, change_class="TEST_ONLY_OTHER_CLASS"),
+        "expired": replace(approval, expires_at=approval.verified_at),
+        "future": replace(approval, verified_at=approval.expires_at),
+    }[mutation]
+
+    decision = engine.evaluate(
+        envelope, replace(request, verified_approval_set=changed)
+    )
+
+    assert reason in decision.reason_codes
+    assert decision.outcome is (
+        EnforcementOutcome.REQUIRE_APPROVAL
+        if mutation == "missing"
+        else EnforcementOutcome.DENY
+    )
+    assert decision.execution_allowed is False
+    assert decision.live_eligibility_status == "LIVE_ORDER_BLOCKED"
+
+
+def test_exact_approval_without_optional_execution_gate_allows_local_evaluation(
+    tmp_path: Path,
+) -> None:
+    engine, envelope, request = _attested_artifact_update(tmp_path)
+    decision = engine.evaluate(envelope, request)
+    replay = engine.evaluate(envelope, request)
+    assert decision.outcome is EnforcementOutcome.ALLOW
+    assert decision.replay_fingerprint == replay.replay_fingerprint
+    assert decision.execution_allowed is False
+
+
+def test_read_does_not_acquire_a_new_consequential_approval_requirement(
+    tmp_path: Path,
+) -> None:
+    engine, envelope, request = _attested_artifact_update(tmp_path)
+    decision = engine.evaluate(
+        envelope, replace(request, action="READ", verified_approval_set=None)
+    )
+    assert decision.outcome is EnforcementOutcome.ALLOW
+    assert decision.execution_allowed is False
+
+
+@pytest.mark.parametrize(
+    ("mutation", "reason"),
+    [
+        ("stale", "BLOCKER_SNAPSHOT_STALE"),
+        ("future", "BLOCKER_SNAPSHOT_FUTURE"),
+        ("registry", "BLOCKER_REGISTRY_HASH_MISMATCH"),
+        ("snapshot", "BLOCKER_SNAPSHOT_EVIDENCE_MISSING"),
+        ("attestation", "BLOCKER_ATTESTATION_MISSING"),
+        ("expired", "BLOCKER_ATTESTATION_STALE"),
+        ("untrusted", "BLOCKER_ATTESTATION_PROVIDER_UNTRUSTED"),
+    ],
+)
+def test_blocker_snapshot_requires_current_bound_trusted_evidence(
+    tmp_path: Path, mutation: str, reason: str
+) -> None:
+    engine, envelope, request = _attested_artifact_update(tmp_path)
+    snapshot = request.blocker_snapshot
+    assert snapshot is not None
+    if mutation in {"stale", "future", "registry", "snapshot"}:
+        changed_snapshot = {
+            "stale": replace(snapshot, evaluated_at="2000-01-01T00:00:00Z"),
+            "future": replace(snapshot, evaluated_at="2099-01-01T00:00:00Z"),
+            "registry": replace(snapshot, blocker_registry_hash="a" * 64),
+            "snapshot": replace(
+                snapshot, blocker_snapshot_id="test-only-substituted-snapshot"
+            ),
+        }[mutation]
+        request = replace(request, blocker_snapshot=changed_snapshot)
+    else:
+        attestations = dict(request.gate_attestations)
+        if mutation == "attestation":
+            del attestations[EnforcementGate.BLOCKER]
+        else:
+            attestation = attestations[EnforcementGate.BLOCKER]
+            attestations[EnforcementGate.BLOCKER] = (
+                replace(attestation, valid_until=attestation.evaluated_at)
+                if mutation == "expired"
+                else replace(attestation, provider_id="test-only-untrusted-provider")
+            )
+        request = replace(request, gate_attestations=attestations)
+
+    decision = engine.evaluate(envelope, request)
+
+    assert decision.outcome is EnforcementOutcome.DENY
+    assert reason in decision.reason_codes
+    assert decision.execution_allowed is False
+
+
+def test_active_blocker_dominates_a_missing_approval_and_attestation(
+    tmp_path: Path,
+) -> None:
+    engine, envelope, request = _attested_artifact_update(tmp_path)
+    request = replace(
+        request,
+        blocker_snapshot=_blocker_snapshot(
+            envelope.object_id, "GOV.CONSTITUTION_CONFLICT"
+        ),
+        verified_approval_set=None,
+    )
+    decision = engine.evaluate(envelope, request)
+    assert decision.outcome is EnforcementOutcome.DENY
+    assert "ACTIVE_BLOCKERS_PRESENT" in decision.reason_codes
+
+
+@pytest.mark.parametrize(
+    ("mutation", "reason"),
+    [
+        ("registry_ref", "BLOCKER_REGISTRY_EVIDENCE_MISSING"),
+        ("snapshot_ref", "BLOCKER_SNAPSHOT_EVIDENCE_MISSING"),
+        ("invalid_registry", "BLOCKER_REGISTRY_INVALID"),
+        ("tampered_proof", "BLOCKER_ATTESTATION_EVIDENCE_MISMATCH"),
+        ("missing_registry", "BLOCKER_ATTESTATION_EVIDENCE_UNAVAILABLE"),
+        ("missing_root", "BLOCKER_ATTESTATION_EVIDENCE_UNAVAILABLE"),
+        ("time_mismatch", "BLOCKER_SNAPSHOT_TIME_MISMATCH"),
+    ],
+)
+def test_blocker_evidence_cannot_substitute_registry_snapshot_or_validity(
+    tmp_path: Path, mutation: str, reason: str
+) -> None:
+    engine, envelope, request = _attested_artifact_update(tmp_path)
+    attestation = request.gate_attestations[EnforcementGate.BLOCKER]
+    registry_path = tmp_path / "config/governance/blocker_registry.yaml"
+    if mutation == "tampered_proof":
+        (tmp_path / "blocker-proof").write_text("{}", encoding="utf-8")
+    elif mutation == "missing_registry":
+        registry_path.unlink()
+    elif mutation == "missing_root":
+        engine = replace(engine, evidence_root=None)
+    elif mutation == "time_mismatch":
+        assert request.blocker_snapshot is not None
+        request = replace(
+            request,
+            blocker_snapshot=replace(
+                request.blocker_snapshot, evaluated_at="2026-09-01T00:00:00Z"
+            ),
+        )
+    else:
+        if mutation == "invalid_registry":
+            registry_path.write_text("version: test-only-invalid\n", encoding="utf-8")
+        references = tuple(
+            ref
+            for ref in attestation.evidence_refs
+            if (
+                mutation != "registry_ref"
+                or ref != "config/governance/blocker_registry.yaml"
+            )
+            and (mutation != "snapshot_ref" or ref != "blocker-proof")
+        )
+        proof_hashes = {
+            ref: hashlib.sha256((tmp_path / ref).read_bytes()).hexdigest()
+            for ref in references
+        }
+        attestation = replace(
+            attestation,
+            evidence_refs=references,
+            evidence_hash=hashlib.sha256(
+                json.dumps(proof_hashes, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest(),
+        )
+        request = replace(
+            request,
+            gate_attestations={
+                **request.gate_attestations,
+                EnforcementGate.BLOCKER: attestation,
+            },
+        )
+
+    decision = engine.evaluate(envelope, request)
+    assert decision.outcome is EnforcementOutcome.DENY
+    if mutation == "missing_root":
+        blocker = engine._evaluate_gate(
+            EnforcementGate.BLOCKER,
+            envelope,
+            request,
+            engine.registry.profiles[0],
+            execution_profile=None,
+        )
+        assert blocker.reason_codes == (reason,)
+        assert decision.reason_codes == ("IDENTITY_ATTESTATION_EVIDENCE_UNAVAILABLE",)
+    else:
+        assert reason in decision.reason_codes
+
+
+@pytest.mark.parametrize("mutation", ["missing_root", "outside_snapshot"])
+def test_blocker_evidence_reader_remains_bounded_without_outer_gate_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    engine, _, request = _attested_artifact_update(tmp_path)
+    snapshot = request.blocker_snapshot
+    assert snapshot is not None
+    attestation = request.gate_attestations[EnforcementGate.BLOCKER]
+    if mutation == "missing_root":
+        engine = replace(engine, evidence_root=None)
+        expected = "BLOCKER_EVIDENCE_UNAVAILABLE"
+    else:
+        outside = (tmp_path.parent / "TEST_ONLY_outside_proof.json").resolve()
+        original_read = Path.read_text
+
+        def bounded_read(path: Path, *args: object, **kwargs: object) -> str:
+            assert path.resolve() != outside, "outside evidence must never be read"
+            return original_read(path, encoding="utf-8")
+
+        monkeypatch.setattr(Path, "read_text", bounded_read)
+        attestation = replace(
+            attestation,
+            evidence_refs=(
+                "config/governance/blocker_registry.yaml",
+                "../TEST_ONLY_outside_proof.json",
+            ),
+        )
+        expected = "BLOCKER_SNAPSHOT_EVIDENCE_MISSING"
+    assert engine._blocker_evidence_error(snapshot, attestation) == expected

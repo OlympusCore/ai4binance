@@ -17,11 +17,11 @@ from ai4binance.domain import (
     TradeCandidate,
     ValidationStatus,
 )
+from ai4binance.domain.execution_authority import ExecutionSurface
 from ai4binance.domain.risk_geometry import (
     structural_margin_loss_per_unit as structural_margin_loss_per_unit,
 )
 from ai4binance.exchange.filters import SymbolFilters
-from ai4binance.governance.execution_authority import ExecutionSurface
 from ai4binance.schemas import AgentResult, MarketSnapshot
 
 ZERO = Decimal("0")

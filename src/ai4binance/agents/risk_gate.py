@@ -9,10 +9,10 @@ from decimal import Decimal, InvalidOperation
 from ai4binance.agents.registry import AgentDefinition, AgentStage
 from ai4binance.core.errors import ExchangePayloadError
 from ai4binance.domain import TradeCandidate
+from ai4binance.domain.execution_authority import ExecutionSurface
 from ai4binance.domain.market_data import MarketDataProvenance
 from ai4binance.exchange.filters import SymbolFilters
 from ai4binance.exchange.models import FilterValue, SymbolInfo
-from ai4binance.governance.execution_authority import ExecutionSurface
 from ai4binance.risk import RiskContext, RiskEngine
 from ai4binance.schemas import (
     AgentResult,

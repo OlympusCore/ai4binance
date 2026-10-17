@@ -79,6 +79,9 @@ from ai4binance.domain.research.virtual_market import (
     DailyEquityPoint as DailyEquityPoint,
 )
 from ai4binance.domain.research.virtual_market import (
+    HistoricalMarketEquityCurve as HistoricalMarketEquityCurve,
+)
+from ai4binance.domain.research.virtual_market import (
     MarketAcceptanceResult as MarketAcceptanceResult,
 )
 from ai4binance.domain.research.virtual_market import (

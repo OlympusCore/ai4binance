@@ -20,6 +20,9 @@ from ai4binance.application import (
 )
 from ai4binance.application.research import _canonical_sha256
 from ai4binance.data.timeframes import timeframe_duration
+from ai4binance.domain.research.virtual_market import (
+    HistoricalMarketEquityCurve as HistoricalMarketEquityCurve,
+)
 from ai4binance.events.clock import SimulatedClock
 from ai4binance.governance import RunContext
 from ai4binance.governance.adapters import VirtualMarketDgeAdapter
@@ -124,50 +127,6 @@ class HistoricalReplayRunStatus(StrEnum):
 
     COMPLETED = "COMPLETED"
     RUNNING_WITH_BLOCKERS = "RUNNING_WITH_BLOCKERS"
-
-
-@dataclass(frozen=True, slots=True)
-class HistoricalMarketEquityCurve:
-    """UTC daily equity projection for one independent replay wallet."""
-
-    market: VirtualMarket
-    points: tuple[DailyEquityPoint, ...]
-
-    def __post_init__(self) -> None:
-        market = (
-            self.market
-            if isinstance(self.market, VirtualMarket)
-            else VirtualMarket(str(self.market).strip().upper())
-        )
-        object.__setattr__(self, "market", market)
-        if not self.points:
-            raise ValueError("historical replay equity curve requires observations")
-        timestamps = tuple(point.timestamp for point in self.points)
-        if timestamps != tuple(sorted(timestamps)) or len(set(timestamps)) != len(
-            timestamps
-        ):
-            raise ValueError(
-                "historical replay equity observations must be unique and ordered"
-            )
-        if any(
-            timestamp.utcoffset() != timedelta(0)
-            or timestamp.hour
-            or timestamp.minute
-            or timestamp.second
-            or timestamp.microsecond
-            for timestamp in timestamps
-        ):
-            raise ValueError(
-                "historical replay equity observations must use UTC day boundaries"
-            )
-
-    def to_payload(self) -> dict[str, object]:
-        """Return deterministic market-specific equity evidence."""
-
-        return {
-            "market": self.market.value,
-            "points": [to_primitive(point) for point in self.points],
-        }
 
 
 @dataclass(frozen=True, slots=True)

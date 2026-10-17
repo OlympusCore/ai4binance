@@ -83,7 +83,7 @@ class EvidenceEnvelope:
 
 QUALITY_TRIAGE_SOURCE = EvidenceSource(
     artifact_type="quality_triage",
-    relative_path=Path("quality-triage/state.json"),
+    relative_path=Path("quality/triage/state.json"),
     timestamp_field="finished_at",
     max_age=timedelta(hours=36),
     required_fields=(

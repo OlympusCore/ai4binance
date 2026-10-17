@@ -5,6 +5,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -15,6 +16,10 @@ from ai4binance.events import (
     TraceabilityRequirement,
     TraceabilityStatus,
     canonical_trace_journal_path,
+)
+from ai4binance.governance.enforcement.contracts import (
+    EnforcementRequest,
+    GovernedObjectEnvelope,
 )
 from ai4binance.research.backtesting import BacktestIntent, SignalProvider
 from ai4binance.schemas import OHLCVCandle
@@ -283,6 +288,91 @@ def approval_for(report_id: str, parameters: ParameterSet) -> HumanApproval:
     )
 
 
+@pytest.fixture
+def admitted_test_only_promotion(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    """Exercise post-admission domain behavior without admitting a real route."""
+    import ai4binance.tuning.promotion as promotion_module
+    from ai4binance.governance.enforcement.adapters import (
+        require_registered_entrypoint,
+    )
+
+    original = require_registered_entrypoint
+
+    def test_only_admission(
+        root: Path,
+        entrypoint: str,
+        envelope: GovernedObjectEnvelope,
+        request: EnforcementRequest,
+    ) -> object:
+        if entrypoint != "tuning_strategy_promotion_board":
+            return original(root, entrypoint, envelope, request)
+        assert root == Path(__file__).resolve().parents[1]
+        assert envelope.object_type == "STRATEGY_DEFINITION"
+        assert envelope.authority_scope == "strategy_promotion"
+        assert request.action == "PROMOTE"
+        assert request.execution_mode == "RESEARCH_ONLY"
+        return None
+
+    admission = Mock(side_effect=test_only_admission)
+    monkeypatch.setattr(promotion_module, "require_registered_entrypoint", admission)
+    return admission
+
+
+def test_blocked_strategy_promotion_preserves_registries_and_emits_no_receipt(
+    tmp_path: Path,
+) -> None:
+    report = tuning_report()
+    approval = approval_for(report.report_id, report.selected_parameters)
+    registry = build_playbook_registry()
+    governed = complete_governed_strategy_registry(tmp_path)
+    board = PromotionBoard(JsonlAuditStore(tmp_path / "board.jsonl"))
+    before = (registry, governed)
+    with pytest.raises(ValueError, match="ENFORCEMENT_ENTRYPOINT_BLOCKED"):
+        board.apply_to_strategy_registry(
+            report,
+            approval,
+            StrategyPromotionTarget("trend_continuation", "1", "default"),
+            registry,
+            governed_registry=governed,
+        )
+    assert before == (registry, governed)
+    assert not board.store.path.exists()
+    assert not canonical_trace_journal_path(tmp_path).exists()
+
+
+def test_strategy_promotion_forwards_explicit_request_and_fails_before_writes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import ai4binance.tuning.promotion as promotion_module
+
+    report = tuning_report()
+    approval = approval_for(report.report_id, report.selected_parameters)
+    request = EnforcementRequest(
+        request_id="TEST_ONLY_DENIED_REQUEST",
+        actor="TEST_ONLY_ACTOR",
+        action="PROMOTE",
+        environment="paper",
+        execution_mode="RESEARCH_ONLY",
+    )
+    gate = Mock(side_effect=ValueError("TEST_ONLY_GATE_DENIED"))
+    monkeypatch.setattr(promotion_module, "require_registered_entrypoint", gate)
+    board = PromotionBoard(JsonlAuditStore(tmp_path / "board.jsonl"))
+    with pytest.raises(ValueError, match="TEST_ONLY_GATE_DENIED"):
+        board.apply_to_strategy_registry(
+            report,
+            approval,
+            StrategyPromotionTarget("trend_continuation", "1", "default"),
+            build_playbook_registry(),
+            governed_registry=complete_governed_strategy_registry(tmp_path),
+            enforcement_request=request,
+        )
+    assert gate.call_args.args[1] == "tuning_strategy_promotion_board"
+    assert gate.call_args.args[3] is request
+    assert not board.store.path.exists()
+    assert not canonical_trace_journal_path(tmp_path).exists()
+
+
 def test_legacy_human_approval_cannot_activate_a_blocked_parameter_route(
     tmp_path: Path,
 ) -> None:
@@ -352,6 +442,7 @@ def test_blocked_parameter_activation_preserves_existing_file_and_revision(
 
 def test_denied_parameter_activation_cannot_emit_a_success_trace(
     tmp_path: Path,
+    admitted_test_only_promotion: Mock,
 ) -> None:
     report = tuning_report()
     approval = approval_for(report.report_id, report.selected_parameters)
@@ -410,6 +501,7 @@ def test_denied_parameter_activation_cannot_emit_a_success_trace(
 
 def test_promotion_board_applies_paper_approval_to_strategy_registry(
     tmp_path: Path,
+    admitted_test_only_promotion: Mock,
 ) -> None:
     from ai4binance.strategies.engine import StrategyEngine
     from tests.test_strategy_risk import evidence, snapshot
@@ -441,6 +533,7 @@ def test_promotion_board_applies_paper_approval_to_strategy_registry(
     ).promotion_status is (ValidationStatus.PAPER_APPROVED)
     assert candidate.promotion_status is ValidationStatus.PAPER_APPROVED
     assert result.artifact.approval_id == approval.approval_id
+    assert admitted_test_only_promotion.call_count == 1
     journal = CanonicalTraceJournal(canonical_trace_journal_path(tmp_path))
     assert {record.trace_kind for record in journal.records()} == {
         ConsequentialTraceKind.PROMOTION_CANDIDATE,
@@ -449,6 +542,7 @@ def test_promotion_board_applies_paper_approval_to_strategy_registry(
 
 def test_promotion_board_appends_promotion_evidence_ledger(
     tmp_path: Path,
+    admitted_test_only_promotion: Mock,
 ) -> None:
     report = tuning_report()
     approval = approval_for(report.report_id, report.selected_parameters)
@@ -504,6 +598,7 @@ def test_promotion_rejects_mismatch_research_and_live_authority(tmp_path: Path) 
 
 def test_promotion_board_rejects_unimplemented_and_duplicate_strategy_artifacts(
     tmp_path: Path,
+    admitted_test_only_promotion: Mock,
 ) -> None:
     report = tuning_report()
     approval = approval_for(report.report_id, report.selected_parameters)
@@ -568,6 +663,7 @@ def test_promotion_board_allows_trace_journal_to_be_disabled(tmp_path: Path) -> 
 
 def test_promotion_board_rejects_strategy_family_without_complete_real_evidence(
     tmp_path: Path,
+    admitted_test_only_promotion: Mock,
 ) -> None:
     report = tuning_report()
     approval = approval_for(report.report_id, report.selected_parameters)

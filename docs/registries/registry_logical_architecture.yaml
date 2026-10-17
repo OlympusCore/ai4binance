@@ -1,5 +1,5 @@
 registry_id: AI4B-LOGICAL-ARCHITECTURE-REGISTRY-001
-version: 1.13.0
+version: 1.13.1
 status: ACTIVE
 source_of_truth: false
 execution_allowed: false
@@ -64,6 +64,7 @@ components:
     authority_effect: EVIDENCE_ONLY
     source_paths:
       - src/ai4binance/data/binance_vision.py
+      - src/ai4binance/data/acquisition.py
     contract_refs:
       - docs/architecture/framework_architecture_overview.md
     test_refs:
@@ -245,6 +246,9 @@ components:
       - src/ai4binance/governance/enforcement/engine.py
       - src/ai4binance/governance/enforcement/adapters.py
       - src/ai4binance/governance/enforcement/inventory.py
+      - src/ai4binance/governance/enforcement/contracts.py
+      - src/ai4binance/governance/enforcement/receipt.py
+      - src/ai4binance/governance/repository_validator.py
       - src/ai4binance/tuning/promotion.py
     contract_refs:
       - docs/standards/standard_governed_object_enforcement.md
@@ -271,6 +275,8 @@ components:
     authority_effect: EVIDENCE_ONLY
     source_paths:
       - src/ai4binance/ops/kaizen_quality.py
+      - src/ai4binance/ops/auto_audit_loop.py
+      - src/ai4binance/ops/continuous_assurance.py
     contract_refs:
       - docs/reports/governance/report_kaizen_quality_snapshot.md
     test_refs:
@@ -450,6 +456,7 @@ components:
     authority_effect: VETO
     source_paths:
       - src/ai4binance/governance/policy_as_code.py
+      - src/ai4binance/governance/gate.py
     contract_refs:
       - docs/governance/framework_core_vnext_governance.md
     test_refs:
