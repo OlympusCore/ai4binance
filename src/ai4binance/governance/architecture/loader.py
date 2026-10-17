@@ -216,6 +216,12 @@ def _validate_core_modules(registry: LogicalArchitectureRegistry, root: Path) ->
         term = terms.get(module.term_id)
         if term is None or term.canonical_concept != module.core_id:
             raise ValueError(f"core module terminology mismatch: {module.core_id}")
+        for reference in module.accountability_refs.values():
+            path = (root / reference).resolve()
+            if not path.is_relative_to(root.resolve()) or not path.is_file():
+                raise ValueError(
+                    f"core accountability reference is unavailable: {reference}"
+                )
     inventory = load_enforcement_inventory(
         root / "config/governance/enforcement_inventory.yaml"
     )
@@ -630,6 +636,18 @@ def _core_module_from_payload(value: object) -> CoreModule:
         component_ids=tuple(_required_string_list(payload, "component_ids")),
         enforcement_entrypoints=tuple(
             _required_string_list(payload, "enforcement_entrypoints")
+        ),
+        accountability_refs={
+            str(role): str(reference)
+            for role, reference in _required_mapping(
+                payload.get("accountability_refs", {}),
+                "core accountability",
+            ).items()
+        },
+        accountable_component_id=(
+            _required_string(payload, "accountable_component_id")
+            if "accountable_component_id" in payload
+            else None
         ),
     )
 

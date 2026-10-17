@@ -129,23 +129,28 @@ def test_append_next_serializes_distinct_journal_instances(tmp_path: Path) -> No
 
 def test_sequential_append_reuses_validated_tail_without_replaying_history(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Prove cache reuse with controlled test-only file change evidence."""
     path = tmp_path / "events.jsonl"
     decoded_records = 0
-    original_decode = DiskEventJournal._decode_event
 
-    def counting_decode(payload: object) -> DomainEvent:
-        nonlocal decoded_records
-        decoded_records += 1
-        return original_decode(payload)
+    class TestOnlyStableSignatureJournal(DiskEventJournal):
+        def _file_signature_unlocked(
+            self,
+        ) -> tuple[int, int, int, int, int, int | None] | None:
+            if not self.path.exists():
+                return None
+            stat = self.path.stat()
+            # Test-only evidence isolates the algorithm from delayed OS metadata.
+            return stat.st_dev, stat.st_ino, stat.st_size, 0, 0, stat.st_size
 
-    monkeypatch.setattr(
-        DiskEventJournal,
-        "_decode_event",
-        staticmethod(counting_decode),
-    )
-    journal = DiskEventJournal(path, durable=False)
+        @staticmethod
+        def _decode_event(payload: object) -> DomainEvent:
+            nonlocal decoded_records
+            decoded_records += 1
+            return DiskEventJournal._decode_event(payload)
+
+    journal = TestOnlyStableSignatureJournal(path, durable=False)
     for _index in range(10):
 
         def build_sequential_event(
@@ -167,6 +172,42 @@ def test_sequential_append_reuses_validated_tail_without_replaying_history(
     assert decoded_records == 0
     assert len(journal.load()) == 10
     assert decoded_records == 10
+
+
+def test_real_metadata_change_invalidates_cached_tail_without_content_change(
+    tmp_path: Path,
+) -> None:
+    """OS-backed metadata drift must cause safe replay, never stale cache trust."""
+    decoded_records = 0
+
+    class ObservedJournal(DiskEventJournal):
+        @staticmethod
+        def _decode_event(payload: object) -> DomainEvent:
+            nonlocal decoded_records
+            decoded_records += 1
+            return DiskEventJournal._decode_event(payload)
+
+    journal = ObservedJournal(tmp_path / "metadata.jsonl", durable=False)
+    for event in build_events():
+        journal.append(event)
+    original = journal.path.read_bytes()
+    before = decoded_records
+    stat = journal.path.stat()
+    os.utime(journal.path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+    journal.append_next(
+        lambda sequence, previous_hash: DomainEvent.create(
+            event_id="metadata-after-drift",
+            aggregate_id="paper-order-1",
+            event_type="ORDER_OBSERVED",
+            sequence=sequence,
+            occurred_at=NOW + timedelta(seconds=3),
+            previous_hash=previous_hash,
+        )
+    )
+    assert decoded_records >= before + 2
+    assert journal.path.read_bytes().startswith(original)
+    assert journal.load()[:2] == build_events()
+    assert len(journal.load()) == 3
 
 
 def test_append_cache_resynchronizes_after_another_journal_writes(

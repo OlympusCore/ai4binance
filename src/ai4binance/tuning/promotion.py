@@ -200,6 +200,7 @@ class PromotionBoard:
                 environment="paper",
                 execution_mode="RESEARCH_ONLY",
             ),
+            trace_journal=self.trace_journal,
         )
         next_approvals = ValidationArtifactRegistry(
             (*current_approvals.artifacts, artifact)
@@ -386,6 +387,7 @@ class GovernedParameterStore:
                 environment="paper",
                 execution_mode="RESEARCH_ONLY",
             ),
+            trace_journal=self.trace_journal,
         )
         next_revision = current_revision + 1
         payload = {

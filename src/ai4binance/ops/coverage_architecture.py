@@ -12,6 +12,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol, cast
 
+from ai4binance.events.traceability import (
+    CanonicalTraceJournal,
+    canonical_trace_journal_path,
+)
 from ai4binance.governance.architecture import (
     LogicalArchitectureComponent,
     LogicalArchitectureRegistry,
@@ -52,6 +56,131 @@ _RELATION_STATES = frozenset(
 )
 _RUNTIME_EVIDENCE_STATES = frozenset({"NOT_REQUIRED", "UNKNOWN", "PROVEN"})
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+def build_core_evidence_view(
+    registry: LogicalArchitectureRegistry,
+    repository_root: Path,
+    *,
+    trace_journal: CanonicalTraceJournal | None = None,
+) -> tuple[dict[str, object], ...]:
+    """Project all eight dimensions from existing owners without granting authority."""
+    from ai4binance.governance.constitution_sync import (
+        build_quality_gate_workspace_attestation,
+    )
+    from ai4binance.governance.enforcement.receipt import (
+        load_denied_enforcement_batch,
+    )
+    from ai4binance.ops.quality_gate.telemetry import (
+        resolve_requirement_quality_evidence,
+    )
+
+    root = repository_root.resolve()
+    components = {item.component_id: item for item in registry.components}
+    journal = trace_journal or CanonicalTraceJournal(canonical_trace_journal_path(root))
+    observations: dict[str, list[dict[str, object]]] = {}
+    trace_blockers: list[str] = []
+    try:
+        for record, proof in load_denied_enforcement_batch(journal):
+            if proof.get("observation_class") == "OBSERVED_LOCAL_CALL":
+                observations[record.subject_ref] = [proof]
+    except OSError, ValueError, KeyError:
+        trace_blockers.append("CORE_CONSUMPTION_EVIDENCE_INVALID")
+    subject = build_quality_gate_workspace_attestation(root).to_payload()
+    rows: list[dict[str, object]] = []
+    for module in registry.core_modules:
+        selected = [components[item] for item in module.component_ids]
+        tests = tuple(sorted({ref for item in selected for ref in item.test_refs}))
+        quality, quality_blockers = resolve_requirement_quality_evidence(
+            root, subject, required_tests=tests
+        )
+        consumed = [
+            proof
+            for route in module.enforcement_entrypoints
+            for proof in observations.get(route, ())
+        ]
+        dimensions = {
+            "ownership": "PARTIAL" if not module.accountability_refs else "DECLARED",
+            "input_output": "PARTIAL",
+            "dependencies": "DECLARED",
+            "veto_boundary": "PARTIAL",
+            "failure_behavior": "PARTIAL" if consumed else "UNKNOWN",
+            "resource_budget": "PARTIAL"
+            if any(proof.get("resources") for proof in consumed)
+            else "UNKNOWN",
+            "tests_evidence": "PROVEN" if not quality_blockers else "UNKNOWN",
+            "runtime_consumer": "PARTIAL" if consumed else "UNKNOWN",
+        }
+        blockers = [
+            f"CORE_{key.upper()}_NOT_PROVEN"
+            for key, state in dimensions.items()
+            if state != "PROVEN"
+        ]
+        rows.append(
+            {
+                "core_id": module.core_id,
+                "component_ids": module.component_ids,
+                "component_owners": sorted({item.owner for item in selected}),
+                "accountability_refs": dict(module.accountability_refs),
+                "accountable_component_id": module.accountable_component_id,
+                "logical_owner": (
+                    components[module.accountable_component_id].owner
+                    if module.accountable_component_id is not None
+                    else None
+                ),
+                "accountability_scope": "EXISTING_COMPONENT_RESPONSIBILITY_ONLY",
+                "contract_refs": sorted(
+                    {ref for item in selected for ref in item.contract_refs}
+                ),
+                "declared_relations": [
+                    relation.to_payload()
+                    for relation in registry.relations
+                    if relation.from_component_id in module.component_ids
+                    or relation.to_component_id in module.component_ids
+                ],
+                "component_bindings": [
+                    {
+                        "component_id": item.component_id,
+                        "source_refs": item.source_paths,
+                        "contract_refs": item.contract_refs,
+                        "test_refs": item.test_refs,
+                        "risk_override": item.risk_override,
+                        "validation_override": item.validation_override,
+                        "execution_allowed": item.execution_allowed,
+                    }
+                    for item in selected
+                ],
+                "enforcement_entrypoints": module.enforcement_entrypoints,
+                "declared_test_refs": tests,
+                "executed_test_refs": tests if not quality_blockers else (),
+                "quality_evidence_binding": {
+                    "run_id": quality.get("run_id"),
+                    "evidence_path": (
+                        f"runtime/artifacts/quality/gate/runs/{quality['run_id']}/"
+                        + (
+                            "quality_failure_evidence.json"
+                            if quality.get("status") == "QUALITY_GATE_FAILED"
+                            else "quality_evidence.json"
+                        )
+                    ),
+                    "verified": not quality_blockers,
+                }
+                if isinstance(quality, dict)
+                else None,
+                "quality_blockers": quality_blockers,
+                "consumption_receipts": consumed,
+                "consumption_scope": "LATEST_CURRENT_SOURCE_RECEIPT_PER_ENTRYPOINT",
+                "dimensions": dimensions,
+                "operationally_verified": all(
+                    state == "PROVEN" for state in dimensions.values()
+                ),
+                "blockers": [*blockers, *trace_blockers],
+                "execution_allowed": False,
+                "promotion_status": "RESEARCH_ONLY",
+                "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+            }
+        )
+    return tuple(rows)
 
 
 class SourceCoverage(Protocol):

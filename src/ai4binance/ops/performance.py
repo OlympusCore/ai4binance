@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import ctypes
+import importlib
+import os
 import statistics
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from math import isfinite
 from pathlib import Path
+from typing import Any, cast
 
 from ai4binance.reporting import to_primitive
 from ai4binance.storage import AuditEvent, JsonlAuditStore, write_json_object_verified
@@ -124,6 +129,137 @@ def measure_operation(
         iterations=iterations,
         samples_ns_per_operation=tuple(samples),
     )
+
+
+@dataclass(frozen=True, slots=True)
+class OperationResourceMeasurement:
+    """Observed process counters for one operation, never an approved budget."""
+
+    max_duration_ms: float
+    cpu_time_ms: float
+    peak_ram_mb: float | None
+    disk_io_bytes: int | None
+    max_retries: int | None = None
+    llm_calls: int | None = None
+    timeout_policy: str = "NOT_CONFIGURED"
+    memory_scope: str = "PROCESS_LIFETIME_HIGH_WATERMARK"
+    counter_scope: str = "SHARED_PROCESS_DURING_OPERATION"
+    budget_status: str = "NOT_VERIFIED"
+    execution_allowed: bool = False
+
+    def __post_init__(self) -> None:
+        for value in (self.max_duration_ms, self.cpu_time_ms, self.peak_ram_mb):
+            if value is not None and (not isfinite(value) or value < 0):
+                raise ValueError("resource measurements must be finite and nonnegative")
+        for value in (self.disk_io_bytes, self.max_retries, self.llm_calls):
+            if value is not None and (isinstance(value, bool) or value < 0):
+                raise ValueError("resource counters must be nonnegative")
+        if self.execution_allowed or self.budget_status != "NOT_VERIFIED":
+            raise ValueError(
+                "resource observations cannot approve a budget or execution"
+            )
+
+
+def measure_resource_operation[T](
+    operation: Callable[[], T],
+) -> tuple[T, OperationResourceMeasurement]:
+    """Measure a real call without retries, model invocation, or authority changes."""
+    _, io_before = _process_resource_snapshot()
+    cpu_started = time.process_time_ns()
+    started = time.perf_counter_ns()
+    result = operation()
+    elapsed = time.perf_counter_ns() - started
+    cpu_elapsed = time.process_time_ns() - cpu_started
+    peak_ram, io_after = _process_resource_snapshot()
+    disk_io = (
+        io_after - io_before
+        if io_before is not None and io_after is not None and io_after >= io_before
+        else None
+    )
+    return result, OperationResourceMeasurement(
+        max_duration_ms=elapsed / 1_000_000,
+        cpu_time_ms=cpu_elapsed / 1_000_000,
+        peak_ram_mb=peak_ram,
+        disk_io_bytes=disk_io,
+    )
+
+
+def _process_resource_snapshot() -> tuple[float | None, int | None]:
+    """Read available OS counters; unsupported counters remain unknown."""
+    try:
+        if os.name == "nt":
+            return _windows_resource_snapshot()
+        resource = cast(Any, importlib.import_module("resource"))
+        peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+        values = dict(
+            line.split(":", 1)
+            for line in Path("/proc/self/io").read_text(encoding="ascii").splitlines()
+        )
+        return peak, int(values["read_bytes"]) + int(values["write_bytes"])
+    except OSError, ValueError, KeyError, AttributeError:
+        return None, None
+
+
+def _windows_resource_snapshot() -> tuple[float | None, int | None]:
+    from ctypes import wintypes
+
+    class MemoryCounters(ctypes.Structure):
+        _fields_ = [
+            ("cb", wintypes.DWORD),
+            ("faults", wintypes.DWORD),
+            ("peak_working_set", ctypes.c_size_t),
+            ("working_set", ctypes.c_size_t),
+            ("quota_peak_paged", ctypes.c_size_t),
+            ("quota_paged", ctypes.c_size_t),
+            ("quota_peak_nonpaged", ctypes.c_size_t),
+            ("quota_nonpaged", ctypes.c_size_t),
+            ("pagefile", ctypes.c_size_t),
+            ("peak_pagefile", ctypes.c_size_t),
+        ]
+
+    class IoCounters(ctypes.Structure):
+        _fields_ = [
+            (name, ctypes.c_ulonglong)
+            for name in (
+                "read_operations",
+                "write_operations",
+                "other_operations",
+                "read_bytes",
+                "write_bytes",
+                "other_bytes",
+            )
+        ]
+
+    kernel = cast(Any, ctypes.WinDLL("kernel32", use_last_error=True))
+    process = kernel.GetCurrentProcess
+    process.restype = wintypes.HANDLE
+    handle = process()
+    memory_api = cast(
+        Any, ctypes.WinDLL("psapi", use_last_error=True)
+    ).GetProcessMemoryInfo
+    memory_api.argtypes = [
+        wintypes.HANDLE,
+        ctypes.POINTER(MemoryCounters),
+        wintypes.DWORD,
+    ]
+    memory_api.restype = wintypes.BOOL
+    memory = MemoryCounters()
+    memory.cb = ctypes.sizeof(memory)
+    peak = (
+        memory.peak_working_set / (1024**2)
+        if memory_api(handle, ctypes.byref(memory), memory.cb)
+        else None
+    )
+    io_api = kernel.GetProcessIoCounters
+    io_api.argtypes = [wintypes.HANDLE, ctypes.POINTER(IoCounters)]
+    io_api.restype = wintypes.BOOL
+    io = IoCounters()
+    transfer = (
+        int(io.read_bytes + io.write_bytes)
+        if io_api(handle, ctypes.byref(io))
+        else None
+    )
+    return peak, transfer
 
 
 def compare_performance(

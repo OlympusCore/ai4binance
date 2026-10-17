@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-STD-GOE-001
 title: AI4BINANCE Governed Object Enforcement Standard
 document_type: STANDARD
-version: 1.0.1
+version: 1.0.2
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: NORMATIVE
@@ -115,9 +115,12 @@ src/ai4binance/governance/enforcement/engine.py
 src/ai4binance/governance/enforcement/registry.py
 src/ai4binance/governance/enforcement/adapters.py
 src/ai4binance/governance/enforcement/inventory.py
+src/ai4binance/governance/enforcement/receipt.py
 config/governance/enforcement_profiles.yaml
 config/governance/enforcement_inventory.yaml
 tests/test_governed_object_enforcement.py
+tests/test_governed_ecosystem_closure.py
+tests/test_tuning_governance.py
 ```
 
 This standard requires every consequential inventory entrypoint to be either canonically `ROUTED` through the shared enforcement contract or explicitly `BLOCKED` by fail-closed governance. Lower-level helper functions may still exist as implementation primitives, but they are non-authoritative for promotion or execution claims unless their inventory entrypoint is `ROUTED`.
@@ -142,6 +145,18 @@ The universal enforcement layer must reuse strong existing controls through adap
 - execution-boundary authority stays under `execution_authority`
 - blocker semantics stay under `blockers`
 - consequential approval verification stays under the governance gate and approval records
+
+## 8.1. Rejected Request Consumption Evidence
+
+Consumers of `require_registered_entrypoint` must preserve a non-ALLOW decision before performing any governed mutation. The adapter records a denied `PolicyEnforcementReceipt` through `src/ai4binance/governance/enforcement/receipt.py` and the existing `CanonicalTraceJournal`. Parameter activation and strategy promotion retain their existing blocked admission states; a rejection receipt does not admit either route.
+
+The receipt must bind the exact decision bytes and digest, subject and scope hashes, consumer entrypoint, reason codes, UTC recording time, and fingerprints of the declared enforcement sources. Persistence or trace failure must leave parameter state, revisions, and promotion registries unchanged. An ALLOW decision alone must not produce an ENFORCED receipt: consumed capability and actual outcome evidence remain independently required.
+
+Readers must verify canonical trace membership, the permitted receipt directory, bounded receipt size, content hash, decision and scope bindings, safety flags, and source fingerprints. Missing, malformed, contradictory, tampered, or unsupported evidence must fail closed. Intact receipts from historical source versions remain archived and are excluded from current-source observations; historical corruption must still block the read. A source change during a batch read invalidates that read. Test-only observations must not be presented as runtime consumption.
+
+Observed latency, CPU time, process memory high-watermark, and available process I/O counters are diagnostic evidence, not approved Core budgets. Unknown retries, model calls, timeouts, or unsupported counters must remain explicit unknowns. The existing Kaizen projection may expose the latest current-source receipt per entrypoint without deleting history or granting operational verification, promotion, risk override, or live execution authority.
+
+The rejection, persistence failure, stale-history, tamper, scope, and compatibility boundaries are verified by `tests/test_governed_ecosystem_closure.py`, `tests/test_tuning_governance.py`, and `tests/test_coverage_architecture.py`. Declared test references and current executed quality evidence remain separate claims.
 
 ## 9. Definition Of Done
 

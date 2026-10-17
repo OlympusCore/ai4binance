@@ -19,6 +19,52 @@ from ai4binance.storage import JsonlAuditStore
 NOW = datetime(2026, 7, 13, tzinfo=UTC)
 
 
+def test_resource_probe_measures_one_real_call_without_approving_a_budget() -> None:
+    from ai4binance.ops.performance import measure_resource_operation
+
+    calls: list[str] = []
+    result, measured = measure_resource_operation(lambda: calls.append("called"))
+    assert result is None
+    assert calls == ["called"]
+    assert measured.max_duration_ms >= 0
+    assert measured.cpu_time_ms >= 0
+    assert measured.peak_ram_mb is None or measured.peak_ram_mb > 0
+    assert measured.disk_io_bytes is None or measured.disk_io_bytes >= 0
+    assert measured.llm_calls is None
+    assert measured.max_retries is None
+    assert measured.budget_status == "NOT_VERIFIED"
+    assert measured.counter_scope == "SHARED_PROCESS_DURING_OPERATION"
+    assert not measured.execution_allowed
+
+
+def test_resource_probe_keeps_unsupported_counters_unknown_and_propagates_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import ai4binance.ops.performance as performance
+
+    monkeypatch.setattr(performance, "_process_resource_snapshot", lambda: (None, None))
+    _, measured = performance.measure_resource_operation(lambda: 7)
+    assert measured.disk_io_bytes is None
+    assert measured.peak_ram_mb is None
+    with pytest.raises(ZeroDivisionError):
+        performance.measure_resource_operation(lambda: 1 / 0)
+
+
+@pytest.mark.parametrize("value", [-1.0, float("nan"), float("inf")])
+def test_resource_probe_rejects_invalid_measurements(value: float) -> None:
+    from ai4binance.ops.performance import OperationResourceMeasurement
+
+    with pytest.raises(ValueError, match="finite"):
+        OperationResourceMeasurement(value, 0, None, None)
+
+
+def test_resource_probe_does_not_turn_an_observation_into_an_approved_budget() -> None:
+    from ai4binance.ops.performance import OperationResourceMeasurement
+
+    with pytest.raises(ValueError, match="cannot approve"):
+        OperationResourceMeasurement(0, 0, None, None, budget_status="APPROVED")
+
+
 def measurement(
     samples: tuple[float, ...],
     *,

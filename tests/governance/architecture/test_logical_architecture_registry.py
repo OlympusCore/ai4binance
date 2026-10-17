@@ -219,11 +219,22 @@ def test_core_module_drift_fails_closed(tmp_path: Path, mutation: str) -> None:
         load_logical_architecture_registry(path, repository_root=ROOT)
 
 
+def test_core_accountability_requires_an_existing_reference(tmp_path: Path) -> None:
+    payload = yaml.safe_load(REGISTRY_PATH.read_text(encoding="utf-8"))
+    payload["core_modules"][0]["accountability_refs"]["technical_owner"] = (
+        "docs/TEST_ONLY_MISSING_OWNER.md"
+    )
+    path = tmp_path / "registry.yaml"
+    path.write_text(yaml.safe_dump(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="accountability reference is unavailable"):
+        load_logical_architecture_registry(path, repository_root=ROOT)
+
+
 def test_registry_is_schema_valid_sorted_and_live_blocked() -> None:
     registry = load_logical_architecture_registry(REGISTRY_PATH)
 
     assert registry.registry_id == "AI4B-LOGICAL-ARCHITECTURE-REGISTRY-001"
-    assert registry.version == "1.13.1"
+    assert registry.version == "1.13.2"
     assert registry.source_of_truth is False
     assert registry.execution_allowed is False
     assert registry.live_eligibility_status == "LIVE_ORDER_BLOCKED"

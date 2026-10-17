@@ -4,20 +4,33 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
+from pathlib import Path
 
+from ai4binance.events.traceability import (
+    CanonicalTraceJournal,
+    CanonicalTraceRecord,
+    ConsequentialTraceKind,
+    canonical_trace_sha256,
+)
 from ai4binance.governance.capability_store import CapabilityLease, CapabilityStore
 from ai4binance.governance.enforcement.contracts import (
     EnforcementDecision,
     EnforcementOutcome,
 )
+from ai4binance.storage import write_json_object_verified
 
 
 class PolicyEnforcementStatus(StrEnum):
     ENFORCED = "ENFORCED"
     DENIED = "DENIED"
+
+
+class StaleEnforcementEvidenceError(ValueError):
+    """Intact historical evidence cannot attest to the currently loaded sources."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -220,8 +233,8 @@ def build_policy_enforcement_receipt(
     )
 
 
-def _decision_sha256(decision: EnforcementDecision) -> str:
-    payload = {
+def _decision_payload(decision: EnforcementDecision) -> dict[str, object]:
+    return {
         "decision_id": decision.decision_id,
         "outcome": decision.outcome.value,
         "evaluated_controls": tuple(
@@ -252,10 +265,185 @@ def _decision_sha256(decision: EnforcementDecision) -> str:
         "promotion_status": decision.promotion_status,
         "live_eligibility_status": decision.live_eligibility_status,
     }
+
+
+def _decision_sha256(decision: EnforcementDecision) -> str:
     canonical = json.dumps(
-        payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True
+        _decision_payload(decision),
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
     ).encode("utf-8")
     return hashlib.sha256(canonical).hexdigest()
+
+
+def persist_denied_enforcement_receipt(
+    *,
+    receipt: PolicyEnforcementReceipt,
+    decision: EnforcementDecision,
+    entrypoint_id: str,
+    journal: CanonicalTraceJournal,
+    resources: dict[str, object] | None = None,
+) -> Path:
+    """Persist actual rejection consumption; never attest to an allowed effect."""
+    if (
+        receipt.status is not PolicyEnforcementStatus.DENIED
+        or decision.outcome is EnforcementOutcome.ALLOW
+        or receipt.decision_sha256 != _decision_sha256(decision)
+        or receipt.subject_hash != decision.object_hash
+        or receipt.scope_hash != decision.scope_hash
+        or receipt.decision_id != decision.decision_id
+        or not entrypoint_id.strip()
+    ):
+        raise ValueError("DENIAL_RECEIPT_DECISION_MISMATCH")
+    payload: dict[str, object] = {
+        "entrypoint_id": entrypoint_id,
+        "receipt": receipt.to_payload(),
+        "decision": _decision_payload(decision),
+        "resources": resources,
+        "observation_class": "TEST_ONLY"
+        if os.environ.get("PYTEST_CURRENT_TEST")
+        else "OBSERVED_LOCAL_CALL",
+        "producer_ref": (
+            "ai4binance.governance.enforcement.engine."
+            "DeterministicEnforcementEngine.evaluate_entrypoint"
+        ),
+        "consumer_ref": (
+            "ai4binance.governance.enforcement.adapters.require_registered_entrypoint"
+        ),
+        "source_hashes": _enforcement_source_hashes(),
+        "execution_allowed": False,
+        "promotion_status": "RESEARCH_ONLY",
+        "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+    }
+    digest = canonical_trace_sha256(payload)
+    path = journal.path.parent / "enforcement_receipts" / f"{digest}.json"
+    write_json_object_verified(
+        path,
+        payload,
+        blocker="DENIAL_RECEIPT_PERSISTENCE_FAILED",
+        subject_id=receipt.receipt_id,
+        durable=True,
+    )
+    journal.append(
+        CanonicalTraceRecord.create(
+            trace_id=f"trace:enforcement-denied:{receipt.receipt_id}",
+            trace_kind=ConsequentialTraceKind.GATE,
+            subject_ref=entrypoint_id,
+            subject_type="ENFORCEMENT_ENTRYPOINT",
+            occurred_at=receipt.enforced_at,
+            event_name="POLICY_ENFORCEMENT_DENIED",
+            event_status=PolicyEnforcementStatus.DENIED.value,
+            evidence_refs=(str(path.resolve()),),
+            related_refs=(decision.decision_id, receipt.receipt_id),
+            blockers=receipt.blockers,
+            subject_sha256=digest,
+        )
+    )
+    return path
+
+
+def load_denied_enforcement_evidence(
+    record: CanonicalTraceRecord,
+    journal: CanonicalTraceJournal,
+) -> dict[str, object]:
+    """Resolve receipt bytes only from an exact canonical rejection trace."""
+    if record not in journal.records():
+        raise ValueError("DENIAL_RECEIPT_TRACE_INVALID")
+    return _load_denial_payload(record, journal, _enforcement_source_hashes())
+
+
+def load_denied_enforcement_batch(
+    journal: CanonicalTraceJournal,
+) -> tuple[tuple[CanonicalTraceRecord, dict[str, object]], ...]:
+    """Verify all bytes and bindings; exclude intact historical source versions."""
+    records = journal.records()
+    sources = _enforcement_source_hashes()
+    result = []
+    for record in records:
+        if record.event_name != "POLICY_ENFORCEMENT_DENIED":
+            continue
+        try:
+            payload = _load_denial_payload(record, journal, sources)
+        except StaleEnforcementEvidenceError:
+            continue
+        result.append((record, payload))
+    if sources != _enforcement_source_hashes():
+        raise ValueError("DENIAL_RECEIPT_SOURCE_CHANGED_DURING_READ")
+    return tuple(result)
+
+
+def _load_denial_payload(
+    record: CanonicalTraceRecord,
+    journal: CanonicalTraceJournal,
+    sources: dict[str, str],
+) -> dict[str, object]:
+    if (
+        record.event_name != "POLICY_ENFORCEMENT_DENIED"
+        or record.trace_kind is not ConsequentialTraceKind.GATE
+        or record.subject_type != "ENFORCEMENT_ENTRYPOINT"
+        or len(record.evidence_refs) != 1
+    ):
+        raise ValueError("DENIAL_RECEIPT_TRACE_INVALID")
+    directory = (journal.path.parent / "enforcement_receipts").resolve()
+    path = Path(record.evidence_refs[0]).resolve()
+    if path.parent != directory or path.stem != record.subject_sha256:
+        raise ValueError("DENIAL_RECEIPT_PATH_INVALID")
+    if path.stat().st_size > 65_536:
+        raise ValueError("DENIAL_RECEIPT_TOO_LARGE")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if (
+        not isinstance(payload, dict)
+        or canonical_trace_sha256(payload) != record.subject_sha256
+    ):
+        raise ValueError("DENIAL_RECEIPT_HASH_MISMATCH")
+    receipt = payload.get("receipt", {})
+    decision = payload.get("decision", {})
+    if (
+        payload.get("entrypoint_id") != record.subject_ref
+        or not isinstance(receipt, dict)
+        or not isinstance(decision, dict)
+        or receipt.get("status") != "DENIED"
+        or receipt.get("execution_allowed") is not False
+        or receipt.get("live_eligibility_status") != "LIVE_ORDER_BLOCKED"
+        or receipt.get("decision_id") not in record.related_refs
+        or receipt.get("receipt_id") not in record.related_refs
+        or canonical_trace_sha256(decision) != receipt.get("decision_sha256")
+        or decision.get("scope_hash") != receipt.get("scope_hash")
+        or decision.get("object_hash") != receipt.get("subject_hash")
+        or decision.get("decision_id") != receipt.get("decision_id")
+        or decision.get("outcome") not in {"DENY", "REQUIRE_APPROVAL", "QUARANTINE"}
+        or record.event_status != "DENIED"
+        or payload.get("execution_allowed") is not False
+        or payload.get("promotion_status") != "RESEARCH_ONLY"
+        or payload.get("live_eligibility_status") != "LIVE_ORDER_BLOCKED"
+    ):
+        raise ValueError("DENIAL_RECEIPT_BINDING_INVALID")
+    fingerprints = payload.get("source_hashes")
+    if not isinstance(fingerprints, dict) or set(fingerprints) != set(sources):
+        raise ValueError("DENIAL_RECEIPT_BINDING_INVALID")
+    for digest in fingerprints.values():
+        if not isinstance(digest, str):
+            raise ValueError("DENIAL_RECEIPT_BINDING_INVALID")
+        _require_sha256("source fingerprint", digest)
+    if fingerprints != sources:
+        raise StaleEnforcementEvidenceError("DENIAL_RECEIPT_SOURCE_STALE")
+    return payload
+
+
+def _enforcement_source_hashes() -> dict[str, str]:
+    root = Path(__file__).resolve().parents[4]
+    paths = (
+        "src/ai4binance/governance/enforcement/adapters.py",
+        "src/ai4binance/governance/enforcement/engine.py",
+        "src/ai4binance/governance/enforcement/contracts.py",
+        "src/ai4binance/governance/enforcement/receipt.py",
+        "config/governance/enforcement_inventory.yaml",
+        "config/governance/enforcement_profiles.yaml",
+    )
+    return {
+        path: hashlib.sha256((root / path).read_bytes()).hexdigest() for path in paths
+    }
 
 
 def _require_sha256(name: str, value: str) -> None:

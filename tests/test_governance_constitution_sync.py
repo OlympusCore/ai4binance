@@ -21,6 +21,31 @@ from tests.documentation_hygiene_helpers import stale_knowledge_template_offende
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@pytest.mark.parametrize("size", [0, 4096, 1_048_833])
+def test_quality_attestation_hash_streams_exact_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, size: int
+) -> None:
+    content = (bytes(range(256)) * (size // 256 + 1))[:size]
+    path = tmp_path / "TEST_ONLY_HASH_INPUT.bin"
+    path.write_bytes(content)
+
+    def reject_whole_file_buffering(_path: Path) -> bytes:
+        raise AssertionError(
+            "Whole-file buffering exceeds the attestation memory boundary"
+        )
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "read_bytes", reject_whole_file_buffering)
+        assert constitution_sync_module._sha256(path) == sha256(content).hexdigest()
+
+
+def test_quality_attestation_hash_fails_closed_for_missing_bytes(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(FileNotFoundError):
+        constitution_sync_module._sha256(tmp_path / "TEST_ONLY_MISSING.bin")
+
+
 def test_quality_attestation_does_not_inherit_an_ancestor_git_repository(
     tmp_path: Path,
 ) -> None:

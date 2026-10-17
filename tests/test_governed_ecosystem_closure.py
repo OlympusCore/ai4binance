@@ -6,6 +6,7 @@ import hashlib
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -70,6 +71,275 @@ NOW = datetime(2026, 9, 13, tzinfo=UTC)
 SHA_A = "a" * 64
 SHA_B = "b" * 64
 SHA_C = "c" * 64
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    [
+        EnforcementOutcome.DENY,
+        EnforcementOutcome.REQUIRE_APPROVAL,
+        EnforcementOutcome.QUARANTINE,
+    ],
+)
+def test_actual_denial_receipt_is_persisted_and_trace_bound(
+    tmp_path: Path,
+    outcome: EnforcementOutcome,
+) -> None:
+    from ai4binance.events.traceability import CanonicalTraceJournal
+    from ai4binance.governance.enforcement.receipt import (
+        load_denied_enforcement_batch,
+        load_denied_enforcement_evidence,
+        persist_denied_enforcement_receipt,
+    )
+
+    journal = CanonicalTraceJournal(tmp_path / "trace.jsonl")
+    decision = _enforcement_decision(outcome)
+    receipt = build_policy_enforcement_receipt(
+        receipt_id="TEST_ONLY_DENIAL",
+        decision=decision,
+        pep_id="TEST_ONLY_PEP",
+        enforcement_id="TEST_ONLY_ATTEMPT",
+        enforced_at=NOW,
+    )
+    path = persist_denied_enforcement_receipt(
+        receipt=receipt,
+        decision=decision,
+        entrypoint_id="TEST_ONLY_ENTRYPOINT",
+        journal=journal,
+    )
+    (record,) = journal.records()
+    proof = load_denied_enforcement_evidence(record, journal)
+    assert proof["observation_class"] == "TEST_ONLY"
+    assert proof["receipt"] == receipt.to_payload()
+    assert record.subject_sha256 == path.stem
+    assert record.event_status == "DENIED"
+    assert record.execution_allowed is False
+    assert load_denied_enforcement_batch(journal) == ((record, proof),)
+    decision_payload = proof["decision"]
+    assert isinstance(decision_payload, dict)
+    assert decision_payload["outcome"] == outcome.value
+    path.write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match="HASH_MISMATCH"):
+        load_denied_enforcement_evidence(record, journal)
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    [
+        "source_drift",
+        "oversized",
+        "unbound_trace",
+        "invalid_trace",
+        "outside_path",
+        "batch_source_change",
+    ],
+)
+def test_denial_reader_rejects_stale_oversized_or_unbound_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, corruption: str
+) -> None:
+    from ai4binance.events.traceability import CanonicalTraceJournal
+    from ai4binance.governance.enforcement import receipt as module
+
+    journal = CanonicalTraceJournal(tmp_path / "trace.jsonl")
+    decision = _enforcement_decision(EnforcementOutcome.DENY)
+    receipt = build_policy_enforcement_receipt(
+        receipt_id="TEST_ONLY_DENIAL",
+        decision=decision,
+        pep_id="TEST_ONLY_PEP",
+        enforcement_id="TEST_ONLY_ATTEMPT",
+        enforced_at=NOW,
+    )
+    path = module.persist_denied_enforcement_receipt(
+        receipt=receipt,
+        decision=decision,
+        entrypoint_id="TEST_ONLY_ENTRYPOINT",
+        journal=journal,
+    )
+    (record,) = journal.records()
+    if corruption == "source_drift":
+        monkeypatch.setattr(module, "_enforcement_source_hashes", lambda: {})
+        expected = "BINDING_INVALID"
+    elif corruption == "oversized":
+        path.write_bytes(b" " * 65_537)
+        expected = "TOO_LARGE"
+    elif corruption in {"invalid_trace", "outside_path"}:
+        record = type(record).create(
+            trace_id="TEST_ONLY_INVALID_RECEIPT_BINDING",
+            trace_kind=record.trace_kind,
+            subject_ref=record.subject_ref,
+            subject_type=record.subject_type,
+            occurred_at=record.occurred_at,
+            event_name="TEST_ONLY_UNEXPECTED_EVENT"
+            if corruption == "invalid_trace"
+            else record.event_name,
+            event_status=record.event_status,
+            evidence_refs=(str(tmp_path / "outside.json"),)
+            if corruption == "outside_path"
+            else record.evidence_refs,
+            related_refs=record.related_refs,
+            blockers=record.blockers,
+            subject_sha256=record.subject_sha256,
+        )
+        journal.append(record)
+        expected = "PATH_INVALID" if corruption == "outside_path" else "TRACE_INVALID"
+    elif corruption == "batch_source_change":
+        sources = module._enforcement_source_hashes()
+        responses = iter((sources, {}))
+        monkeypatch.setattr(
+            module, "_enforcement_source_hashes", lambda: next(responses)
+        )
+        with pytest.raises(ValueError, match="SOURCE_CHANGED_DURING_READ"):
+            module.load_denied_enforcement_batch(journal)
+        return
+    else:
+        journal = CanonicalTraceJournal(tmp_path / "unrelated.jsonl")
+        expected = "TRACE_INVALID"
+    with pytest.raises(ValueError, match=expected):
+        module.load_denied_enforcement_evidence(record, journal)
+
+
+def test_receipt_rejects_a_decision_without_canonical_scope() -> None:
+    with pytest.raises(ValueError, match="scope_hash is required"):
+        build_policy_enforcement_receipt(
+            receipt_id="TEST_ONLY_MISSING_SCOPE",
+            decision=replace(_enforcement_decision(), scope_hash=""),
+            pep_id="TEST_ONLY_PEP",
+            enforcement_id="TEST_ONLY_ATTEMPT",
+            enforced_at=NOW,
+        )
+
+
+def test_allowed_adapter_fixture_does_not_emit_a_premature_success_receipt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from ai4binance.events.traceability import CanonicalTraceJournal
+    from ai4binance.governance.enforcement import adapters
+    from ai4binance.governance.enforcement.contracts import (
+        EnforcementRequest,
+        GovernedObjectEnvelope,
+    )
+
+    decision = _enforcement_decision()
+    evaluator = Mock(return_value=decision)
+    monkeypatch.setattr(adapters, "evaluate_registered_entrypoint", evaluator)
+    journal = CanonicalTraceJournal(tmp_path / "trace.jsonl")
+    result = adapters.require_registered_entrypoint(
+        ROOT,
+        "TEST_ONLY_ALLOWED",
+        Mock(spec=GovernedObjectEnvelope),
+        Mock(spec=EnforcementRequest),
+        trace_journal=journal,
+    )
+    assert result is decision
+    assert result.execution_allowed is False
+    evaluator.assert_called_once()
+    assert not journal.path.exists()
+    assert not (tmp_path / "enforcement_receipts").exists()
+
+
+def test_denial_persistence_rejects_an_allowed_or_mismatched_decision(
+    tmp_path: Path,
+) -> None:
+    from ai4binance.events.traceability import CanonicalTraceJournal
+    from ai4binance.governance.enforcement.receipt import (
+        persist_denied_enforcement_receipt,
+    )
+
+    decision = _enforcement_decision(EnforcementOutcome.DENY)
+    receipt = build_policy_enforcement_receipt(
+        receipt_id="TEST_ONLY_DENIAL",
+        decision=decision,
+        pep_id="TEST_ONLY_PEP",
+        enforcement_id="TEST_ONLY_ATTEMPT",
+        enforced_at=NOW,
+    )
+    for invalid in (_enforcement_decision(), replace(decision, scope_hash=SHA_A)):
+        with pytest.raises(ValueError, match="DECISION_MISMATCH"):
+            persist_denied_enforcement_receipt(
+                receipt=receipt,
+                decision=invalid,
+                entrypoint_id="TEST_ONLY_ENTRYPOINT",
+                journal=CanonicalTraceJournal(tmp_path / "trace.jsonl"),
+            )
+    assert not (tmp_path / "trace.jsonl").exists()
+
+
+def test_current_receipts_survive_intact_history_but_not_historical_tampering(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from ai4binance.events.traceability import CanonicalTraceJournal
+    from ai4binance.governance.enforcement import receipt as module
+
+    journal = CanonicalTraceJournal(tmp_path / "trace.jsonl")
+    decision = _enforcement_decision(EnforcementOutcome.DENY)
+    historical = build_policy_enforcement_receipt(
+        receipt_id="TEST_ONLY_HISTORICAL",
+        decision=decision,
+        pep_id="TEST_ONLY_PEP",
+        enforcement_id="TEST_ONLY_ATTEMPT",
+        enforced_at=NOW,
+    )
+    old_path = module.persist_denied_enforcement_receipt(
+        receipt=historical,
+        decision=decision,
+        entrypoint_id="TEST_ONLY_ENTRYPOINT",
+        journal=journal,
+    )
+    original_bytes = old_path.read_bytes()
+    sources = module._enforcement_source_hashes()
+    sources[next(iter(sources))] = "f" * 64
+    monkeypatch.setattr(module, "_enforcement_source_hashes", lambda: sources)
+    module.persist_denied_enforcement_receipt(
+        receipt=replace(historical, receipt_id="TEST_ONLY_CURRENT"),
+        decision=decision,
+        entrypoint_id="TEST_ONLY_ENTRYPOINT",
+        journal=journal,
+    )
+    (current,) = module.load_denied_enforcement_batch(journal)
+    assert current[0].related_refs[-1] == "TEST_ONLY_CURRENT"
+    assert old_path.read_bytes() == original_bytes
+    with pytest.raises(module.StaleEnforcementEvidenceError, match="SOURCE_STALE"):
+        module.load_denied_enforcement_evidence(journal.records()[0], journal)
+    old_path.write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match="HASH_MISMATCH"):
+        module.load_denied_enforcement_batch(journal)
+
+
+@pytest.mark.parametrize(
+    "malformation", ["unknown_key", "non_string", "invalid_digest"]
+)
+def test_receipt_source_fingerprints_must_be_complete_and_well_formed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, malformation: str
+) -> None:
+    from ai4binance.events.traceability import CanonicalTraceJournal
+    from ai4binance.governance.enforcement import receipt as module
+
+    sources = module._enforcement_source_hashes()
+    malformed: dict[str, object] = dict(sources)
+    if malformation == "unknown_key":
+        malformed["TEST_ONLY_UNKNOWN_SOURCE"] = "a" * 64
+    else:
+        malformed[next(iter(malformed))] = (
+            1 if malformation == "non_string" else "bad-digest"
+        )
+    monkeypatch.setattr(module, "_enforcement_source_hashes", lambda: malformed)
+    journal = CanonicalTraceJournal(tmp_path / "trace.jsonl")
+    decision = _enforcement_decision(EnforcementOutcome.DENY)
+    module.persist_denied_enforcement_receipt(
+        receipt=build_policy_enforcement_receipt(
+            receipt_id="TEST_ONLY_MALFORMED",
+            decision=decision,
+            pep_id="TEST_ONLY_PEP",
+            enforcement_id="TEST_ONLY_ATTEMPT",
+            enforced_at=NOW,
+        ),
+        decision=decision,
+        entrypoint_id="TEST_ONLY_ENTRYPOINT",
+        journal=journal,
+    )
+    monkeypatch.setattr(module, "_enforcement_source_hashes", lambda: sources)
+    with pytest.raises(ValueError, match=r"BINDING_INVALID|source fingerprint"):
+        module.load_denied_enforcement_batch(journal)
 
 
 def _artifact(identifier: str, kind: CycleArtifactKind) -> CycleArtifactRef:

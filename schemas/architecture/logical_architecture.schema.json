@@ -24,7 +24,18 @@
           "core_id": {"enum": ["DataCore", "TradeCore", "SystemCore", "SecurityCore", "AuditCore", "RiskCore", "TechnologyCore", "ServiceCore", "LearningCore", "ValidationCore", "DecisionCore", "DeterministicCore"]},
           "term_id": {"type": "string", "pattern": "^AI4B-TERM-[A-Z0-9-]+$"},
           "component_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
-          "enforcement_entrypoints": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+          "enforcement_entrypoints": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "accountability_refs": {
+            "type": "object", "additionalProperties": false,
+            "required": ["human_authority", "logical_owner", "technical_owner", "validation_owner"],
+            "properties": {
+              "human_authority": {"type": "string", "minLength": 1},
+              "logical_owner": {"type": "string", "minLength": 1},
+              "technical_owner": {"type": "string", "minLength": 1},
+              "validation_owner": {"type": "string", "minLength": 1}
+            }
+          },
+          "accountable_component_id": {"type": "string", "minLength": 1}
         }
       }
     }

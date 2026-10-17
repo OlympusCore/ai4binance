@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from enum import StrEnum
+from types import MappingProxyType
 
 
 class LogicalComponentKind(StrEnum):
@@ -172,6 +174,8 @@ class CoreModule:
     term_id: str
     component_ids: tuple[str, ...]
     enforcement_entrypoints: tuple[str, ...]
+    accountability_refs: Mapping[str, str] = field(default_factory=dict)
+    accountable_component_id: str | None = None
 
     def __post_init__(self) -> None:
         if not self.core_id.strip() or not self.term_id.strip():
@@ -183,14 +187,46 @@ class CoreModule:
                 not item.strip() for item in values
             ):
                 raise ValueError("core module references must be unique and nonblank")
+        roles = {
+            "human_authority",
+            "logical_owner",
+            "technical_owner",
+            "validation_owner",
+        }
+        if self.accountability_refs and set(self.accountability_refs) != roles:
+            raise ValueError("core accountability requires all four canonical roles")
+        if self.accountable_component_id is not None and (
+            self.accountable_component_id not in self.component_ids
+        ):
+            raise ValueError(
+                "core module accountable component must belong to the core"
+            )
+        if self.accountability_refs and self.accountable_component_id is None:
+            raise ValueError("core accountability requires an accountable component")
+        if any(
+            _unsafe_repository_path(ref) for ref in self.accountability_refs.values()
+        ):
+            raise ValueError(
+                "core accountability must use repository-relative references"
+            )
+        object.__setattr__(
+            self,
+            "accountability_refs",
+            MappingProxyType(dict(self.accountability_refs)),
+        )
 
     def to_payload(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "core_id": self.core_id,
             "term_id": self.term_id,
             "component_ids": list(self.component_ids),
             "enforcement_entrypoints": list(self.enforcement_entrypoints),
         }
+        if self.accountability_refs:
+            payload["accountability_refs"] = dict(self.accountability_refs)
+        if self.accountable_component_id is not None:
+            payload["accountable_component_id"] = self.accountable_component_id
+        return payload
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,5 +1,5 @@
 registry_id: AI4B-LOGICAL-ARCHITECTURE-REGISTRY-001
-version: 1.13.1
+version: 1.13.2
 status: ACTIVE
 source_of_truth: false
 execution_allowed: false
@@ -727,50 +727,78 @@ components:
     live_eligibility_status: LIVE_ORDER_BLOCKED
 core_modules:
   - core_id: DataCore
+    accountable_component_id: data-quality
+    accountability_refs: &core_accountability_refs
+      human_authority: docs/governance/framework_core_vnext_governance.md
+      logical_owner: docs/registries/registry_logical_architecture.yaml
+      technical_owner: docs/registries/registry_logical_architecture.yaml
+      validation_owner: docs/workflows/runbook_quality_gate_profiles.md
     term_id: AI4B-TERM-DATA-CORE-001
     component_ids: [data-quality]
     enforcement_entrypoints: [market_snapshot_wire_validation]
   - core_id: TradeCore
+    accountable_component_id: trade-plan
+    accountability_refs: *core_accountability_refs
     term_id: AI4B-TERM-TRADE-CORE-001
     component_ids: [execution-gate-result, execution-record, opportunity-lifecycle-ledger, portfolio-accounting, position-lifecycle, trade-plan]
     enforcement_entrypoints: [execution_profile_evaluate, live_order_execution_intent, strategy_definition_profile_contract, tuning_strategy_promotion_board, strategy_registry_mutation_write]
   - core_id: SystemCore
+    accountable_component_id: governed-object-enforcement
+    accountability_refs: *core_accountability_refs
     term_id: AI4B-TERM-SYSTEM-CORE-001
     component_ids: [core-architecture-framework, event-replay, governed-object-enforcement, logical-architecture-registry, policy]
     enforcement_entrypoints: [repository_artifact_update, policy_document_update, governance_control_plane_update, approval_record_runtime_mutation, governed_parameter_activation]
   - core_id: SecurityCore
+    accountable_component_id: security-controls
+    accountability_refs: *core_accountability_refs
     term_id: AI4B-TERM-SECURITY-CORE-001
     component_ids: [security-controls]
     enforcement_entrypoints: [tool_permission_grant, provider_model_selection_decision]
   - core_id: AuditCore
+    accountable_component_id: kaizen-quality-snapshot
+    accountability_refs: *core_accountability_refs
     term_id: AI4B-TERM-AUDIT-CORE-001
     component_ids: [closure-review, kaizen-quality-snapshot]
     enforcement_entrypoints: []
   - core_id: RiskCore
+    accountable_component_id: risk-assessment
+    accountability_refs: *core_accountability_refs
     term_id: AI4B-TERM-RISK-CORE-001
     component_ids: [risk-assessment]
     enforcement_entrypoints: []
   - core_id: TechnologyCore
+    accountable_component_id: technology-language-policy-enforcement
+    accountability_refs: *core_accountability_refs
     term_id: AI4B-TERM-TECHNOLOGY-CORE-001
     component_ids: [technology-language-policy-enforcement]
     enforcement_entrypoints: []
   - core_id: ServiceCore
+    accountable_component_id: service-orchestration
+    accountability_refs: *core_accountability_refs
     term_id: AI4B-TERM-SERVICE-CORE-001
     component_ids: [service-orchestration]
     enforcement_entrypoints: [workflow_job_admission, development_run_card_completion, graph_workflow_manifest_admission]
   - core_id: LearningCore
+    accountable_component_id: learning-candidate
+    accountability_refs: *core_accountability_refs
     term_id: AI4B-TERM-LEARNING-CORE-001
     component_ids: [learning-candidate, lesson]
     enforcement_entrypoints: [governed_lesson_activation, model_adaptation_candidate_review, governed_memory_candidate_intake]
   - core_id: ValidationCore
+    accountable_component_id: validation
+    accountability_refs: *core_accountability_refs
     term_id: AI4B-TERM-VALIDATION-CORE-001
     component_ids: [opportunity-outcome-evaluation, validation]
     enforcement_entrypoints: []
   - core_id: DecisionCore
+    accountable_component_id: decision-governance
+    accountability_refs: *core_accountability_refs
     term_id: AI4B-TERM-DECISION-CORE-001
     component_ids: [decision-candidate, decision-governance, trade-decision]
     enforcement_entrypoints: []
   - core_id: DeterministicCore
+    accountable_component_id: deterministic-core
+    accountability_refs: *core_accountability_refs
     term_id: AI4B-TERM-DETERMINISTIC-CORE-001
     component_ids: [deterministic-core, opportunity-intelligence, setup]
     enforcement_entrypoints: []

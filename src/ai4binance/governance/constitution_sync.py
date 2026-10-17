@@ -745,7 +745,9 @@ def _read_text(path: Path) -> str:
 
 
 def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    """Hash every byte while bounding memory for large workspace artifacts."""
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
 def _module_token(source_path: str) -> str:

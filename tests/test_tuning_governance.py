@@ -49,6 +49,27 @@ from ai4binance.validation import (
     WalkForwardConfig,
 )
 
+
+def test_denial_receipt_io_failure_cannot_mutate_parameter_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import ai4binance.governance.enforcement.receipt as receipt_module
+
+    report = tuning_report()
+    approval = approval_for(report.report_id, report.selected_parameters)
+    store = GovernedParameterStore(tmp_path / "parameters.json")
+
+    def fail(*args: object, **kwargs: object) -> None:
+        raise OSError("TEST_ONLY_DISK_FAILURE")
+
+    monkeypatch.setattr(receipt_module, "write_json_object_verified", fail)
+    with pytest.raises(OSError, match="TEST_ONLY_DISK_FAILURE"):
+        store.activate(report, approval, expected_revision=0)
+    assert not store.path.exists()
+    assert store.current_revision() == 0
+
+
 NOW = datetime(2026, 2, 1, tzinfo=UTC)
 
 
@@ -303,9 +324,17 @@ def admitted_test_only_promotion(monkeypatch: pytest.MonkeyPatch) -> Mock:
         entrypoint: str,
         envelope: GovernedObjectEnvelope,
         request: EnforcementRequest,
+        *,
+        trace_journal: CanonicalTraceJournal | None = None,
     ) -> object:
         if entrypoint != "tuning_strategy_promotion_board":
-            return original(root, entrypoint, envelope, request)
+            return original(
+                root,
+                entrypoint,
+                envelope,
+                request,
+                trace_journal=trace_journal,
+            )
         assert root == Path(__file__).resolve().parents[1]
         assert envelope.object_type == "STRATEGY_DEFINITION"
         assert envelope.authority_scope == "strategy_promotion"
@@ -318,7 +347,7 @@ def admitted_test_only_promotion(monkeypatch: pytest.MonkeyPatch) -> Mock:
     return admission
 
 
-def test_blocked_strategy_promotion_preserves_registries_and_emits_no_receipt(
+def test_blocked_strategy_promotion_preserves_registries_and_emits_denial_receipt(
     tmp_path: Path,
 ) -> None:
     report = tuning_report()
@@ -337,7 +366,10 @@ def test_blocked_strategy_promotion_preserves_registries_and_emits_no_receipt(
         )
     assert before == (registry, governed)
     assert not board.store.path.exists()
-    assert not canonical_trace_journal_path(tmp_path).exists()
+    records = CanonicalTraceJournal(canonical_trace_journal_path(tmp_path)).records()
+    assert len(records) == 1
+    assert records[0].event_name == "POLICY_ENFORCEMENT_DENIED"
+    assert records[0].subject_ref == "tuning_strategy_promotion_board"
 
 
 def test_strategy_promotion_forwards_explicit_request_and_fails_before_writes(
@@ -393,6 +425,7 @@ def test_legacy_human_approval_cannot_activate_a_blocked_parameter_route(
     journal = CanonicalTraceJournal(canonical_trace_journal_path(tmp_path))
     assert {record.trace_kind for record in journal.records()} == {
         ConsequentialTraceKind.APPROVAL,
+        ConsequentialTraceKind.GATE,
     }
 
 
@@ -412,6 +445,7 @@ def test_nested_runtime_defaults_share_the_repository_trace_journal(
     journal = CanonicalTraceJournal(canonical_trace_journal_path(tmp_path))
     assert {record.event_name for record in journal.records()} == {
         "PARAMETER_PROMOTION_APPROVED",
+        "POLICY_ENFORCEMENT_DENIED",
     }
     assert not (tmp_path / "runtime/state/tuning/runtime").exists()
     assert not (tmp_path / "runtime/audit/tuning/runtime").exists()
@@ -437,7 +471,12 @@ def test_blocked_parameter_activation_preserves_existing_file_and_revision(
         store.activate(report, approval, expected_revision=expected_revision)
     assert path.read_bytes() == original
     assert store.current_revision() == 1
-    assert not canonical_trace_journal_path(tmp_path).exists()
+    journal = CanonicalTraceJournal(canonical_trace_journal_path(tmp_path))
+    if expected_revision == 0:
+        assert not journal.path.exists()
+    else:
+        assert len(journal.records()) == 1
+        assert journal.records()[0].event_name == "POLICY_ENFORCEMENT_DENIED"
 
 
 def test_denied_parameter_activation_cannot_emit_a_success_trace(
@@ -468,7 +507,9 @@ def test_denied_parameter_activation_cannot_emit_a_success_trace(
     with pytest.raises(ValueError, match="ENFORCEMENT_ENTRYPOINT_BLOCKED"):
         parameter_store.activate(report, approval, expected_revision=0)
     assert not parameter_store.path.exists()
-    assert tuple(trace_journal.records()) == before
+    after = tuple(trace_journal.records())
+    assert after[:-1] == before
+    assert after[-1].event_name == "POLICY_ENFORCEMENT_DENIED"
     audit = trace_journal.audit(
         (
             TraceabilityRequirement(
@@ -492,6 +533,7 @@ def test_denied_parameter_activation_cannot_emit_a_success_trace(
     assert {record.trace_kind for record in trace_journal.records()} == {
         ConsequentialTraceKind.APPROVAL,
         ConsequentialTraceKind.PROMOTION_CANDIDATE,
+        ConsequentialTraceKind.GATE,
     }
     assert all(
         record.trace_kind is not ConsequentialTraceKind.CONFIG_CHANGE
@@ -639,7 +681,16 @@ def test_promotion_board_rejects_unimplemented_and_duplicate_strategy_artifacts(
         )
 
 
-def test_promotion_board_allows_trace_journal_to_be_disabled(tmp_path: Path) -> None:
+def test_disabling_optional_trace_preserves_isolated_mandatory_denial_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ai4binance.governance.enforcement import adapters
+
+    journal_path = canonical_trace_journal_path(tmp_path)
+    monkeypatch.setattr(
+        adapters, "canonical_trace_journal_path", lambda _: journal_path
+    )
     report = tuning_report()
     approval = approval_for(report.report_id, report.selected_parameters)
     board = PromotionBoard(
@@ -658,7 +709,13 @@ def test_promotion_board_allows_trace_journal_to_be_disabled(tmp_path: Path) -> 
         store.activate(report, approval, expected_revision=0)
 
     assert not store.path.exists()
-    assert not canonical_trace_journal_path(tmp_path).exists()
+    assert store.current_revision() == 0
+    (record,) = CanonicalTraceJournal(journal_path).records()
+    assert record.event_name == "POLICY_ENFORCEMENT_DENIED"
+    assert record.trace_kind is ConsequentialTraceKind.GATE
+    proof = json.loads(Path(record.evidence_refs[0]).read_text(encoding="utf-8"))
+    assert proof["observation_class"] == "TEST_ONLY"
+    assert proof["receipt"]["status"] == "DENIED"
 
 
 def test_promotion_board_rejects_strategy_family_without_complete_real_evidence(

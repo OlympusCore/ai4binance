@@ -6,6 +6,7 @@ import os
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -29,6 +30,120 @@ from ai4binance.ops.coverage_architecture import (
     load_coverage_architecture_config,
 )
 from ai4binance.ops.coverage_policy import FileCoverage
+
+
+def test_twelve_core_views_bind_existing_owners_without_granting_authority() -> None:
+    from ai4binance.governance.architecture import load_logical_architecture_registry
+    from ai4binance.ops.coverage_architecture import build_core_evidence_view
+
+    root = Path(__file__).resolve().parents[1]
+    registry = load_logical_architecture_registry(
+        root / "docs/registries/registry_logical_architecture.yaml"
+    )
+    rows = build_core_evidence_view(registry, root)
+    assert len(rows) == 12
+    for row in rows:
+        dimensions = row["dimensions"]
+        assert isinstance(dimensions, dict)
+        assert len(dimensions) == 8
+        accountability = row["accountability_refs"]
+        component_ids = row["component_ids"]
+        owners = row["component_owners"]
+        assert isinstance(accountability, dict)
+        assert isinstance(component_ids, tuple)
+        assert isinstance(owners, list)
+        assert len(accountability) == 4
+        assert row["accountable_component_id"] in component_ids
+        assert row["logical_owner"] in owners
+        assert row["operationally_verified"] is False
+        assert row["blockers"]
+        assert row["execution_allowed"] is False
+        assert row["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_core_accountability_is_complete_immutable_and_path_bounded() -> None:
+    core = CoreModule("SystemCore", "AI4B-TERM-SYSTEM-CORE-001", ("policy",), ())
+    assert core.to_payload() == {
+        "core_id": "SystemCore",
+        "term_id": "AI4B-TERM-SYSTEM-CORE-001",
+        "component_ids": ["policy"],
+        "enforcement_entrypoints": [],
+    }
+    with pytest.raises(ValueError, match="four canonical roles"):
+        replace(core, accountability_refs={"logical_owner": "AGENTS.md"})
+    refs = dict.fromkeys(
+        ("human_authority", "logical_owner", "technical_owner", "validation_owner"),
+        "AGENTS.md",
+    )
+    assigned = replace(
+        core, accountability_refs=refs, accountable_component_id="policy"
+    )
+    assert assigned.to_payload()["accountability_refs"] == refs
+    with pytest.raises(ValueError, match="accountable component"):
+        replace(core, accountability_refs=refs)
+    with pytest.raises(ValueError, match="accountable component"):
+        replace(core, accountability_refs=refs, accountable_component_id="foreign")
+    refs["logical_owner"] = "../outside.md"
+    assert assigned.accountability_refs["logical_owner"] == "AGENTS.md"
+    with pytest.raises(ValueError, match="repository-relative"):
+        replace(core, accountability_refs=refs, accountable_component_id="policy")
+
+
+@pytest.mark.parametrize("failed", [False, True])
+def test_core_view_links_run_proof_and_bounds_test_only_observation_fixtures(
+    monkeypatch: pytest.MonkeyPatch, failed: bool
+) -> None:
+    from ai4binance.governance.architecture import load_logical_architecture_registry
+    from ai4binance.governance.enforcement import receipt
+    from ai4binance.ops.coverage_architecture import build_core_evidence_view
+    from ai4binance.ops.quality_gate import telemetry
+
+    root = Path(__file__).resolve().parents[1]
+    registry = load_logical_architecture_registry(
+        root / "docs/registries/registry_logical_architecture.yaml"
+    )
+    run_id = "20261017T000000Z"
+    monkeypatch.setattr(
+        telemetry,
+        "resolve_requirement_quality_evidence",
+        lambda *args, **kwargs: (
+            {
+                "run_id": run_id,
+                "status": "QUALITY_GATE_FAILED" if failed else "TECHNICAL_QUALITY_PASS",
+            },
+            ("TEST_ONLY_GATE_FAILED",) if failed else (),
+        ),
+    )
+    record = SimpleNamespace(subject_ref="governed_parameter_activation")
+    proofs = tuple(
+        (
+            record,
+            {
+                "observation_class": "OBSERVED_LOCAL_CALL",
+                "fixture_class": "TEST_ONLY",
+                "sequence": sequence,
+            },
+        )
+        for sequence in (1, 2)
+    )
+    monkeypatch.setattr(
+        receipt, "load_denied_enforcement_batch", lambda _journal: proofs
+    )
+    rows = build_core_evidence_view(registry, root)
+    system = next(row for row in rows if row["core_id"] == "SystemCore")
+    assert system["consumption_receipts"] == [proofs[-1][1]]
+    for row in rows:
+        binding = row["quality_evidence_binding"]
+        assert isinstance(binding, dict)
+        filename = (
+            "quality_failure_evidence.json" if failed else "quality_evidence.json"
+        )
+        assert (
+            binding["evidence_path"]
+            == f"runtime/artifacts/quality/gate/runs/{run_id}/{filename}"
+        )
+        assert binding["verified"] is (not failed)
+        assert row["operationally_verified"] is False
 
 
 @pytest.mark.parametrize(

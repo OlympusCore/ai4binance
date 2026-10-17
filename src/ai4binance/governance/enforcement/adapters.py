@@ -4,8 +4,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import asdict
+from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
+from ai4binance.events.traceability import (
+    CanonicalTraceJournal,
+    canonical_trace_journal_path,
+)
 from ai4binance.governance.enforcement.contracts import (
     EnforcementDecision,
     EnforcementOutcome,
@@ -13,6 +20,10 @@ from ai4binance.governance.enforcement.contracts import (
     GovernedObjectEnvelope,
 )
 from ai4binance.governance.enforcement.engine import DeterministicEnforcementEngine
+from ai4binance.governance.enforcement.receipt import (
+    build_policy_enforcement_receipt,
+    persist_denied_enforcement_receipt,
+)
 from ai4binance.governance.enforcement.registry import load_enforcement_profile_registry
 from ai4binance.governance.execution_authority import ExecutionAuthorityProfile
 from ai4binance.governance.policy_as_code import (
@@ -25,6 +36,7 @@ from ai4binance.governance.repository_validator import (
     RepositoryArtifact,
 )
 from ai4binance.governance.tool_policy import ToolPolicyDocument
+from ai4binance.ops.performance import measure_resource_operation
 
 
 def _sha256(payload: object) -> str:
@@ -62,12 +74,37 @@ def require_registered_entrypoint(
     entrypoint_id: str,
     envelope: GovernedObjectEnvelope,
     request: EnforcementRequest,
+    *,
+    trace_journal: CanonicalTraceJournal | None = None,
 ) -> EnforcementDecision:
     """Require the shared gate before a caller performs any governed mutation."""
-    decision = evaluate_registered_entrypoint(
-        repository_root, entrypoint_id, envelope, request
+    decision, resources = measure_resource_operation(
+        lambda: evaluate_registered_entrypoint(
+            repository_root,
+            entrypoint_id,
+            envelope,
+            request,
+        )
     )
     if decision.outcome is not EnforcementOutcome.ALLOW:
+        receipt = build_policy_enforcement_receipt(
+            receipt_id=uuid4().hex,
+            decision=decision,
+            pep_id=entrypoint_id,
+            enforcement_id=request.request_id,
+            enforced_at=datetime.now(UTC),
+        )
+        persist_denied_enforcement_receipt(
+            receipt=receipt,
+            decision=decision,
+            entrypoint_id=entrypoint_id,
+            journal=trace_journal
+            or CanonicalTraceJournal(
+                canonical_trace_journal_path(repository_root),
+                durable=True,
+            ),
+            resources=asdict(resources),
+        )
         raise ValueError(
             "GOVERNED_MUTATION_BLOCKED:"
             + entrypoint_id

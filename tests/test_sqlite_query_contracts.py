@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -145,7 +146,7 @@ def test_sql_resource_boundary_rejects_missing_statements_and_path_traversal() -
 
 
 def _assert_integrity(path: Path, expected_tables: set[str]) -> None:
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection:
         assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
         tables = {
             str(row[0])
@@ -163,7 +164,7 @@ def test_embedded_sqlite_schemas_pass_integrity_smoke_tests(tmp_path: Path) -> N
     _assert_integrity(depth_path, {"depth_events", "depth_heads"})
 
     capability_path = tmp_path / "governance.sqlite3"
-    with sqlite3.connect(capability_path) as connection:
+    with closing(sqlite3.connect(capability_path)) as connection:
         _ensure_schema(connection)
         connection.commit()
     _assert_integrity(capability_path, {"capability_leases"})

@@ -30,6 +30,7 @@ from ai4binance.ops.architecture_migration import (
     build_architecture_migration_classification,
 )
 from ai4binance.ops.architecture_projection import CanonicalArchitectureProjection
+from ai4binance.ops.coverage_architecture import build_core_evidence_view
 
 _FAST_FEEDBACK_COMMANDS = (
     ".venv\\Scripts\\python.exe -B -m pytest tests/test_kaizen_quality.py",
@@ -929,6 +930,7 @@ class KaizenQualitySnapshot:
     blockers: tuple[str, ...]
     architecture_projection: CanonicalArchitectureProjection | None = None
     logical_architecture_registry: LogicalArchitectureRegistry | None = None
+    core_evidence: tuple[dict[str, object], ...] = ()
     execution_allowed: bool = False
     promotion_status: str = "RESEARCH_ONLY"
     live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
@@ -985,6 +987,7 @@ class KaizenQualitySnapshot:
                     else None
                 ),
             },
+            "core_evidence": list(self.core_evidence),
             "instruction_baseline": self.instruction_baseline.to_payload(),
             "instruction_context_benchmark": (
                 self.instruction_context_benchmark.to_payload()
@@ -1095,6 +1098,15 @@ def build_kaizen_quality_snapshot(
         architecture_baseline=architecture_baseline,
         architecture_projection=architecture_projection,
         logical_architecture_registry=loaded_logical_architecture_registry,
+        core_evidence=(
+            build_core_evidence_view(
+                loaded_logical_architecture_registry,
+                repository_root,
+                trace_journal=journal,
+            )
+            if loaded_logical_architecture_registry is not None
+            else ()
+        ),
         instruction_baseline=instruction_baseline,
         instruction_context_benchmark=instruction_context_benchmark,
         closure_gate=closure_gate,
