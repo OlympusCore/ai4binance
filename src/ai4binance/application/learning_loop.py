@@ -7,6 +7,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any, Protocol
 
+from ai4binance.core.contracts.core_observation import consume_core_output
 from ai4binance.core.serialization import to_primitive
 
 
@@ -86,7 +87,37 @@ class ControlledLearningLoop:
             and isinstance(previous_at, datetime)
             and timedelta(0) <= at - previous_at < timedelta(days=1)
         )
-        summary: Any = previous if reuse else self.engine.analyze(**artifacts)
+
+        if reuse and previous is not None:
+            return self._consume_summary(
+                previous,
+                artifacts=artifacts,
+                input_hash=input_hash,
+                reuse=True,
+                raw_transitions=raw_transitions,
+            )
+        return consume_core_output(
+            "learning-summary-handoff",
+            inputs={"artifacts": artifacts, "lesson_transitions": raw_transitions},
+            produce=lambda: self.engine.analyze(**artifacts),
+            consume=lambda summary: self._consume_summary(
+                summary,
+                artifacts=artifacts,
+                input_hash=input_hash,
+                reuse=False,
+                raw_transitions=raw_transitions,
+            ),
+        )
+
+    def _consume_summary(
+        self,
+        summary: LearningSummaryLike,
+        *,
+        artifacts: dict[str, object],
+        input_hash: str | None,
+        reuse: bool,
+        raw_transitions: tuple[object, ...],
+    ) -> LearningLoopResult:
         if not reuse and input_hash is not None:
             self._analysis_cache.clear()
             self._analysis_cache.update(input_hash=input_hash, summary=summary)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import tomllib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, cast
@@ -84,7 +85,8 @@ def resolve_core_assurance(
             item.interface_id for item in bindings if item.interface_id not in observed
         )
     )
-    complete = bool(bindings) and not missing and not unobserved
+    same_cycle = len({item.get("cycle_id") for item in observed.values()}) == 1
+    complete = bool(bindings) and not missing and not unobserved and same_cycle
     ownership = (
         len(components) == len(module.component_ids)
         and module.accountable_component_id in module.component_ids
@@ -159,6 +161,11 @@ def resolve_core_assurance(
                 ),
                 *(f"CORE_INTERFACE_COMPONENT_UNDECLARED:{item}" for item in missing),
                 *(f"CORE_INTERFACE_UNOBSERVED:{item}" for item in unobserved),
+                *(
+                    "CORE_INTERFACE_CYCLE_MISMATCH"
+                    for _ in (0,)
+                    if observed and not same_cycle
+                ),
                 *quality_blockers,
                 *trace_blockers,
                 *resources,
@@ -171,10 +178,25 @@ def resolve_core_assurance(
 def _latest_consumption(
     consumption: Sequence[dict[str, object]],
 ) -> tuple[dict[str, object], ...]:
-    latest = {}
+    latest: dict[tuple[str, str], dict[str, object]] = {}
     for item in consumption:
         if item.get("observation_class") == "OBSERVED_LOCAL_CALL":
-            latest[(str(item["core_id"]), str(item["interface_id"]))] = item
+            key = (str(item["core_id"]), str(item["interface_id"]))
+            previous = latest.get(key)
+            if (
+                previous is not None
+                and item.get("observed_at")
+                and previous.get("observed_at")
+            ):
+                current_at = datetime.fromisoformat(str(item["observed_at"]))
+                previous_at = datetime.fromisoformat(str(previous["observed_at"]))
+                if current_at < previous_at or (
+                    current_at == previous_at
+                    and previous.get("operation_status") != "SUCCESS"
+                    and item.get("operation_status") == "SUCCESS"
+                ):
+                    continue
+            latest[key] = item
     return tuple(latest.values())
 
 

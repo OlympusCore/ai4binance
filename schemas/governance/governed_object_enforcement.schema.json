@@ -41,14 +41,15 @@
         "observation_class": {"enum": ["TEST_ONLY", "OBSERVED_LOCAL_CALL"]},
         "operation_status": {"enum": ["SUCCESS", "DENIED", "ERROR", "TIMEOUT"]},
         "input_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-        "output_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-        "outcome_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "output_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+        "outcome_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
         "source_hashes": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "string", "pattern": "^[a-f0-9]{64}$"}},
         "resources": {"$ref": "#/$defs/OperationResourceMeasurement"},
         "execution_allowed": {"const": false},
         "promotion_status": {"const": "RESEARCH_ONLY"},
         "live_eligibility_status": {"const": "LIVE_ORDER_BLOCKED"}
-      }
+      },
+      "allOf": [{"if": {"properties": {"operation_status": {"const": "SUCCESS"}}}, "then": {"properties": {"output_sha256": {"type": "string"}, "outcome_sha256": {"type": "string"}}}}]
     },
     "OperationResourceMeasurement": {
       "type": "object", "additionalProperties": false,

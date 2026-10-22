@@ -8,6 +8,7 @@ import hashlib
 import json
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import nullcontext
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -36,7 +37,12 @@ from ai4binance.application.services.virtual_runtime import (
     run_virtual_market_cycle,
 )
 from ai4binance.application.virtual_runtime_eligibility import (
+    VirtualSimulationEligibility,
     evaluate_virtual_simulation_eligibility,
+)
+from ai4binance.core.contracts.core_observation import (
+    CoreObservationFactory,
+    consume_core_output,
 )
 from ai4binance.core.contracts.execution_surface import ExecutionSurface
 from ai4binance.core.contracts.memory import CompiledCycleContext
@@ -325,6 +331,7 @@ class ResearchApplicationService:
     outlook_store: Any | None = None
     canonical_explanation_store: CanonicalExplanationStoreLike | None = None
     observer: Any | None = None
+    core_observation_factory: CoreObservationFactory | None = None
     learning_evidence_provider: LearningEvidenceProvider | None = None
     virtual_market_runtime: Any | None = None
     virtual_portfolio_builder: Callable[[object, object], Any] | None = None
@@ -366,6 +373,18 @@ class ResearchApplicationService:
         snapshot: Any,
         *,
         wallet: Any | None = None,
+    ) -> ResearchWorkflowResult:
+        """Keep the canonical runtime's actual handoffs in one explicit cycle."""
+        scope = (
+            self.core_observation_factory(str(snapshot.snapshot_id))
+            if self.core_observation_factory is not None
+            else nullcontext()
+        )
+        with scope:
+            return self._run(snapshot, wallet=wallet)
+
+    def _run(
+        self, snapshot: Any, *, wallet: Any | None = None
     ) -> ResearchWorkflowResult:
         """Run the safe research path and expose every downstream blocker."""
         if wallet is not None and self.wallet_capture_enabled:
@@ -517,39 +536,58 @@ class ResearchApplicationService:
             else ()
         )
         validation_blockers = ("NO_VIRTUAL_SETUP_CANDIDATE",) if not candidates else ()
-        virtual_eligibility = evaluate_virtual_simulation_eligibility(
-            execution_surface=_virtual_market_execution_surface(),
-            analysis_blockers=tuple(analysis.blockers),
-            candidate_blockers=strategy_blockers,
-            risk_blockers=risk_blockers,
-            validation_blockers=validation_blockers,
-            dge_blockers=(
-                ()
+
+        def consume_eligibility(
+            virtual_eligibility: VirtualSimulationEligibility,
+        ) -> tuple[ResearchStage, ...]:
+            virtual_market_blockers = (
+                virtual_runtime_decision.eligibility.blockers
                 if virtual_runtime_decision is not None
-                else (DGE_SIMULATION_NOT_APPROVED,)
+                else virtual_eligibility.blockers
+            )
+            return (
+                ResearchStage("acquisition", ResearchStageStatus.COMPLETED),
+                ResearchApplicationService._stage("analysis", tuple(analysis.blockers)),
+                ResearchApplicationService._stage("strategy", strategy_blockers),
+                ResearchApplicationService._stage("risk", risk_blockers),
+                ResearchApplicationService._validation_stage(analysis),
+                ResearchApplicationService._stage(
+                    "virtual_market_execution",
+                    virtual_market_blockers,
+                ),
+                ResearchStage(
+                    "learning",
+                    ResearchStageStatus.COMPLETED
+                    if learning is not None
+                    else ResearchStageStatus.NOT_RUN,
+                ),
+            )
+
+        return consume_core_output(
+            "trade-simulation-eligibility",
+            inputs={
+                "analysis_blockers": tuple(analysis.blockers),
+                "candidate_blockers": strategy_blockers,
+                "risk_blockers": risk_blockers,
+                "validation_blockers": validation_blockers,
+                "execution_surface": _virtual_market_execution_surface(),
+                "dge_blockers": ()
+                if virtual_runtime_decision is not None
+                else (DGE_SIMULATION_NOT_APPROVED,),
+            },
+            produce=lambda: evaluate_virtual_simulation_eligibility(
+                execution_surface=_virtual_market_execution_surface(),
+                analysis_blockers=tuple(analysis.blockers),
+                candidate_blockers=strategy_blockers,
+                risk_blockers=risk_blockers,
+                validation_blockers=validation_blockers,
+                dge_blockers=(
+                    ()
+                    if virtual_runtime_decision is not None
+                    else (DGE_SIMULATION_NOT_APPROVED,)
+                ),
             ),
-        )
-        virtual_market_blockers = (
-            virtual_runtime_decision.eligibility.blockers
-            if virtual_runtime_decision is not None
-            else virtual_eligibility.blockers
-        )
-        return (
-            ResearchStage("acquisition", ResearchStageStatus.COMPLETED),
-            ResearchApplicationService._stage("analysis", tuple(analysis.blockers)),
-            ResearchApplicationService._stage("strategy", strategy_blockers),
-            ResearchApplicationService._stage("risk", risk_blockers),
-            ResearchApplicationService._validation_stage(analysis),
-            ResearchApplicationService._stage(
-                "virtual_market_execution",
-                virtual_market_blockers,
-            ),
-            ResearchStage(
-                "learning",
-                ResearchStageStatus.COMPLETED
-                if learning is not None
-                else ResearchStageStatus.NOT_RUN,
-            ),
+            consume=consume_eligibility,
         )
 
     @staticmethod

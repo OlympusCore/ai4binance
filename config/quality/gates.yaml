@@ -47,14 +47,18 @@ affected_tests:
       name: core_assurance_contracts
       path_prefixes:
         - src/ai4binance/governance/architecture/assurance.py
+        - src/ai4binance/governance/architecture/observation.py
+        - src/ai4binance/core/contracts/core_observation.py
         - src/ai4binance/governance/architecture/model.py
         - src/ai4binance/governance/architecture/loader.py
         - schemas/architecture/logical_architecture.schema.json
         - docs/registries/registry_logical_architecture.yaml
         - src/ai4binance/ops/performance.py
         - tests/test_core_assurance.py
+        - tests/test_core_observation.py
       tests:
         - tests/test_core_assurance.py
+        - tests/test_core_observation.py
         - tests/test_coverage_architecture.py
         - tests/governance/architecture/test_logical_architecture_registry.py
         - tests/test_performance_guard.py

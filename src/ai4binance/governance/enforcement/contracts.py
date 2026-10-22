@@ -18,6 +18,17 @@ class EnforcementOutcome(StrEnum):
     QUARANTINE = "QUARANTINE"
 
 
+def _require_core_digest(value: object, *, allow_missing: bool = False) -> None:
+    if value is None and allow_missing:
+        return
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise ValueError("core receipt requires lowercase SHA-256 digests")
+
+
 @dataclass(frozen=True, slots=True)
 class CoreConsumptionReceipt:
     """Observed handoff bytes; neither a declaration nor an approval record."""
@@ -33,8 +44,8 @@ class CoreConsumptionReceipt:
     observation_class: str
     operation_status: str
     input_sha256: str
-    output_sha256: str
-    outcome_sha256: str
+    output_sha256: str | None
+    outcome_sha256: str | None
     source_hashes: Mapping[str, str]
     resources: Mapping[str, object]
 
@@ -54,14 +65,12 @@ class CoreConsumptionReceipt:
             raise ValueError("core receipt observation class is invalid")
         if self.operation_status not in {"SUCCESS", "DENIED", "ERROR", "TIMEOUT"}:
             raise ValueError("core receipt operation status is invalid")
-        for digest in (
-            self.input_sha256,
-            self.output_sha256,
-            self.outcome_sha256,
-            *self.source_hashes.values(),
-        ):
-            if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
-                raise ValueError("core receipt requires lowercase SHA-256 digests")
+        for digest in (self.input_sha256, *self.source_hashes.values()):
+            _require_core_digest(digest)
+        for optional_digest in (self.output_sha256, self.outcome_sha256):
+            _require_core_digest(
+                optional_digest, allow_missing=self.operation_status != "SUCCESS"
+            )
         if not self.source_hashes:
             raise ValueError("core receipt requires source fingerprints")
         object.__setattr__(

@@ -27,6 +27,7 @@ from ai4binance.events.clock import SimulatedClock
 from ai4binance.governance import RunContext
 from ai4binance.governance.adapters import VirtualMarketDgeAdapter
 from ai4binance.governance.architecture import load_logical_architecture_registry
+from ai4binance.governance.architecture.observation import core_observation_scope
 from ai4binance.governance.audit import persist_dge_evaluation_record
 from ai4binance.market_context import MarketContextRequest
 from ai4binance.outlook import MarketOutlookEngine
@@ -60,6 +61,16 @@ def build_research_application_service(**kwargs: object) -> ResearchApplicationS
         repository_root=root,
     )
     options = cast(dict[str, Any], kwargs)
+    record_root = options.get("dge_record_root")
+    if isinstance(record_root, str | Path):
+        observation_root = Path(record_root).resolve()
+        if (
+            observation_root / "docs/registries/registry_logical_architecture.yaml"
+        ).is_file():
+            options.setdefault(
+                "core_observation_factory",
+                partial(core_observation_scope, observation_root),
+            )
     virtual_governance_evaluator = _virtual_governance_evaluator(options)
     return ResearchApplicationService(
         orchestrator=options.pop("orchestrator", EnterpriseOrchestrator()),

@@ -44,11 +44,17 @@ from ai4binance.agents.universe_liquidity_gate import UniverseLiquidityGate
 from ai4binance.agents.validation_gate import ValidationGate
 from ai4binance.core.contracts.execution_surface import ExecutionSurface
 from ai4binance.core.contracts.memory import CompiledCycleContext
-from ai4binance.domain import TradeCandidate
+from ai4binance.domain import Signal, TradeCandidate
 from ai4binance.enterprise.resources import ResourcePolicy
+from ai4binance.governance.architecture.observation import consume_core_output
 from ai4binance.intelligence.contracts import TradingIntelligenceState
 from ai4binance.intelligence.trading import TradingIntelligenceEngine
-from ai4binance.schemas import AgentResult, AgentStatus, AnalysisState, MarketSnapshot
+from ai4binance.schemas import (
+    AgentResult,
+    AgentStatus,
+    AnalysisState,
+    MarketSnapshot,
+)
 from ai4binance.strategies import StrategyEngine
 from ai4binance.strategies.arbitration import CandidateArbitrator
 from ai4binance.whale_fusion.agent import build_whale_fusion_agent
@@ -230,15 +236,21 @@ class EnterpriseOrchestrator:
             snapshot,
             MappingProxyType(results),
         )
-        candidates = self.strategy_engine.generate(
-            snapshot,
-            MappingProxyType(results),
-            trading_intelligence=trading_intelligence,
-        )
-        candidates = self.trading_intelligence_engine.bind_candidates(
-            candidates,
-            trading_intelligence,
-            snapshot,
+        candidates = consume_core_output(
+            "deterministic-candidate-handoff",
+            inputs={
+                "snapshot": snapshot,
+                "results": results,
+                "trading_intelligence": trading_intelligence,
+            },
+            produce=lambda: self.strategy_engine.generate(
+                snapshot,
+                MappingProxyType(results),
+                trading_intelligence=trading_intelligence,
+            ),
+            consume=lambda generated: self.trading_intelligence_engine.bind_candidates(
+                generated, trading_intelligence, snapshot
+            ),
         )
         selection = self.candidate_arbitrator.select(candidates)
         risk_candidates = selection.ranked[:5] if selection.selected is not None else ()
@@ -423,10 +435,23 @@ class EnterpriseOrchestrator:
     ) -> AgentResult:
         """Run the canonical deterministic risk control with telemetry."""
         started = perf_counter_ns()
-        result = gate.evaluate(snapshot, prior_results)
-        elapsed_ms = (perf_counter_ns() - started) / 1_000_000.0
-        self._record_metric(snapshot, result, elapsed_ms)
-        return result
+
+        def record(result: AgentResult) -> AgentResult:
+            elapsed_ms = (perf_counter_ns() - started) / 1_000_000.0
+            self._record_metric(snapshot, result, elapsed_ms)
+            return result
+
+        return consume_core_output(
+            "risk-assessment-handoff",
+            inputs={
+                "snapshot": snapshot,
+                "prior_results": prior_results,
+                "candidates": gate.candidates,
+                "execution_surface": gate.execution_surface,
+            },
+            produce=lambda: gate.evaluate(snapshot, prior_results),
+            consume=record,
+        )
 
     def _run_universe_liquidity_gate(
         self,
@@ -647,26 +672,37 @@ class EnterpriseOrchestrator:
                 )
             )
         )
-        decision = self.validation_agent.validate(
-            snapshot,
-            results,
-            extra_blockers=validation_blockers,
-            candidates=candidates,
-        )
-        blockers = tuple(dict.fromkeys(decision.blockers))
-        warnings = tuple(dict.fromkeys(decision.warnings))
-        return AnalysisState(
-            snapshot_id=snapshot.snapshot_id,
-            symbol=snapshot.symbol,
-            timestamp=snapshot.created_at,
-            market_snapshot=snapshot,
-            agent_results=results,
-            blockers=blockers,
-            warnings=warnings,
-            candidate_setups=candidates,
-            final_decision=decision,
-            compiled_cycle_context=compiled_cycle_context,
-            trading_intelligence=trading_intelligence,
+
+        def build_state(decision: Signal) -> AnalysisState:
+            return AnalysisState(
+                snapshot_id=snapshot.snapshot_id,
+                symbol=snapshot.symbol,
+                timestamp=snapshot.created_at,
+                market_snapshot=snapshot,
+                agent_results=results,
+                blockers=tuple(dict.fromkeys(decision.blockers)),
+                warnings=tuple(dict.fromkeys(decision.warnings)),
+                candidate_setups=candidates,
+                final_decision=decision,
+                compiled_cycle_context=compiled_cycle_context,
+                trading_intelligence=trading_intelligence,
+            )
+
+        return consume_core_output(
+            "validation-signal-handoff",
+            inputs={
+                "snapshot": snapshot,
+                "results": results,
+                "candidates": candidates,
+                "extra_blockers": validation_blockers,
+            },
+            produce=lambda: self.validation_agent.validate(
+                snapshot,
+                results,
+                extra_blockers=validation_blockers,
+                candidates=candidates,
+            ),
+            consume=build_state,
         )
 
 

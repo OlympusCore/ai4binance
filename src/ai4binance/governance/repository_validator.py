@@ -17,12 +17,13 @@ import subprocess  # nosec B404
 import sys
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
+from contextlib import nullcontext
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import cast
-from uuid import NAMESPACE_URL, uuid5
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 import yaml
 
@@ -1847,13 +1848,8 @@ def _repository_main(arguments: Sequence[str] | None = None) -> int:
         if repository_policy_path.is_file()
         else RepositoryPolicy.ai4binance_vnext()
     )
-    repository_report = _git_repository_checks(
-        validate_repository(
-            parsed.repository_root,
-            policy=repository_policy,
-            policy_source_path=repository_policy_path,
-        ),
-        parsed,
+    repository_report = _validate_repository_with_core_observation(
+        parsed, repository_policy, repository_policy_path
     )
     if parsed.output_json is not None:
         _write_report_json(parsed.output_json, repository_report)
@@ -1932,6 +1928,34 @@ def _repository_main(arguments: Sequence[str] | None = None) -> int:
             parsed.monitor_health, health, blocker="MONITOR_HEALTH_WRITE_FAILED"
         )
     return exit_code
+
+
+def _validate_repository_with_core_observation(
+    parsed: argparse.Namespace,
+    repository_policy: RepositoryPolicy,
+    repository_policy_path: Path,
+) -> RepositoryValidationReport:
+    from ai4binance.governance.architecture.observation import core_observation_scope
+
+    scope = (
+        core_observation_scope(
+            parsed.repository_root, f"repository-validation:{uuid4().hex}"
+        )
+        if (
+            parsed.repository_root
+            / "docs/registries/registry_logical_architecture.yaml"
+        ).is_file()
+        else nullcontext()
+    )
+    with scope:
+        return _git_repository_checks(
+            validate_repository(
+                parsed.repository_root,
+                policy=repository_policy,
+                policy_source_path=repository_policy_path,
+            ),
+            parsed,
+        )
 
 
 def _yaml_string(payload: dict[object, object], key: str) -> str:

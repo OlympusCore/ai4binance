@@ -9,6 +9,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import yaml
 
+from ai4binance.governance.architecture.observation import consume_core_output
 from ai4binance.governance.authority.development import (
     load_authority_layer_development_matrix,
     validate_authority_graph_layer_development,
@@ -255,20 +256,21 @@ def evaluate_governance_enforcement_fabric(
         )
     try:
         technology = load_technology_language_policy(root)
-        for technology_violation in evaluate_technology_language_policy(
-            root,
-            technology,
-            paths,
-        ):
-            violations.append(
-                FabricViolation(
-                    "technology_language",
-                    technology_violation.code,
-                    technology_violation.path,
-                    technology_violation.detail,
-                    True,
-                )
+        violations.extend(
+            consume_core_output(
+                "technology-policy-evaluation",
+                inputs={"repository_paths": paths, "policy": technology},
+                produce=lambda: evaluate_technology_language_policy(
+                    root, technology, paths
+                ),
+                consume=lambda findings: tuple(
+                    FabricViolation(
+                        "technology_language", item.code, item.path, item.detail, True
+                    )
+                    for item in findings
+                ),
             )
+        )
     except ValueError as exc:
         violations.append(
             FabricViolation(

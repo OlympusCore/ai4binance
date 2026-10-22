@@ -640,6 +640,7 @@ def test_standard_scope_adds_critical_impacted_contract_and_determinism_tests() 
     assert performance_args == (
         *REQUIRED_TESTS,
         "tests/test_core_assurance.py",
+        "tests/test_core_observation.py",
         "tests/test_coverage_architecture.py",
         "tests/governance/architecture/test_logical_architecture_registry.py",
         "tests/test_performance_guard.py",

@@ -10,6 +10,7 @@ from typing import Protocol, cast
 
 from ai4binance.core.contracts.virtual_governance import VirtualGovernanceResult
 from ai4binance.core.serialization import to_primitive
+from ai4binance.governance.architecture.observation import consume_core_output
 from ai4binance.governance.dge_engine import DecisionGovernanceEngine
 from ai4binance.governance.dge_models import (
     DgeGovernanceContext,
@@ -152,17 +153,42 @@ class VirtualMarketDgeAdapter:
             raise ValueError("DGE_CONTEXT_SURFACE_INVALID")
         if context.data_snapshot_id != str(getattr(snapshot, "snapshot_id", "")):
             raise ValueError("DGE_EVALUATION_SUBJECT_MISMATCH")
-        try:
-            decision = self.dge.evaluate(dge_candidate, context)
-        except (
-            ArithmeticError,
-            AttributeError,
-            KeyError,
-            RuntimeError,
-            TypeError,
-            ValueError,
-        ) as error:
-            raise ValueError("DGE_ENGINE_EVALUATION_FAILED") from error
+
+        def produce_decision() -> GovernedDecision:
+            try:
+                return self.dge.evaluate(dge_candidate, context)
+            except (
+                ArithmeticError,
+                AttributeError,
+                KeyError,
+                RuntimeError,
+                TypeError,
+                ValueError,
+            ) as error:
+                raise ValueError("DGE_ENGINE_EVALUATION_FAILED") from error
+
+        return consume_core_output(
+            "decision-dge-handoff",
+            inputs={"candidate": dge_candidate, "context": context},
+            produce=produce_decision,
+            consume=lambda decision: self._consume_decision(
+                decision,
+                dge_candidate=dge_candidate,
+                context=context,
+                market=market,
+                snapshot=snapshot,
+            ),
+        )
+
+    def _consume_decision(
+        self,
+        decision: GovernedDecision,
+        *,
+        dge_candidate: DgeTradeCandidate,
+        context: DgeGovernanceContext,
+        market: str,
+        snapshot: object,
+    ) -> VirtualGovernanceResult:
         blockers = tuple(
             dict.fromkeys((*decision.hard_blockers, *decision.soft_blockers))
         )

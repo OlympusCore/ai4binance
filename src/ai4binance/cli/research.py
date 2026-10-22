@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
-from contextlib import redirect_stdout
+from contextlib import nullcontext, redirect_stdout
 from datetime import UTC, datetime
 from pathlib import Path
 from time import perf_counter_ns
 from typing import Any, cast
+from uuid import uuid4
 
 from ai4binance.agents.orchestrator import EnterpriseOrchestrator
 from ai4binance.application import (
@@ -15,6 +16,7 @@ from ai4binance.application import (
     WhaleFusionCycle,
     WhaleFusionResearchService,
 )
+from ai4binance.application.research import ResearchWorkflowResult
 from ai4binance.cli.bootstrap.shared import virtual_runtime_decision_payload
 from ai4binance.config import Settings
 from ai4binance.core.errors import ExchangeError
@@ -30,6 +32,10 @@ from ai4binance.governance import (
     build_enterprise_ai_crew_plan,
     market_outlook_workflow,
     preview_workflow,
+)
+from ai4binance.governance.architecture.observation import (
+    consume_core_output,
+    core_observation_scope,
 )
 from ai4binance.infrastructure.persistence.canonical_payloads import (
     CanonicalExplanationStore,
@@ -664,10 +670,38 @@ def run_public_research_command(
     virtual_wallet_journal: VirtualWalletJournal | None = None,
     cycle_report: dict[str, object] | None = None,
 ) -> int:
+    """Run the existing consumer chain inside one explicit evidence cycle."""
+    root = Path.cwd()
+    scope = (
+        core_observation_scope(root, f"research:{uuid4().hex}")
+        if (root / "docs/registries/registry_logical_architecture.yaml").is_file()
+        else nullcontext()
+    )
+    with scope:
+        return _run_public_research_command(
+            command,
+            settings,
+            public_acquisition=public_acquisition,
+            whale_fusion_cycle=whale_fusion_cycle,
+            virtual_wallet_journal=virtual_wallet_journal,
+            cycle_report=cycle_report,
+        )
+
+
+def _run_public_research_command(
+    command: str,
+    settings: Settings,
+    *,
+    public_acquisition: SnapshotAcquirer | None,
+    whale_fusion_cycle: WhaleFusionCycle | None,
+    virtual_wallet_journal: VirtualWalletJournal | None = None,
+    cycle_report: dict[str, object] | None = None,
+) -> int:
     acquisition = public_acquisition or build_public_acquisition(settings)
     failure_stage = "ACQUISITION"
-    try:
-        snapshot = acquisition.acquire(settings.symbol, settings.timeframes)
+
+    def consume_snapshot(snapshot: MarketSnapshot) -> int:
+        nonlocal failure_stage
         failure_stage = "RESEARCH_WORKFLOW"
         if cycle_report is not None:
             cycle_report.update(
@@ -675,9 +709,7 @@ def run_public_research_command(
             )
         if command == "whale-fusion-research":
             return _run_whale_fusion_research(
-                settings,
-                snapshot=snapshot,
-                whale_fusion_cycle=whale_fusion_cycle,
+                settings, snapshot=snapshot, whale_fusion_cycle=whale_fusion_cycle
             )
         if command == "archive-public":
             return _run_archive_public(settings, snapshot=snapshot)
@@ -687,6 +719,14 @@ def run_public_research_command(
             snapshot=snapshot,
             virtual_wallet_journal=virtual_wallet_journal,
             cycle_report=cycle_report,
+        )
+
+    try:
+        return consume_core_output(
+            "data-snapshot-acquisition",
+            inputs={"symbol": settings.symbol, "timeframes": settings.timeframes},
+            produce=lambda: acquisition.acquire(settings.symbol, settings.timeframes),
+            consume=consume_snapshot,
         )
     except VirtualWalletJournalError:
         if cycle_report is not None:
@@ -850,172 +890,183 @@ def _run_research_or_analysis(
             else {}
         ),
     )
-    research_workflow = service.run(snapshot)
-    virtual_wallet_report = (
-        virtual_wallet_journal.record_cycle(
-            snapshot_id=snapshot.snapshot_id,
+
+    def consume_workflow(research_workflow: ResearchWorkflowResult) -> int:
+        virtual_wallet_report = (
+            virtual_wallet_journal.record_cycle(
+                snapshot_id=snapshot.snapshot_id,
+                observed_at=snapshot.created_at,
+                decision=research_workflow.virtual_runtime_decision,
+                request=research_workflow.virtual_runtime_request,
+            )
+            if virtual_wallet_journal is not None
+            else None
+        )
+        opportunity_radar_started_ns = perf_counter_ns()
+        opportunity_radar = build_opportunity_radar_snapshot(
+            (snapshot,),
+            cycle_id=snapshot.snapshot_id,
             observed_at=snapshot.created_at,
-            decision=research_workflow.virtual_runtime_decision,
-            request=research_workflow.virtual_runtime_request,
+            market=snapshot.market_type.upper(),
         )
-        if virtual_wallet_journal is not None
-        else None
-    )
-    opportunity_radar_started_ns = perf_counter_ns()
-    opportunity_radar = build_opportunity_radar_snapshot(
-        (snapshot,),
-        cycle_id=snapshot.snapshot_id,
-        observed_at=snapshot.created_at,
-        market=snapshot.market_type.upper(),
-    )
-    opportunity_radar_duration_ns = perf_counter_ns() - opportunity_radar_started_ns
-    opportunity_radar_path = write_opportunity_radar_snapshot(
-        opportunity_radar,
-        settings.evidence_artifact_directory / "opportunity-radar" / "latest.json",
-    )
-    state = research_workflow.analysis
-    if command == "analyze-public":
-        audit_store = JsonlAuditStore(
-            settings.audit_directory / "analysis_events.jsonl"
+        opportunity_radar_duration_ns = perf_counter_ns() - opportunity_radar_started_ns
+        opportunity_radar_path = write_opportunity_radar_snapshot(
+            opportunity_radar,
+            settings.evidence_artifact_directory / "opportunity-radar" / "latest.json",
         )
-        audit_store.append_verified(
-            AuditEvent(
-                event_type="MARKET_SNAPSHOT_CREATED",
-                timestamp=snapshot.created_at,
-                snapshot_id=snapshot.snapshot_id,
-                payload={"snapshot": snapshot},
+        state = research_workflow.analysis
+        if command == "analyze-public":
+            audit_store = JsonlAuditStore(
+                settings.audit_directory / "analysis_events.jsonl"
             )
-        )
-        audit_store.append_verified(
-            AuditEvent(
-                event_type="ANALYSIS_DECISION_CREATED",
-                timestamp=snapshot.created_at,
-                snapshot_id=snapshot.snapshot_id,
-                payload={
-                    "agent_results": state.agent_results,
-                    "decision": state.final_decision,
-                    "market_outlook": research_workflow.market_outlook,
-                },
+            audit_store.append_verified(
+                AuditEvent(
+                    event_type="MARKET_SNAPSHOT_CREATED",
+                    timestamp=snapshot.created_at,
+                    snapshot_id=snapshot.snapshot_id,
+                    payload={"snapshot": snapshot},
+                )
             )
-        )
-    candle_counts = {
-        timeframe: len(snapshot.ohlcv_by_timeframe[timeframe])
-        for timeframe in snapshot.timeframes
-    }
-    payload = {
-        "snapshot_id": snapshot.snapshot_id,
-        "symbol": snapshot.symbol,
-        "timeframes": snapshot.timeframes,
-        "data_quality": snapshot.data_quality,
-        "candle_counts": candle_counts,
-        "agent_statuses": {
-            name: result.status for name, result in state.agent_results.items()
-        },
-        "candidates": state.candidate_setups,
-        "market_outlook": research_workflow.market_outlook,
-        "opportunity_radar": opportunity_radar.to_payload(),
-        "opportunity_radar_telemetry": {
-            "candidate_evaluation_duration_ms": (
-                opportunity_radar_duration_ns / 1_000_000
+            audit_store.append_verified(
+                AuditEvent(
+                    event_type="ANALYSIS_DECISION_CREATED",
+                    timestamp=snapshot.created_at,
+                    snapshot_id=snapshot.snapshot_id,
+                    payload={
+                        "agent_results": state.agent_results,
+                        "decision": state.final_decision,
+                        "market_outlook": research_workflow.market_outlook,
+                    },
+                )
+            )
+        candle_counts = {
+            timeframe: len(snapshot.ohlcv_by_timeframe[timeframe])
+            for timeframe in snapshot.timeframes
+        }
+        payload = {
+            "snapshot_id": snapshot.snapshot_id,
+            "symbol": snapshot.symbol,
+            "timeframes": snapshot.timeframes,
+            "data_quality": snapshot.data_quality,
+            "candle_counts": candle_counts,
+            "agent_statuses": {
+                name: result.status for name, result in state.agent_results.items()
+            },
+            "candidates": state.candidate_setups,
+            "market_outlook": research_workflow.market_outlook,
+            "opportunity_radar": opportunity_radar.to_payload(),
+            "opportunity_radar_telemetry": {
+                "candidate_evaluation_duration_ms": (
+                    opportunity_radar_duration_ns / 1_000_000
+                ),
+                "source_snapshot_count": len(opportunity_radar.source_snapshot_ids),
+                "candidate_count": opportunity_radar.candidate_count,
+            },
+            "opportunity_radar_path": str(opportunity_radar_path),
+            "decision": state.final_decision,
+            "virtual_runtime_decision": virtual_runtime_decision_payload(
+                research_workflow.virtual_runtime_decision
             ),
-            "source_snapshot_count": len(opportunity_radar.source_snapshot_ids),
-            "candidate_count": opportunity_radar.candidate_count,
-        },
-        "opportunity_radar_path": str(opportunity_radar_path),
-        "decision": state.final_decision,
-        "virtual_runtime_decision": virtual_runtime_decision_payload(
-            research_workflow.virtual_runtime_decision
-        ),
-        "virtual_wallets": (
-            virtual_wallet_report.get("wallets")
-            if virtual_wallet_report is not None
-            else None
-        ),
-        "virtual_wallet_movement_count": (
-            virtual_wallet_report.get("movement_count")
-            if virtual_wallet_report is not None
-            else None
-        ),
-        "virtual_wallet_report_paths": (
-            virtual_wallet_report.get("report_paths")
-            if virtual_wallet_report is not None
-            else None
-        ),
-        "research_stages": research_workflow.stages,
-        "execution_allowed": research_workflow.execution_allowed,
-        "live_eligibility_status": research_workflow.live_eligibility_status,
-    }
-    if cycle_report is not None:
-        risk = state.agent_results.get("risk")
-        virtual = research_workflow.virtual_runtime_decision
-        cycle_report.update(
-            {
-                "snapshot_id": snapshot.snapshot_id,
-                "symbol": snapshot.symbol,
-                "market": snapshot.market_type.upper(),
-                "validation_evidence": {
+            "virtual_wallets": (
+                virtual_wallet_report.get("wallets")
+                if virtual_wallet_report is not None
+                else None
+            ),
+            "virtual_wallet_movement_count": (
+                virtual_wallet_report.get("movement_count")
+                if virtual_wallet_report is not None
+                else None
+            ),
+            "virtual_wallet_report_paths": (
+                virtual_wallet_report.get("report_paths")
+                if virtual_wallet_report is not None
+                else None
+            ),
+            "research_stages": research_workflow.stages,
+            "execution_allowed": research_workflow.execution_allowed,
+            "live_eligibility_status": research_workflow.live_eligibility_status,
+        }
+        if cycle_report is not None:
+            risk = state.agent_results.get("risk")
+            virtual = research_workflow.virtual_runtime_decision
+            cycle_report.update(
+                {
                     "snapshot_id": snapshot.snapshot_id,
                     "symbol": snapshot.symbol,
                     "market": snapshot.market_type.upper(),
-                    "deployment_path": str(settings.runtime_validation_deployment_path),
-                    "loaded_subject_count": len(validation_gate.expected_subjects),
-                    "market_subject_count": sum(
-                        subject.promotion.market_type == snapshot.market_type.upper()
-                        for subject in validation_gate.expected_subjects
+                    "validation_evidence": {
+                        "snapshot_id": snapshot.snapshot_id,
+                        "symbol": snapshot.symbol,
+                        "market": snapshot.market_type.upper(),
+                        "deployment_path": str(
+                            settings.runtime_validation_deployment_path
+                        ),
+                        "loaded_subject_count": len(validation_gate.expected_subjects),
+                        "market_subject_count": sum(
+                            subject.promotion.market_type
+                            == snapshot.market_type.upper()
+                            for subject in validation_gate.expected_subjects
+                        ),
+                        "symbol_subject_count": sum(
+                            subject.promotion.symbol == snapshot.symbol
+                            and subject.promotion.market_type
+                            == snapshot.market_type.upper()
+                            for subject in validation_gate.expected_subjects
+                        ),
+                        "load_blockers": validation_gate.evidence_load_blockers,
+                    },
+                    "candidate_count": len(state.candidate_setups),
+                    "candidate_diagnostics": tuple(
+                        {
+                            "candidate_id": candidate.candidate_id,
+                            "setup": candidate.setup_name,
+                            "timeframe": candidate.timeframe,
+                            "status": candidate.status.value,
+                            "blockers": candidate.blockers,
+                        }
+                        for candidate in state.candidate_setups
                     ),
-                    "symbol_subject_count": sum(
-                        subject.promotion.symbol == snapshot.symbol
-                        and subject.promotion.market_type
-                        == snapshot.market_type.upper()
-                        for subject in validation_gate.expected_subjects
-                    ),
-                    "load_blockers": validation_gate.evidence_load_blockers,
-                },
-                "candidate_count": len(state.candidate_setups),
-                "candidate_diagnostics": tuple(
-                    {
-                        "candidate_id": candidate.candidate_id,
-                        "setup": candidate.setup_name,
-                        "timeframe": candidate.timeframe,
-                        "status": candidate.status.value,
-                        "blockers": candidate.blockers,
-                    }
-                    for candidate in state.candidate_setups
-                ),
-                "risk_approved": risk is not None
-                and risk.calculation_metadata.get("approved") is True,
-                "virtual_decision_status": virtual.status.value
-                if virtual is not None
-                else "NO_ACTION",
-                "virtual_runtime_evaluated": virtual is not None,
-                "virtual_simulation_outcome": (
-                    "RUNTIME_DECISION_EVALUATED"
+                    "risk_approved": risk is not None
+                    and risk.calculation_metadata.get("approved") is True,
+                    "virtual_decision_status": virtual.status.value
                     if virtual is not None
-                    else "PRECONDITIONS_BLOCKED"
-                ),
-                "virtual_order_ready": virtual is not None
-                and virtual.trade_intent is not None,
-                "research_blockers": tuple(
+                    else "NO_ACTION",
+                    "virtual_runtime_evaluated": virtual is not None,
+                    "virtual_simulation_outcome": (
+                        "RUNTIME_DECISION_EVALUATED"
+                        if virtual is not None
+                        else "PRECONDITIONS_BLOCKED"
+                    ),
+                    "virtual_order_ready": virtual is not None
+                    and virtual.trade_intent is not None,
+                    "research_blockers": tuple(
+                        dict.fromkeys(
+                            blocker
+                            for stage in research_workflow.stages
+                            for blocker in stage.blockers
+                        )
+                    ),
+                }
+            )
+            if not state.candidate_setups and state.trading_intelligence is not None:
+                # Preserve pre-candidate causes that cannot appear on a candidate row.
+                cycle_report["research_blockers"] = tuple(
                     dict.fromkeys(
-                        blocker
-                        for stage in research_workflow.stages
-                        for blocker in stage.blockers
-                    )
-                ),
-            }
-        )
-        if not state.candidate_setups and state.trading_intelligence is not None:
-            # Preserve pre-candidate causes that cannot appear on a candidate row.
-            cycle_report["research_blockers"] = tuple(
-                dict.fromkeys(
-                    (
-                        *cast(tuple[str, ...], cycle_report["research_blockers"]),
-                        *state.trading_intelligence.blockers,
+                        (
+                            *cast(tuple[str, ...], cycle_report["research_blockers"]),
+                            *state.trading_intelligence.blockers,
+                        )
                     )
                 )
-            )
-    print(json.dumps(to_primitive(payload), ensure_ascii=False, sort_keys=True))
-    return 0
+        print(json.dumps(to_primitive(payload), ensure_ascii=False, sort_keys=True))
+        return 0
+
+    return consume_core_output(
+        "service-research-workflow",
+        inputs=snapshot,
+        produce=lambda: service.run(snapshot),
+        consume=consume_workflow,
+    )
 
 
 def _write_second_brain_production_artifact(index: RagIndex) -> Path:

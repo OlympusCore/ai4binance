@@ -13,6 +13,7 @@ from ai4binance.events.traceability import (
     CanonicalTraceJournal,
     canonical_trace_journal_path,
 )
+from ai4binance.governance.architecture.observation import consume_core_output
 from ai4binance.governance.enforcement.contracts import (
     EnforcementDecision,
     EnforcementOutcome,
@@ -36,7 +37,10 @@ from ai4binance.governance.repository_validator import (
     RepositoryArtifact,
 )
 from ai4binance.governance.tool_policy import ToolPolicyDocument
-from ai4binance.ops.performance import measure_resource_operation
+from ai4binance.ops.performance import (
+    OperationResourceMeasurement,
+    measure_resource_operation,
+)
 
 
 def _sha256(payload: object) -> str:
@@ -78,47 +82,65 @@ def require_registered_entrypoint(
     trace_journal: CanonicalTraceJournal | None = None,
 ) -> EnforcementDecision:
     """Require the shared gate before a caller performs any governed mutation."""
-    decision, resources = measure_resource_operation(
-        lambda: evaluate_registered_entrypoint(
-            repository_root,
-            entrypoint_id,
-            envelope,
-            request,
-        )
-    )
-    if decision.outcome is not EnforcementOutcome.ALLOW:
-        receipt = build_policy_enforcement_receipt(
-            receipt_id=uuid4().hex,
-            decision=decision,
-            pep_id=entrypoint_id,
-            enforcement_id=request.request_id,
-            enforced_at=datetime.now(UTC),
-        )
-        persist_denied_enforcement_receipt(
-            receipt=receipt,
-            decision=decision,
-            entrypoint_id=entrypoint_id,
-            journal=trace_journal
-            or CanonicalTraceJournal(
-                canonical_trace_journal_path(repository_root),
-                durable=True,
-            ),
-            resources=asdict(resources),
-        )
-        raise ValueError(
-            "GOVERNED_MUTATION_BLOCKED:"
-            + entrypoint_id
-            + ":"
-            + ",".join(decision.reason_codes)
-        )
-    from ai4binance.ops.coverage_architecture import core_readiness_blockers
+    measurements: list[OperationResourceMeasurement] = []
 
-    blockers = core_readiness_blockers(repository_root, entrypoint_id)
-    if blockers:
-        raise ValueError(
-            "CORE_READINESS_BLOCKED:" + entrypoint_id + ":" + ",".join(blockers)
+    def produce_decision() -> EnforcementDecision:
+        decision, resources = measure_resource_operation(
+            lambda: evaluate_registered_entrypoint(
+                repository_root,
+                entrypoint_id,
+                envelope,
+                request,
+            )
         )
-    return decision
+        measurements.append(resources)
+        return decision
+
+    def enforce(decision: EnforcementDecision) -> EnforcementDecision:
+        if decision.outcome is not EnforcementOutcome.ALLOW:
+            receipt = build_policy_enforcement_receipt(
+                receipt_id=uuid4().hex,
+                decision=decision,
+                pep_id=entrypoint_id,
+                enforcement_id=request.request_id,
+                enforced_at=datetime.now(UTC),
+            )
+            persist_denied_enforcement_receipt(
+                receipt=receipt,
+                decision=decision,
+                entrypoint_id=entrypoint_id,
+                journal=trace_journal
+                or CanonicalTraceJournal(
+                    canonical_trace_journal_path(repository_root),
+                    durable=True,
+                ),
+                resources=asdict(measurements[-1]),
+            )
+            raise ValueError(
+                "GOVERNED_MUTATION_BLOCKED:"
+                + entrypoint_id
+                + ":"
+                + ",".join(decision.reason_codes)
+            )
+        from ai4binance.ops.coverage_architecture import core_readiness_blockers
+
+        blockers = core_readiness_blockers(repository_root, entrypoint_id)
+        if blockers:
+            raise ValueError(
+                "CORE_READINESS_BLOCKED:" + entrypoint_id + ":" + ",".join(blockers)
+            )
+        return decision
+
+    return consume_core_output(
+        "system-enforcement-decision",
+        inputs={
+            "envelope": envelope,
+            "request": request,
+            "entrypoint_id": entrypoint_id,
+        },
+        produce=produce_decision,
+        consume=enforce,
+    )
 
 
 def envelope_from_governed_knowledge(

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TypeVar
 
+from ai4binance.governance.architecture.observation import consume_core_output
 from ai4binance.governance.capability_store import CapabilityLease, CapabilityStore
 from ai4binance.governance.decision_records import (
     DecisionRecord,
@@ -119,11 +120,24 @@ class ToolGateway:
         context = run_context or RunContext(run_id=execution_id, step_id="tool_gateway")
         try:
             descriptor = self.registry.require(tool)
-            evaluation = self.policy.evaluate(
-                descriptor,
-                project=project,
-                permission=permission,
-                approved=approved,
+            evaluation, policy_allowed = consume_core_output(
+                "security-tool-policy",
+                inputs={
+                    "descriptor": descriptor,
+                    "project": project,
+                    "permission": permission,
+                    "approved": approved,
+                },
+                produce=lambda: self.policy.evaluate(
+                    descriptor,
+                    project=project,
+                    permission=permission,
+                    approved=approved,
+                ),
+                consume=lambda evaluated: (
+                    evaluated,
+                    evaluated.decision is ToolPolicyDecision.ALLOW,
+                ),
             )
         except Exception as exc:
             decision_record = build_decision_record(
@@ -163,7 +177,7 @@ class ToolGateway:
                     outcome_attestation=attestation,
                 )
             )
-        if evaluation.decision is not ToolPolicyDecision.ALLOW:
+        if not policy_allowed:
             decision_record = build_decision_record(
                 context=context,
                 project=project,

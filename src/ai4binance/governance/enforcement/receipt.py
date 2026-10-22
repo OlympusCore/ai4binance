@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -43,16 +44,32 @@ def core_consumption_subject_sha256(repository_root: Path) -> str:
     )
 
 
+def _core_related_component_ids(
+    module: CoreModule, registry: LogicalArchitectureRegistry
+) -> set[str]:
+    ids = set(module.component_ids)
+    pending = list(ids)
+    while pending:
+        current = pending.pop()
+        for relation in registry.relations:
+            if (
+                relation.from_component_id == current
+                and relation.to_component_id not in ids
+            ):
+                ids.add(relation.to_component_id)
+                pending.append(relation.to_component_id)
+    return ids
+
+
 def _core_source_hashes(
     root: Path,
     module: CoreModule,
     registry: LogicalArchitectureRegistry,
+    *,
+    workspace_subject_sha256: str | None = None,
 ) -> dict[str, str]:
     """Bind declarations, policy, contracts and relevant dependency sources."""
-    ids = set(module.component_ids)
-    for relation in registry.relations:
-        if relation.from_component_id in module.component_ids:
-            ids.add(relation.to_component_id)
+    ids = _core_related_component_ids(module, registry)
     paths = {
         "docs/registries/registry_logical_architecture.yaml",
         "schemas/architecture/logical_architecture.schema.json",
@@ -61,6 +78,8 @@ def _core_source_hashes(
         "config/governance/governance_enforcement_fabric.yaml",
         "schemas/governance/governed_object_enforcement.schema.json",
         "src/ai4binance/governance/architecture/assurance.py",
+        "src/ai4binance/governance/architecture/observation.py",
+        "src/ai4binance/core/contracts/core_observation.py",
         "src/ai4binance/governance/enforcement/receipt.py",
         *module.accountability_refs.values(),
     }
@@ -85,7 +104,11 @@ def _core_source_hashes(
         if not path.is_relative_to(root.resolve()) or not path.is_file():
             raise ValueError("CORE_CONSUMPTION_SOURCE_UNAVAILABLE")
         hashes[reference] = hashlib.sha256(path.read_bytes()).hexdigest()
-    hashes["workspace_subject_sha256"] = core_consumption_subject_sha256(root)
+    hashes["workspace_subject_sha256"] = (
+        core_consumption_subject_sha256(root)
+        if workspace_subject_sha256 is None
+        else workspace_subject_sha256
+    )
     return hashes
 
 
@@ -98,16 +121,13 @@ def persist_core_consumption_receipt(
     cycle_id: str,
     source_subject_sha256: str,
     input_sha256: str,
-    output_sha256: str,
-    outcome_sha256: str,
+    output_sha256: str | None,
+    outcome_sha256: str | None,
     resources: dict[str, object],
     operation_status: str = "SUCCESS",
     journal: CanonicalTraceJournal | None = None,
 ) -> Path:
     """Record a completed caller handoff, storing hashes rather than input data."""
-    from ai4binance.events.traceability import canonical_trace_journal_path
-    from ai4binance.schema_validation import validate_local_definition
-
     root = repository_root.resolve()
     module = next(item for item in registry.core_modules if item.core_id == core_id)
     if module.assurance is None:
@@ -140,12 +160,77 @@ def persist_core_consumption_receipt(
         source_hashes=source_hashes,
         resources=resources,
     )
+    return _persist_core_receipt(root, receipt, journal)
+
+
+def persist_core_consumption_batch(
+    repository_root: Path,
+    registry: LogicalArchitectureRegistry,
+    receipts: Sequence[CoreConsumptionReceipt],
+    *,
+    source_subject_sha256: str,
+    journal: CanonicalTraceJournal | None = None,
+) -> tuple[Path, ...]:
+    """Verify one completed cycle before persisting its actual handoffs."""
+    from ai4binance.schema_validation import validate_local_definition
+
+    root = repository_root.resolve()
+    if core_consumption_subject_sha256(root) != source_subject_sha256:
+        raise ValueError("CORE_CONSUMPTION_SUBJECT_CHANGED_DURING_OPERATION")
+    modules = {item.core_id: item for item in registry.core_modules}
+    fingerprints: dict[str, dict[str, str]] = {}
+    # Verify the complete batch before writing the first observation.
+    for receipt in receipts:
+        payload = receipt.to_payload()
+        validate_local_definition(
+            root / "schemas/governance/governed_object_enforcement.schema.json",
+            "CoreConsumptionReceipt",
+            payload,
+        )
+        _validate_core_resource_status(payload)
+        module = modules.get(receipt.core_id)
+        if module is None or module.assurance is None:
+            raise ValueError("CORE_ASSURANCE_CONTRACT_MISSING")
+        binding = next(
+            (
+                item
+                for item in module.assurance.interfaces
+                if item.interface_id == receipt.interface_id
+            ),
+            None,
+        )
+        if binding is None or any(
+            receipt.to_payload()[key] != value
+            for key, value in binding.to_payload().items()
+        ):
+            raise ValueError("CORE_RECEIPT_BINDING_INVALID")
+        if module.core_id not in fingerprints:
+            fingerprints[module.core_id] = _core_source_hashes(
+                root, module, registry, workspace_subject_sha256=source_subject_sha256
+            )
+        if dict(receipt.source_hashes) != fingerprints[module.core_id]:
+            raise ValueError("CORE_CONSUMPTION_SOURCE_CHANGED_DURING_OPERATION")
+    paths = tuple(_persist_core_receipt(root, receipt, journal) for receipt in receipts)
+    if core_consumption_subject_sha256(root) != source_subject_sha256:
+        raise ValueError("CORE_CONSUMPTION_SUBJECT_CHANGED_DURING_PERSISTENCE")
+    return paths
+
+
+def _persist_core_receipt(
+    root: Path,
+    receipt: CoreConsumptionReceipt,
+    journal: CanonicalTraceJournal | None,
+) -> Path:
+    from ai4binance.events.traceability import canonical_trace_journal_path
+    from ai4binance.schema_validation import validate_local_definition
+
     payload = receipt.to_payload()
     validate_local_definition(
         root / "schemas/governance/governed_object_enforcement.schema.json",
         "CoreConsumptionReceipt",
         payload,
     )
+    _validate_core_resource_status(payload)
     selected = journal or CanonicalTraceJournal(
         canonical_trace_journal_path(root), durable=True
     )
@@ -155,20 +240,22 @@ def persist_core_consumption_receipt(
         path,
         payload,
         blocker="CORE_RECEIPT_PERSISTENCE_FAILED",
-        subject_id=cycle_id,
+        subject_id=receipt.cycle_id,
         durable=True,
     )
     selected.append(
         CanonicalTraceRecord.create(
             trace_id=f"trace:core-consumption:{digest}",
             trace_kind=ConsequentialTraceKind.GATE,
-            subject_ref=core_id,
+            subject_ref=receipt.core_id,
             subject_type="CORE_INTERFACE",
-            occurred_at=observed,
+            # The journal records when this fact is persisted. The immutable
+            # receipt retains the actual, possibly earlier, consumption time.
+            occurred_at=datetime.now(UTC),
             event_name="CORE_OUTPUT_CONSUMED",
-            event_status=operation_status,
+            event_status=receipt.operation_status,
             evidence_refs=(str(path.resolve()),),
-            related_refs=(interface_id, cycle_id),
+            related_refs=(receipt.interface_id, receipt.cycle_id),
             subject_sha256=digest,
         )
     )
@@ -222,7 +309,6 @@ def _read_core_consumption_record(
     journal: CanonicalTraceJournal,
     record: CanonicalTraceRecord,
 ) -> dict[str, object]:
-    from ai4binance.ops.performance import OperationResourceMeasurement
     from ai4binance.schema_validation import validate_local_definition
 
     path = Path(record.evidence_refs[0]).resolve()
@@ -241,6 +327,13 @@ def _read_core_consumption_record(
     )
     if canonical_trace_sha256(payload) != record.subject_sha256:
         raise ValueError("CORE_RECEIPT_HASH_MISMATCH")
+    _validate_core_resource_status(payload)
+    return cast(dict[str, object], payload)
+
+
+def _validate_core_resource_status(payload: dict[str, object]) -> None:
+    from ai4binance.ops.performance import OperationResourceMeasurement
+
     measured = OperationResourceMeasurement(
         **cast(dict[str, Any], payload["resources"])
     )
@@ -249,7 +342,6 @@ def _read_core_consumption_record(
         and measured.operation_status != payload["operation_status"]
     ):
         raise ValueError("CORE_RECEIPT_RESOURCE_STATUS_MISMATCH")
-    return cast(dict[str, object], payload)
 
 
 def _validate_core_consumption_binding(
@@ -272,7 +364,7 @@ def _validate_core_consumption_binding(
         or payload["core_id"] != record.subject_ref
         or payload["operation_status"] != record.event_status
         or (payload["interface_id"], payload["cycle_id"]) != record.related_refs
-        or datetime.fromisoformat(str(payload["observed_at"])) != record.occurred_at
+        or datetime.fromisoformat(str(payload["observed_at"])) > record.occurred_at
         or any(payload[key] != value for key, value in binding.to_payload().items())
     ):
         raise ValueError("CORE_RECEIPT_BINDING_INVALID")
