@@ -5,6 +5,7 @@ from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from hashlib import sha256
 
+from ai4binance.core.contracts.core_observation import consume_core_output
 from ai4binance.domain import (
     Action,
     CandidateStatus,
@@ -87,16 +88,41 @@ class StrategyEngine:
             state = trading_intelligence or ScenarioEngine().build(
                 snapshot, agent_results
             )
-            candidates = ScenarioEngine().trade_plan_engine.propose(snapshot, state)
             # A new entry algorithm cannot inherit validation of the former
             # indicator-seeded strategy version.
-            return replace(self, strategy_version="structural-v3")._approved(
-                candidates, snapshot, agent_results
+            return consume_core_output(
+                "trade-plan-proposal",
+                inputs={"snapshot": snapshot, "state": state},
+                produce=lambda: ScenarioEngine().trade_plan_engine.propose(
+                    snapshot, state
+                ),
+                consume=lambda candidates: replace(
+                    self, strategy_version="structural-v3"
+                )._approved(
+                    candidates,
+                    snapshot,
+                    agent_results,
+                ),
             )
-        price_action_candidates = PriceActionPlaybookEngine(
+        playbook_engine = PriceActionPlaybookEngine(
             atr_multiplier=self.atr_multiplier,
             target_multiplier=self.target_multiplier,
-        ).generate(snapshot, agent_results)
+        )
+        return consume_core_output(
+            "deterministic-setup-evaluation",
+            inputs={"snapshot": snapshot, "agent_results": agent_results},
+            produce=lambda: playbook_engine.generate(snapshot, agent_results),
+            consume=lambda candidates: self._generate_spot(
+                snapshot, agent_results, candidates
+            ),
+        )
+
+    def _generate_spot(
+        self,
+        snapshot: MarketSnapshot,
+        agent_results: Mapping[str, AgentResult],
+        price_action_candidates: tuple[TradeCandidate, ...],
+    ) -> tuple[TradeCandidate, ...]:
         timeframes = self.candidate_timeframes or (
             "1h" if "1h" in snapshot.timeframes else snapshot.timeframes[0],
         )

@@ -69,7 +69,8 @@ class CoreObservationScope:
         if len(matches) != 1:
             raise ValueError("CORE_OBSERVATION_INTERFACE_AMBIGUOUS_OR_UNKNOWN")
         module = matches[0]
-        assert module.assurance is not None
+        if module.assurance is None:
+            raise ValueError("CORE_OBSERVATION_ASSURANCE_REQUIRED")
         binding = next(
             item
             for item in module.assurance.interfaces
@@ -123,7 +124,7 @@ class CoreObservationScope:
             result, _ = measure_resource_operation(
                 handoff, on_measurement=observations.append
             )
-        except Exception as error:
+        except BaseException as error:
             if observations:
                 try:
                     persist(observations[-1].operation_status)
@@ -218,7 +219,7 @@ def core_observation_scope(
     with use_core_output_observer(scope):
         try:
             yield scope
-        except Exception as operation_error:
+        except BaseException as operation_error:
             try:
                 scope.flush()
             except Exception as evidence_error:

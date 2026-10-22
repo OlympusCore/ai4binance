@@ -1165,10 +1165,15 @@ class ResearchApplicationService:
             structural_risk_budget_usdt=risk_assessment.risk_amount_usdt,
             **execution_inputs,
         )
-        decision = run_virtual_market_cycle(
-            request,
-            runtime=self.virtual_market_runtime,
-        ).decision
+        decision = consume_core_output(
+            "trade-execution-record",
+            inputs=request,
+            produce=lambda: run_virtual_market_cycle(
+                request,
+                runtime=self.virtual_market_runtime,
+            ),
+            consume=lambda cycle: cycle.decision,
+        )
         return request, decision
 
     @staticmethod
@@ -1466,17 +1471,10 @@ class ResearchApplicationService:
                 status=DGE_DATA_UNAVAILABLE,
                 blockers=(DGE_EVALUATION_UNAVAILABLE,),
             )
-        try:
-            result = evaluator.evaluate(
-                snapshot=snapshot,
-                analysis=analysis,
-                candidate=candidate,
-                portfolio=portfolio,
-                market=market,
-                quantity=risk_assessment.quantity,
-                risk_approved=risk_assessment.approved,
-                portfolio_verified=isinstance(portfolio, VirtualPortfolioState),
-            )
+
+        def consume_decision(
+            result: VirtualGovernanceResult,
+        ) -> VirtualGovernanceResult:
             if not isinstance(result, VirtualGovernanceResult):
                 raise TypeError(
                     "virtual governance evaluator must return VirtualGovernanceResult"
@@ -1487,6 +1485,24 @@ class ResearchApplicationService:
                 symbol=candidate.symbol,
                 market=market,
                 timestamp=cast(Any, snapshot).created_at.isoformat(),
+            )
+            return result
+
+        try:
+            result = consume_core_output(
+                "decision-trade-decision",
+                inputs={"snapshot": snapshot, "candidate": candidate, "market": market},
+                produce=lambda: evaluator.evaluate(
+                    snapshot=snapshot,
+                    analysis=analysis,
+                    candidate=candidate,
+                    portfolio=portfolio,
+                    market=market,
+                    quantity=risk_assessment.quantity,
+                    risk_approved=risk_assessment.approved,
+                    portfolio_verified=isinstance(portfolio, VirtualPortfolioState),
+                ),
+                consume=consume_decision,
             )
         except (
             ArithmeticError,

@@ -65,6 +65,56 @@ def test_resource_probe_does_not_turn_an_observation_into_an_approved_budget() -
         OperationResourceMeasurement(0, 0, None, None, budget_status="APPROVED")
 
 
+def test_resource_summary_retains_unknown_counters_and_failure_samples() -> None:
+    from ai4binance.ops.performance import (
+        OperationResourceMeasurement,
+        summarize_resource_measurements,
+    )
+
+    # These numeric samples exercise summary semantics only, never runtime proof.
+    samples = (
+        OperationResourceMeasurement(1, 1, 4, 2),
+        OperationResourceMeasurement(
+            3, 2, None, None, operation_status="ERROR", error_type="ValueError"
+        ),
+        OperationResourceMeasurement(
+            2, 1, 5, 4, operation_status="TIMEOUT", error_type="TimeoutError"
+        ),
+    )
+    summary = summarize_resource_measurements(samples)
+    assert summary["measurement_count"] == 3
+    assert summary["operation_counts"] == {"SUCCESS": 1, "ERROR": 1, "TIMEOUT": 1}
+    assert summary["evidence_class"] == "OBSERVED_SAMPLES_ONLY"
+    assert summary["execution_allowed"] is False
+    metrics = summary["metrics"]
+    assert isinstance(metrics, dict)
+    assert metrics["max_duration_ms"] == {
+        "measured_sample_count": 3,
+        "unmeasured_sample_count": 0,
+        "minimum": 1,
+        "median": 2,
+        "p95": 3,
+        "maximum": 3,
+    }
+    assert metrics["peak_ram_mb"]["unmeasured_sample_count"] == 1
+    assert metrics["disk_io_bytes"]["measured_sample_count"] == 2
+    assert metrics["llm_calls"]["maximum"] is None
+    assert metrics["gpu_memory_mb"]["maximum"] is None
+    assert summary["timeout_policies"] == ["NOT_CONFIGURED"]
+
+
+def test_empty_resource_summary_does_not_turn_missing_data_into_zero_usage() -> None:
+    from ai4binance.ops.performance import summarize_resource_measurements
+
+    summary = summarize_resource_measurements(())
+    assert summary["measurement_count"] == 0
+    metrics = summary["metrics"]
+    assert isinstance(metrics, dict)
+    assert all(metric["maximum"] is None for metric in metrics.values())
+    assert summary["memory_scopes"] == []
+    assert summary["execution_allowed"] is False
+
+
 def measurement(
     samples: tuple[float, ...],
     *,

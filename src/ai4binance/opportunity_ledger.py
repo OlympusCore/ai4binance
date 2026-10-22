@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from ai4binance.core.contracts.core_observation import consume_core_output
 from ai4binance.opportunity_intelligence import OpportunityLifecycleEvent
 from ai4binance.storage import AuditEvent, JsonlAuditStore
 from ai4binance.storage.destination_verification import VerifiedWriteResult
@@ -16,18 +17,24 @@ class OpportunityLedgerWriter:
     durable: bool = True
 
     def append(self, event: OpportunityLifecycleEvent) -> VerifiedWriteResult | None:
-        return JsonlAuditStore(
+        store = JsonlAuditStore(
             self.path,
             durable=self.durable,
             tamper_evident=self.durable,
-        ).append_verified_idempotent(
-            AuditEvent(
-                event_type=event.event_type.value,
-                timestamp=event.event_time,
-                payload=event.to_payload(),
-                snapshot_id=event.event_id,
-                schema_version=event.schema_version,
-            )
+        )
+        return consume_core_output(
+            "trade-opportunity-ledger",
+            inputs=event,
+            produce=event.to_payload,
+            consume=lambda payload: store.append_verified_idempotent(
+                AuditEvent(
+                    event_type=event.event_type.value,
+                    timestamp=event.event_time,
+                    payload=payload,
+                    snapshot_id=event.event_id,
+                    schema_version=event.schema_version,
+                )
+            ),
         )
 
 

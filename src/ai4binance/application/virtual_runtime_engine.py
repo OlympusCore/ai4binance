@@ -1481,21 +1481,27 @@ class VirtualMarketRuntime:
             raise ValueError("Spot position lifecycle cannot use Futures context")
         if position.position_side is not VirtualPositionSide.LONG:
             raise ValueError("Spot virtual position lifecycle requires a long position")
-        lifecycle_before = self._lifecycle_position(position)
         engine = PaperLifecycleEngine(
             fee_ratio=position.fee_ratio,
             slippage_ratio=position.slippage_ratio,
             trailing_multiplier=position.trailing_atr_multiple or Decimal("1.5"),
             tick_size=position.tick_size,
         )
-        lifecycle_after = engine.process_candle(
-            lifecycle_before,
-            candle,
-            ClosureContext(
-                ignored_signals=exit_context.ignored_signals,
-                htf_weakness=exit_context.htf_weakness,
-                volatility_expansion=exit_context.volatility_expansion,
-                level_break=exit_context.level_break,
+        from ai4binance.core.contracts.core_observation import consume_core_output
+
+        lifecycle_after = consume_core_output(
+            "trade-position-lifecycle",
+            inputs={"position": position, "candle": candle, "context": exit_context},
+            produce=lambda: self._lifecycle_position(position),
+            consume=lambda lifecycle: engine.process_candle(
+                lifecycle,
+                candle,
+                ClosureContext(
+                    ignored_signals=exit_context.ignored_signals,
+                    htf_weakness=exit_context.htf_weakness,
+                    volatility_expansion=exit_context.volatility_expansion,
+                    level_break=exit_context.level_break,
+                ),
             ),
         )
         bars_held = position.bars_held + 1

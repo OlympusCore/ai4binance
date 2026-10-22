@@ -2515,12 +2515,16 @@ def test_main_writes_blocked_gate_payload_and_lowercases_sha(tmp_path: Path) -> 
 def _git_for_committed_review(root: Path, *arguments: str) -> str:
     git = shutil.which("git")
     assert git is not None
-    completed = subprocess.run(  # noqa: S603  # nosec B603
-        [git, "-C", str(root), *arguments],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
+    try:
+        completed = subprocess.run(  # noqa: S603  # nosec B603
+            [git, "-C", str(root), *arguments],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as error:
+        error.add_note(f"Test-only Git fixture stderr: {error.stderr.strip()}")
+        raise
     return completed.stdout.strip()
 
 

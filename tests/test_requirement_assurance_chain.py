@@ -157,6 +157,11 @@ def test_current_receipt_preserves_source_and_requires_real_test_bindings(
             required_tests=("tests/missing.py",),
         )
     )
+    unresolved, scope_blockers = resolve_requirement_quality_evidence(
+        tmp_path, subject, required_tests=("tests/missing.py",)
+    )
+    assert unresolved == payload
+    assert scope_blockers == ("QUALITY_REQUIRED_TEST_NOT_EXECUTED:tests/missing.py",)
     with pytest.raises(ValueError, match="IMMUTABLE_RUN_CONFLICT"):
         archive_quality_evidence(tmp_path, {**payload, "command": "changed"})
 

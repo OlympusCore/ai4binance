@@ -74,6 +74,10 @@ def build_core_evidence_view(
         load_core_consumption_batch,
         load_denied_enforcement_batch,
     )
+    from ai4binance.ops.performance import (
+        OperationResourceMeasurement,
+        summarize_resource_measurements,
+    )
     from ai4binance.ops.quality_gate.telemetry import (
         executed_required_test_nodes,
         resolve_requirement_quality_evidence,
@@ -127,6 +131,27 @@ def build_core_evidence_view(
             quality_blockers=quality_blockers,
             consumption=runtime_consumption,
             trace_blockers=trace_blockers,
+        )
+        core_consumption = [
+            item
+            for item in runtime_consumption
+            if item["core_id"] == module.core_id
+            and item["observation_class"] == "OBSERVED_LOCAL_CALL"
+        ]
+        resource_observations = summarize_resource_measurements(
+            tuple(
+                OperationResourceMeasurement(**cast(dict[str, Any], item["resources"]))
+                for item in core_consumption
+            )
+        )
+        resource_observations.update(
+            {
+                "cycle_count": len({item["cycle_id"] for item in core_consumption}),
+                "observed_interface_ids": sorted(
+                    {str(item["interface_id"]) for item in core_consumption}
+                ),
+                "scope": "CURRENT_SOURCE_OBSERVED_LOCAL_HANDOFFS",
+            }
         )
         rows.append(
             {
@@ -211,6 +236,7 @@ def build_core_evidence_view(
                 ),
                 "unobserved_interfaces": list(assurance.unobserved_interfaces),
                 "resource_blockers": list(assurance.resource_blockers),
+                "resource_observations": resource_observations,
                 "dimensions": dict(assurance.dimensions),
                 "operationally_verified": assurance.operationally_verified,
                 "blockers": list(assurance.blockers),
@@ -226,7 +252,6 @@ def core_readiness_blockers(
     repository_root: Path, entrypoint_id: str
 ) -> tuple[str, ...]:
     """Check only the owning Core and declared dependency closure before a mutation."""
-    from ai4binance.governance.architecture.graph import LogicalArchitectureGraph
     from ai4binance.governance.architecture.loader import (
         load_logical_architecture_registry,
     )
@@ -237,29 +262,9 @@ def core_readiness_blockers(
             root / "docs/registries/registry_logical_architecture.yaml",
             repository_root=root,
         )
-        owner = next(
-            (
-                item
-                for item in registry.core_modules
-                if entrypoint_id in item.enforcement_entrypoints
-            ),
-            None,
-        )
-        if owner is None:
+        ids = _core_dependency_ids(registry, entrypoint_id)
+        if ids is None:
             return ("CORE_ENTRYPOINT_OWNER_UNKNOWN",)
-        graph = LogicalArchitectureGraph(registry)
-        components = set(owner.component_ids)
-        pending = list(components)
-        while pending:
-            for dependency in graph.dependencies_of(pending.pop()):
-                if dependency not in components:
-                    components.add(dependency)
-                    pending.append(dependency)
-        ids = frozenset(
-            item.core_id
-            for item in registry.core_modules
-            if components.intersection(item.component_ids)
-        )
         rows = build_core_evidence_view(registry, root, required_core_ids=ids)
         if len(rows) != len(ids) or {row["core_id"] for row in rows} != ids:
             return ("CORE_READINESS_SCOPE_INCOMPLETE",)
@@ -281,6 +286,37 @@ def core_readiness_blockers(
         )
     except OSError, ValueError, KeyError:
         return ("CORE_READINESS_EVIDENCE_UNAVAILABLE",)
+
+
+def _core_dependency_ids(
+    registry: LogicalArchitectureRegistry,
+    entrypoint_id: str,
+) -> frozenset[str] | None:
+    from ai4binance.governance.architecture.graph import LogicalArchitectureGraph
+
+    owner = next(
+        (
+            item
+            for item in registry.core_modules
+            if entrypoint_id in item.enforcement_entrypoints
+        ),
+        None,
+    )
+    if owner is None:
+        return None
+    graph = LogicalArchitectureGraph(registry)
+    components = set(owner.component_ids)
+    pending = list(components)
+    while pending:
+        for dependency in graph.dependencies_of(pending.pop()):
+            if dependency not in components:
+                components.add(dependency)
+                pending.append(dependency)
+    return frozenset(
+        item.core_id
+        for item in registry.core_modules
+        if components.intersection(item.component_ids)
+    )
 
 
 class SourceCoverage(Protocol):

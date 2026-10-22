@@ -10,6 +10,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Any, Protocol
 
+from ai4binance.core.contracts.core_observation import consume_core_output
 from ai4binance.domain import Action
 
 _PORTFOLIO_COST_BASIS_ASSET_LIMIT = 50
@@ -358,12 +359,22 @@ class ReadOnlyRuntimeCycle:
         wallet_quantity = balance.free + balance.locked
         if wallet_quantity <= Decimal("0"):
             return None
+
+        def consume_report(report: Any) -> Any:
+            blockers.extend(report.blockers)
+            return report
+
         try:
-            report = self.cost_basis_service.evaluate(symbol, wallet_quantity)
+            service = self.cost_basis_service
+            report = consume_core_output(
+                "trade-portfolio-accounting",
+                inputs={"symbol": symbol, "wallet_quantity": wallet_quantity},
+                produce=lambda: service.evaluate(symbol, wallet_quantity),
+                consume=consume_report,
+            )
         except OSError, RuntimeError, TypeError, ValueError:
             blockers.append("COST_BASIS_RECONCILIATION_FAILED")
             return None
-        blockers.extend(report.blockers)
         return report
 
     def _portfolio_average_costs(

@@ -48,6 +48,7 @@ class CoreConsumptionReceipt:
     outcome_sha256: str | None
     source_hashes: Mapping[str, str]
     resources: Mapping[str, object]
+    input_context_sha256: str | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -67,6 +68,7 @@ class CoreConsumptionReceipt:
             raise ValueError("core receipt operation status is invalid")
         for digest in (self.input_sha256, *self.source_hashes.values()):
             _require_core_digest(digest)
+        _require_core_digest(self.input_context_sha256, allow_missing=True)
         for optional_digest in (self.output_sha256, self.outcome_sha256):
             _require_core_digest(
                 optional_digest, allow_missing=self.operation_status != "SUCCESS"
@@ -91,6 +93,11 @@ class CoreConsumptionReceipt:
             "observation_class": self.observation_class,
             "operation_status": self.operation_status,
             "input_sha256": self.input_sha256,
+            **(
+                {"input_context_sha256": self.input_context_sha256}
+                if self.input_context_sha256 is not None
+                else {}
+            ),
             "output_sha256": self.output_sha256,
             "outcome_sha256": self.outcome_sha256,
             "source_hashes": dict(self.source_hashes),

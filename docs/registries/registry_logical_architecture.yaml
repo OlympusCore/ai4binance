@@ -1,5 +1,5 @@
 registry_id: AI4B-LOGICAL-ARCHITECTURE-REGISTRY-001
-version: 1.14.1
+version: 1.14.2
 status: ACTIVE
 source_of_truth: false
 execution_allowed: false
@@ -88,11 +88,13 @@ components:
     owner: Decision Governance
     authority_effect: EVIDENCE_ONLY
     source_paths:
+      - src/ai4binance/governance/adapters.py
       - src/ai4binance/governance/dge_models.py
     contract_refs:
       - docs/governance/framework_core_vnext_governance.md
       - schemas/decisions/decision_candidate.schema.json
     test_refs:
+      - tests/test_dge_recovery_replay_shadow.py
       - tests/contract/schema/test_decision_candidate_wire_contract.py
       - tests/test_dge_models.py
     hot_path: true
@@ -219,10 +221,13 @@ components:
     owner: Execution Governance
     authority_effect: EVIDENCE_ONLY
     source_paths:
+      - src/ai4binance/application/services/virtual_runtime.py
       - src/ai4binance/governance/framework.py
     contract_refs:
       - docs/governance/framework_core_vnext_governance.md
     test_refs:
+      - tests/test_virtual_runtime_bridge.py
+      - tests/test_research_application.py
       - tests/test_governance_framework.py
     hot_path: true
     deterministic: true
@@ -333,6 +338,7 @@ components:
     contract_refs:
       - docs/governance/framework_core_vnext_governance.md
     test_refs:
+      - tests/test_lowest_coverage_learning_lifecycle.py
       - tests/test_governance_framework.py
       - tests/test_agent_runtime_governance.py
     hot_path: true
@@ -386,6 +392,7 @@ components:
     contract_refs:
       - docs/architecture/framework_architecture_overview.md
     test_refs:
+      - tests/test_opportunity_monitor.py
       - tests/test_opportunity_intelligence.py
     hot_path: true
     deterministic: true
@@ -406,6 +413,7 @@ components:
     owner: EvidenceKnowledge
     authority_effect: EVIDENCE_ONLY
     source_paths:
+      - src/ai4binance/opportunity_intelligence.py
       - src/ai4binance/historical_replay_state.py
       - src/ai4binance/opportunity_ledger.py
     contract_refs:
@@ -437,6 +445,7 @@ components:
     contract_refs:
       - docs/architecture/framework_architecture_overview.md
     test_refs:
+      - tests/test_opportunity_monitor.py
       - tests/test_futures_backtest_engine.py
       - tests/test_opportunity_intelligence.py
     hot_path: false
@@ -463,6 +472,7 @@ components:
     contract_refs:
       - docs/governance/framework_core_vnext_governance.md
     test_refs:
+      - tests/test_governed_object_enforcement.py
       - tests/test_governance_framework.py
     hot_path: true
     deterministic: true
@@ -487,6 +497,7 @@ components:
     contract_refs:
       - docs/architecture/framework_architecture_overview.md
     test_refs:
+      - tests/test_runtime_cycle.py
       - tests/test_cost_basis.py
     hot_path: true
     deterministic: true
@@ -507,10 +518,12 @@ components:
     owner: Execution Governance
     authority_effect: EVIDENCE_ONLY
     source_paths:
+      - src/ai4binance/application/virtual_runtime_engine.py
       - src/ai4binance/governance/framework.py
     contract_refs:
       - docs/governance/framework_core_vnext_governance.md
     test_refs:
+      - tests/test_virtual_runtime.py
       - tests/test_governance_framework.py
     hot_path: true
     deterministic: true
@@ -614,10 +627,13 @@ components:
     owner: Decision Governance
     authority_effect: EVIDENCE_ONLY
     source_paths:
+      - src/ai4binance/strategies/price_action.py
       - src/ai4binance/governance/framework.py
     contract_refs:
       - docs/governance/framework_core_vnext_governance.md
     test_refs:
+      - tests/test_price_action_playbooks.py
+      - tests/test_strategy_risk.py
       - tests/test_governance_framework.py
     hot_path: true
     deterministic: true
@@ -663,10 +679,12 @@ components:
     owner: Decision Governance
     authority_effect: EVIDENCE_ONLY
     source_paths:
+      - src/ai4binance/governance/adapters.py
       - src/ai4binance/governance/dge_models.py
     contract_refs:
       - docs/governance/framework_core_vnext_governance.md
     test_refs:
+      - tests/test_research_application.py
       - tests/test_dge_engine.py
       - tests/test_dge_models.py
     hot_path: true
@@ -688,10 +706,13 @@ components:
     owner: Execution Governance
     authority_effect: EVIDENCE_ONLY
     source_paths:
+      - src/ai4binance/intelligence/plan.py
       - src/ai4binance/governance/framework.py
     contract_refs:
       - docs/governance/framework_core_vnext_governance.md
     test_refs:
+      - tests/test_trading_intelligence.py
+      - tests/test_strategy_risk.py
       - tests/test_governance_framework.py
     hot_path: true
     deterministic: true
@@ -744,7 +765,7 @@ core_modules:
     assurance: &core_assurance
       required_dimensions: [ownership, input_output, dependencies, veto_boundary, failure_behavior, resource_budget, tests_evidence, runtime_consumer]
       evidence_max_age_seconds: 86400
-      resource_budget_ref: null
+      resource_budget_ref: config/operations/core_resource_budgets/data_core.yaml
       veto_boundary_refs: [docs/governance/framework_core_vnext_governance.md]
       forbidden_authorities: [live_execution_authority, risk_override, validation_override, governance_bypass]
       failure_test_refs: [tests/test_binance_vision.py::test_binance_vision_rejects_checksum_mismatch]
@@ -762,6 +783,7 @@ core_modules:
     enforcement_entrypoints: [execution_profile_evaluate, live_order_execution_intent, strategy_definition_profile_contract, tuning_strategy_promotion_board, strategy_registry_mutation_write]
     assurance:
       <<: *core_assurance
+      resource_budget_ref: config/operations/core_resource_budgets/trade_core.yaml
       failure_test_refs: [tests/test_paper_lifecycle.py::test_lifecycle_rejects_invalid_transitions_and_plans]
       interfaces:
         - interface_id: trade-simulation-eligibility
@@ -769,6 +791,31 @@ core_modules:
           contract_ref: docs/governance/framework_core_vnext_governance.md
           producer_ref: src/ai4binance/application/virtual_runtime_eligibility.py::evaluate_virtual_simulation_eligibility
           consumer_ref: src/ai4binance/application/research.py::ResearchApplicationService._build_stages
+        - interface_id: trade-execution-record
+          component_id: execution-record
+          contract_ref: docs/governance/framework_core_vnext_governance.md
+          producer_ref: src/ai4binance/application/services/virtual_runtime.py::run_virtual_market_cycle
+          consumer_ref: src/ai4binance/application/research.py::ResearchApplicationService._evaluate_virtual_runtime
+        - interface_id: trade-opportunity-ledger
+          component_id: opportunity-lifecycle-ledger
+          contract_ref: docs/architecture/framework_architecture_overview.md
+          producer_ref: src/ai4binance/opportunity_intelligence.py::OpportunityLifecycleEvent.to_payload
+          consumer_ref: src/ai4binance/opportunity_ledger.py::OpportunityLedgerWriter.append
+        - interface_id: trade-portfolio-accounting
+          component_id: portfolio-accounting
+          contract_ref: docs/architecture/framework_architecture_overview.md
+          producer_ref: src/ai4binance/portfolio/cost_basis.py::CostBasisService.evaluate
+          consumer_ref: src/ai4binance/application/runtime.py::ReadOnlyRuntimeCycle._cost_basis
+        - interface_id: trade-position-lifecycle
+          component_id: position-lifecycle
+          contract_ref: docs/governance/framework_core_vnext_governance.md
+          producer_ref: src/ai4binance/application/virtual_runtime_engine.py::VirtualMarketRuntime._lifecycle_position
+          consumer_ref: src/ai4binance/application/virtual_runtime_engine.py::VirtualMarketRuntime.process_position
+        - interface_id: trade-plan-proposal
+          component_id: trade-plan
+          contract_ref: docs/governance/framework_core_vnext_governance.md
+          producer_ref: src/ai4binance/intelligence/plan.py::TradePlanEngine.propose
+          consumer_ref: src/ai4binance/strategies/engine.py::StrategyEngine.generate
   - core_id: SystemCore
     accountable_component_id: governed-object-enforcement
     accountability_refs: *core_accountability_refs
@@ -777,6 +824,7 @@ core_modules:
     enforcement_entrypoints: [repository_artifact_update, policy_document_update, governance_control_plane_update, approval_record_runtime_mutation, governed_parameter_activation]
     assurance:
       <<: *core_assurance
+      resource_budget_ref: config/operations/core_resource_budgets/system_core.yaml
       failure_test_refs: [tests/test_governance_framework.py::test_core_meta_rejects_live_and_timezone_drift]
       interfaces:
         - interface_id: system-enforcement-decision
@@ -784,6 +832,26 @@ core_modules:
           contract_ref: docs/standards/standard_governed_object_enforcement.md
           producer_ref: src/ai4binance/governance/enforcement/engine.py::DeterministicEnforcementEngine.evaluate_entrypoint
           consumer_ref: src/ai4binance/governance/enforcement/adapters.py::require_registered_entrypoint
+        - interface_id: system-core-architecture
+          component_id: core-architecture-framework
+          contract_ref: docs/governance/framework_core_vnext_governance.md
+          producer_ref: src/ai4binance/governance/framework.py::build_core_architecture
+          consumer_ref: src/ai4binance/governance/architecture/loader.py::load_logical_architecture_registry
+        - interface_id: system-event-replay
+          component_id: event-replay
+          contract_ref: docs/governance/framework_core_vnext_governance.md
+          producer_ref: src/ai4binance/governance/replay.py::replay_dge_decision
+          consumer_ref: src/ai4binance/cli/dge.py::dge_replay_payload
+        - interface_id: system-logical-registry
+          component_id: logical-architecture-registry
+          contract_ref: schemas/architecture/logical_architecture.schema.json
+          producer_ref: src/ai4binance/governance/architecture/loader.py::_registry_from_payload
+          consumer_ref: src/ai4binance/governance/architecture/loader.py::_validate_loaded_registry
+        - interface_id: system-policy-evaluation
+          component_id: policy
+          contract_ref: docs/governance/framework_core_vnext_governance.md
+          producer_ref: src/ai4binance/governance/policy_as_code.py::PolicyAsCodeEngine.evaluate
+          consumer_ref: src/ai4binance/governance/enforcement/engine.py::DeterministicEnforcementEngine._consume_policy_evaluation
   - core_id: SecurityCore
     accountable_component_id: security-controls
     accountability_refs: *core_accountability_refs
@@ -792,6 +860,7 @@ core_modules:
     enforcement_entrypoints: [tool_permission_grant, provider_model_selection_decision]
     assurance:
       <<: *core_assurance
+      resource_budget_ref: config/operations/core_resource_budgets/security_core.yaml
       failure_test_refs: [tests/test_governance_tool_gateway.py::test_policy_default_denies_and_dangerous_allow_rules_are_rejected]
       interfaces:
         - interface_id: security-tool-policy
@@ -807,6 +876,7 @@ core_modules:
     enforcement_entrypoints: []
     assurance:
       <<: *core_assurance
+      resource_budget_ref: config/operations/core_resource_budgets/audit_core.yaml
       failure_test_refs: [tests/test_kaizen_quality.py::test_kaizen_snapshot_blocks_missing_continuous_assurance_payload]
       interfaces:
         - interface_id: audit-kaizen-snapshot
@@ -814,6 +884,11 @@ core_modules:
           contract_ref: docs/reports/governance/report_kaizen_quality_snapshot.md
           producer_ref: src/ai4binance/ops/kaizen_quality.py::build_kaizen_quality_snapshot
           consumer_ref: src/ai4binance/ops/auto_audit_loop.py::AutoAuditLoop._persist
+        - interface_id: audit-closure-review
+          component_id: closure-review
+          contract_ref: docs/governance/framework_core_vnext_governance.md
+          producer_ref: src/ai4binance/domain/research/paper_lifecycle.py::PaperLifecycleEngine._review
+          consumer_ref: src/ai4binance/domain/research/paper_lifecycle.py::PaperLifecycleEngine._apply_exit
   - core_id: RiskCore
     accountable_component_id: risk-assessment
     accountability_refs: *core_accountability_refs
@@ -822,6 +897,7 @@ core_modules:
     enforcement_entrypoints: []
     assurance:
       <<: *core_assurance
+      resource_budget_ref: config/operations/core_resource_budgets/risk_core.yaml
       failure_test_refs: [tests/test_agents.py::test_risk_agent_blocks_without_complete_trade_plan]
       interfaces:
         - interface_id: risk-assessment-handoff
@@ -837,6 +913,7 @@ core_modules:
     enforcement_entrypoints: []
     assurance:
       <<: *core_assurance
+      resource_budget_ref: config/operations/core_resource_budgets/technology_core.yaml
       failure_test_refs: [tests/governance/architecture/test_technology_language_policy.py::test_policy_blocks_placement_forbidden_ownership_and_research_dependency]
       interfaces:
         - interface_id: technology-policy-evaluation
@@ -852,6 +929,7 @@ core_modules:
     enforcement_entrypoints: [workflow_job_admission, development_run_card_completion, graph_workflow_manifest_admission]
     assurance:
       <<: *core_assurance
+      resource_budget_ref: config/operations/core_resource_budgets/service_core.yaml
       failure_test_refs: [tests/test_service_core_boundaries.py::test_missing_research_inputs_cannot_create_a_runtime_request]
       interfaces:
         - interface_id: service-research-workflow
@@ -867,6 +945,7 @@ core_modules:
     enforcement_entrypoints: [governed_lesson_activation, model_adaptation_candidate_review, governed_memory_candidate_intake]
     assurance:
       <<: *core_assurance
+      resource_budget_ref: config/operations/core_resource_budgets/learning_core.yaml
       failure_test_refs: [tests/test_wallet_learning.py::test_learning_summary_model_rejects_authority_drift]
       interfaces:
         - interface_id: learning-summary-handoff
@@ -874,6 +953,11 @@ core_modules:
           contract_ref: docs/governance/framework_core_vnext_governance.md
           producer_ref: src/ai4binance/learning/engine.py::ControlledLearningEngine.analyze
           consumer_ref: src/ai4binance/application/learning_loop.py::ControlledLearningLoop.run
+        - interface_id: learning-lesson-staging
+          component_id: lesson
+          contract_ref: docs/governance/framework_core_vnext_governance.md
+          producer_ref: src/ai4binance/learning/governance.py::stage_learning_summary
+          consumer_ref: src/ai4binance/learning/lifecycle.py::GovernedLessonLifecycleWorker.reconcile
   - core_id: ValidationCore
     accountable_component_id: validation
     accountability_refs: *core_accountability_refs
@@ -882,6 +966,7 @@ core_modules:
     enforcement_entrypoints: []
     assurance:
       <<: *core_assurance
+      resource_budget_ref: config/operations/core_resource_budgets/validation_core.yaml
       failure_test_refs: [tests/test_agents.py::test_validation_gate_preserves_research_only_facade_contract]
       interfaces:
         - interface_id: validation-signal-handoff
@@ -889,6 +974,11 @@ core_modules:
           contract_ref: docs/governance/framework_core_vnext_governance.md
           producer_ref: src/ai4binance/agents/validation_gate.py::ValidationGate.validate
           consumer_ref: src/ai4binance/agents/orchestrator.py::EnterpriseOrchestrator._finalize
+        - interface_id: validation-opportunity-outcome
+          component_id: opportunity-outcome-evaluation
+          contract_ref: docs/architecture/framework_architecture_overview.md
+          producer_ref: src/ai4binance/opportunity_outcomes.py::evaluate_opportunity_outcome
+          consumer_ref: src/ai4binance/compatibility/opportunity_monitor.py::_outcome
   - core_id: DecisionCore
     accountable_component_id: decision-governance
     accountability_refs: *core_accountability_refs
@@ -897,6 +987,7 @@ core_modules:
     enforcement_entrypoints: []
     assurance:
       <<: *core_assurance
+      resource_budget_ref: config/operations/core_resource_budgets/decision_core.yaml
       failure_test_refs: [tests/test_dge_engine.py::test_dge_blocks_high_score_candidate_when_required_evidence_is_missing]
       interfaces:
         - interface_id: decision-dge-handoff
@@ -904,6 +995,16 @@ core_modules:
           contract_ref: docs/governance/framework_core_vnext_governance.md
           producer_ref: src/ai4binance/governance/dge_engine.py::DecisionGovernanceEngine.evaluate
           consumer_ref: src/ai4binance/governance/adapters.py::VirtualMarketDgeAdapter.evaluate
+        - interface_id: decision-candidate-adaptation
+          component_id: decision-candidate
+          contract_ref: docs/governance/framework_core_vnext_governance.md
+          producer_ref: src/ai4binance/governance/adapters.py::_virtual_dge_candidate
+          consumer_ref: src/ai4binance/governance/adapters.py::VirtualMarketDgeAdapter._evaluate_candidate
+        - interface_id: decision-trade-decision
+          component_id: trade-decision
+          contract_ref: docs/governance/framework_core_vnext_governance.md
+          producer_ref: src/ai4binance/governance/adapters.py::VirtualMarketDgeAdapter.evaluate
+          consumer_ref: src/ai4binance/application/research.py::ResearchApplicationService._evaluate_virtual_governance
   - core_id: DeterministicCore
     accountable_component_id: deterministic-core
     accountability_refs: *core_accountability_refs
@@ -912,6 +1013,7 @@ core_modules:
     enforcement_entrypoints: []
     assurance:
       <<: *core_assurance
+      resource_budget_ref: config/operations/core_resource_budgets/deterministic_core.yaml
       failure_test_refs: [tests/test_governance_framework.py::test_core_meta_keeps_fail_closed_paper_defaults]
       interfaces:
         - interface_id: deterministic-candidate-handoff
@@ -919,6 +1021,16 @@ core_modules:
           contract_ref: docs/governance/framework_core_vnext_governance.md
           producer_ref: src/ai4binance/strategies/engine.py::StrategyEngine.generate
           consumer_ref: src/ai4binance/agents/orchestrator.py::EnterpriseOrchestrator.analyze
+        - interface_id: deterministic-opportunity-intelligence
+          component_id: opportunity-intelligence
+          contract_ref: docs/architecture/framework_architecture_overview.md
+          producer_ref: src/ai4binance/opportunity_intelligence.py::build_multi_timeframe_diagnostic
+          consumer_ref: src/ai4binance/opportunity_radar.py::_candidate_with_diagnostic
+        - interface_id: deterministic-setup-evaluation
+          component_id: setup
+          contract_ref: docs/governance/framework_core_vnext_governance.md
+          producer_ref: src/ai4binance/strategies/price_action.py::PriceActionPlaybookEngine.generate
+          consumer_ref: src/ai4binance/strategies/engine.py::StrategyEngine._generate_spot
 relations:
   - relation_id: candidate-constrained-by-risk-assessment
     from_component_id: decision-candidate

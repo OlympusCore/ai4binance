@@ -10,6 +10,9 @@ from typing import Any, cast
 import pytest
 
 from ai4binance.config import Settings
+from ai4binance.core.serialization import to_primitive
+from ai4binance.events.traceability import canonical_trace_sha256
+from ai4binance.governance.architecture import load_logical_architecture_registry
 from ai4binance.ops.auto_audit_loop import AutoAuditLoop, run_auto_audit_loop
 from ai4binance.ops.continuous_assurance import (
     AUDIT_TRIGGER_ENGINE_INSTRUCTION_REF,
@@ -51,6 +54,46 @@ class FakeQwenRunner:
             citations=(),
             blockers=("ADVISORY_ONLY",),
         )
+
+
+def test_audit_receipt_primary_input_binds_consumed_registry_and_keeps_context(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Isolated test-only reports prove digest binding, not runtime readiness."""
+    from functools import partial
+
+    from ai4binance.ops import auto_audit_loop as module
+    from ai4binance.ops.kaizen_quality import build_kaizen_quality_snapshot
+
+    settings = _settings(monkeypatch, tmp_path)
+    observed_at = datetime(2026, 8, 8, 12, tzinfo=UTC)
+    loop = AutoAuditLoop(
+        settings=settings,
+        repository_root=tmp_path,
+        report_builder=lambda *a, **k: _report(
+            tmp_path,
+            "test-only-input-binding",
+            "RUNNING_WITH_BLOCKERS",
+            ("TEST_ONLY_UNVERIFIED",),
+        ),
+    )
+    result = loop.run(max_cycles=1, observed_at_factory=lambda: observed_at)
+    registry = load_logical_architecture_registry()
+    monkeypatch.setattr(
+        module,
+        "build_kaizen_quality_snapshot",
+        partial(build_kaizen_quality_snapshot, logical_architecture_registry=registry),
+    )
+    persisted, primary, context, output, outcome = loop._persist_artifacts(
+        result, observed_at
+    )
+    assert persisted.kaizen_quality_snapshot is not None
+    assert persisted.kaizen_quality_snapshot.logical_architecture_registry is registry
+    assert primary == canonical_trace_sha256(to_primitive(registry))
+    assert context != primary
+    assert output != outcome
+    assert persisted.execution_allowed is False
 
 
 def test_auto_audit_loop_tracks_blocker_movement_and_persists_reports(

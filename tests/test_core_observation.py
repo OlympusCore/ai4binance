@@ -19,6 +19,72 @@ ROOT = Path(__file__).resolve().parents[1]
 INTERFACE = "data-snapshot-acquisition"
 
 
+def test_existing_local_consumers_emit_bound_test_only_handoffs(tmp_path: Path) -> None:
+    from ai4binance.cli.dge import dge_replay_payload
+    from ai4binance.domain.opportunity_observation import OpportunityLifecycleState
+    from ai4binance.execution.lifecycle import PaperLifecycleEngine, PositionStatus
+    from ai4binance.learning.lifecycle import (
+        GovernedLessonLifecycleStore,
+        GovernedLessonLifecycleWorker,
+    )
+    from ai4binance.learning.models import LearningSummary
+    from ai4binance.opportunity_intelligence import OpportunityEventType
+    from ai4binance.opportunity_ledger import OpportunityLedgerWriter
+    from tests.test_opportunity_intelligence import lifecycle_event
+    from tests.test_paper_lifecycle import NOW, candle, open_position
+
+    journal = CanonicalTraceJournal(tmp_path / "test-only-local-handoffs.jsonl")
+    worker = GovernedLessonLifecycleWorker(
+        GovernedLessonLifecycleStore(
+            tmp_path / "lessons.json", tmp_path / "audit.jsonl"
+        )
+    )
+    event = lifecycle_event(
+        state=OpportunityLifecycleState.DISCOVERED,
+        event_type=OpportunityEventType.OPPORTUNITY_OBSERVED,
+        minute=0,
+    )
+    position = open_position()
+    with core_observation_scope(ROOT, "TEST_ONLY_LOCAL_CONSUMERS", journal=journal):
+        load_logical_architecture_registry()
+        replay = dge_replay_payload(
+            decision_id="TEST_ONLY_ABSENT", repository_root=tmp_path
+        )
+        written = OpportunityLedgerWriter(
+            tmp_path / "lifecycle.jsonl", durable=False
+        ).append(event)
+        closed = PaperLifecycleEngine().process_candle(
+            position, candle(1, "100", "101", "90", "92")
+        )
+        lessons = worker.reconcile(
+            LearningSummary("TEST_ONLY_EMPTY", NOW, (), ()), at=NOW
+        )
+    assert replay["execution_allowed"] is False
+    assert written is not None
+    assert closed.status is PositionStatus.CLOSED
+    assert closed.closure_review is not None
+    assert lessons == ()
+    proofs = load_core_consumption_batch(
+        journal, ROOT, load_logical_architecture_registry()
+    )
+    assert {item["interface_id"] for item in proofs} == {
+        "system-core-architecture",
+        "system-logical-registry",
+        "system-event-replay",
+        "trade-opportunity-ledger",
+        "audit-closure-review",
+        "learning-lesson-staging",
+    }
+    assert all(item["observation_class"] == "TEST_ONLY" for item in proofs)
+    assert all(item["operation_status"] == "SUCCESS" for item in proofs)
+    assert all(item["execution_allowed"] is False for item in proofs)
+    by_interface = {str(item["interface_id"]): item for item in proofs}
+    assert (
+        by_interface["system-core-architecture"]["output_sha256"]
+        == by_interface["system-logical-registry"]["input_sha256"]
+    )
+
+
 def test_unscoped_call_keeps_the_existing_producer_consumer_order() -> None:
     events: list[object] = []
 
@@ -105,6 +171,48 @@ def test_failed_handoff_preserves_the_error_and_does_not_invent_outputs(
         assert calls == ["producer", "consumer"]
 
 
+@pytest.mark.parametrize("failure_stage", ["producer", "consumer", "scope"])
+@pytest.mark.parametrize("error_type", [KeyboardInterrupt, SystemExit])
+def test_interrupted_handoff_persists_actual_failure_before_propagating(
+    tmp_path: Path,
+    failure_stage: str,
+    error_type: type[BaseException],
+) -> None:
+    journal = CanonicalTraceJournal(tmp_path / "test-only-interrupted.jsonl")
+    failure = error_type("TEST_ONLY_INTERRUPTION")
+
+    def produce() -> int:
+        if failure_stage == "producer":
+            raise failure
+        return 7
+
+    def consume(value: int) -> int:
+        if failure_stage == "consumer":
+            raise failure
+        return value + 1
+
+    def interrupted_cycle() -> None:
+        with core_observation_scope(ROOT, "TEST_ONLY_INTERRUPTION", journal=journal):
+            consume_core_output(INTERFACE, inputs=(), produce=produce, consume=consume)
+            if failure_stage == "scope":
+                raise failure
+
+    with pytest.raises(error_type) as observed:
+        interrupted_cycle()
+    assert observed.value is failure
+    proofs = load_core_consumption_batch(
+        journal, ROOT, load_logical_architecture_registry()
+    )
+    assert len(proofs) == 1
+    proof = proofs[0]
+    assert proof["observation_class"] == "TEST_ONLY"
+    assert proof["operation_status"] == (
+        "SUCCESS" if failure_stage == "scope" else "ERROR"
+    )
+    if failure_stage != "scope":
+        assert proof["outcome_sha256"] is None
+
+
 def test_subject_drift_blocks_the_entire_batch_before_the_first_write(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -182,6 +290,7 @@ def test_real_orchestrator_consumers_preserve_the_fail_closed_analysis(
     )
     assert {item["interface_id"] for item in proofs} == {
         "deterministic-candidate-handoff",
+        "deterministic-setup-evaluation",
         "risk-assessment-handoff",
         "validation-signal-handoff",
     }

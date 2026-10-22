@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from ai4binance.core.contracts.core_observation import consume_core_output
 from ai4binance.learning.governance import (
     GovernedLesson,
     LessonStatus,
@@ -105,14 +106,24 @@ class GovernedLessonLifecycleWorker:
         if at.tzinfo is None or at.utcoffset() is None:
             raise ValueError("lesson reconciliation timestamp must be timezone-aware")
         lessons = {item.lesson_id: item for item in self.store.load()}
-        changed = False
-        for item in stage_learning_summary(
-            summary,
-            expires_at=summary.created_at + self.expiry_window,
-        ):
-            if item.lesson_id not in lessons:
-                lessons[item.lesson_id] = item
-                changed = True
+
+        def merge_staged(staged: tuple[GovernedLesson, ...]) -> bool:
+            changed = False
+            for item in staged:
+                if item.lesson_id not in lessons:
+                    lessons[item.lesson_id] = item
+                    changed = True
+            return changed
+
+        changed = consume_core_output(
+            "learning-lesson-staging",
+            inputs=summary,
+            produce=lambda: stage_learning_summary(
+                summary,
+                expires_at=summary.created_at + self.expiry_window,
+            ),
+            consume=merge_staged,
+        )
         for request in transitions:
             current = lessons.get(request.lesson_id)
             if current is None:

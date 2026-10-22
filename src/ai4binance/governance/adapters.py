@@ -111,20 +111,50 @@ class VirtualMarketDgeAdapter:
     ) -> VirtualGovernanceResult:
         """Return the dependency-neutral result for one canonical DGE evaluation."""
 
-        try:
-            dge_candidate = _virtual_dge_candidate(
-                candidate,
-                quantity=quantity,
+        def adapt_candidate() -> DgeTradeCandidate:
+            try:
+                return _virtual_dge_candidate(
+                    candidate, quantity=quantity, market=market
+                )
+            except (
+                ArithmeticError,
+                AttributeError,
+                KeyError,
+                TypeError,
+                ValueError,
+            ) as error:
+                raise ValueError("DGE_CANDIDATE_ADAPTATION_FAILED") from error
+
+        return consume_core_output(
+            "decision-candidate-adaptation",
+            inputs={"candidate": candidate, "market": market, "quantity": quantity},
+            produce=adapt_candidate,
+            consume=lambda adapted: self._evaluate_candidate(
+                adapted,
+                snapshot=snapshot,
+                analysis=analysis,
+                candidate=candidate,
+                portfolio=portfolio,
                 market=market,
-            )
-        except (
-            ArithmeticError,
-            AttributeError,
-            KeyError,
-            TypeError,
-            ValueError,
-        ) as error:
-            raise ValueError("DGE_CANDIDATE_ADAPTATION_FAILED") from error
+                quantity=quantity,
+                risk_approved=risk_approved,
+                portfolio_verified=portfolio_verified,
+            ),
+        )
+
+    def _evaluate_candidate(
+        self,
+        dge_candidate: DgeTradeCandidate,
+        *,
+        snapshot: object,
+        analysis: object,
+        candidate: object,
+        portfolio: object,
+        market: str,
+        quantity: Decimal,
+        risk_approved: bool,
+        portfolio_verified: bool,
+    ) -> VirtualGovernanceResult:
         try:
             context = (
                 self.context_builder(snapshot, analysis, candidate, portfolio)

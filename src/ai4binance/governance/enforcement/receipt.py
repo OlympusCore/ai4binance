@@ -124,6 +124,7 @@ def persist_core_consumption_receipt(
     output_sha256: str | None,
     outcome_sha256: str | None,
     resources: dict[str, object],
+    input_context_sha256: str | None = None,
     operation_status: str = "SUCCESS",
     journal: CanonicalTraceJournal | None = None,
 ) -> Path:
@@ -155,6 +156,7 @@ def persist_core_consumption_receipt(
         else "OBSERVED_LOCAL_CALL",
         operation_status=operation_status,
         input_sha256=input_sha256,
+        input_context_sha256=input_context_sha256,
         output_sha256=output_sha256,
         outcome_sha256=outcome_sha256,
         source_hashes=source_hashes,
@@ -272,9 +274,13 @@ def load_core_consumption_batch(
     modules = {item.core_id: item for item in registry.core_modules}
     fingerprints: dict[str, dict[str, str]] = {}
     result = []
-    for record in journal.records():
-        if record.event_name != "CORE_OUTPUT_CONSUMED":
-            continue
+    records = tuple(
+        item for item in journal.records() if item.event_name == "CORE_OUTPUT_CONSUMED"
+    )
+    if not records:
+        return ()
+    subject = core_consumption_subject_sha256(root)
+    for record in records:
         if (
             record.subject_ref not in modules
             or record.subject_type != "CORE_INTERFACE"
@@ -287,7 +293,9 @@ def load_core_consumption_batch(
             raise ValueError("CORE_ASSURANCE_CONTRACT_MISSING")
         payload = _read_core_consumption_record(root, journal, record)
         if module.core_id not in fingerprints:
-            fingerprints[module.core_id] = _core_source_hashes(root, module, registry)
+            fingerprints[module.core_id] = _core_source_hashes(
+                root, module, registry, workspace_subject_sha256=subject
+            )
         current = fingerprints[module.core_id]
         if payload["source_hashes"] != current:
             continue
@@ -298,10 +306,25 @@ def load_core_consumption_batch(
         if age < 0 or age > module.assurance.evidence_max_age_seconds:
             continue
         result.append(payload)
-    for core_id, previous in fingerprints.items():
-        if previous != _core_source_hashes(root, modules[core_id], registry):
-            raise ValueError("CORE_RECEIPT_SOURCE_CHANGED_DURING_READ")
+    _verify_core_consumption_sources(root, registry, fingerprints, subject)
     return tuple(result)
+
+
+def _verify_core_consumption_sources(
+    root: Path,
+    registry: LogicalArchitectureRegistry,
+    fingerprints: dict[str, dict[str, str]],
+    subject: str,
+) -> None:
+    """Recheck every source and the shared subject before returning observations."""
+    modules = {item.core_id: item for item in registry.core_modules}
+    for core_id, previous in fingerprints.items():
+        if previous != _core_source_hashes(
+            root, modules[core_id], registry, workspace_subject_sha256=subject
+        ):
+            raise ValueError("CORE_RECEIPT_SOURCE_CHANGED_DURING_READ")
+    if core_consumption_subject_sha256(root) != subject:
+        raise ValueError("CORE_RECEIPT_SOURCE_CHANGED_DURING_READ")
 
 
 def _read_core_consumption_record(

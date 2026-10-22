@@ -32,6 +32,58 @@ from ai4binance.ops.performance import (
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_core_resource_summary_excludes_test_receipts_and_keeps_budget_blocked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    from ai4binance.governance import constitution_sync
+    from ai4binance.governance.enforcement import receipt
+    from ai4binance.ops.coverage_architecture import build_core_evidence_view
+    from ai4binance.ops.quality_gate import telemetry
+
+    registry = load_logical_architecture_registry()
+    core = registry.core_modules[0]
+    assert core.assurance is not None
+    binding = core.assurance.interfaces[0]
+    # Isolated resolver inputs simulate provenance classes without writing traces.
+    proofs = tuple(
+        {
+            **binding.to_payload(),
+            "core_id": core.core_id,
+            "cycle_id": "TEST_ONLY_SUMMARY",
+            "observation_class": provenance,
+            "operation_status": "SUCCESS",
+            "resources": asdict(replace(_measurement(), llm_calls=None)),
+        }
+        for provenance in ("TEST_ONLY", "OBSERVED_LOCAL_CALL")
+    )
+    monkeypatch.setattr(receipt, "load_core_consumption_batch", lambda *a: proofs)
+    monkeypatch.setattr(receipt, "load_denied_enforcement_batch", lambda *a: ())
+    monkeypatch.setattr(
+        constitution_sync,
+        "build_quality_gate_workspace_attestation",
+        lambda *a: SimpleNamespace(to_payload=lambda: {}),
+    )
+    monkeypatch.setattr(
+        telemetry,
+        "resolve_requirement_quality_evidence",
+        lambda *a, **k: (None, ("TEST_ONLY_MISSING_QUALITY",)),
+    )
+    row = build_core_evidence_view(
+        registry, ROOT, required_core_ids=frozenset({core.core_id})
+    )[0]
+    summary = row["resource_observations"]
+    assert isinstance(summary, dict)
+    assert summary["measurement_count"] == 1
+    assert summary["cycle_count"] == 1
+    assert summary["observed_interface_ids"] == [binding.interface_id]
+    resource_blockers = row["resource_blockers"]
+    assert isinstance(resource_blockers, list)
+    assert "RESOURCE_LLM_CALLS_UNMEASURED" in resource_blockers
+    assert row["operationally_verified"] is False
+
+
 def _limits() -> OperationResourceLimits:
     """Test-only numeric limits; these are not proposed production budgets."""
     return OperationResourceLimits(
@@ -53,14 +105,33 @@ def _measurement() -> OperationResourceMeasurement:
     )
 
 
-def test_all_twelve_cores_declare_contracts_without_inventing_budgets() -> None:
+def test_core_contracts_cover_all_components_and_declare_unapproved_limits() -> None:
+    import yaml
+
+    from ai4binance.schema_validation import validate_local_definition
+
     registry = load_logical_architecture_registry()
     for core in registry.core_modules:
         assert core.assurance is not None
         assert core.assurance.required_dimensions == CORE_EVIDENCE_DIMENSIONS
         assert core.assurance.interfaces
         assert core.assurance.failure_test_refs
-        assert core.assurance.resource_budget_ref is None
+        assert {item.component_id for item in core.assurance.interfaces} == set(
+            core.component_ids
+        )
+        assert core.assurance.resource_budget_ref is not None
+        payload = yaml.safe_load(
+            (ROOT / core.assurance.resource_budget_ref).read_text(encoding="utf-8")
+        )
+        validate_local_definition(
+            ROOT / "schemas/governance/governed_object_enforcement.schema.json",
+            "OperationResourceLimits",
+            payload,
+        )
+        limits = OperationResourceLimits(**payload)
+        # Declared ceilings cannot turn absent observations into operational proof.
+        unknown = measure_resource_operation(lambda: None)[1]
+        assert resource_budget_blockers(unknown, limits)
 
 
 @pytest.mark.parametrize(
@@ -107,6 +178,7 @@ def test_receipt_is_bound_to_canonical_trace_and_never_promotes_test_observation
         cycle_id="TEST_ONLY_CYCLE",
         source_subject_sha256=core_consumption_subject_sha256(ROOT),
         input_sha256="1" * 64,
+        input_context_sha256="4" * 64,
         output_sha256="2" * 64,
         outcome_sha256="3" * 64,
         resources=asdict(_measurement()),
@@ -116,6 +188,7 @@ def test_receipt_is_bound_to_canonical_trace_and_never_promotes_test_observation
     assert len(proofs) == 1
     assert proofs[0]["observation_class"] == "TEST_ONLY"
     assert proofs[0]["execution_allowed"] is False
+    assert proofs[0]["input_context_sha256"] == "4" * 64
     core = registry.core_modules[0]
     result = resolve_core_assurance(
         registry, core, ROOT, quality={}, quality_blockers=(), consumption=proofs
@@ -219,8 +292,12 @@ def test_one_interface_cannot_prove_a_multi_component_core() -> None:
     result = resolve_core_assurance(
         registry, core, ROOT, quality={}, quality_blockers=(), consumption=(proof,)
     )
-    assert result.missing_interface_components
+    assert result.missing_interface_components == ()
+    assert set(result.unobserved_interfaces) == {
+        binding.interface_id for binding in core.assurance.interfaces[1:]
+    }
     assert result.dimensions["runtime_consumer"] != "PROVEN"
+    assert not result.operationally_verified
 
 
 @pytest.mark.parametrize("error", [TimeoutError, ValueError])
@@ -382,11 +459,12 @@ def test_auto_audit_uses_the_existing_trace_receipt_after_consumer_persistence(
     )
     events: list[object] = []
 
-    def persist_artifacts(*args: object) -> tuple[object, str, str, str]:
+    def persist_artifacts(*args: object) -> tuple[object, str, str, str, str]:
         events.append("ARTIFACTS_VERIFIED")
         return (
             persisted,
             "1" * 64,
+            "4" * 64,
             "2" * 64,
             canonical_trace_sha256({"test_only_persisted": True}),
         )
@@ -407,6 +485,8 @@ def test_auto_audit_uses_the_existing_trace_receipt_after_consumer_persistence(
     proof = events[1]
     assert isinstance(proof, dict)
     assert proof["core_id"] == "AuditCore"
+    assert proof["input_sha256"] == "1" * 64
+    assert proof["input_context_sha256"] == "4" * 64
     assert proof["outcome_sha256"] == canonical_trace_sha256(
         {"test_only_persisted": True}
     )
@@ -539,11 +619,60 @@ def test_source_drift_excludes_history_and_detects_a_change_during_read(
     )
     original = json.loads(path.read_text())["source_hashes"]
     changed = {**original, next(iter(original)): "f" * 64}
-    monkeypatch.setattr(receipt, "_core_source_hashes", lambda *args: changed)
+    monkeypatch.setattr(receipt, "_core_source_hashes", lambda *args, **kwargs: changed)
     assert load_core_consumption_batch(journal, ROOT, registry) == ()
     assert path.exists()
     samples = iter((original, changed))
-    monkeypatch.setattr(receipt, "_core_source_hashes", lambda *args: next(samples))
+    monkeypatch.setattr(
+        receipt, "_core_source_hashes", lambda *args, **kwargs: next(samples)
+    )
+    with pytest.raises(ValueError, match="SOURCE_CHANGED_DURING_READ"):
+        load_core_consumption_batch(journal, ROOT, registry)
+
+
+def test_core_receipt_batch_shares_subject_scans_and_still_rejects_workspace_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from ai4binance.governance.enforcement import receipt
+
+    registry = load_logical_architecture_registry()
+    journal = CanonicalTraceJournal(tmp_path / "test-only-subject-scans.jsonl")
+    subject = core_consumption_subject_sha256(ROOT)
+    for core_id, interface_id in (
+        ("DataCore", "data-snapshot-acquisition"),
+        ("SecurityCore", "security-tool-policy"),
+    ):
+        persist_core_consumption_receipt(
+            repository_root=ROOT,
+            registry=registry,
+            core_id=core_id,
+            interface_id=interface_id,
+            cycle_id="TEST_ONLY_SHARED_SUBJECT",
+            source_subject_sha256=subject,
+            input_sha256="1" * 64,
+            output_sha256="2" * 64,
+            outcome_sha256="3" * 64,
+            resources=asdict(_measurement()),
+            journal=journal,
+        )
+    original_subject = receipt.core_consumption_subject_sha256
+    scans: list[Path] = []
+
+    def scan(root: Path) -> str:
+        scans.append(root)
+        return original_subject(root)
+
+    monkeypatch.setattr(receipt, "core_consumption_subject_sha256", scan)
+    proofs = load_core_consumption_batch(journal, ROOT, registry)
+    assert len(proofs) == 2
+    assert all(proof["observation_class"] == "TEST_ONLY" for proof in proofs)
+    assert scans == [ROOT, ROOT]
+
+    subjects = iter((subject, "f" * 64))
+    monkeypatch.setattr(
+        receipt, "core_consumption_subject_sha256", lambda _: next(subjects)
+    )
     with pytest.raises(ValueError, match="SOURCE_CHANGED_DURING_READ"):
         load_core_consumption_batch(journal, ROOT, registry)
 

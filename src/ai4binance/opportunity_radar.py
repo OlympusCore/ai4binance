@@ -432,10 +432,34 @@ def _candidate_from_snapshot(
     timeframe: str = PRIMARY_SETUP_TIMEFRAME,
     explicit_timeframe: bool = False,
 ) -> OpportunityRadarCandidate:
-    diagnostic = build_multi_timeframe_diagnostic(
-        snapshot,
-        decision_time=decision_time,
+    from ai4binance.core.contracts.core_observation import consume_core_output
+
+    return consume_core_output(
+        "deterministic-opportunity-intelligence",
+        inputs={"snapshot": snapshot, "decision_time": decision_time},
+        produce=lambda: build_multi_timeframe_diagnostic(
+            snapshot, decision_time=decision_time
+        ),
+        consume=lambda diagnostic: _candidate_with_diagnostic(
+            snapshot,
+            diagnostic,
+            market=market,
+            decision_time=decision_time,
+            timeframe=timeframe,
+            explicit_timeframe=explicit_timeframe,
+        ),
     )
+
+
+def _candidate_with_diagnostic(
+    snapshot: MarketSnapshot,
+    diagnostic: MultiTimeframeDiagnostic,
+    *,
+    market: str,
+    decision_time: datetime,
+    timeframe: str,
+    explicit_timeframe: bool,
+) -> OpportunityRadarCandidate:
     duration = TIMEFRAME_DURATIONS[timeframe]
     primary = tuple(
         candle

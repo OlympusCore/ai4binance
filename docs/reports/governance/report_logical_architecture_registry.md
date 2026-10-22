@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-RPT-442
 title: AI4BINANCE Logical Architecture Registry Report
 document_type: REFERENCE
-version: 1.15.0
+version: 1.15.2
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: INFORMATIONAL
@@ -194,6 +194,17 @@ requires matching cycle and content digests; a later rejection cannot be replace
 by an older success. `src/ai4binance/ops/auto_audit_loop.py` records its actual
 Kaizen handoff only after verified report persistence, reusing the frozen payload.
 
+`src/ai4binance/governance/architecture/observation.py` implements this existing
+evidence boundary through the neutral
+`src/ai4binance/core/contracts/core_observation.py` call port. It observes the
+actual producer and consumer in one bounded cycle, records completion or failure,
+and preserves the original exception or interruption. Missing or ambiguous
+interfaces fail closed. Receipts use
+`src/ai4binance/governance/enforcement/contracts.py` and
+`src/ai4binance/governance/enforcement/receipt.py`; observations cannot authorize
+execution, approve budgets, or promote test-only evidence into runtime proof.
+`tests/test_core_observation.py` verifies these handoffs and rejection paths.
+
 `src/ai4binance/ops/coverage_architecture.py` exposes this evidence and checks the
 owning Core and declared dependency closure before an allowed consequential
 entrypoint continues. Missing evidence blocks that operation; evidence gathering,
@@ -215,6 +226,38 @@ Synthetic acceptance fixtures remain visibly test-only and are not runtime
 observations. Complete operational coverage and valid workload budgets are
 independent of a passing code test run. `RESEARCH_ONLY`,
 `execution_allowed=false`, and `LIVE_ORDER_BLOCKED` remain binding.
+
+## Complete Interface Declarations and Initial Resource Ceilings
+
+Registry version `1.14.2` binds all 28 components across the twelve Cores to
+existing producer and consumer symbols. The loader rejects an owned component
+without an interface. The additional handoffs observe existing local research,
+paper lifecycle, replay, policy, registry, accounting, outcome, and learning
+consumers; they do not introduce another decision or execution engine.
+
+Each Core references its own configuration under
+`config/operations/core_resource_budgets/`. These are initial engineering
+ceilings for one complete local research cycle, not measured capacity,
+calibrated service levels, or human approval evidence. They bound duration,
+CPU time, process lifetime peak RAM, process disk I/O, retries, model calls,
+and GPU memory. Zero model/GPU ceilings exclude those resources from a verified
+cycle; an unavailable counter must never be interpreted as zero.
+
+The registry loader passes the actual Core architecture object into registry
+validation. Auto-audit snapshots consume that validated registry in the same
+observation cycle. Dependency verification retains exact producer-output to
+consumer-input digest equality. Audit receipts additionally retain
+`input_context_sha256` for the surrounding quality and assurance inputs; the
+primary input digest identifies the consumed registry without dropping that
+context binding.
+
+The resolver still requires actual current-source observations for every
+interface in one cycle, complete counters, and a runner-enforced timeout.
+Declaring `RUNNER_ENFORCED` in a limit does not establish that a caller actually
+enforces a timeout. Test-only traces cannot establish operational readiness.
+Unmeasured counters, missing runtime consumption, quality gaps, and human
+acceptance remain distinct blockers. Repository completion and C3 acceptance
+continue to follow the canonical constitution.
 
 ## Boundary
 

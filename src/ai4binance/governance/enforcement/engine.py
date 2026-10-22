@@ -36,6 +36,7 @@ from ai4binance.governance.execution_authority import (
 from ai4binance.governance.policy_as_code import (
     PolicyAsCodeEngine,
     PolicyEffect,
+    PolicyEvaluation,
     PolicyRequest,
 )
 from ai4binance.storage import AuditEvent, JsonlAuditStore
@@ -372,34 +373,20 @@ class DeterministicEnforcementEngine:
                     reason_codes=("POLICY_ENGINE_UNAVAILABLE",),
                     blockers=("POLICY_ENGINE_UNAVAILABLE",),
                 )
-            evaluation = self.policy_engine.evaluate(
-                PolicyRequest(
-                    resource_type=envelope.object_type,
-                    action=request.action,
-                    facts=request.policy_facts,
-                    approved=request.verified_approval_set is not None,
-                )
+            from ai4binance.core.contracts.core_observation import consume_core_output
+
+            engine = self.policy_engine
+            policy_request = PolicyRequest(
+                resource_type=envelope.object_type,
+                action=request.action,
+                facts=request.policy_facts,
+                approved=request.verified_approval_set is not None,
             )
-            if evaluation.effect is PolicyEffect.DENY:
-                return EnforcementControlResult(
-                    gate=gate,
-                    outcome=EnforcementOutcome.DENY,
-                    reason_codes=(evaluation.reason_codes[0], "POLICY_DENY"),
-                    blockers=("POLICY_DENY",),
-                    details={"policy_version": evaluation.policy_version},
-                )
-            if evaluation.effect is PolicyEffect.REQUIRE_APPROVAL:
-                return EnforcementControlResult(
-                    gate=gate,
-                    outcome=EnforcementOutcome.REQUIRE_APPROVAL,
-                    reason_codes=evaluation.reason_codes,
-                    details={"policy_version": evaluation.policy_version},
-                )
-            return EnforcementControlResult(
-                gate=gate,
-                outcome=EnforcementOutcome.ALLOW,
-                reason_codes=evaluation.reason_codes,
-                details={"policy_version": evaluation.policy_version},
+            return consume_core_output(
+                "system-policy-evaluation",
+                inputs=policy_request,
+                produce=lambda: engine.evaluate(policy_request),
+                consume=self._consume_policy_evaluation,
             )
         if gate is EnforcementGate.EVIDENCE:
             available_evidence = set(envelope.evidence_refs) | set(
@@ -1010,6 +997,27 @@ class DeterministicEnforcementEngine:
             approval_set.content_hash
             if approval_set is not None
             else _sha256("NO_VERIFIED_APPROVAL_SET")
+        )
+
+    @staticmethod
+    def _consume_policy_evaluation(
+        evaluation: PolicyEvaluation,
+    ) -> EnforcementControlResult:
+        if evaluation.effect is PolicyEffect.DENY:
+            return EnforcementControlResult(
+                gate=EnforcementGate.POLICY,
+                outcome=EnforcementOutcome.DENY,
+                reason_codes=(evaluation.reason_codes[0], "POLICY_DENY"),
+                blockers=("POLICY_DENY",),
+                details={"policy_version": evaluation.policy_version},
+            )
+        return EnforcementControlResult(
+            gate=EnforcementGate.POLICY,
+            outcome=EnforcementOutcome.REQUIRE_APPROVAL
+            if evaluation.effect is PolicyEffect.REQUIRE_APPROVAL
+            else EnforcementOutcome.ALLOW,
+            reason_codes=evaluation.reason_codes,
+            details={"policy_version": evaluation.policy_version},
         )
 
     def _blocker_snapshot_hash(self, blocker_snapshot: BlockerSnapshot | None) -> str:

@@ -28,6 +28,33 @@ ROOT = Path(__file__).parents[3]
 REGISTRY_PATH = ROOT / "docs/registries/registry_logical_architecture.yaml"
 
 
+def test_interface_validation_rejects_missing_assurance() -> None:
+    from ai4binance.governance.architecture.loader import (
+        _validate_core_interface_references,
+    )
+
+    registry = load_logical_architecture_registry(REGISTRY_PATH)
+    module = replace(registry.core_modules[0], assurance=None)
+    with pytest.raises(ValueError, match="core assurance is required"):
+        _validate_core_interface_references(module, registry, ROOT)
+
+
+def test_registry_rejects_an_owned_component_without_an_interface(
+    tmp_path: Path,
+) -> None:
+    payload = yaml.safe_load(REGISTRY_PATH.read_text(encoding="utf-8"))
+    trade = next(
+        item for item in payload["core_modules"] if item["core_id"] == "TradeCore"
+    )
+    trade["assurance"]["interfaces"].pop()
+    path = tmp_path / "test-only-missing-interface.yaml"
+    path.write_text(yaml.safe_dump(payload), encoding="utf-8")
+    with pytest.raises(
+        ValueError, match="interface coverage must include every owned component"
+    ):
+        load_logical_architecture_registry(path, repository_root=ROOT)
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [
@@ -234,7 +261,7 @@ def test_registry_is_schema_valid_sorted_and_live_blocked() -> None:
     registry = load_logical_architecture_registry(REGISTRY_PATH)
 
     assert registry.registry_id == "AI4B-LOGICAL-ARCHITECTURE-REGISTRY-001"
-    assert registry.version == "1.14.1"
+    assert registry.version == "1.14.2"
     assert registry.source_of_truth is False
     assert registry.execution_allowed is False
     assert registry.live_eligibility_status == "LIVE_ORDER_BLOCKED"
@@ -269,6 +296,7 @@ def test_registry_maps_opportunity_intelligence_without_authority_expansion() ->
         "src/ai4binance/opportunity_intelligence.py",
     )
     assert component_index["opportunity-lifecycle-ledger"].source_paths == (
+        "src/ai4binance/opportunity_intelligence.py",
         "src/ai4binance/historical_replay_state.py",
         "src/ai4binance/opportunity_ledger.py",
     )

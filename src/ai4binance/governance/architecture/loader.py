@@ -22,7 +22,7 @@ from ai4binance.governance.architecture.model import (
     LogicalComponentKind,
     LogicalRelationType,
 )
-from ai4binance.governance.framework import build_core_architecture
+from ai4binance.governance.framework import CoreArchitecture, build_core_architecture
 from ai4binance.schema_validation import OfflineSchemaRegistry, SchemaValidationError
 
 DEFAULT_LOGICAL_ARCHITECTURE_REGISTRY_PATH = Path(
@@ -162,7 +162,29 @@ def load_logical_architecture_registry(
         raise ValueError(
             "logical architecture registry schema validation failed"
         ) from error
+    from ai4binance.core.contracts.core_observation import consume_core_output
+
     typed_payload = cast(Mapping[str, object], payload)
+    return consume_core_output(
+        "system-core-architecture",
+        inputs=typed_payload,
+        produce=build_core_architecture,
+        consume=lambda architecture: consume_core_output(
+            "system-logical-registry",
+            inputs=architecture,
+            produce=lambda: _registry_from_payload(typed_payload),
+            consume=lambda registry: _validate_loaded_registry(
+                registry,
+                selected_repository_root,
+                architecture,
+            ),
+        ),
+    )
+
+
+def _registry_from_payload(
+    typed_payload: Mapping[str, object],
+) -> LogicalArchitectureRegistry:
     registry = LogicalArchitectureRegistry(
         registry_id=_required_string(typed_payload, "registry_id"),
         version=_required_string(typed_payload, "version"),
@@ -185,7 +207,15 @@ def load_logical_architecture_registry(
             for item in _required_list(typed_payload, "core_modules")
         ),
     )
-    _validate_canonical_domain_planes(registry)
+    return registry
+
+
+def _validate_loaded_registry(
+    registry: LogicalArchitectureRegistry,
+    selected_repository_root: Path,
+    architecture: CoreArchitecture,
+) -> LogicalArchitectureRegistry:
+    _validate_canonical_domain_planes(registry, architecture)
     _validate_canonical_decision_chain(registry)
     _validate_forbidden_decision_shortcuts(registry)
     _validate_forbidden_execution_shortcuts(registry)
@@ -266,6 +296,30 @@ def _validate_core_assurance_references(
 ) -> None:
     if module.assurance is None:
         return
+    _validate_core_interface_references(module, registry, root)
+    for reference in module.assurance.failure_test_refs:
+        require_repository_symbol(root, reference)
+    for reference in module.assurance.veto_boundary_refs:
+        path = (root / reference).resolve()
+        if not path.is_relative_to(root.resolve()) or not path.is_file():
+            raise ValueError("core veto boundary reference is unavailable")
+    budget = module.assurance.resource_budget_ref
+    if budget is not None and not (root / budget).resolve().is_relative_to(
+        root.resolve()
+    ):
+        raise ValueError("core resource budget escapes repository")
+
+
+def _validate_core_interface_references(
+    module: CoreModule,
+    registry: LogicalArchitectureRegistry,
+    root: Path,
+) -> None:
+    if module.assurance is None:
+        raise ValueError("core assurance is required for interface validation")
+    covered = {binding.component_id for binding in module.assurance.interfaces}
+    if covered != set(module.component_ids):
+        raise ValueError("core interface coverage must include every owned component")
     for binding in module.assurance.interfaces:
         component = next(
             item
@@ -278,17 +332,6 @@ def _validate_core_assurance_references(
             raise ValueError("core producer must belong to its component")
         for reference in (binding.producer_ref, binding.consumer_ref):
             require_repository_symbol(root, reference)
-    for reference in module.assurance.failure_test_refs:
-        require_repository_symbol(root, reference)
-    for reference in module.assurance.veto_boundary_refs:
-        path = (root / reference).resolve()
-        if not path.is_relative_to(root.resolve()) or not path.is_file():
-            raise ValueError("core veto boundary reference is unavailable")
-    budget = module.assurance.resource_budget_ref
-    if budget is not None and not (root / budget).resolve().is_relative_to(
-        root.resolve()
-    ):
-        raise ValueError("core resource budget escapes repository")
 
 
 def require_repository_symbol(root: Path, reference: str) -> None:
@@ -314,10 +357,10 @@ def require_repository_symbol(root: Path, reference: str) -> None:
 
 def _validate_canonical_domain_planes(
     registry: LogicalArchitectureRegistry,
+    architecture: CoreArchitecture,
 ) -> None:
     canonical_planes = {
-        domain.domain_id.value: domain.plane.value
-        for domain in build_core_architecture().domains
+        domain.domain_id.value: domain.plane.value for domain in architecture.domains
     }
     drift = sorted(
         f"{component.component_id}.logical_plane must be "

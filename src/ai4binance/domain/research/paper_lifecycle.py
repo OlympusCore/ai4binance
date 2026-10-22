@@ -5,6 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 
+from ai4binance.core.contracts.core_observation import consume_core_output
 from ai4binance.domain.market_data import OHLCVCandle
 from ai4binance.domain.research.paper_models import (
     ExitReason,
@@ -329,23 +330,29 @@ class PaperLifecycleEngine:
             else PositionStatus.PARTIALLY_CLOSED
         )
         exit_event = LifecycleExit(timestamp, reason, price, quantity, fee, pnl)
-        review = (
-            self._review(
+
+        def apply_review(review: PaperClosureReview | None) -> LifecyclePosition:
+            return replace(
+                position,
+                remaining_quantity=remaining,
+                status=status,
+                next_target_index=next_target_index,
+                realized_pnl_usdt=position.realized_pnl_usdt + pnl,
+                exits=(*position.exits, exit_event),
+                closure_review=review,
+            )
+
+        if remaining != ZERO:
+            return apply_review(None)
+        return consume_core_output(
+            "audit-closure-review",
+            inputs={"position": position, "exit": exit_event, "context": context},
+            produce=lambda: self._review(
                 reason,
                 context,
                 bool(position.exits) or reason is ExitReason.TAKE_PROFIT_EXIT,
-            )
-            if remaining == ZERO
-            else None
-        )
-        return replace(
-            position,
-            remaining_quantity=remaining,
-            status=status,
-            next_target_index=next_target_index,
-            realized_pnl_usdt=position.realized_pnl_usdt + pnl,
-            exits=(*position.exits, exit_event),
-            closure_review=review,
+            ),
+            consume=apply_review,
         )
 
     @staticmethod

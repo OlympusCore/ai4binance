@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ai4binance.core.contracts.core_observation import consume_core_output
 from ai4binance.governance.replay import replay_dge_decision
 from ai4binance.governance.rules import default_governance_rule_catalog
 from ai4binance.reporting import to_primitive
@@ -48,14 +49,23 @@ def dge_replay_payload(
             "execution_allowed": False,
             "live_eligibility_status": "LIVE_ORDER_BLOCKED",
         }
-    result = replay_dge_decision(repository_root or Path.cwd(), normalized)
-    payload = to_primitive(result)
-    if not isinstance(payload, dict):
-        raise TypeError("DGE replay payload must be a mapping")
-    payload.update(
-        {
-            "command": "dge-replay",
-            "blockers": (result.blocker,) if result.blocker else (),
-        }
+    from ai4binance.governance.replay import DgeReplayResult
+
+    def replay_payload(result: DgeReplayResult) -> dict[str, object]:
+        payload = to_primitive(result)
+        if not isinstance(payload, dict):
+            raise TypeError("DGE replay payload must be a mapping")
+        payload.update(
+            {
+                "command": "dge-replay",
+                "blockers": (result.blocker,) if result.blocker else (),
+            }
+        )
+        return payload
+
+    return consume_core_output(
+        "system-event-replay",
+        inputs={"decision_id": normalized},
+        produce=lambda: replay_dge_decision(repository_root or Path.cwd(), normalized),
+        consume=replay_payload,
     )
-    return payload

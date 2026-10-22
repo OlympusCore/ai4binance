@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from contextlib import nullcontext
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -11,7 +12,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 from ai4binance.config import Settings
+from ai4binance.core.serialization import to_primitive
 from ai4binance.events.traceability import canonical_trace_sha256
+from ai4binance.governance.architecture.observation import core_observation_scope
 from ai4binance.governance.dge_engine import DecisionGovernanceEngine
 from ai4binance.governance.dge_models import (
     DgeGovernanceContext,
@@ -339,33 +342,46 @@ class AutoAuditLoop:
             ).is_file()
             else None
         )
-        frozen, measured = measure_resource_operation(
-            lambda: self._persist_artifacts(result, observed_at)
+        scope = (
+            core_observation_scope(self.repository_root, result.loop_id)
+            if source_subject is not None
+            else nullcontext()
         )
-        persisted, input_hash, output_hash, outcome_hash = frozen
-        snapshot = persisted.kaizen_quality_snapshot
-        if snapshot is not None and snapshot.logical_architecture_registry is not None:
-            if source_subject is None:
-                raise ValueError("CORE_CONSUMPTION_SOURCE_SUBJECT_MISSING")
-            persist_core_consumption_receipt(
-                repository_root=self.repository_root,
-                registry=snapshot.logical_architecture_registry,
-                core_id="AuditCore",
-                interface_id="audit-kaizen-snapshot",
-                cycle_id=result.loop_id,
-                source_subject_sha256=source_subject,
-                input_sha256=input_hash,
-                output_sha256=output_hash,
-                outcome_sha256=outcome_hash,
-                resources=asdict(replace(measured, operation_scope="CORE_HANDOFF")),
+        with scope as observation:
+            frozen, measured = measure_resource_operation(
+                lambda: self._persist_artifacts(result, observed_at)
             )
+            persisted, input_hash, context_hash, output_hash, outcome_hash = frozen
+            snapshot = persisted.kaizen_quality_snapshot
+            if (
+                snapshot is not None
+                and snapshot.logical_architecture_registry is not None
+            ):
+                if source_subject is None:
+                    raise ValueError("CORE_CONSUMPTION_SOURCE_SUBJECT_MISSING")
+                persist_core_consumption_receipt(
+                    repository_root=self.repository_root,
+                    registry=snapshot.logical_architecture_registry,
+                    core_id="AuditCore",
+                    interface_id="audit-kaizen-snapshot",
+                    cycle_id=result.loop_id
+                    if observation is None
+                    else observation.cycle_id,
+                    source_subject_sha256=source_subject,
+                    input_sha256=input_hash,
+                    input_context_sha256=context_hash,
+                    output_sha256=output_hash,
+                    outcome_sha256=outcome_hash,
+                    resources=asdict(replace(measured, operation_scope="CORE_HANDOFF")),
+                    journal=None if observation is None else observation.journal,
+                )
         return persisted
 
     def _persist_artifacts(
         self,
         result: AutoAuditLoopResult,
         observed_at: datetime,
-    ) -> tuple[AutoAuditLoopResult, str, str, str]:
+    ) -> tuple[AutoAuditLoopResult, str, str, str, str]:
         stamp = observed_at.strftime("%Y%m%dT%H%M%SZ")
         artifact_dir = self.repository_root / "runtime" / "artifacts" / "auto_audit"
         paths = user_report_paths(
@@ -445,6 +461,9 @@ class AutoAuditLoop:
         write_user_report_files(paths, payload, _render_markdown(persisted))
         return (
             persisted,
+            canonical_trace_sha256(
+                to_primitive(kaizen_snapshot.logical_architecture_registry)
+            ),
             canonical_trace_sha256(input_payload),
             canonical_trace_sha256(payload["kaizen_quality_snapshot"]),
             canonical_trace_sha256(payload),

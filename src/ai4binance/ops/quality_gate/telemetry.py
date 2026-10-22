@@ -529,7 +529,9 @@ def resolve_requirement_quality_evidence(
         ):
             return payload, scope_blockers
     if newest is not None:
-        return newest, ()
+        return newest, verify_quality_evidence(
+            root, newest, workspace_attestation=subject, required_tests=tests
+        )
     return None, ("REQUIREMENT_QUALITY_RECEIPT_MISSING",)
 
 

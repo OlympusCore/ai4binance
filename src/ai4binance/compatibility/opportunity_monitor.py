@@ -20,6 +20,7 @@ from typing import cast
 
 from ai4binance.agents.catalog import build_default_registry
 from ai4binance.agents.data_quality_gate import DataQualityGate
+from ai4binance.core.contracts.core_observation import consume_core_output
 from ai4binance.core.contracts.risk import RiskConfig
 from ai4binance.core.errors import ExchangeError
 from ai4binance.data.archive import ParquetOHLCVArchive
@@ -534,19 +535,27 @@ def _outcome(
                 "status": "NOT_EVALUABLE",
                 "outcome_reason_codes": ["OUTCOME_DATA_GAP"],
             }
-        evaluated = evaluate_opportunity_outcome(
-            opportunity_id=str(row["opportunity_id"]),
-            direction=direction.split("_CAUTION")[0],
-            reference_price=price,
-            observed_at=observed,
-            future_candles=future,
-            evaluation_horizon=3,
-            dataset_id=manifest.sha256,
-            timeframe=tf,
-            invalidation_price=_decimal(row.get("stop_loss")),
-            target_price=_decimal(row.get("tp1")),
+        return consume_core_output(
+            "validation-opportunity-outcome",
+            inputs={
+                "opportunity_id": row["opportunity_id"],
+                "dataset_id": manifest.sha256,
+                "future_candles": future,
+            },
+            produce=lambda: evaluate_opportunity_outcome(
+                opportunity_id=str(row["opportunity_id"]),
+                direction=direction.split("_CAUTION")[0],
+                reference_price=price,
+                observed_at=observed,
+                future_candles=future,
+                evaluation_horizon=3,
+                dataset_id=manifest.sha256,
+                timeframe=tf,
+                invalidation_price=_decimal(row.get("stop_loss")),
+                target_price=_decimal(row.get("tp1")),
+            ),
+            consume=lambda evaluated: cast(dict[str, object], to_primitive(evaluated)),
         )
-        return cast(dict[str, object], to_primitive(evaluated))
     except OSError, ValueError, KeyError, TypeError:
         return {
             "status": "NOT_EVALUABLE",

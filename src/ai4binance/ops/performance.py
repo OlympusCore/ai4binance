@@ -299,6 +299,49 @@ def _sum_optional_resource(values: Sequence[int | None]) -> int | None:
     )
 
 
+def summarize_resource_measurements(
+    measurements: Sequence[OperationResourceMeasurement],
+) -> dict[str, object]:
+    """Describe observed samples without inventing counters or approved limits."""
+    metrics: dict[str, object] = {}
+    for name in (
+        "max_duration_ms",
+        "cpu_time_ms",
+        "peak_ram_mb",
+        "disk_io_bytes",
+        "max_retries",
+        "llm_calls",
+        "gpu_memory_mb",
+    ):
+        values = sorted(
+            value for item in measurements if (value := getattr(item, name)) is not None
+        )
+        metrics[name] = {
+            "measured_sample_count": len(values),
+            "unmeasured_sample_count": len(measurements) - len(values),
+            "minimum": values[0] if values else None,
+            "median": statistics.median(values) if values else None,
+            "p95": values[max(0, (95 * len(values) + 99) // 100 - 1)]
+            if values
+            else None,
+            "maximum": values[-1] if values else None,
+        }
+    return {
+        "measurement_count": len(measurements),
+        "operation_counts": {
+            status: sum(item.operation_status == status for item in measurements)
+            for status in ("SUCCESS", "ERROR", "TIMEOUT")
+        },
+        "memory_scopes": sorted({item.memory_scope for item in measurements}),
+        "counter_scopes": sorted({item.counter_scope for item in measurements}),
+        "operation_scopes": sorted({item.operation_scope for item in measurements}),
+        "timeout_policies": sorted({item.timeout_policy for item in measurements}),
+        "metrics": metrics,
+        "evidence_class": "OBSERVED_SAMPLES_ONLY",
+        "execution_allowed": False,
+    }
+
+
 def _peak_optional_resource(values: Sequence[float | None]) -> float | None:
     return (
         None

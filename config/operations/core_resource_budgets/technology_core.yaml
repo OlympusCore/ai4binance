@@ -1,0 +1,12 @@
+# TechnologyCore: initial engineering ceiling for one complete local research cycle.
+# Proposed configuration, not observed capacity or human acceptance evidence.
+# Every interface, actual counter, and runner timeout must still be verified.
+max_duration_ms: 120000
+cpu_time_ms: 120000
+peak_ram_mb: 4096
+disk_io_bytes: 67108864
+max_retries: 0
+llm_calls: 0
+gpu_memory_mb: 0
+timeout_policy: RUNNER_ENFORCED
+memory_scope: PROCESS_LIFETIME_HIGH_WATERMARK
