@@ -13,6 +13,8 @@ import yaml
 
 from ai4binance.governance.architecture.graph import LogicalArchitectureGraph
 from ai4binance.governance.architecture.model import (
+    CoreAssuranceContract,
+    CoreInterfaceBinding,
     CoreModule,
     LogicalArchitectureComponent,
     LogicalArchitectureRegistry,
@@ -222,6 +224,7 @@ def _validate_core_modules(registry: LogicalArchitectureRegistry, root: Path) ->
                 raise ValueError(
                     f"core accountability reference is unavailable: {reference}"
                 )
+        _validate_core_assurance_references(module, registry, root)
     inventory = load_enforcement_inventory(
         root / "config/governance/enforcement_inventory.yaml"
     )
@@ -254,6 +257,59 @@ def _validate_core_modules(registry: LogicalArchitectureRegistry, root: Path) ->
         for name, owners in required.items()
     ):
         raise ValueError("core module canonical responsibility drift")
+
+
+def _validate_core_assurance_references(
+    module: CoreModule,
+    registry: LogicalArchitectureRegistry,
+    root: Path,
+) -> None:
+    if module.assurance is None:
+        return
+    for binding in module.assurance.interfaces:
+        component = next(
+            item
+            for item in registry.components
+            if item.component_id == binding.component_id
+        )
+        if binding.contract_ref not in component.contract_refs:
+            raise ValueError("core interface must reuse its component contract")
+        if binding.producer_ref.partition("::")[0] not in component.source_paths:
+            raise ValueError("core producer must belong to its component")
+        for reference in (binding.producer_ref, binding.consumer_ref):
+            require_repository_symbol(root, reference)
+    for reference in module.assurance.failure_test_refs:
+        require_repository_symbol(root, reference)
+    for reference in module.assurance.veto_boundary_refs:
+        path = (root / reference).resolve()
+        if not path.is_relative_to(root.resolve()) or not path.is_file():
+            raise ValueError("core veto boundary reference is unavailable")
+    budget = module.assurance.resource_budget_ref
+    if budget is not None and not (root / budget).resolve().is_relative_to(
+        root.resolve()
+    ):
+        raise ValueError("core resource budget escapes repository")
+
+
+def require_repository_symbol(root: Path, reference: str) -> None:
+    """Resolve a declared symbol without importing or executing application code."""
+    relative, separator, symbol = reference.partition("::")
+    path = (root / relative).resolve()
+    if not separator or not path.is_relative_to(root.resolve()) or not path.is_file():
+        raise ValueError(f"core symbol reference is unavailable: {reference}")
+    tree: ast.AST = ast.parse(path.read_text(encoding="utf-8-sig"))
+    for part in symbol.split("."):
+        matches = [
+            node
+            for node in getattr(tree, "body", ())
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+            and node.name == part
+        ]
+        if len(matches) != 1:
+            raise ValueError(
+                f"core symbol reference is ambiguous or missing: {reference}"
+            )
+        tree = matches[0]
 
 
 def _validate_canonical_domain_planes(
@@ -648,6 +704,49 @@ def _core_module_from_payload(value: object) -> CoreModule:
             _required_string(payload, "accountable_component_id")
             if "accountable_component_id" in payload
             else None
+        ),
+        assurance=(
+            _core_assurance_from_payload(payload["assurance"])
+            if "assurance" in payload
+            else None
+        ),
+    )
+
+
+def _core_assurance_from_payload(value: object) -> CoreAssuranceContract:
+    payload = _required_mapping(value, "core assurance")
+    interfaces = []
+    for raw in _required_list(payload, "interfaces"):
+        item = _required_mapping(raw, "core interface")
+        interfaces.append(
+            CoreInterfaceBinding(
+                **{
+                    key: _required_string(item, key)
+                    for key in (
+                        "interface_id",
+                        "component_id",
+                        "contract_ref",
+                        "producer_ref",
+                        "consumer_ref",
+                    )
+                }
+            )
+        )
+    return CoreAssuranceContract(
+        required_dimensions=tuple(
+            _required_string_list(payload, "required_dimensions")
+        ),
+        interfaces=tuple(interfaces),
+        failure_test_refs=tuple(_required_string_list(payload, "failure_test_refs")),
+        resource_budget_ref=(
+            _required_string(payload, "resource_budget_ref")
+            if payload.get("resource_budget_ref") is not None
+            else None
+        ),
+        evidence_max_age_seconds=cast(int, payload["evidence_max_age_seconds"]),
+        veto_boundary_refs=tuple(_required_string_list(payload, "veto_boundary_refs")),
+        forbidden_authorities=tuple(
+            _required_string_list(payload, "forbidden_authorities")
         ),
     )
 

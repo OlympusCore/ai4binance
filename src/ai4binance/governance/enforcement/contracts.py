@@ -18,6 +18,80 @@ class EnforcementOutcome(StrEnum):
     QUARANTINE = "QUARANTINE"
 
 
+@dataclass(frozen=True, slots=True)
+class CoreConsumptionReceipt:
+    """Observed handoff bytes; neither a declaration nor an approval record."""
+
+    core_id: str
+    interface_id: str
+    component_id: str
+    cycle_id: str
+    producer_ref: str
+    consumer_ref: str
+    contract_ref: str
+    observed_at: str
+    observation_class: str
+    operation_status: str
+    input_sha256: str
+    output_sha256: str
+    outcome_sha256: str
+    source_hashes: Mapping[str, str]
+    resources: Mapping[str, object]
+
+    def __post_init__(self) -> None:
+        for name in (
+            "core_id",
+            "interface_id",
+            "component_id",
+            "cycle_id",
+            "producer_ref",
+            "consumer_ref",
+            "contract_ref",
+        ):
+            _require_non_empty(name, str(getattr(self, name)))
+        _require_timestamp("observed_at", self.observed_at)
+        if self.observation_class not in {"TEST_ONLY", "OBSERVED_LOCAL_CALL"}:
+            raise ValueError("core receipt observation class is invalid")
+        if self.operation_status not in {"SUCCESS", "DENIED", "ERROR", "TIMEOUT"}:
+            raise ValueError("core receipt operation status is invalid")
+        for digest in (
+            self.input_sha256,
+            self.output_sha256,
+            self.outcome_sha256,
+            *self.source_hashes.values(),
+        ):
+            if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+                raise ValueError("core receipt requires lowercase SHA-256 digests")
+        if not self.source_hashes:
+            raise ValueError("core receipt requires source fingerprints")
+        object.__setattr__(
+            self, "source_hashes", MappingProxyType(dict(self.source_hashes))
+        )
+        object.__setattr__(self, "resources", MappingProxyType(dict(self.resources)))
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "core_id": self.core_id,
+            "interface_id": self.interface_id,
+            "component_id": self.component_id,
+            "cycle_id": self.cycle_id,
+            "producer_ref": self.producer_ref,
+            "consumer_ref": self.consumer_ref,
+            "contract_ref": self.contract_ref,
+            "observed_at": self.observed_at,
+            "observation_class": self.observation_class,
+            "operation_status": self.operation_status,
+            "input_sha256": self.input_sha256,
+            "output_sha256": self.output_sha256,
+            "outcome_sha256": self.outcome_sha256,
+            "source_hashes": dict(self.source_hashes),
+            "resources": dict(self.resources),
+            "execution_allowed": False,
+            "promotion_status": "RESEARCH_ONLY",
+            "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+        }
+
+
 class EnforcementGate(StrEnum):
     IDENTITY = "IDENTITY"
     SCHEMA = "SCHEMA"

@@ -7,7 +7,7 @@ import importlib
 import os
 import statistics
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from math import isfinite
@@ -146,14 +146,31 @@ class OperationResourceMeasurement:
     counter_scope: str = "SHARED_PROCESS_DURING_OPERATION"
     budget_status: str = "NOT_VERIFIED"
     execution_allowed: bool = False
+    operation_status: str = "SUCCESS"
+    error_type: str | None = None
+    gpu_memory_mb: float | None = None
+    operation_scope: str = "CALLABLE_ONLY"
 
     def __post_init__(self) -> None:
-        for value in (self.max_duration_ms, self.cpu_time_ms, self.peak_ram_mb):
-            if value is not None and (not isfinite(value) or value < 0):
+        for value in (
+            self.max_duration_ms,
+            self.cpu_time_ms,
+            self.peak_ram_mb,
+            self.gpu_memory_mb,
+        ):
+            if value is not None and (
+                isinstance(value, bool) or not isfinite(value) or value < 0
+            ):
                 raise ValueError("resource measurements must be finite and nonnegative")
         for value in (self.disk_io_bytes, self.max_retries, self.llm_calls):
-            if value is not None and (isinstance(value, bool) or value < 0):
+            if value is not None and (type(value) is not int or value < 0):
                 raise ValueError("resource counters must be nonnegative")
+        if self.operation_status not in {"SUCCESS", "ERROR", "TIMEOUT"}:
+            raise ValueError("resource operation status is invalid")
+        if self.operation_scope not in {"CALLABLE_ONLY", "CORE_HANDOFF"}:
+            raise ValueError("resource operation scope is invalid")
+        if (self.operation_status == "SUCCESS") != (self.error_type is None):
+            raise ValueError("resource operation status and error type disagree")
         if self.execution_allowed or self.budget_status != "NOT_VERIFIED":
             raise ValueError(
                 "resource observations cannot approve a budget or execution"
@@ -162,26 +179,161 @@ class OperationResourceMeasurement:
 
 def measure_resource_operation[T](
     operation: Callable[[], T],
+    *,
+    on_measurement: Callable[[OperationResourceMeasurement], None] | None = None,
 ) -> tuple[T, OperationResourceMeasurement]:
     """Measure a real call without retries, model invocation, or authority changes."""
     _, io_before = _process_resource_snapshot()
     cpu_started = time.process_time_ns()
     started = time.perf_counter_ns()
-    result = operation()
-    elapsed = time.perf_counter_ns() - started
-    cpu_elapsed = time.process_time_ns() - cpu_started
-    peak_ram, io_after = _process_resource_snapshot()
-    disk_io = (
-        io_after - io_before
-        if io_before is not None and io_after is not None and io_after >= io_before
-        else None
+    error: BaseException | None = None
+    try:
+        result = operation()
+    except BaseException as failure:
+        error = failure
+        raise
+    finally:
+        elapsed = time.perf_counter_ns() - started
+        cpu_elapsed = time.process_time_ns() - cpu_started
+        peak_ram, io_after = _process_resource_snapshot()
+        disk_io = (
+            io_after - io_before
+            if io_before is not None and io_after is not None and io_after >= io_before
+            else None
+        )
+        measured = OperationResourceMeasurement(
+            max_duration_ms=elapsed / 1_000_000,
+            cpu_time_ms=cpu_elapsed / 1_000_000,
+            peak_ram_mb=peak_ram,
+            disk_io_bytes=disk_io,
+            operation_status="SUCCESS"
+            if error is None
+            else "TIMEOUT"
+            if isinstance(error, TimeoutError)
+            else "ERROR",
+            error_type=None if error is None else type(error).__name__,
+        )
+        if on_measurement is not None:
+            try:
+                on_measurement(measured)
+            except Exception as emission_error:
+                if error is not None:
+                    raise error from emission_error
+                raise
+    return result, measured
+
+
+@dataclass(frozen=True, slots=True)
+class OperationResourceLimits:
+    """Declared limits; their presence never establishes approval or measurement."""
+
+    max_duration_ms: float
+    cpu_time_ms: float
+    peak_ram_mb: float
+    disk_io_bytes: int
+    max_retries: int
+    llm_calls: int
+    gpu_memory_mb: float
+    timeout_policy: str
+    memory_scope: str
+
+    def __post_init__(self) -> None:
+        for value in (
+            self.max_duration_ms,
+            self.cpu_time_ms,
+            self.peak_ram_mb,
+            self.gpu_memory_mb,
+        ):
+            if isinstance(value, bool) or not isfinite(value) or value < 0:
+                raise ValueError("resource limits must be finite and nonnegative")
+        for value in (self.disk_io_bytes, self.max_retries, self.llm_calls):
+            if type(value) is not int or value < 0:
+                raise ValueError("resource limit counters must be nonnegative integers")
+        if self.timeout_policy != "RUNNER_ENFORCED":
+            raise ValueError("resource limits require a runner-enforced timeout")
+        if self.memory_scope != "PROCESS_LIFETIME_HIGH_WATERMARK":
+            raise ValueError(
+                "resource limits must match available memory counter scope"
+            )
+
+
+def aggregate_resource_measurements(
+    measurements: Sequence[OperationResourceMeasurement],
+) -> OperationResourceMeasurement:
+    """Conservatively total one cycle; overlapping shared counters may overcount."""
+    if not measurements:
+        raise ValueError("resource aggregation requires actual observations")
+    failure = next(
+        (item for item in measurements if item.operation_status != "SUCCESS"), None
     )
-    return result, OperationResourceMeasurement(
-        max_duration_ms=elapsed / 1_000_000,
-        cpu_time_ms=cpu_elapsed / 1_000_000,
-        peak_ram_mb=peak_ram,
-        disk_io_bytes=disk_io,
+    return OperationResourceMeasurement(
+        max_duration_ms=sum(item.max_duration_ms for item in measurements),
+        cpu_time_ms=sum(item.cpu_time_ms for item in measurements),
+        peak_ram_mb=_peak_optional_resource(
+            [item.peak_ram_mb for item in measurements]
+        ),
+        disk_io_bytes=_sum_optional_resource(
+            [item.disk_io_bytes for item in measurements]
+        ),
+        max_retries=_sum_optional_resource([item.max_retries for item in measurements]),
+        llm_calls=_sum_optional_resource([item.llm_calls for item in measurements]),
+        gpu_memory_mb=_peak_optional_resource(
+            [item.gpu_memory_mb for item in measurements]
+        ),
+        timeout_policy="RUNNER_ENFORCED"
+        if all(item.timeout_policy == "RUNNER_ENFORCED" for item in measurements)
+        else "NOT_CONFIGURED",
+        operation_status="SUCCESS" if failure is None else failure.operation_status,
+        error_type=None if failure is None else failure.error_type,
+        operation_scope="CORE_HANDOFF"
+        if all(item.operation_scope == "CORE_HANDOFF" for item in measurements)
+        else "CALLABLE_ONLY",
     )
+
+
+def _sum_optional_resource(values: Sequence[int | None]) -> int | None:
+    return (
+        None
+        if any(value is None for value in values)
+        else sum(value for value in values if value is not None)
+    )
+
+
+def _peak_optional_resource(values: Sequence[float | None]) -> float | None:
+    return (
+        None
+        if any(value is None for value in values)
+        else max(value for value in values if value is not None)
+    )
+
+
+def resource_budget_blockers(
+    measured: OperationResourceMeasurement,
+    limits: OperationResourceLimits,
+) -> tuple[str, ...]:
+    """Compare observed counters without approving a policy or execution."""
+    blockers = []
+    if measured.operation_status != "SUCCESS":
+        blockers.append("RESOURCE_OPERATION_" + measured.operation_status)
+    if measured.timeout_policy != limits.timeout_policy:
+        blockers.append("RESOURCE_TIMEOUT_NOT_ENFORCED")
+    if measured.memory_scope != limits.memory_scope:
+        blockers.append("RESOURCE_MEMORY_SCOPE_MISMATCH")
+    for field_name in (
+        "max_duration_ms",
+        "cpu_time_ms",
+        "peak_ram_mb",
+        "disk_io_bytes",
+        "max_retries",
+        "llm_calls",
+        "gpu_memory_mb",
+    ):
+        value = getattr(measured, field_name)
+        if value is None:
+            blockers.append("RESOURCE_" + field_name.upper() + "_UNMEASURED")
+        elif value > getattr(limits, field_name):
+            blockers.append("RESOURCE_" + field_name.upper() + "_EXCEEDED")
+    return tuple(blockers)
 
 
 def _process_resource_snapshot() -> tuple[float | None, int | None]:

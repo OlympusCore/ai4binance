@@ -4,19 +4,24 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 from ai4binance.config import Settings
+from ai4binance.events.traceability import canonical_trace_sha256
 from ai4binance.governance.dge_engine import DecisionGovernanceEngine
 from ai4binance.governance.dge_models import (
     DgeGovernanceContext,
     DgeMarketAction,
     DgeTradeCandidate,
     GovernedDecision,
+)
+from ai4binance.governance.enforcement.receipt import (
+    core_consumption_subject_sha256,
+    persist_core_consumption_receipt,
 )
 from ai4binance.local_agent.workbench import AdvisoryRunner, LocalQwenWorkbench
 from ai4binance.ops.continuous_assurance import (
@@ -32,6 +37,7 @@ from ai4binance.ops.kaizen_quality import (
     build_kaizen_quality_snapshot,
     load_current_gate_evidence,
 )
+from ai4binance.ops.performance import measure_resource_operation
 from ai4binance.ops.privacy_leak_guard import scan_public_privacy_leaks
 from ai4binance.ops.system_report import (
     SystemReportResult,
@@ -325,6 +331,41 @@ class AutoAuditLoop:
         result: AutoAuditLoopResult,
         observed_at: datetime,
     ) -> AutoAuditLoopResult:
+        source_subject = (
+            core_consumption_subject_sha256(self.repository_root)
+            if (
+                self.repository_root
+                / "docs/registries/registry_logical_architecture.yaml"
+            ).is_file()
+            else None
+        )
+        frozen, measured = measure_resource_operation(
+            lambda: self._persist_artifacts(result, observed_at)
+        )
+        persisted, input_hash, output_hash, outcome_hash = frozen
+        snapshot = persisted.kaizen_quality_snapshot
+        if snapshot is not None and snapshot.logical_architecture_registry is not None:
+            if source_subject is None:
+                raise ValueError("CORE_CONSUMPTION_SOURCE_SUBJECT_MISSING")
+            persist_core_consumption_receipt(
+                repository_root=self.repository_root,
+                registry=snapshot.logical_architecture_registry,
+                core_id="AuditCore",
+                interface_id="audit-kaizen-snapshot",
+                cycle_id=result.loop_id,
+                source_subject_sha256=source_subject,
+                input_sha256=input_hash,
+                output_sha256=output_hash,
+                outcome_sha256=outcome_hash,
+                resources=asdict(replace(measured, operation_scope="CORE_HANDOFF")),
+            )
+        return persisted
+
+    def _persist_artifacts(
+        self,
+        result: AutoAuditLoopResult,
+        observed_at: datetime,
+    ) -> tuple[AutoAuditLoopResult, str, str, str]:
         stamp = observed_at.strftime("%Y%m%dT%H%M%SZ")
         artifact_dir = self.repository_root / "runtime" / "artifacts" / "auto_audit"
         paths = user_report_paths(
@@ -349,15 +390,28 @@ class AutoAuditLoop:
         )
         latest = pending.cycles[-1]
         current_gate_evidence = load_current_gate_evidence(self.repository_root)
+        assurance_payload = _kaizen_continuous_assurance_contract_payload(
+            latest.continuous_assurance_plan
+        )
+        input_payload = {
+            "observed_at": observed_at.isoformat(),
+            "blocker_cycles": [
+                [cycle.observed_at.isoformat(), list(cycle.blockers)]
+                for cycle in pending.cycles
+            ],
+            "repository_root": str(self.repository_root),
+            "continuous_assurance_payload": assurance_payload,
+            "quality_gate_payload": current_gate_evidence.quality_gate_payload,
+            "governance_gate_payload": current_gate_evidence.governance_gate_payload,
+            "gate_evidence_blockers": list(current_gate_evidence.blockers),
+        }
         kaizen_snapshot = build_kaizen_quality_snapshot(
             observed_at=observed_at,
             blocker_cycles=tuple(
                 (cycle.observed_at, cycle.blockers) for cycle in pending.cycles
             ),
             repository_root=self.repository_root,
-            continuous_assurance_payload=_kaizen_continuous_assurance_contract_payload(
-                latest.continuous_assurance_plan
-            ),
+            continuous_assurance_payload=assurance_payload,
             quality_gate_payload=current_gate_evidence.quality_gate_payload,
             governance_gate_payload=current_gate_evidence.governance_gate_payload,
             gate_evidence_blockers=current_gate_evidence.blockers,
@@ -389,7 +443,12 @@ class AutoAuditLoop:
             indent=2,
         )
         write_user_report_files(paths, payload, _render_markdown(persisted))
-        return persisted
+        return (
+            persisted,
+            canonical_trace_sha256(input_payload),
+            canonical_trace_sha256(payload["kaizen_quality_snapshot"]),
+            canonical_trace_sha256(payload),
+        )
 
 
 def run_auto_audit_loop(

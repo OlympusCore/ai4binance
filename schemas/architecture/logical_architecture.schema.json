@@ -35,8 +35,35 @@
               "validation_owner": {"type": "string", "minLength": 1}
             }
           },
-          "accountable_component_id": {"type": "string", "minLength": 1}
+          "accountable_component_id": {"type": "string", "minLength": 1},
+          "assurance": {"$ref": "#/$defs/CoreAssuranceContract"}
         }
+      }
+    }
+  },
+  "$defs": {
+    "CoreAssuranceContract": {
+      "type": "object", "additionalProperties": false,
+      "required": ["required_dimensions", "interfaces", "failure_test_refs", "resource_budget_ref", "evidence_max_age_seconds", "veto_boundary_refs", "forbidden_authorities"],
+      "properties": {
+        "required_dimensions": {"const": ["ownership", "input_output", "dependencies", "veto_boundary", "failure_behavior", "resource_budget", "tests_evidence", "runtime_consumer"]},
+        "interfaces": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/CoreInterfaceBinding"}},
+        "failure_test_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "resource_budget_ref": {"type": ["string", "null"], "pattern": "^config/.+[.](yaml|toml)$"},
+        "evidence_max_age_seconds": {"type": "integer", "minimum": 1, "maximum": 86400},
+        "veto_boundary_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "forbidden_authorities": {"const": ["live_execution_authority", "risk_override", "validation_override", "governance_bypass"]}
+      }
+    },
+    "CoreInterfaceBinding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["interface_id", "component_id", "contract_ref", "producer_ref", "consumer_ref"],
+      "properties": {
+        "interface_id": {"type": "string", "minLength": 1},
+        "component_id": {"type": "string", "minLength": 1},
+        "contract_ref": {"type": "string", "minLength": 1},
+        "producer_ref": {"type": "string", "pattern": "^.+[.]py::[A-Za-z_][A-Za-z_0-9.]*$"},
+        "consumer_ref": {"type": "string", "pattern": "^.+[.]py::[A-Za-z_][A-Za-z_0-9.]*$"}
       }
     }
   }

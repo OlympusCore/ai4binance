@@ -234,7 +234,7 @@ def test_registry_is_schema_valid_sorted_and_live_blocked() -> None:
     registry = load_logical_architecture_registry(REGISTRY_PATH)
 
     assert registry.registry_id == "AI4B-LOGICAL-ARCHITECTURE-REGISTRY-001"
-    assert registry.version == "1.13.2"
+    assert registry.version == "1.14.0"
     assert registry.source_of_truth is False
     assert registry.execution_allowed is False
     assert registry.live_eligibility_status == "LIVE_ORDER_BLOCKED"
@@ -301,7 +301,11 @@ def test_registry_maps_coverage_assurance_domains_without_authority_expansion() 
         ),
         "event-replay": ("src/ai4binance/governance/replay.py",),
         "portfolio-accounting": ("src/ai4binance/portfolio/cost_basis.py",),
-        "security-controls": ("src/ai4binance/governance/mcp_gateway.py",),
+        "security-controls": (
+            "src/ai4binance/governance/mcp_gateway.py",
+            "src/ai4binance/governance/tool_policy.py",
+            "src/ai4binance/governance/tool_gateway.py",
+        ),
     }
 
     assert {

@@ -26,6 +26,66 @@
     }
   },
   "$defs": {
+    "CoreConsumptionReceipt": {
+      "type": "object", "additionalProperties": false,
+      "required": ["core_id", "interface_id", "component_id", "cycle_id", "producer_ref", "consumer_ref", "contract_ref", "observed_at", "observation_class", "operation_status", "input_sha256", "output_sha256", "outcome_sha256", "source_hashes", "resources", "execution_allowed", "promotion_status", "live_eligibility_status"],
+      "properties": {
+        "core_id": {"type": "string", "minLength": 1},
+        "interface_id": {"type": "string", "minLength": 1},
+        "component_id": {"type": "string", "minLength": 1},
+        "cycle_id": {"type": "string", "minLength": 1},
+        "producer_ref": {"type": "string", "minLength": 1},
+        "consumer_ref": {"type": "string", "minLength": 1},
+        "contract_ref": {"type": "string", "minLength": 1},
+        "observed_at": {"type": "string", "format": "date-time"},
+        "observation_class": {"enum": ["TEST_ONLY", "OBSERVED_LOCAL_CALL"]},
+        "operation_status": {"enum": ["SUCCESS", "DENIED", "ERROR", "TIMEOUT"]},
+        "input_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "output_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "outcome_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "source_hashes": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "string", "pattern": "^[a-f0-9]{64}$"}},
+        "resources": {"$ref": "#/$defs/OperationResourceMeasurement"},
+        "execution_allowed": {"const": false},
+        "promotion_status": {"const": "RESEARCH_ONLY"},
+        "live_eligibility_status": {"const": "LIVE_ORDER_BLOCKED"}
+      }
+    },
+    "OperationResourceMeasurement": {
+      "type": "object", "additionalProperties": false,
+      "required": ["max_duration_ms", "cpu_time_ms", "peak_ram_mb", "disk_io_bytes", "max_retries", "llm_calls", "timeout_policy", "memory_scope", "counter_scope", "budget_status", "execution_allowed", "operation_status", "error_type", "gpu_memory_mb", "operation_scope"],
+      "properties": {
+        "max_duration_ms": {"type": "number", "minimum": 0},
+        "cpu_time_ms": {"type": "number", "minimum": 0},
+        "peak_ram_mb": {"type": ["number", "null"], "minimum": 0},
+        "disk_io_bytes": {"type": ["integer", "null"], "minimum": 0},
+        "max_retries": {"type": ["integer", "null"], "minimum": 0},
+        "llm_calls": {"type": ["integer", "null"], "minimum": 0},
+        "gpu_memory_mb": {"type": ["number", "null"], "minimum": 0},
+        "timeout_policy": {"enum": ["NOT_CONFIGURED", "RUNNER_ENFORCED"]},
+        "memory_scope": {"const": "PROCESS_LIFETIME_HIGH_WATERMARK"},
+        "counter_scope": {"const": "SHARED_PROCESS_DURING_OPERATION"},
+        "budget_status": {"const": "NOT_VERIFIED"},
+        "execution_allowed": {"const": false},
+        "operation_status": {"enum": ["SUCCESS", "ERROR", "TIMEOUT"]},
+        "error_type": {"type": ["string", "null"]},
+        "operation_scope": {"enum": ["CALLABLE_ONLY", "CORE_HANDOFF"]}
+      }
+    },
+    "OperationResourceLimits": {
+      "type": "object", "additionalProperties": false,
+      "required": ["max_duration_ms", "cpu_time_ms", "peak_ram_mb", "disk_io_bytes", "max_retries", "llm_calls", "gpu_memory_mb", "timeout_policy", "memory_scope"],
+      "properties": {
+        "max_duration_ms": {"type": "number", "minimum": 0},
+        "cpu_time_ms": {"type": "number", "minimum": 0},
+        "peak_ram_mb": {"type": "number", "minimum": 0},
+        "disk_io_bytes": {"type": "integer", "minimum": 0},
+        "max_retries": {"type": "integer", "minimum": 0},
+        "llm_calls": {"type": "integer", "minimum": 0},
+        "gpu_memory_mb": {"type": "number", "minimum": 0},
+        "timeout_policy": {"const": "RUNNER_ENFORCED"},
+        "memory_scope": {"const": "PROCESS_LIFETIME_HIGH_WATERMARK"}
+      }
+    },
     "GovernedObjectEnvelope": {
       "type": "object",
       "additionalProperties": false,

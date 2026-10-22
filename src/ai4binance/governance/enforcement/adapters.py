@@ -111,6 +111,13 @@ def require_registered_entrypoint(
             + ":"
             + ",".join(decision.reason_codes)
         )
+    from ai4binance.ops.coverage_architecture import core_readiness_blockers
+
+    blockers = core_readiness_blockers(repository_root, entrypoint_id)
+    if blockers:
+        raise ValueError(
+            "CORE_READINESS_BLOCKED:" + entrypoint_id + ":" + ",".join(blockers)
+        )
     return decision
 
 

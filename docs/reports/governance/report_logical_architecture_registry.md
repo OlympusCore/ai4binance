@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-RPT-442
 title: AI4BINANCE Logical Architecture Registry Report
 document_type: REFERENCE
-version: 1.14.0
+version: 1.15.0
 status: ACTIVE
 owner: Enterprise Governance
 authority_level: INFORMATIONAL
@@ -167,6 +167,54 @@ live-order blocked. This declaration proves
 canonical contract and relationship coverage only; it does not claim that the
 runtime `TradeCandidate` path or every Risk and Validation handoff into Decision
 Governance is fully wired or operationally verified.
+
+## Core Assurance Evidence
+
+`src/ai4binance/governance/architecture/assurance.py` resolves the existing
+Core evidence projection through the registry, verified quality results, and
+canonical consumption receipts. This is an implementation and evidence mapping;
+it does not establish a new policy, authority, approval office, or execution
+engine. Its contracts are defined in
+`src/ai4binance/governance/architecture/model.py` and
+`schemas/architecture/logical_architecture.schema.json`.
+
+The resolver evaluates ownership, input/output, dependencies, veto boundaries,
+failure behavior, resource budgets, executed tests, and runtime consumers.
+Missing component interfaces, unobserved handoffs, stale or invalid evidence,
+and missing resource limits remain explicit blockers. A technical
+`operationally_verified` result requires all eight dimensions to be proven and
+no blockers. That result does not grant policy eligibility, human approval,
+promotion, risk override, or live execution authority.
+
+Declared producer/consumer symbols are checked without importing them. Runtime
+receipts bind source fingerprints, the workspace subject, cycle identity, and
+input/output/outcome digests through the existing `CanonicalTraceJournal`.
+Test-only receipts remain separate from observed local calls. Dependency proof
+requires matching cycle and content digests; a later rejection cannot be replaced
+by an older success. `src/ai4binance/ops/auto_audit_loop.py` records its actual
+Kaizen handoff only after verified report persistence, reusing the frozen payload.
+
+`src/ai4binance/ops/coverage_architecture.py` exposes this evidence and checks the
+owning Core and declared dependency closure before an allowed consequential
+entrypoint continues. Missing evidence blocks that operation; evidence gathering,
+read-only inspection, and tests do not acquire consequential authority.
+`src/ai4binance/governance/enforcement/adapters.py` retains the existing policy
+denial path and applies this additional pre-mutation check to ALLOW decisions.
+
+`src/ai4binance/ops/performance.py` distinguishes observed process counters from
+declared limits. Unsupported counters remain unknown; process memory and I/O
+measurements are not whole-system or approved Core budgets. Job admission in
+`src/ai4binance/ops/jobs.py` exposes declared timeout/output limits separately from
+resource verification. Test references and actual passing test nodes remain
+separate in `src/ai4binance/ops/quality_gate/telemetry.py` and
+`src/ai4binance/governance/enforcement/inventory.py`.
+
+`tests/test_core_assurance.py`, `tests/test_governed_ecosystem_closure.py`, and
+`tests/test_quality_gate_profiles.py` verify these contracts and rejection paths.
+Synthetic acceptance fixtures remain visibly test-only and are not runtime
+observations. Complete operational coverage and valid workload budgets are
+independent of a passing code test run. `RESEARCH_ONLY`,
+`execution_allowed=false`, and `LIVE_ORDER_BLOCKED` remain binding.
 
 ## Boundary
 

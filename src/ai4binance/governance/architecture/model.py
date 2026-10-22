@@ -166,6 +166,115 @@ class LogicalArchitectureRelation:
         }
 
 
+CORE_EVIDENCE_DIMENSIONS = (
+    "ownership",
+    "input_output",
+    "dependencies",
+    "veto_boundary",
+    "failure_behavior",
+    "resource_budget",
+    "tests_evidence",
+    "runtime_consumer",
+)
+CORE_FORBIDDEN_AUTHORITIES = (
+    "live_execution_authority",
+    "risk_override",
+    "validation_override",
+    "governance_bypass",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class CoreInterfaceBinding:
+    """One declared contract handoff; declaration is never runtime evidence."""
+
+    interface_id: str
+    component_id: str
+    contract_ref: str
+    producer_ref: str
+    consumer_ref: str
+
+    def __post_init__(self) -> None:
+        if not self.interface_id.strip() or not self.component_id.strip():
+            raise ValueError("core interface identity is required")
+        if _unsafe_repository_path(self.contract_ref):
+            raise ValueError("core interface contract must be repository-relative")
+        for reference in (self.producer_ref, self.consumer_ref):
+            path, separator, symbol = reference.partition("::")
+            if _unsafe_repository_path(path) or not separator or not symbol.strip():
+                raise ValueError(
+                    "core interface requires a repository symbol reference"
+                )
+
+    def to_payload(self) -> dict[str, str]:
+        return {
+            "interface_id": self.interface_id,
+            "component_id": self.component_id,
+            "contract_ref": self.contract_ref,
+            "producer_ref": self.producer_ref,
+            "consumer_ref": self.consumer_ref,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class CoreAssuranceContract:
+    """Evidence requirements, without budgets, owner appointments or permissions."""
+
+    required_dimensions: tuple[str, ...] = CORE_EVIDENCE_DIMENSIONS
+    interfaces: tuple[CoreInterfaceBinding, ...] = ()
+    failure_test_refs: tuple[str, ...] = ()
+    resource_budget_ref: str | None = None
+    evidence_max_age_seconds: int = 86_400
+    veto_boundary_refs: tuple[str, ...] = ()
+    forbidden_authorities: tuple[str, ...] = CORE_FORBIDDEN_AUTHORITIES
+
+    def __post_init__(self) -> None:
+        if self.required_dimensions != CORE_EVIDENCE_DIMENSIONS:
+            raise ValueError("core assurance requires all eight canonical dimensions")
+        if self.forbidden_authorities != CORE_FORBIDDEN_AUTHORITIES:
+            raise ValueError(
+                "core assurance cannot widen forbidden authority boundaries"
+            )
+        if any(_unsafe_repository_path(ref) for ref in self.veto_boundary_refs):
+            raise ValueError("core veto boundaries require repository references")
+        ids = tuple(item.interface_id for item in self.interfaces)
+        if len(ids) != len(set(ids)):
+            raise ValueError("core assurance interfaces must be unique")
+        if len(self.failure_test_refs) != len(set(self.failure_test_refs)) or any(
+            _unsafe_repository_path(ref.partition("::")[0])
+            for ref in self.failure_test_refs
+        ):
+            raise ValueError("core failure tests must be unique repository references")
+        if self.resource_budget_ref is not None and _unsafe_repository_path(
+            self.resource_budget_ref
+        ):
+            raise ValueError("core resource budget must be repository-relative")
+        if self.resource_budget_ref is not None and (
+            not self.resource_budget_ref.startswith("config/")
+            or not self.resource_budget_ref.endswith((".yaml", ".toml"))
+        ):
+            raise ValueError(
+                "core resource budget must reference canonical configuration"
+            )
+        if type(self.evidence_max_age_seconds) is not int or not (
+            1 <= self.evidence_max_age_seconds <= 86_400
+        ):
+            raise ValueError(
+                "core evidence freshness cannot exceed current quality freshness"
+            )
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "required_dimensions": list(self.required_dimensions),
+            "interfaces": [item.to_payload() for item in self.interfaces],
+            "failure_test_refs": list(self.failure_test_refs),
+            "resource_budget_ref": self.resource_budget_ref,
+            "evidence_max_age_seconds": self.evidence_max_age_seconds,
+            "veto_boundary_refs": list(self.veto_boundary_refs),
+            "forbidden_authorities": list(self.forbidden_authorities),
+        }
+
+
 @dataclass(frozen=True, slots=True)
 class CoreModule:
     """A logical module boundary; membership never grants runtime authority."""
@@ -176,6 +285,7 @@ class CoreModule:
     enforcement_entrypoints: tuple[str, ...]
     accountability_refs: Mapping[str, str] = field(default_factory=dict)
     accountable_component_id: str | None = None
+    assurance: CoreAssuranceContract | None = None
 
     def __post_init__(self) -> None:
         if not self.core_id.strip() or not self.term_id.strip():
@@ -203,6 +313,11 @@ class CoreModule:
             )
         if self.accountability_refs and self.accountable_component_id is None:
             raise ValueError("core accountability requires an accountable component")
+        if self.assurance is not None and any(
+            item.component_id not in self.component_ids
+            for item in self.assurance.interfaces
+        ):
+            raise ValueError("core interface component must belong to the core")
         if any(
             _unsafe_repository_path(ref) for ref in self.accountability_refs.values()
         ):
@@ -226,6 +341,8 @@ class CoreModule:
             payload["accountability_refs"] = dict(self.accountability_refs)
         if self.accountable_component_id is not None:
             payload["accountable_component_id"] = self.accountable_component_id
+        if self.assurance is not None:
+            payload["assurance"] = self.assurance.to_payload()
         return payload
 
 

@@ -77,6 +77,8 @@ class RequirementAssuranceChain:
     execution_allowed: bool = False
     promotion_status: str = "RESEARCH_ONLY"
     live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
+    declared_test_refs: tuple[str, ...] = ()
+    quality_run_id: str | None = None
 
     def __post_init__(self) -> None:
         if not self.requirement_id.strip():
@@ -356,8 +358,8 @@ def _requirement_assurance_chain(
     snapshot_bound = not _is_mutable_evidence_reference(entry.evidence_ref)
     if not snapshot_bound:
         blockers.append("SNAPSHOT_EVIDENCE_MUTABLE")
-    evidence_sha256, evidence_blockers = _requirement_evidence_blockers(
-        root, entry, subject, current_quality
+    evidence_sha256, evidence_blockers, quality_payload = (
+        _requirement_evidence_blockers(root, entry, subject, current_quality)
     )
     blockers.extend(evidence_blockers)
 
@@ -374,6 +376,8 @@ def _requirement_assurance_chain(
         decision = RequirementAssuranceDecision.ASSURED
     else:
         decision = RequirementAssuranceDecision.BLOCKED
+    from ai4binance.ops.quality_gate.telemetry import executed_required_test_nodes
+
     return RequirementAssuranceChain(
         requirement_id=entry.requirement_id,
         authority_clause_ref=entry.authority_ref,
@@ -381,12 +385,22 @@ def _requirement_assurance_chain(
         capability=entry.canonical_meaning,
         implementing_components=entry.implementation_refs,
         enforcement_points=entry.enforcement_entrypoints,
-        executed_behavioral_tests=entry.test_refs if not unique_blockers else (),
+        executed_behavioral_tests=(
+            executed_required_test_nodes(quality_payload, entry.test_refs)
+            if not unique_blockers
+            else ()
+        ),
         snapshot_evidence_ref=entry.evidence_ref,
         snapshot_evidence_sha256=evidence_sha256,
         snapshot_bound=snapshot_bound,
         assurance_decision=decision,
         blockers=unique_blockers,
+        declared_test_refs=entry.test_refs,
+        quality_run_id=(
+            str(quality_payload["run_id"])
+            if isinstance(quality_payload, dict) and quality_payload.get("run_id")
+            else None
+        ),
     )
 
 
@@ -395,19 +409,19 @@ def _requirement_evidence_blockers(
     entry: RequirementTraceabilityEntry,
     subject: Mapping[str, object],
     current_quality: tuple[object, tuple[str, ...]] | None,
-) -> tuple[str, tuple[str, ...]]:
+) -> tuple[str, tuple[str, ...], object]:
     """Historical provenance and current technical execution are separate proofs."""
     from ai4binance.ops.quality_gate.telemetry import verify_quality_evidence
 
     path = _repository_file(root, entry.evidence_ref)
     if path is None:
-        return "", ("SNAPSHOT_EVIDENCE_MISSING",)
+        return "", ("SNAPSHOT_EVIDENCE_MISSING",), None
     try:
         digest = sha256(path.read_bytes()).hexdigest()
     except OSError:
-        return "", ("SNAPSHOT_EVIDENCE_UNREADABLE",)
+        return "", ("SNAPSHOT_EVIDENCE_UNREADABLE",), None
     if digest != entry.evidence_sha256:
-        return digest, ("SNAPSHOT_EVIDENCE_HASH_MISMATCH",)
+        return digest, ("SNAPSHOT_EVIDENCE_HASH_MISMATCH",), None
     try:
         payload: object = json.loads(path.read_text(encoding="utf-8-sig"))
         receipt_blockers: tuple[str, ...] = ()
@@ -416,9 +430,9 @@ def _requirement_evidence_blockers(
         blockers = verify_quality_evidence(
             root, payload, workspace_attestation=subject, required_tests=entry.test_refs
         )
-        return digest, (*receipt_blockers, *blockers)
+        return digest, (*receipt_blockers, *blockers), payload
     except OSError, ValueError:
-        return digest, ("BEHAVIORAL_TEST_EVIDENCE_UNREADABLE",)
+        return digest, ("BEHAVIORAL_TEST_EVIDENCE_UNREADABLE",), None
 
 
 @dataclass(frozen=True, slots=True)

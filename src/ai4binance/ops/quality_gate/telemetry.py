@@ -273,6 +273,34 @@ def _quality_file_blockers(
     return tuple(blockers)
 
 
+def executed_required_test_nodes(
+    payload: object,
+    required_tests: Iterable[str],
+) -> tuple[str, ...]:
+    """Extract actual passing node IDs after callers verify the quality evidence."""
+    if not isinstance(payload, dict) or not isinstance(
+        payload.get("test_results"), list
+    ):
+        return ()
+    required = tuple(required_tests)
+    return tuple(
+        sorted(
+            {
+                str(item["node_id"])
+                for item in payload["test_results"]
+                if isinstance(item, dict)
+                and item.get("result") == "PASS"
+                and isinstance(item.get("node_id"), str)
+                and any(
+                    item["node_id"] == test
+                    or item["node_id"].startswith((test + "::", test + "["))
+                    for test in required
+                )
+            }
+        )
+    )
+
+
 def _quality_execution_blockers(
     payload: dict[str, object],
     required_tests: Iterable[str],

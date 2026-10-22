@@ -43,6 +43,23 @@ affected_tests:
   default_when_clean:
     - tests/test_artifact_hygiene_scripts.py
   mappings:
+    - &core_assurance_contracts
+      name: core_assurance_contracts
+      path_prefixes:
+        - src/ai4binance/governance/architecture/assurance.py
+        - src/ai4binance/governance/architecture/model.py
+        - src/ai4binance/governance/architecture/loader.py
+        - schemas/architecture/logical_architecture.schema.json
+        - docs/registries/registry_logical_architecture.yaml
+        - src/ai4binance/ops/performance.py
+        - tests/test_core_assurance.py
+      tests:
+        - tests/test_core_assurance.py
+        - tests/test_coverage_architecture.py
+        - tests/governance/architecture/test_logical_architecture_registry.py
+        - tests/test_performance_guard.py
+        - tests/test_requirement_assurance_chain.py
+        - tests/test_policy_enforcement_guard_closure.py
     - name: local_dashboard_interface
       path_prefixes:
         - frontend/
@@ -429,6 +446,8 @@ standard_impact_tests:
         - tests/test_dge_engine.py
         - tests/test_research_application.py
         - tests/test_service_core_boundaries.py
+    - <<: *core_assurance_contracts
+      name: critical_core_assurance_contracts
     - name: critical_governance
       path_prefixes:
         - src/ai4binance/governance/

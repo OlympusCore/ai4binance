@@ -9,6 +9,7 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
+from typing import cast
 
 from ai4binance.events.traceability import (
     CanonicalTraceJournal,
@@ -1087,6 +1088,25 @@ def build_kaizen_quality_snapshot(
             )
         )
     )
+    core_evidence = (
+        build_core_evidence_view(
+            loaded_logical_architecture_registry, repository_root, trace_journal=journal
+        )
+        if loaded_logical_architecture_registry is not None
+        else ()
+    )
+    blockers = tuple(
+        dict.fromkeys(
+            (
+                *blockers,
+                *(
+                    f"{row['core_id']}:{code}"
+                    for row in core_evidence
+                    for code in cast(list[str], row["blockers"])
+                ),
+            )
+        )
+    )
     return KaizenQualitySnapshot(
         snapshot_id=f"kaizen-quality:{int(observed_at.timestamp())}",
         observed_at=observed_at,
@@ -1098,15 +1118,7 @@ def build_kaizen_quality_snapshot(
         architecture_baseline=architecture_baseline,
         architecture_projection=architecture_projection,
         logical_architecture_registry=loaded_logical_architecture_registry,
-        core_evidence=(
-            build_core_evidence_view(
-                loaded_logical_architecture_registry,
-                repository_root,
-                trace_journal=journal,
-            )
-            if loaded_logical_architecture_registry is not None
-            else ()
-        ),
+        core_evidence=core_evidence,
         instruction_baseline=instruction_baseline,
         instruction_context_benchmark=instruction_context_benchmark,
         closure_gate=closure_gate,

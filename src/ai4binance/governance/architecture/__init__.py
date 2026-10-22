@@ -8,6 +8,9 @@ from ai4binance.governance.architecture.loader import (
     validate_runtime_architecture_conformance,
 )
 from ai4binance.governance.architecture.model import (
+    CORE_EVIDENCE_DIMENSIONS,
+    CoreAssuranceContract,
+    CoreInterfaceBinding,
     CoreModule,
     LogicalArchitectureComponent,
     LogicalArchitectureRegistry,
@@ -17,7 +20,10 @@ from ai4binance.governance.architecture.model import (
 )
 
 __all__ = [
+    "CORE_EVIDENCE_DIMENSIONS",
     "DEFAULT_LOGICAL_ARCHITECTURE_REGISTRY_PATH",
+    "CoreAssuranceContract",
+    "CoreInterfaceBinding",
     "CoreModule",
     "LogicalArchitectureComponent",
     "LogicalArchitectureGraph",

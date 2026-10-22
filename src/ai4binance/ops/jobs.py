@@ -252,9 +252,26 @@ class JobAdmission:
     execution_allowed: bool = False
     promotion_status: str = "RESEARCH_ONLY"
     live_eligibility_status: str = "LIVE_ORDER_BLOCKED"
+    timeout_limit_seconds: int | None = None
+    maximum_output_bytes: int | None = None
+    timeout_enforced_by_runner: bool = False
+    resource_budget_status: str = "NOT_VERIFIED"
 
     def __post_init__(self) -> None:
         _require_unique_text("job admission blockers", self.blockers)
+        if self.resource_budget_status != "NOT_VERIFIED":
+            raise ValueError(
+                "job admission cannot approve an unmeasured resource budget"
+            )
+        if self.timeout_limit_seconds is not None and (
+            type(self.timeout_limit_seconds) is not int
+            or self.timeout_limit_seconds <= 0
+        ):
+            raise ValueError("job admission timeout limit is invalid")
+        if self.maximum_output_bytes is not None and (
+            type(self.maximum_output_bytes) is not int or self.maximum_output_bytes <= 0
+        ):
+            raise ValueError("job admission output limit is invalid")
         if self.admitted == bool(self.blockers):
             raise ValueError("job admission and blockers disagree")
         _require_fail_closed(
@@ -462,6 +479,9 @@ def assess_job_admission(manifest: JobManifest, request: JobRequest) -> JobAdmis
         idempotency_key=request.idempotency_key,
         admitted=not blockers,
         blockers=tuple(dict.fromkeys(blockers)),
+        timeout_limit_seconds=manifest.timeout_seconds,
+        maximum_output_bytes=manifest.maximum_output_bytes,
+        timeout_enforced_by_runner=request.timeout_enforced_by_runner,
     )
 
 

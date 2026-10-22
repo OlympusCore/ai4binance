@@ -63,15 +63,19 @@ def build_core_evidence_view(
     repository_root: Path,
     *,
     trace_journal: CanonicalTraceJournal | None = None,
+    required_core_ids: frozenset[str] | None = None,
 ) -> tuple[dict[str, object], ...]:
     """Project all eight dimensions from existing owners without granting authority."""
+    from ai4binance.governance.architecture.assurance import resolve_core_assurance
     from ai4binance.governance.constitution_sync import (
         build_quality_gate_workspace_attestation,
     )
     from ai4binance.governance.enforcement.receipt import (
+        load_core_consumption_batch,
         load_denied_enforcement_batch,
     )
     from ai4binance.ops.quality_gate.telemetry import (
+        executed_required_test_nodes,
         resolve_requirement_quality_evidence,
     )
 
@@ -80,17 +84,33 @@ def build_core_evidence_view(
     journal = trace_journal or CanonicalTraceJournal(canonical_trace_journal_path(root))
     observations: dict[str, list[dict[str, object]]] = {}
     trace_blockers: list[str] = []
+    runtime_consumption: tuple[dict[str, object], ...] = ()
     try:
         for record, proof in load_denied_enforcement_batch(journal):
             if proof.get("observation_class") == "OBSERVED_LOCAL_CALL":
                 observations[record.subject_ref] = [proof]
     except OSError, ValueError, KeyError:
         trace_blockers.append("CORE_CONSUMPTION_EVIDENCE_INVALID")
+    try:
+        runtime_consumption = load_core_consumption_batch(journal, root, registry)
+    except OSError, ValueError, KeyError, TypeError:
+        trace_blockers.append("CORE_HANDOFF_EVIDENCE_INVALID")
     subject = build_quality_gate_workspace_attestation(root).to_payload()
     rows: list[dict[str, object]] = []
     for module in registry.core_modules:
+        if required_core_ids is not None and module.core_id not in required_core_ids:
+            continue
         selected = [components[item] for item in module.component_ids]
-        tests = tuple(sorted({ref for item in selected for ref in item.test_refs}))
+        tests = tuple(
+            sorted(
+                {ref for item in selected for ref in item.test_refs}
+                | set(
+                    ()
+                    if module.assurance is None
+                    else module.assurance.failure_test_refs
+                )
+            )
+        )
         quality, quality_blockers = resolve_requirement_quality_evidence(
             root, subject, required_tests=tests
         )
@@ -99,23 +119,15 @@ def build_core_evidence_view(
             for route in module.enforcement_entrypoints
             for proof in observations.get(route, ())
         ]
-        dimensions = {
-            "ownership": "PARTIAL" if not module.accountability_refs else "DECLARED",
-            "input_output": "PARTIAL",
-            "dependencies": "DECLARED",
-            "veto_boundary": "PARTIAL",
-            "failure_behavior": "PARTIAL" if consumed else "UNKNOWN",
-            "resource_budget": "PARTIAL"
-            if any(proof.get("resources") for proof in consumed)
-            else "UNKNOWN",
-            "tests_evidence": "PROVEN" if not quality_blockers else "UNKNOWN",
-            "runtime_consumer": "PARTIAL" if consumed else "UNKNOWN",
-        }
-        blockers = [
-            f"CORE_{key.upper()}_NOT_PROVEN"
-            for key, state in dimensions.items()
-            if state != "PROVEN"
-        ]
+        assurance = resolve_core_assurance(
+            registry,
+            module,
+            root,
+            quality=quality,
+            quality_blockers=quality_blockers,
+            consumption=runtime_consumption,
+            trace_blockers=trace_blockers,
+        )
         rows.append(
             {
                 "core_id": module.core_id,
@@ -129,6 +141,20 @@ def build_core_evidence_view(
                     else None
                 ),
                 "accountability_scope": "EXISTING_COMPONENT_RESPONSIBILITY_ONLY",
+                "veto_boundary": {
+                    "component_veto_ids": [
+                        item.component_id
+                        for item in selected
+                        if item.authority_effect == "VETO"
+                    ],
+                    "enforcement_entrypoints": module.enforcement_entrypoints,
+                    "authority_refs": ()
+                    if module.assurance is None
+                    else module.assurance.veto_boundary_refs,
+                    "forbidden_authorities": ()
+                    if module.assurance is None
+                    else module.assurance.forbidden_authorities,
+                },
                 "contract_refs": sorted(
                     {ref for item in selected for ref in item.contract_refs}
                 ),
@@ -152,7 +178,9 @@ def build_core_evidence_view(
                 ],
                 "enforcement_entrypoints": module.enforcement_entrypoints,
                 "declared_test_refs": tests,
-                "executed_test_refs": tests if not quality_blockers else (),
+                "executed_test_refs": executed_required_test_nodes(quality, tests)
+                if not quality_blockers
+                else (),
                 "quality_evidence_binding": {
                     "run_id": quality.get("run_id"),
                     "evidence_path": (
@@ -170,17 +198,89 @@ def build_core_evidence_view(
                 "quality_blockers": quality_blockers,
                 "consumption_receipts": consumed,
                 "consumption_scope": "LATEST_CURRENT_SOURCE_RECEIPT_PER_ENTRYPOINT",
-                "dimensions": dimensions,
-                "operationally_verified": all(
-                    state == "PROVEN" for state in dimensions.values()
+                "assurance_contract": None
+                if module.assurance is None
+                else module.assurance.to_payload(),
+                "runtime_consumption_receipts": [
+                    item
+                    for item in runtime_consumption
+                    if item["core_id"] == module.core_id
+                ],
+                "missing_interface_components": list(
+                    assurance.missing_interface_components
                 ),
-                "blockers": [*blockers, *trace_blockers],
+                "unobserved_interfaces": list(assurance.unobserved_interfaces),
+                "resource_blockers": list(assurance.resource_blockers),
+                "dimensions": dict(assurance.dimensions),
+                "operationally_verified": assurance.operationally_verified,
+                "blockers": list(assurance.blockers),
                 "execution_allowed": False,
                 "promotion_status": "RESEARCH_ONLY",
                 "live_eligibility_status": "LIVE_ORDER_BLOCKED",
             }
         )
     return tuple(rows)
+
+
+def core_readiness_blockers(
+    repository_root: Path, entrypoint_id: str
+) -> tuple[str, ...]:
+    """Check only the owning Core and declared dependency closure before a mutation."""
+    from ai4binance.governance.architecture.graph import LogicalArchitectureGraph
+    from ai4binance.governance.architecture.loader import (
+        load_logical_architecture_registry,
+    )
+
+    root = repository_root.resolve()
+    try:
+        registry = load_logical_architecture_registry(
+            root / "docs/registries/registry_logical_architecture.yaml",
+            repository_root=root,
+        )
+        owner = next(
+            (
+                item
+                for item in registry.core_modules
+                if entrypoint_id in item.enforcement_entrypoints
+            ),
+            None,
+        )
+        if owner is None:
+            return ("CORE_ENTRYPOINT_OWNER_UNKNOWN",)
+        graph = LogicalArchitectureGraph(registry)
+        components = set(owner.component_ids)
+        pending = list(components)
+        while pending:
+            for dependency in graph.dependencies_of(pending.pop()):
+                if dependency not in components:
+                    components.add(dependency)
+                    pending.append(dependency)
+        ids = frozenset(
+            item.core_id
+            for item in registry.core_modules
+            if components.intersection(item.component_ids)
+        )
+        rows = build_core_evidence_view(registry, root, required_core_ids=ids)
+        if len(rows) != len(ids) or {row["core_id"] for row in rows} != ids:
+            return ("CORE_READINESS_SCOPE_INCOMPLETE",)
+        return tuple(
+            dict.fromkeys(
+                (
+                    *(
+                        f"{row['core_id']}:CORE_NOT_OPERATIONALLY_VERIFIED"
+                        for row in rows
+                        if row.get("operationally_verified") is not True
+                    ),
+                    *(
+                        f"{row['core_id']}:{blocker}"
+                        for row in rows
+                        for blocker in cast(list[str], row["blockers"])
+                    ),
+                )
+            )
+        )
+    except OSError, ValueError, KeyError:
+        return ("CORE_READINESS_EVIDENCE_UNAVAILABLE",)
 
 
 class SourceCoverage(Protocol):

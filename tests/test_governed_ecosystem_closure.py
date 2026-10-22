@@ -209,8 +209,11 @@ def test_receipt_rejects_a_decision_without_canonical_scope() -> None:
         )
 
 
+@pytest.mark.parametrize("readiness_blockers", [(), ("TEST_ONLY_CORE_GAP",)])
 def test_allowed_adapter_fixture_does_not_emit_a_premature_success_receipt(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    readiness_blockers: tuple[str, ...],
 ) -> None:
     from ai4binance.events.traceability import CanonicalTraceJournal
     from ai4binance.governance.enforcement import adapters
@@ -222,17 +225,32 @@ def test_allowed_adapter_fixture_does_not_emit_a_premature_success_receipt(
     decision = _enforcement_decision()
     evaluator = Mock(return_value=decision)
     monkeypatch.setattr(adapters, "evaluate_registered_entrypoint", evaluator)
+    from ai4binance.ops import coverage_architecture
+
+    readiness = Mock(return_value=readiness_blockers)
+    monkeypatch.setattr(coverage_architecture, "core_readiness_blockers", readiness)
     journal = CanonicalTraceJournal(tmp_path / "trace.jsonl")
-    result = adapters.require_registered_entrypoint(
-        ROOT,
-        "TEST_ONLY_ALLOWED",
-        Mock(spec=GovernedObjectEnvelope),
-        Mock(spec=EnforcementRequest),
-        trace_journal=journal,
-    )
-    assert result is decision
-    assert result.execution_allowed is False
+    if readiness_blockers:
+        with pytest.raises(ValueError, match="CORE_READINESS_BLOCKED"):
+            adapters.require_registered_entrypoint(
+                ROOT,
+                "TEST_ONLY_ALLOWED",
+                Mock(spec=GovernedObjectEnvelope),
+                Mock(spec=EnforcementRequest),
+                trace_journal=journal,
+            )
+    else:
+        result = adapters.require_registered_entrypoint(
+            ROOT,
+            "TEST_ONLY_ALLOWED",
+            Mock(spec=GovernedObjectEnvelope),
+            Mock(spec=EnforcementRequest),
+            trace_journal=journal,
+        )
+        assert result is decision
+        assert result.execution_allowed is False
     evaluator.assert_called_once()
+    readiness.assert_called_once_with(ROOT, "TEST_ONLY_ALLOWED")
     assert not journal.path.exists()
     assert not (tmp_path / "enforcement_receipts").exists()
 

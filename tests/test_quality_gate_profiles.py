@@ -283,6 +283,7 @@ def test_quality_gate_policy_locks_profile_authority_and_tooling() -> None:
         "critical_enforcement_inventory",
         "critical_governed_parameter_runtime_wiring",
         "critical_core_coverage_projection",
+        "critical_core_assurance_contracts",
         "critical_semantic_governance_enforcement_fabric",
         "kaizen_culture",
         "lean_process",
@@ -638,8 +639,13 @@ def test_standard_scope_adds_critical_impacted_contract_and_determinism_tests() 
     )
     assert performance_args == (
         *REQUIRED_TESTS,
-        "tests/test_lean_governance.py",
+        "tests/test_core_assurance.py",
+        "tests/test_coverage_architecture.py",
+        "tests/governance/architecture/test_logical_architecture_registry.py",
         "tests/test_performance_guard.py",
+        "tests/test_requirement_assurance_chain.py",
+        "tests/test_policy_enforcement_guard_closure.py",
+        "tests/test_lean_governance.py",
         "--no-cov",
     )
     expected_instruction_args = (
