@@ -392,6 +392,25 @@ def test_service_core_boundaries_are_selected_in_both_profiles(
         assert "tests/test_service_core_boundaries.py" in selected
 
 
+def test_dashboard_toolchain_pin_selects_interface_contracts_in_both_profiles() -> None:
+    policy = load_quality_gate_policy(POLICY_PATH)
+    for resolver in (
+        resolve_affected_pytest_arguments,
+        resolve_standard_pytest_arguments,
+    ):
+        selected = resolver(
+            policy, ROOT, ("config/interface/dashboard_toolchain.toml",)
+        )
+        assert {
+            "tests/test_dashboard_presentation.py",
+            "tests/test_local_dashboard_source.py",
+            "tests/test_dashboard_decisions.py",
+            "tests/test_virtual_wallet_journal.py",
+        } <= set(selected)
+        with pytest.raises(AffectedScopeResolutionError, match="unknown"):
+            resolver(policy, ROOT, ("config/interface/unknown_toolchain.toml",))
+
+
 def test_quality_gate_selector_resolves_affected_and_standard_scopes() -> None:
     policy = load_quality_gate_policy(POLICY_PATH)
 

@@ -3171,6 +3171,7 @@ function Invoke-QualityGate {
         $repoRoot
     )
     Invoke-QualityStep "MyPy" @("-m", "mypy")
+    Invoke-QualityStep "Dashboard type check" @("scripts/check_dashboard_types.py")
     Invoke-QualityStep "Financial leak guard" @(
         "-m",
         "ai4binance.ops.financial_leak_guard",
@@ -3183,6 +3184,7 @@ function Invoke-QualityGate {
         "--repository-root",
         $repoRoot
     )
+    Invoke-BanditWithCapturedOutput
     Assert-QualityWorkspaceStable -Stage "AFTER_FULL_STATIC_CHECKS"
     Invoke-RepositoryGovernanceValidator
     $script:mirrorRemoteCheck = Invoke-ConditionalMirrorHygiene
@@ -3210,7 +3212,6 @@ function Invoke-QualityGate {
             $env:COVERAGE_FILE = $previousCoverageFile
         }
     }
-    Invoke-BanditWithCapturedOutput
     Assert-QualityWorkspaceStable -Stage "BEFORE_DETERMINISTIC_QUALITY_GATE"
     Invoke-DeterministicQualityGate
     Invoke-DocsHygieneGateTests | Out-Null

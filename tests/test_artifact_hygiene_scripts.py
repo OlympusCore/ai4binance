@@ -1162,8 +1162,10 @@ def test_quality_script_runs_gate_steps_in_governed_order() -> None:
         'Invoke-QualityStep "Ruff lint"',
         'Invoke-QualityStep "Ruff maintainability ratchet"',
         'Invoke-QualityStep "MyPy"',
+        'Invoke-QualityStep "Dashboard type check"',
         'Invoke-QualityStep "Financial leak guard"',
         'Invoke-QualityStep "Privacy leak guard"',
+        "Invoke-BanditWithCapturedOutput",
         "Invoke-RepositoryGovernanceValidator",
         "$script:mirrorRemoteCheck = Invoke-ConditionalMirrorHygiene",
         "$previousCoverageFile = $env:COVERAGE_FILE",
@@ -1172,7 +1174,6 @@ def test_quality_script_runs_gate_steps_in_governed_order() -> None:
         'Invoke-QualityStep "Coverage JSON"',
         "Invoke-CoveragePolicyEvaluation",
         "Publish-QualityRunEvidenceArtifacts",
-        "Invoke-BanditWithCapturedOutput",
         "Invoke-DeterministicQualityGate",
         "Invoke-DocsHygieneGateTests",
         "Invoke-ArtifactHygieneGateTests",
@@ -1197,6 +1198,49 @@ def test_quality_script_runs_gate_steps_in_governed_order() -> None:
         "Write-QualityGateGreenEvidence"
     )
     assert '"--quiet"' in coverage_step
+
+
+@pytest.mark.parametrize("failed_check", ["Dashboard type check", "Bandit"])
+def test_full_static_failure_prevents_expensive_repository_and_test_work(
+    tmp_path: Path, failed_check: str
+) -> None:
+    """TEST_ONLY failures exercise the actual FULL driver before costly work."""
+    payload = _run_quality_function_harness(
+        tmp_path,
+        "$script:failedCheck = '"
+        + failed_check
+        + "'\n"
+        + r"""
+$script:observedSteps = [System.Collections.Generic.List[string]]::new()
+function Reset-LatestQualityGateArtifacts {}
+function Invoke-SourceGeneratedArtifactCheck {}
+function Invoke-QualityStep {
+    param([string]$Name, [string[]]$Arguments)
+    $script:observedSteps.Add($Name)
+    if ($Name -eq $script:failedCheck) { throw 'TEST_ONLY_STATIC_FAILURE' }
+}
+function Invoke-BanditWithCapturedOutput {
+    $script:observedSteps.Add('Bandit')
+    if ($script:failedCheck -eq 'Bandit') { throw 'TEST_ONLY_STATIC_FAILURE' }
+}
+function Assert-QualityWorkspaceStable {}
+function Invoke-RepositoryGovernanceValidator {
+    $script:observedSteps.Add('Repository validator')
+    throw 'TEST_ONLY_EXPENSIVE_WORK_REACHED'
+}
+function Invoke-PytestWithCapturedOutput {
+    $script:observedSteps.Add('Pytest')
+    throw 'TEST_ONLY_EXPENSIVE_WORK_REACHED'
+}
+$errorCode = try { Invoke-QualityGate; 'NO_ERROR' }
+catch { $_.Exception.Message }
+@{ steps = @($script:observedSteps); error_code = $errorCode } | ConvertTo-Json
+""",
+    )
+    assert payload["error_code"] == "TEST_ONLY_STATIC_FAILURE"
+    assert failed_check in payload["steps"]
+    assert "Repository validator" not in payload["steps"]
+    assert "Pytest" not in payload["steps"]
 
 
 def test_every_quality_profile_checks_source_generated_artifacts_first() -> None:

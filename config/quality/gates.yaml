@@ -66,6 +66,7 @@ affected_tests:
         - tests/test_policy_enforcement_guard_closure.py
     - name: local_dashboard_interface
       path_prefixes:
+        - config/interface/dashboard_toolchain.toml
         - frontend/
         - src/ai4binance/local_dashboard/
         - scripts/check_dashboard_types.py

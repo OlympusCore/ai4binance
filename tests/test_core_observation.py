@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pytest
 
 from ai4binance.core.serialization import to_primitive
 from ai4binance.events.traceability import CanonicalTraceJournal, canonical_trace_sha256
-from ai4binance.governance.architecture import load_logical_architecture_registry
+from ai4binance.governance.architecture import (
+    LogicalArchitectureRegistry,
+    load_logical_architecture_registry,
+)
 from ai4binance.governance.architecture.observation import (
     consume_core_output,
     core_observation_scope,
@@ -17,6 +21,55 @@ from ai4binance.governance.enforcement.receipt import load_core_consumption_batc
 
 ROOT = Path(__file__).resolve().parents[1]
 INTERFACE = "data-snapshot-acquisition"
+
+
+@pytest.fixture(scope="module")
+def observation_source_root(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Copy TEST_ONLY source inputs without Git metadata or installed toolchains."""
+    target = tmp_path_factory.mktemp("test-only-core-observation-sources")
+    for name in ("src", "schemas", "config", "docs", "tests"):
+        shutil.copytree(
+            ROOT / name,
+            target / name,
+            copy_function=shutil.copyfile,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"),
+        )
+    assert not (target / ".git").exists()
+    return target
+
+
+def _source_registry(root: Path) -> LogicalArchitectureRegistry:
+    return load_logical_architecture_registry(
+        root / "docs/registries/registry_logical_architecture.yaml",
+        repository_root=root,
+    )
+
+
+def test_isolated_source_fixture_still_rejects_actual_source_drift(
+    observation_source_root: Path, tmp_path: Path
+) -> None:
+    """The smaller TEST_ONLY input tree retains fresh-byte verification."""
+    journal = CanonicalTraceJournal(tmp_path / "test-only-source-drift.jsonl")
+    source = (
+        observation_source_root / "src/ai4binance/core/contracts/core_observation.py"
+    )
+    original = source.read_bytes()
+
+    def drifting_cycle() -> None:
+        with core_observation_scope(
+            observation_source_root, "TEST_ONLY_SOURCE_DRIFT", journal=journal
+        ):
+            consume_core_output(
+                INTERFACE, inputs=(), produce=lambda: 7, consume=lambda value: value
+            )
+            source.write_bytes(original + b"\n# TEST_ONLY changed source.\n")
+
+    try:
+        with pytest.raises(ValueError, match="SUBJECT_CHANGED_DURING_OPERATION"):
+            drifting_cycle()
+        assert journal.records() == ()
+    finally:
+        source.write_bytes(original)
 
 
 def test_existing_local_consumers_emit_bound_test_only_handoffs(tmp_path: Path) -> None:
@@ -104,11 +157,14 @@ def test_unscoped_call_keeps_the_existing_producer_consumer_order() -> None:
 
 def test_scope_records_actual_inputs_output_and_consumed_outcome_after_completion(
     tmp_path: Path,
+    observation_source_root: Path,
 ) -> None:
     journal = CanonicalTraceJournal(tmp_path / "test-only.jsonl")
     inputs = {"test_only_input": 4}
     produced = {"test_only_output": 8}
-    with core_observation_scope(ROOT, "TEST_ONLY_CYCLE", journal=journal):
+    with core_observation_scope(
+        observation_source_root, "TEST_ONLY_CYCLE", journal=journal
+    ):
         result = consume_core_output(
             INTERFACE,
             inputs=inputs,
@@ -118,7 +174,7 @@ def test_scope_records_actual_inputs_output_and_consumed_outcome_after_completio
         assert journal.records() == ()
     assert result == 9
     proofs = load_core_consumption_batch(
-        journal, ROOT, load_logical_architecture_registry()
+        journal, observation_source_root, _source_registry(observation_source_root)
     )
     assert len(proofs) == 1
     proof = proofs[0]
@@ -138,7 +194,10 @@ def test_scope_records_actual_inputs_output_and_consumed_outcome_after_completio
 @pytest.mark.parametrize("failure_stage", ["producer", "consumer"])
 @pytest.mark.parametrize("error_type", [ValueError, TimeoutError])
 def test_failed_handoff_preserves_the_error_and_does_not_invent_outputs(
-    tmp_path: Path, failure_stage: str, error_type: type[Exception]
+    tmp_path: Path,
+    failure_stage: str,
+    error_type: type[Exception],
+    observation_source_root: Path,
 ) -> None:
     journal = CanonicalTraceJournal(tmp_path / "test-only.jsonl")
     calls: list[str] = []
@@ -154,10 +213,12 @@ def test_failed_handoff_preserves_the_error_and_does_not_invent_outputs(
         raise error_type("TEST_ONLY_FAILURE")
 
     with pytest.raises(error_type, match="TEST_ONLY_FAILURE"):
-        with core_observation_scope(ROOT, "TEST_ONLY_FAILURE", journal=journal):
+        with core_observation_scope(
+            observation_source_root, "TEST_ONLY_FAILURE", journal=journal
+        ):
             consume_core_output(INTERFACE, inputs=(), produce=produce, consume=consume)
     proof = load_core_consumption_batch(
-        journal, ROOT, load_logical_architecture_registry()
+        journal, observation_source_root, _source_registry(observation_source_root)
     )[0]
     assert proof["operation_status"] == (
         "TIMEOUT" if error_type is TimeoutError else "ERROR"
@@ -177,6 +238,7 @@ def test_interrupted_handoff_persists_actual_failure_before_propagating(
     tmp_path: Path,
     failure_stage: str,
     error_type: type[BaseException],
+    observation_source_root: Path,
 ) -> None:
     journal = CanonicalTraceJournal(tmp_path / "test-only-interrupted.jsonl")
     failure = error_type("TEST_ONLY_INTERRUPTION")
@@ -192,7 +254,9 @@ def test_interrupted_handoff_persists_actual_failure_before_propagating(
         return value + 1
 
     def interrupted_cycle() -> None:
-        with core_observation_scope(ROOT, "TEST_ONLY_INTERRUPTION", journal=journal):
+        with core_observation_scope(
+            observation_source_root, "TEST_ONLY_INTERRUPTION", journal=journal
+        ):
             consume_core_output(INTERFACE, inputs=(), produce=produce, consume=consume)
             if failure_stage == "scope":
                 raise failure
@@ -201,7 +265,7 @@ def test_interrupted_handoff_persists_actual_failure_before_propagating(
         interrupted_cycle()
     assert observed.value is failure
     proofs = load_core_consumption_batch(
-        journal, ROOT, load_logical_architecture_registry()
+        journal, observation_source_root, _source_registry(observation_source_root)
     )
     assert len(proofs) == 1
     proof = proofs[0]
