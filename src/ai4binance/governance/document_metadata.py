@@ -13,6 +13,11 @@ def read_document_frontmatter(path: Path) -> dict[str, str] | None:
         text = path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         return None
+    return parse_document_frontmatter(text)
+
+
+def parse_document_frontmatter(text: str) -> dict[str, str] | None:
+    """Parse the same scalar format from verified current or historical bytes."""
     if text.startswith("---\r\n"):
         offset = 5
     elif text.startswith("---\n"):

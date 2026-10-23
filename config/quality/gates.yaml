@@ -365,11 +365,16 @@ standard_impact_tests:
     - name: protected_document_registration
       path_prefixes:
         - config/governance/governed_document_lock_manifest.json
+        - schemas/governance/document_lock_authority.schema.json
+        - src/ai4binance/governance/document_lock_authority.py
+        - src/ai4binance/governance/document_lock_review.py
+        - src/ai4binance/governance/document_metadata.py
       tests:
         - tests/test_document_lock_review.py
         - tests/test_document_lock_grant_review.py
         - tests/test_document_lock_authority.py
         - tests/test_document_lock_completed_baseline.py
+        - tests/test_document_lock_update_lifecycle.py
         - tests/test_repository_validator_governance.py
         - tests/test_governance_gate.py
         - tests/test_enterprise_contracts.py

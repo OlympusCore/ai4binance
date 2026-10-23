@@ -188,7 +188,9 @@ $preferredTimeZone = Get-PreferredTimeZone
 $longPathsEnabled = Get-LongPathsEnabled
 $antivirusProducts = Get-AntiVirusProducts
 $antivirusNames = @($antivirusProducts | ForEach-Object { $_.displayName })
-$nortonPresent = $antivirusNames | Where-Object { $_ -match "Norton" } | Select-Object -First 1
+$thirdPartyAntivirusPresent = @(
+    $antivirusNames | Where-Object { $_ -notmatch '^(Microsoft |Windows )?Defender(?: Antivirus)?$' }
+).Count -gt 0
 
 $results = [ordered]@{
     command                    = "optimize-windows-ai4binance"
@@ -224,7 +226,6 @@ $results = [ordered]@{
     antivirus_products         = $antivirusNames
     defender_exclusion_paths   = @()
     defender_exclusion         = "NO_CHANGE"
-    norton_allowlist           = if ($nortonPresent) { "MANUAL_PRODUCT_UI_REQUIRED" } else { "NOT_REQUIRED" }
     execution_allowed          = $false
     promotion_status           = "RESEARCH_ONLY"
     live_eligibility_status    = "LIVE_ORDER_BLOCKED"
@@ -327,7 +328,7 @@ elseif ($highChurnPaths.Count -eq 0) {
 elseif (-not (Get-Command Get-MpPreference -ErrorAction SilentlyContinue)) {
     $results.defender_exclusion = "DEFENDER_TOOLING_UNAVAILABLE"
 }
-elseif ($nortonPresent) {
+elseif ($thirdPartyAntivirusPresent) {
     $results.defender_exclusion = "THIRD_PARTY_AV_PRESENT_MANUAL_REVIEW_REQUIRED"
 }
 else {

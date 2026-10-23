@@ -4703,6 +4703,68 @@ def test_cleanup_generated_artifacts_process_temp_retention_is_bounded_and_safe(
     assert active.is_dir()
 
 
+@pytest.mark.parametrize("inspection_fails", [False, True])
+def test_process_retention_reuses_snapshot_and_preserves_reference_guards(
+    tmp_path: Path, inspection_fails: bool
+) -> None:
+    _copy_cleanup_script(tmp_path)
+    process_root = tmp_path / "runtime/tmp/process"
+    active = process_root / "active-run"
+    stale = process_root / "stale-run"
+    old = time.time() - 3 * 86400
+    for path in (active, stale):
+        path.mkdir(parents=True)
+        marker = path / "TEST_ONLY_old.txt"
+        marker.write_text("TEST_ONLY preserved source", encoding="utf-8")
+        os.utime(marker, (old, old))
+        os.utime(path, (old, old))
+    command_line = f"TEST_ONLY --input {active.as_posix().upper()}/input.json"
+    wrapper = tmp_path / "scripts/TEST_ONLY_process_reference.ps1"
+    wrapper.write_text(
+        "$global:TEST_ONLY_inspectionCount = 0\n"
+        "function Get-CimInstance {\n"
+        "    [CmdletBinding()] param([string]$ClassName)\n"
+        "    $global:TEST_ONLY_inspectionCount++\n"
+        + (
+            "    throw 'TEST_ONLY inspection unavailable'\n"
+            if inspection_fails
+            else "    [pscustomobject]@{ CommandLine = '"
+            + command_line.replace("'", "''")
+            + "' }\n"
+            "    [pscustomobject]@{ CommandLine = $null }\n"
+            "    [pscustomobject]@{ CommandLine = '   ' }\n"
+        )
+        + "}\n"
+        "& (Join-Path $PSScriptRoot 'cleanup_generated_artifacts.ps1') "
+        "-Mode ProcessTempRetention\n"
+        "if ($global:TEST_ONLY_inspectionCount -ne 1) {\n"
+        "    throw 'TEST_ONLY process snapshot must be collected once'\n"
+        "}\n",
+        encoding="utf-8",
+    )
+
+    report = _run_powershell_script(tmp_path, wrapper.name)
+
+    candidates = {row["path"].replace("\\", "/") for row in report["candidates"]}
+    protected = {
+        row["path"].replace("\\", "/"): row["reason"]
+        for row in report["blocked_candidates"]
+    }
+    assert candidates == (
+        set() if inspection_fails else {"runtime/tmp/process/stale-run"}
+    )
+    assert protected == {
+        f"runtime/tmp/process/{name}": "PROCESS_TEMP_ACTIVE_PROCESS_REFERENCE"
+        for name in (
+            ["active-run", "stale-run"] if inspection_fails else ["active-run"]
+        )
+    }
+    assert report["applied"] is False
+    assert report["execution_allowed"] is False
+    assert active.is_dir()
+    assert stale.is_dir()
+
+
 def test_cleanup_runtime_tmp_retention_preserves_fresh_and_git_worktrees(
     tmp_path: Path,
 ) -> None:

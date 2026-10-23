@@ -228,7 +228,7 @@ function New-CandidateRow {
 $now = [DateTimeOffset]::UtcNow
 $candidates = @()
 $blockedCandidates = [System.Collections.Generic.List[object]]::new()
-$activeProcessCommandLines = $null
+$activeProcessCommandLineText = $null
 $activeProcessInspectionFailed = $false
 $treeScanMetrics = [ordered]@{
     calls = 0
@@ -367,34 +367,30 @@ function Test-PathReferencedByActiveProcess {
     param([Parameter(Mandatory = $true)][string]$Path)
 
     $resolved = Assert-InRepoPath -Path $Path
-    if ($null -eq $script:activeProcessCommandLines) {
+    if ($null -eq $script:activeProcessCommandLineText) {
         try {
-            $script:activeProcessCommandLines = @(
+            $commandLines = @(
                 Get-CimInstance Win32_Process -ErrorAction Stop |
-                    ForEach-Object { [string]$_.CommandLine } |
+                    ForEach-Object { ([string]$_.CommandLine).Replace("/", "\") } |
                     Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+            )
+            # NUL cannot occur in a repository path or process command line, so
+            # joining cannot create a match across two distinct command lines.
+            $script:activeProcessCommandLineText = [string]::Join(
+                [string][char]0, [string[]]$commandLines
             )
         }
         catch {
             $script:activeProcessInspectionFailed = $true
-            $script:activeProcessCommandLines = @()
+            $script:activeProcessCommandLineText = ""
         }
     }
     if ($script:activeProcessInspectionFailed) {
         return $true
     }
-    foreach ($commandLine in $script:activeProcessCommandLines) {
-            $normalizedCommandLine = $commandLine.Replace("/", "\")
-            if (
-                $normalizedCommandLine.IndexOf(
-                    $resolved,
-                    [System.StringComparison]::OrdinalIgnoreCase
-                ) -ge 0
-            ) {
-                return $true
-            }
-    }
-    return $false
+    return $script:activeProcessCommandLineText.IndexOf(
+        $resolved, [System.StringComparison]::OrdinalIgnoreCase
+    ) -ge 0
 }
 
 function Test-GitMetadataPresent {

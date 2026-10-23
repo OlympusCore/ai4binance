@@ -33,7 +33,6 @@ $results = @{
     administrator = $isAdmin
     time_sync = "SKIPPED"
     defender_exclusion = "SKIPPED"
-    norton_allowlist = "MANUAL_PRODUCT_UI_REQUIRED"
     execution_allowed = $false
     live_eligibility_status = "LIVE_ORDER_BLOCKED"
 }

@@ -22,7 +22,11 @@ def _copy_script(root: Path, script_name: str) -> None:
     shutil.copy2(Path("scripts") / script_name, scripts / script_name)
 
 
-def _run_script(root: Path, *args: str) -> dict[str, Any]:
+def _run_script(
+    root: Path,
+    *args: str,
+    script_name: str = "optimize_windows_ai4binance.ps1",
+) -> dict[str, Any]:
     completed = subprocess.run(  # noqa: S603
         [
             _powershell(),
@@ -31,7 +35,7 @@ def _run_script(root: Path, *args: str) -> dict[str, Any]:
             "-ExecutionPolicy",
             "Bypass",
             "-File",
-            str(root / "scripts" / "optimize_windows_ai4binance.ps1"),
+            str(root / "scripts" / script_name),
             *args,
         ],
         cwd=root,
@@ -63,6 +67,8 @@ def test_windows_optimization_script_reports_repo_candidates(tmp_path: Path) -> 
     assert payload["power_plan"] == "SKIPPED"
     assert payload["long_paths"] == "SKIPPED"
     assert payload["defender_exclusion"] == "SKIPPED"
+    assert "antivirus_products" in payload
+    assert "norton_allowlist" not in payload
     assert payload["execution_allowed"] is False
     assert payload["promotion_status"] == "RESEARCH_ONLY"
     assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
@@ -109,6 +115,39 @@ def test_windows_optimization_script_applies_indexing_only_changes(
     assert payload["indexing_optimization"] in {"APPLIED", "ALREADY_OPTIMAL"}
     assert payload["execution_allowed"] is False
     assert payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+@pytest.mark.parametrize(
+    ("product_name", "requires_manual_review"),
+    [("Contoso Endpoint Protection", True), ("Windows Defender", False)],
+)
+def test_antivirus_review_is_vendor_independent(
+    tmp_path: Path, product_name: str, requires_manual_review: bool
+) -> None:
+    _copy_script(tmp_path, "optimize_windows_ai4binance.ps1")
+    (tmp_path / "runtime").mkdir()
+    wrapper = tmp_path / "scripts" / "antivirus_fixture.ps1"
+    wrapper.write_text(
+        "function Get-CimInstance { "
+        f"[pscustomobject]@{{displayName = '{product_name}'}} }}\n"
+        "function Get-MpPreference { [pscustomobject]@{ExclusionPath = @()} }\n"
+        '& (Join-Path $PSScriptRoot "optimize_windows_ai4binance.ps1") @args\n',
+        encoding="utf-8",
+    )
+    payload = _run_script(
+        tmp_path,
+        "-SkipPowerPlan",
+        "-SkipLongPaths",
+        "-SkipIndexingOptimization",
+        "-SkipTimeZone",
+        script_name=wrapper.name,
+    )
+    assert payload["antivirus_products"] == [product_name]
+    assert (
+        payload["defender_exclusion"] == "THIRD_PARTY_AV_PRESENT_MANUAL_REVIEW_REQUIRED"
+    ) is requires_manual_review
+    assert payload["applied"] is False
+    assert payload["execution_allowed"] is False
 
 
 def test_windows_optimization_script_is_fail_closed_and_repo_scoped() -> None:
