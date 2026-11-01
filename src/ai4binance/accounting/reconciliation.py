@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections import deque
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -254,11 +255,12 @@ def _read_events(path: Path, *, limit: int = 500) -> tuple[dict[str, object], ..
     if not path.is_file():
         return ()
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        with path.open(encoding="utf-8") as stream:
+            lines = deque(stream, maxlen=limit)
     except OSError:
         return ()
     events: list[dict[str, object]] = []
-    for line in lines[-limit:]:
+    for line in lines:
         if not line.strip():
             continue
         try:

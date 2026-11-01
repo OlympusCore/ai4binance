@@ -524,6 +524,7 @@ def test_live_readiness_keeps_promotion_and_validation_evidence_independent(
             "HOTUSDT"
         ),
         promotion_query=promotion_query,
+        observed_at=promotion_query.as_of,
     )
     missing_query_readiness = builder.build(
         preview=preview,
@@ -534,6 +535,7 @@ def test_live_readiness_keeps_promotion_and_validation_evidence_independent(
         validation_summary=ValidationSummaryReader(validation_root).summarize(
             "HOTUSDT"
         ),
+        observed_at=promotion_query.as_of,
     )
 
     assert readiness.strategy_promotion_approved is expected_promotion_approved

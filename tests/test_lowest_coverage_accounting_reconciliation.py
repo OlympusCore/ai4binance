@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -47,14 +48,7 @@ def test_reconciliation_helpers_cover_invalid_inputs(
     assert reconciliation._difference("same", "same") == ()
     assert reconciliation._difference("2.5", "1") == Decimal("1.5")
 
-    original = Path.read_text
-
-    def raises_os_error(self: Path, *, encoding: str) -> str:
-        if self == malformed:
-            raise OSError("unreadable")
-        return original(self, encoding=encoding)
-
-    monkeypatch.setattr(Path, "read_text", raises_os_error)
+    monkeypatch.setattr(Path, "open", Mock(side_effect=OSError("unreadable")))
     assert reconciliation._read_events(malformed) == ()
 
 

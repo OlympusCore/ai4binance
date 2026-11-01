@@ -216,7 +216,7 @@ function New-CandidateRow {
     )
     $resolved = Assert-InRepoPath -Path $Path
     [pscustomobject]@{
-        path = Get-RepoRelativePath -Path $resolved
+        path = $resolved.Substring($root.Length + 1)
         action = $Action
         reason = $Reason
         applied = $false
@@ -226,7 +226,7 @@ function New-CandidateRow {
 }
 
 $now = [DateTimeOffset]::UtcNow
-$candidates = @()
+$candidates = [System.Collections.Generic.List[object]]::new()
 $blockedCandidates = [System.Collections.Generic.List[object]]::new()
 $activeProcessCommandLineText = $null
 $activeProcessInspectionFailed = $false
@@ -277,7 +277,7 @@ if ($selectedModes.Contains("Caches")) {
     )) {
         $path = Join-Path $root $relative
         if (Test-Path -LiteralPath $path -PathType Container) {
-            $candidates += New-CandidateRow -Path $path -Action "REMOVE_DIRECTORY" -Reason "REPRODUCIBLE_TOOL_CACHE"
+            $candidates.Add((New-CandidateRow -Path $path -Action "REMOVE_DIRECTORY" -Reason "REPRODUCIBLE_TOOL_CACHE"))
         }
     }
 }
@@ -294,7 +294,7 @@ if ($selectedModes.Contains("RuntimeCacheRetention")) {
             } |
             ForEach-Object {
                 $action = if ($_.PSIsContainer) { "REMOVE_DIRECTORY" } else { "REMOVE_FILE" }
-                $candidates += New-CandidateRow -Path $_.FullName -Action $action -Reason "STALE_REGENERABLE_RUNTIME_CACHE"
+                $candidates.Add((New-CandidateRow -Path $_.FullName -Action $action -Reason "STALE_REGENERABLE_RUNTIME_CACHE"))
             }
     }
 }
@@ -308,7 +308,7 @@ if ($selectedModes.Contains("RuntimeTestRetention")) {
             } |
             ForEach-Object {
                 $action = if ($_.PSIsContainer) { "REMOVE_DIRECTORY" } else { "REMOVE_FILE" }
-                $candidates += New-CandidateRow -Path $_.FullName -Action $action -Reason "STALE_RUNTIME_TEST_EVIDENCE"
+                $candidates.Add((New-CandidateRow -Path $_.FullName -Action $action -Reason "STALE_RUNTIME_TEST_EVIDENCE"))
             }
     }
 }
@@ -453,7 +453,7 @@ function Add-BlockedCandidate {
         [Parameter(Mandatory = $true)][string]$Reason
     )
     $script:blockedCandidates.Add([pscustomobject]@{
-        path = Get-RepoRelativePath -Path (Assert-InRepoPath -Path $Path)
+        path = Get-RepoRelativePath -Path $Path
         reason = $Reason
     })
 }
@@ -523,10 +523,10 @@ if ($selectedModes.Contains("RuntimeTmpRetention")) {
                 return
             }
             $action = if ($_.PSIsContainer) { "REMOVE_DIRECTORY" } else { "REMOVE_FILE" }
-            $candidates += New-CandidateRow `
+            $candidates.Add((New-CandidateRow `
                 -Path $_.FullName `
                 -Action $action `
-                -Reason "STALE_UNOWNED_RUNTIME_TEMP"
+                -Reason "STALE_UNOWNED_RUNTIME_TEMP"))
         }
 }
 
@@ -600,10 +600,10 @@ if ($selectedModes.Contains("RuntimeRunRetention")) {
                     -Reason "RUNTIME_RUN_ACTIVE_OR_PROTECTED"
                 continue
             }
-            $candidates += New-CandidateRow `
+            $candidates.Add((New-CandidateRow `
                 -Path $row.item.FullName `
                 -Action "REMOVE_DIRECTORY" `
-                -Reason "STALE_RUNTIME_TEST_RUN"
+                -Reason "STALE_RUNTIME_TEST_RUN"))
         }
     }
 }
@@ -613,11 +613,11 @@ if ($selectedModes.Contains("SourceGenerated")) {
     if (Test-Path -LiteralPath $sourceRoot -PathType Container) {
         Get-ChildItem -LiteralPath $sourceRoot -Force -Directory -Recurse -Filter "__pycache__" |
             ForEach-Object {
-                $candidates += New-CandidateRow -Path $_.FullName -Action "REMOVE_DIRECTORY" -Reason "REPRODUCIBLE_SOURCE_GENERATED_ARTIFACT"
+                $candidates.Add((New-CandidateRow -Path $_.FullName -Action "REMOVE_DIRECTORY" -Reason "REPRODUCIBLE_SOURCE_GENERATED_ARTIFACT"))
             }
         Get-ChildItem -LiteralPath $sourceRoot -Force -Directory -Recurse -Filter "*.egg-info" |
             ForEach-Object {
-                $candidates += New-CandidateRow -Path $_.FullName -Action "REMOVE_DIRECTORY" -Reason "REPRODUCIBLE_SOURCE_GENERATED_ARTIFACT"
+                $candidates.Add((New-CandidateRow -Path $_.FullName -Action "REMOVE_DIRECTORY" -Reason "REPRODUCIBLE_SOURCE_GENERATED_ARTIFACT"))
             }
         Get-ChildItem -LiteralPath $sourceRoot -Force -File -Recurse |
             Where-Object {
@@ -625,7 +625,7 @@ if ($selectedModes.Contains("SourceGenerated")) {
                 $_.FullName -notmatch "\\__pycache__\\"
             } |
             ForEach-Object {
-                $candidates += New-CandidateRow -Path $_.FullName -Action "REMOVE_FILE" -Reason "REPRODUCIBLE_SOURCE_GENERATED_ARTIFACT"
+                $candidates.Add((New-CandidateRow -Path $_.FullName -Action "REMOVE_FILE" -Reason "REPRODUCIBLE_SOURCE_GENERATED_ARTIFACT"))
             }
     }
     $runtimeTmpRoot = Join-Path $root "runtime\tmp"
@@ -635,7 +635,7 @@ if ($selectedModes.Contains("SourceGenerated")) {
                 $_.Name -like "debug_*" -or $_.Name -like "debug-*"
             } |
             ForEach-Object {
-                $candidates += New-CandidateRow -Path $_.FullName -Action "REMOVE_DIRECTORY" -Reason "REPRODUCIBLE_RUNTIME_DEBUG_ARTIFACT"
+                $candidates.Add((New-CandidateRow -Path $_.FullName -Action "REMOVE_DIRECTORY" -Reason "REPRODUCIBLE_RUNTIME_DEBUG_ARTIFACT"))
             }
     }
 }
@@ -647,23 +647,23 @@ if ($selectedModes.Contains("TestTempRetention")) {
                 ($now - [DateTimeOffset]$_.LastWriteTimeUtc).TotalDays -ge $RetentionDays
             } |
             ForEach-Object {
-                $candidates += New-CandidateRow -Path $_.FullName -Action "REMOVE_DIRECTORY" -Reason "STALE_TEST_TEMP"
+                $candidates.Add((New-CandidateRow -Path $_.FullName -Action "REMOVE_DIRECTORY" -Reason "STALE_TEST_TEMP"))
             }
     }
     if (Test-Path -LiteralPath $legacyPytestTempRoot -PathType Container) {
-        $candidates += New-CandidateRow -Path $legacyPytestTempRoot -Action "REMOVE_DIRECTORY" -Reason "LEGACY_PYTEST_TEMP"
+        $candidates.Add((New-CandidateRow -Path $legacyPytestTempRoot -Action "REMOVE_DIRECTORY" -Reason "LEGACY_PYTEST_TEMP"))
     }
     Get-ChildItem -LiteralPath $root -Force -Directory -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -like ".pytest*" } |
         ForEach-Object {
-            $candidates += New-CandidateRow -Path $_.FullName -Action "REMOVE_DIRECTORY" -Reason "REPRODUCIBLE_PYTEST_TEMP"
+            $candidates.Add((New-CandidateRow -Path $_.FullName -Action "REMOVE_DIRECTORY" -Reason "REPRODUCIBLE_PYTEST_TEMP"))
         }
     $runtimeRoot = Join-Path $root "runtime"
     if (Test-Path -LiteralPath $runtimeRoot -PathType Container) {
         Get-ChildItem -LiteralPath $runtimeRoot -Force -Directory -ErrorAction SilentlyContinue |
             Where-Object { $_.Name -like "pytest*" } |
             ForEach-Object {
-                $candidates += New-CandidateRow -Path $_.FullName -Action "REMOVE_DIRECTORY" -Reason "REPRODUCIBLE_PYTEST_TEMP"
+                $candidates.Add((New-CandidateRow -Path $_.FullName -Action "REMOVE_DIRECTORY" -Reason "REPRODUCIBLE_PYTEST_TEMP"))
             }
     }
 }
@@ -709,16 +709,16 @@ if ($selectedModes.Contains("ProcessTempRetention")) {
                             -Reason "PROCESS_TEMP_ACTIVE_PROCESS_REFERENCE"
                         return
                     }
-                    $candidates += New-CandidateRow `
+                    $candidates.Add((New-CandidateRow `
                         -Path $_.FullName `
                         -Action "REMOVE_DIRECTORY" `
-                        -Reason "STALE_PROCESS_TEMP"
+                        -Reason "STALE_PROCESS_TEMP"))
                 }
                 else {
-                    $candidates += New-CandidateRow `
+                    $candidates.Add((New-CandidateRow `
                         -Path $_.FullName `
                         -Action "REMOVE_FILE" `
-                        -Reason "STALE_PROCESS_TEMP"
+                        -Reason "STALE_PROCESS_TEMP"))
                 }
             }
     }
@@ -733,7 +733,7 @@ if ($selectedModes.Contains("LogsArchive")) {
                 ($now - [DateTimeOffset]$_.LastWriteTimeUtc).TotalDays -ge $LogRetentionDays
             } |
             ForEach-Object {
-                $candidates += New-CandidateRow -Path $_.FullName -Action "ARCHIVE_AND_REMOVE_FILE" -Reason "STALE_LOG"
+                $candidates.Add((New-CandidateRow -Path $_.FullName -Action "ARCHIVE_AND_REMOVE_FILE" -Reason "STALE_LOG"))
             }
     }
 }
@@ -742,7 +742,7 @@ if ($selectedModes.Contains("Coverage")) {
     foreach ($relative in @(".coverage", "coverage.xml")) {
         $path = Join-Path $root $relative
         if (Test-Path -LiteralPath $path -PathType Leaf) {
-            $candidates += New-CandidateRow -Path $path -Action "REMOVE_FILE" -Reason "REPRODUCIBLE_COVERAGE_ARTIFACT"
+            $candidates.Add((New-CandidateRow -Path $path -Action "REMOVE_FILE" -Reason "REPRODUCIBLE_COVERAGE_ARTIFACT"))
         }
     }
     Get-ChildItem -LiteralPath $root -Force -File -Filter ".coverage.*" |
@@ -750,13 +750,16 @@ if ($selectedModes.Contains("Coverage")) {
             $_.Name -ne ".coverage"
         } |
         ForEach-Object {
-            $candidates += New-CandidateRow -Path $_.FullName -Action "REMOVE_FILE" -Reason "REPRODUCIBLE_COVERAGE_ARTIFACT"
+            $candidates.Add((New-CandidateRow -Path $_.FullName -Action "REMOVE_FILE" -Reason "REPRODUCIBLE_COVERAGE_ARTIFACT"))
         }
     $htmlCoverage = Join-Path $root "htmlcov"
     if (Test-Path -LiteralPath $htmlCoverage -PathType Container) {
-        $candidates += New-CandidateRow -Path $htmlCoverage -Action "REMOVE_DIRECTORY" -Reason "REPRODUCIBLE_COVERAGE_ARTIFACT"
+        $candidates.Add((New-CandidateRow -Path $htmlCoverage -Action "REMOVE_DIRECTORY" -Reason "REPRODUCIBLE_COVERAGE_ARTIFACT"))
     }
 }
+
+# Materialize once to preserve the existing apply and JSON array contracts.
+$candidates = @($candidates.ToArray())
 
 if ($Apply -and @($candidates).Count -gt 0) {
     New-Item -ItemType Directory -Path $runRoot -Force | Out-Null

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import html
 import json
+from collections import deque
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -171,11 +172,8 @@ class AccountingUiReportBuilder:
         if exists:
             age_seconds = max(0.0, observed_at.timestamp() - path.stat().st_mtime)
             stale = age_seconds > self.freshness_seconds
-            line_count = sum(
-                1
-                for line in path.read_text(encoding="utf-8").splitlines()
-                if line.strip()
-            )
+            with path.open(encoding="utf-8") as stream:
+                line_count = sum(1 for line in stream if line.strip())
         label, category = _FILE_LABELS[relative]
         return {
             "relative_path": relative,
@@ -199,10 +197,11 @@ def _read_events(path: Path, *, limit: int) -> tuple[dict[str, object], ...]:
         return ()
     rows: list[dict[str, object]] = []
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        with path.open(encoding="utf-8") as stream:
+            lines = deque(stream, maxlen=limit)
     except OSError:
         return ()
-    for line in lines[-limit:]:
+    for line in lines:
         if not line.strip():
             continue
         try:
