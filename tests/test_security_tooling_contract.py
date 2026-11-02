@@ -1679,6 +1679,7 @@ def test_security_tooling_workflow_runs_report_only_scan() -> None:
     assert "python -m venv .venv" not in workflow
     assert ".\\scripts\\install_security_tooling.ps1" in workflow
     assert ".\\scripts\\security_tooling_audit.ps1" in workflow
+    assert "continue-on-error: true" in workflow
     assert "-VulnerabilityService osv" in workflow
     assert "runtime/artifacts/assurance/security_tooling/" in workflow
 

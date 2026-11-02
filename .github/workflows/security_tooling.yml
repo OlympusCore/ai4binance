@@ -42,6 +42,7 @@ jobs:
         run: .\scripts\install_security_tooling.ps1
 
       - name: Run redacted report-only security audit
+        continue-on-error: true
         shell: pwsh
         run: >-
           .\scripts\security_tooling_audit.ps1
@@ -56,4 +57,3 @@ jobs:
           path: runtime/artifacts/assurance/security_tooling/
           if-no-files-found: error
           retention-days: 30
-
