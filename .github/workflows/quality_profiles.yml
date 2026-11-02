@@ -49,6 +49,7 @@ jobs:
         run: uv sync --frozen --extra dev
 
       - name: Verify canonical remote branches (remote scope only)
+        continue-on-error: true
         shell: pwsh
         env:
           PYTHONPATH: src

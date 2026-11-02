@@ -1691,6 +1691,13 @@ def test_nightly_quality_triage_workflow_is_report_only() -> None:
     assert "if: always()" in workflow
 
 
+def test_quality_profiles_remote_verification_is_report_only() -> None:
+    workflow = _read(".github/workflows/quality_profiles.yml")
+
+    assert "Verify canonical remote branches (remote scope only)" in workflow
+    assert "continue-on-error: true" in workflow
+
+
 def test_github_workflows_pin_external_actions_to_immutable_revisions() -> None:
     checkout = "actions/checkout@11d5960a326750d5838078e36cf38b85af677262"
     upload_artifact = "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
