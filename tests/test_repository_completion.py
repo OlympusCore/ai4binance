@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import sys
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
@@ -17,6 +19,35 @@ SHA = "a" * 40
 OTHER = "b" * 40
 ENDPOINT = "https://github.com/test-only/canonical.git"
 type Observations = dict[tuple[str, ...], str]
+
+
+def test_repository_completion_module_startup_does_not_require_numpy(
+    tmp_path: Path,
+) -> None:
+    blocked_numpy = tmp_path / "numpy.py"
+    blocked_numpy.write_text(
+        "raise RuntimeError('repository completion imported numpy unexpectedly')\n",
+        encoding="utf-8",
+    )
+    env = dict(os.environ)
+    repo_root = Path(__file__).resolve().parents[1]
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(blocked_numpy.parent), str(repo_root / "src"), env.get("PYTHONPATH", "")]
+    ).rstrip(os.pathsep)
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "ai4binance.ops.quality_gate.repository_completion",
+            "--help",
+        ],
+        check=False,
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert completed.returncode == 0, completed.stderr
 
 
 @pytest.mark.parametrize(

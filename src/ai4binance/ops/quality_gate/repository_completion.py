@@ -240,7 +240,7 @@ def _fail(blockers: list[str], reason: str) -> None:
 def _query(root: Path, *args: str, blockers: list[str], reason: str) -> str | None:
     try:
         return _git(root, *args)
-    except OSError, ValueError, subprocess.SubprocessError:
+    except (OSError, ValueError, subprocess.SubprocessError):
         _fail(blockers, reason)
         return None
 
@@ -371,7 +371,7 @@ def inspect_git_boundary(
         fail("CREATION_PROHIBITED")
     try:
         active_policy = _policy(root, remote_only=operation == "ci")
-    except OSError, ValueError, KeyError, TypeError:
+    except (OSError, ValueError, KeyError, TypeError):
         fail("AUTHORITY_UNAVAILABLE")
         return report
 
@@ -562,7 +562,7 @@ def validate_push_updates(
             remediation = _preserved_remote_deletions(
                 report, lines, repository_root, remediation_inventory
             )
-        except OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError:
+        except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
             report["blockers"].append("GIT_COMPLETION_REMOTE_REMEDIATION_INVALID")
         else:
             report["observed_invariant_violations"] = list(report["blockers"])

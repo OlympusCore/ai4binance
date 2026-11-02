@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -853,6 +856,39 @@ def test_quality_gate_module_entrypoint_returns_cli_exit_code(
         )
 
     assert raised.value.code == 7
+
+
+def test_quality_gate_profile_cli_does_not_require_numpy_on_startup(
+    tmp_path: Path,
+) -> None:
+    blocked_numpy = tmp_path / "numpy.py"
+    blocked_numpy.write_text(
+        "raise RuntimeError('quality gate startup imported numpy unexpectedly')\n",
+        encoding="utf-8",
+    )
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(blocked_numpy.parent), str(ROOT / "src"), env.get("PYTHONPATH", "")]
+    ).rstrip(os.pathsep)
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "ai4binance.ops.quality_gate",
+            "profile",
+            "--config",
+            str(POLICY_PATH),
+            "--profile",
+            "standard",
+        ],
+        check=False,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout)["name"] == "standard"
 
 
 def test_junit_binding_preserves_class_and_parameterized_node_ids(

@@ -3,75 +3,74 @@
 from importlib import import_module
 from typing import TYPE_CHECKING
 
-from ai4binance.ops.coverage_audit import (
-    CoverageAuditConfig,
-    CoverageAuditFile,
-    CoverageAuditReport,
-    CoverageAuditRow,
-    CoverageAuditRule,
-    CoverageAuditSort,
-    build_coverage_audit_report,
-    load_coverage_audit_config,
-    load_coverage_audit_files,
-)
-from ai4binance.ops.coverage_policy import (
-    CoverageFamilyConfig,
-    CoverageFamilyResult,
-    CoveragePolicyConfig,
-    CoveragePolicySummary,
-    evaluate_coverage_policy,
-    load_coverage_policy_config,
-)
-from ai4binance.ops.decision_telemetry import (
-    AcceptanceGateStatus,
-    AttributionMethod,
-    BlockerEffectivenessRecord,
-    BlockerOutcome,
-    CanonicalTelemetrySnapshot,
-    CounterfactualOutcome,
-    CounterfactualType,
-    DecisionEffectivenessClass,
-    DecisionEffectivenessRecord,
-    DecisionInputRecord,
-    DecisionOutcomeRecord,
-    DecisionProcessRecord,
-    DecisionTelemetryFabricRecord,
-    DecisionTelemetryLedger,
-    DecisionTelemetryStatus,
-    DgeEffectivenessMetrics,
-    DgeEffectivenessStatus,
-    DgeRuleEffectivenessMetrics,
-    EvidenceQuality,
-    ImprovementCandidate,
-    LineageStatus,
-    MarketType,
-    MetricEvidence,
-    OpportunityCostType,
-    OutcomeAttribution,
-    OutcomeLifecycle,
-    PerformanceAcceptanceResult,
-    PerformanceEvidenceSnapshot,
-    TelemetryDomain,
-    build_performance_evidence_snapshot,
-    evaluate_lineage_completeness,
-)
-from ai4binance.ops.performance import (
-    BenchmarkArtifactWriter,
-    BenchmarkMeasurement,
-    PerformanceComparison,
-    PerformanceRegressionPolicy,
-    compare_performance,
-    measure_operation,
-)
-from ai4binance.ops.runtime import (
-    PrivateRuntimeStatusStore,
-    RuntimeManagementLedger,
-    RuntimeStatusStore,
-    RuntimeSupervisor,
-    SingleInstanceLease,
-)
-
 if TYPE_CHECKING:
+    from ai4binance.ops.coverage_audit import (
+        CoverageAuditConfig,
+        CoverageAuditFile,
+        CoverageAuditReport,
+        CoverageAuditRow,
+        CoverageAuditRule,
+        CoverageAuditSort,
+        build_coverage_audit_report,
+        load_coverage_audit_config,
+        load_coverage_audit_files,
+    )
+    from ai4binance.ops.coverage_policy import (
+        CoverageFamilyConfig,
+        CoverageFamilyResult,
+        CoveragePolicyConfig,
+        CoveragePolicySummary,
+        evaluate_coverage_policy,
+        load_coverage_policy_config,
+    )
+    from ai4binance.ops.decision_telemetry import (
+        AcceptanceGateStatus,
+        AttributionMethod,
+        BlockerEffectivenessRecord,
+        BlockerOutcome,
+        CanonicalTelemetrySnapshot,
+        CounterfactualOutcome,
+        CounterfactualType,
+        DecisionEffectivenessClass,
+        DecisionEffectivenessRecord,
+        DecisionInputRecord,
+        DecisionOutcomeRecord,
+        DecisionProcessRecord,
+        DecisionTelemetryFabricRecord,
+        DecisionTelemetryLedger,
+        DecisionTelemetryStatus,
+        DgeEffectivenessMetrics,
+        DgeEffectivenessStatus,
+        DgeRuleEffectivenessMetrics,
+        EvidenceQuality,
+        ImprovementCandidate,
+        LineageStatus,
+        MarketType,
+        MetricEvidence,
+        OpportunityCostType,
+        OutcomeAttribution,
+        OutcomeLifecycle,
+        PerformanceAcceptanceResult,
+        PerformanceEvidenceSnapshot,
+        TelemetryDomain,
+        build_performance_evidence_snapshot,
+        evaluate_lineage_completeness,
+    )
+    from ai4binance.ops.performance import (
+        BenchmarkArtifactWriter,
+        BenchmarkMeasurement,
+        PerformanceComparison,
+        PerformanceRegressionPolicy,
+        compare_performance,
+        measure_operation,
+    )
+    from ai4binance.ops.runtime import (
+        PrivateRuntimeStatusStore,
+        RuntimeManagementLedger,
+        RuntimeStatusStore,
+        RuntimeSupervisor,
+        SingleInstanceLease,
+    )
     from ai4binance.ops.scripts_inventory import (
         DuplicateBlockEvidence,
         ScriptInventoryEntry,
@@ -79,25 +78,6 @@ if TYPE_CHECKING:
         build_scripts_inventory_report,
         persist_scripts_inventory_report,
     )
-
-_SCRIPTS_INVENTORY_EXPORTS = frozenset(
-    {
-        "DuplicateBlockEvidence",
-        "ScriptInventoryEntry",
-        "ScriptsInventoryReport",
-        "build_scripts_inventory_report",
-        "persist_scripts_inventory_report",
-    }
-)
-
-
-def __getattr__(name: str) -> object:
-    if name in _SCRIPTS_INVENTORY_EXPORTS:
-        module = import_module("ai4binance.ops.scripts_inventory")
-        value = getattr(module, name)
-        globals()[name] = value
-        return value
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 __all__ = (
@@ -164,3 +144,82 @@ __all__ = (
     "measure_operation",
     "persist_scripts_inventory_report",
 )
+
+_EXPORTS: dict[str, str] = {
+    "CoverageAuditConfig": "ai4binance.ops.coverage_audit",
+    "CoverageAuditFile": "ai4binance.ops.coverage_audit",
+    "CoverageAuditReport": "ai4binance.ops.coverage_audit",
+    "CoverageAuditRow": "ai4binance.ops.coverage_audit",
+    "CoverageAuditRule": "ai4binance.ops.coverage_audit",
+    "CoverageAuditSort": "ai4binance.ops.coverage_audit",
+    "build_coverage_audit_report": "ai4binance.ops.coverage_audit",
+    "load_coverage_audit_config": "ai4binance.ops.coverage_audit",
+    "load_coverage_audit_files": "ai4binance.ops.coverage_audit",
+    "CoverageFamilyConfig": "ai4binance.ops.coverage_policy",
+    "CoverageFamilyResult": "ai4binance.ops.coverage_policy",
+    "CoveragePolicyConfig": "ai4binance.ops.coverage_policy",
+    "CoveragePolicySummary": "ai4binance.ops.coverage_policy",
+    "evaluate_coverage_policy": "ai4binance.ops.coverage_policy",
+    "load_coverage_policy_config": "ai4binance.ops.coverage_policy",
+    "AcceptanceGateStatus": "ai4binance.ops.decision_telemetry",
+    "AttributionMethod": "ai4binance.ops.decision_telemetry",
+    "BlockerEffectivenessRecord": "ai4binance.ops.decision_telemetry",
+    "BlockerOutcome": "ai4binance.ops.decision_telemetry",
+    "CanonicalTelemetrySnapshot": "ai4binance.ops.decision_telemetry",
+    "CounterfactualOutcome": "ai4binance.ops.decision_telemetry",
+    "CounterfactualType": "ai4binance.ops.decision_telemetry",
+    "DecisionEffectivenessClass": "ai4binance.ops.decision_telemetry",
+    "DecisionEffectivenessRecord": "ai4binance.ops.decision_telemetry",
+    "DecisionInputRecord": "ai4binance.ops.decision_telemetry",
+    "DecisionOutcomeRecord": "ai4binance.ops.decision_telemetry",
+    "DecisionProcessRecord": "ai4binance.ops.decision_telemetry",
+    "DecisionTelemetryFabricRecord": "ai4binance.ops.decision_telemetry",
+    "DecisionTelemetryLedger": "ai4binance.ops.decision_telemetry",
+    "DecisionTelemetryStatus": "ai4binance.ops.decision_telemetry",
+    "DgeEffectivenessMetrics": "ai4binance.ops.decision_telemetry",
+    "DgeEffectivenessStatus": "ai4binance.ops.decision_telemetry",
+    "DgeRuleEffectivenessMetrics": "ai4binance.ops.decision_telemetry",
+    "EvidenceQuality": "ai4binance.ops.decision_telemetry",
+    "ImprovementCandidate": "ai4binance.ops.decision_telemetry",
+    "LineageStatus": "ai4binance.ops.decision_telemetry",
+    "MarketType": "ai4binance.ops.decision_telemetry",
+    "MetricEvidence": "ai4binance.ops.decision_telemetry",
+    "OpportunityCostType": "ai4binance.ops.decision_telemetry",
+    "OutcomeAttribution": "ai4binance.ops.decision_telemetry",
+    "OutcomeLifecycle": "ai4binance.ops.decision_telemetry",
+    "PerformanceAcceptanceResult": "ai4binance.ops.decision_telemetry",
+    "PerformanceEvidenceSnapshot": "ai4binance.ops.decision_telemetry",
+    "TelemetryDomain": "ai4binance.ops.decision_telemetry",
+    "build_performance_evidence_snapshot": "ai4binance.ops.decision_telemetry",
+    "evaluate_lineage_completeness": "ai4binance.ops.decision_telemetry",
+    "BenchmarkArtifactWriter": "ai4binance.ops.performance",
+    "BenchmarkMeasurement": "ai4binance.ops.performance",
+    "PerformanceComparison": "ai4binance.ops.performance",
+    "PerformanceRegressionPolicy": "ai4binance.ops.performance",
+    "compare_performance": "ai4binance.ops.performance",
+    "measure_operation": "ai4binance.ops.performance",
+    "PrivateRuntimeStatusStore": "ai4binance.ops.runtime",
+    "RuntimeManagementLedger": "ai4binance.ops.runtime",
+    "RuntimeStatusStore": "ai4binance.ops.runtime",
+    "RuntimeSupervisor": "ai4binance.ops.runtime",
+    "SingleInstanceLease": "ai4binance.ops.runtime",
+    "DuplicateBlockEvidence": "ai4binance.ops.scripts_inventory",
+    "ScriptInventoryEntry": "ai4binance.ops.scripts_inventory",
+    "ScriptsInventoryReport": "ai4binance.ops.scripts_inventory",
+    "build_scripts_inventory_report": "ai4binance.ops.scripts_inventory",
+    "persist_scripts_inventory_report": "ai4binance.ops.scripts_inventory",
+}
+
+
+def __getattr__(name: str) -> object:
+    module_path = _EXPORTS.get(name)
+    if module_path is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module = import_module(module_path)
+    value = getattr(module, name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(__all__))
