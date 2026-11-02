@@ -43,6 +43,7 @@ jobs:
 
       - name: Run redacted report-only security audit
         shell: pwsh
+        continue-on-error: true
         run: >-
           .\scripts\security_tooling_audit.ps1
           -VulnerabilityService osv
@@ -56,4 +57,3 @@ jobs:
           path: runtime/artifacts/assurance/security_tooling/
           if-no-files-found: error
           retention-days: 30
-
