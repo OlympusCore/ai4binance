@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import subprocess
 import tomllib
 from collections import Counter
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -36,7 +38,45 @@ def legacy_root_hygiene(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None
     )
 
 
-@pytest.mark.usefixtures("legacy_root_hygiene")
+@pytest.fixture
+def local_performance_probes(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Keep structure tests independent of host load and runtime artifact volume."""
+    commands = (
+        (".venv/Scripts/python.exe", "-c", "print('ok')"),
+        (
+            ".venv/Scripts/python.exe",
+            "-m",
+            "ai4binance.cli",
+            "commands",
+            "--format",
+            "text",
+        ),
+        (
+            "powershell",
+            "-NoLogo",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            "scripts/cleanup_generated_artifacts.ps1",
+            "-Mode",
+            "All",
+        ),
+    )
+    observed: list[tuple[str, ...]] = []
+
+    def measure(root: Path, command: tuple[str, ...]) -> float:
+        assert root == Path.cwd().resolve()
+        assert command == commands[len(observed) % len(commands)]
+        observed.append(command)
+        return 1.0  # Test-only timing; never persisted as a runtime observation.
+
+    monkeypatch.setattr(cleanup_audit, "_timed", measure)
+    yield
+    assert observed == list(commands)
+
+
+@pytest.mark.usefixtures("legacy_root_hygiene", "local_performance_probes")
 def test_repository_cleanup_audit_is_report_only_and_fail_closed() -> None:
     report = run_repository_cleanup_audit(Path.cwd())
 
@@ -74,6 +114,7 @@ def test_repository_cleanup_audit_is_report_only_and_fail_closed() -> None:
     )
 
 
+@pytest.mark.usefixtures("local_performance_probes")
 def test_repository_cleanup_audit_keeps_dynamic_usage_out_of_delete_claims() -> None:
     report = run_repository_cleanup_audit(Path.cwd())
 
@@ -153,6 +194,7 @@ def test_repository_cleanup_audit_keeps_dynamic_usage_out_of_delete_claims() -> 
     )
 
 
+@pytest.mark.usefixtures("local_performance_probes")
 def test_cleanup_audit_registry_shows_governed_evidence_chain() -> None:
     report = run_repository_cleanup_audit(Path.cwd())
 
@@ -176,6 +218,7 @@ def test_cleanup_audit_registry_shows_governed_evidence_chain() -> None:
     )
 
 
+@pytest.mark.usefixtures("local_performance_probes")
 def test_repository_cleanup_audit_cli_payload_and_alias() -> None:
     payload = repository_cleanup_audit_payload()
 
@@ -194,7 +237,7 @@ def test_repository_cleanup_audit_cli_payload_and_alias() -> None:
     assert "broad_exception_reviews" in report
 
 
-@pytest.mark.usefixtures("legacy_root_hygiene")
+@pytest.mark.usefixtures("legacy_root_hygiene", "local_performance_probes")
 def test_repository_cleanup_audit_text_summarizes_structure_classifications() -> None:
     payload = repository_cleanup_audit_payload()
     text = render_payload(
@@ -245,3 +288,56 @@ def test_root_hygiene_accepts_canonical_storage_without_legacy_directories(
         "runtime/data",
     }
     assert not (tmp_path / "data").exists()
+
+
+@pytest.mark.parametrize("failure", ["timeout", "nonzero_exit", "missing_command"])
+def test_performance_probe_propagates_failures_without_a_measurement(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, failure: str
+) -> None:
+    command = ("test-only-local-probe",)
+    errors = {
+        "timeout": subprocess.TimeoutExpired(command, 60),
+        "nonzero_exit": subprocess.CalledProcessError(1, command),
+        "missing_command": FileNotFoundError("test-only missing probe"),
+    }
+    error = errors[failure]
+
+    def fail_probe(*args: object, **kwargs: object) -> None:
+        assert args == (command,)
+        assert kwargs == {
+            "cwd": tmp_path,
+            "check": True,
+            "capture_output": True,
+            "text": True,
+            "timeout": 60,
+        }
+        raise error
+
+    monkeypatch.setattr(cleanup_audit.subprocess, "run", fail_probe)
+    with pytest.raises(type(error)) as caught:
+        cleanup_audit._timed(tmp_path, command)
+    assert caught.value is error
+
+
+def test_performance_probe_measures_only_successful_completion(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    command = ("test-only-local-probe",)
+    ticks = iter((1.0, 1.125))
+
+    def complete_probe(
+        *args: object, **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        assert args == (command,)
+        assert kwargs == {
+            "cwd": tmp_path,
+            "check": True,
+            "capture_output": True,
+            "text": True,
+            "timeout": 60,
+        }
+        return subprocess.CompletedProcess(command, 0, "test-only output", "")
+
+    monkeypatch.setattr(cleanup_audit.subprocess, "run", complete_probe)
+    monkeypatch.setattr(cleanup_audit.time, "perf_counter", lambda: next(ticks))
+    assert cleanup_audit._timed(tmp_path, command) == 125.0

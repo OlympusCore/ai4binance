@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from ai4binance.application.runtime import DualMarketAdvisoryReport
+from ai4binance.enterprise.resources import ResourcePolicy
 from ai4binance.ops import (
     PrivateRuntimeStatusStore,
     RuntimeManagementLedger,
@@ -205,7 +206,8 @@ def test_supervisor_runs_bounded_cycles_without_sleeping_after_last(
 
 
 def test_supervisor_defers_hard_ram_then_recovers(tmp_path: Path) -> None:
-    readings = iter((36.0, 30.0))
+    policy = ResourcePolicy()
+    readings = iter((float(policy.ram_hard_limit_gb), 1.0))
     calls: list[str] = []
     sleeps: list[float] = []
     report = cycle().run(NOW)
@@ -220,6 +222,7 @@ def test_supervisor_defers_hard_ram_then_recovers(tmp_path: Path) -> None:
         store=store,
         memory_probe=lambda: next(readings),
         sleeper=sleeps.append,
+        resource_policy=policy,
     )
     assert supervisor.run(max_cycles=2) == 1
     assert calls == ["executed"]
