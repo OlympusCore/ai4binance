@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import time
 import tomllib
 from collections import Counter
 from collections.abc import Iterator
@@ -313,7 +314,7 @@ def test_performance_probe_propagates_failures_without_a_measurement(
         }
         raise error
 
-    monkeypatch.setattr(cleanup_audit.subprocess, "run", fail_probe)
+    monkeypatch.setattr(subprocess, "run", fail_probe)
     with pytest.raises(type(error)) as caught:
         cleanup_audit._timed(tmp_path, command)
     assert caught.value is error
@@ -338,6 +339,6 @@ def test_performance_probe_measures_only_successful_completion(
         }
         return subprocess.CompletedProcess(command, 0, "test-only output", "")
 
-    monkeypatch.setattr(cleanup_audit.subprocess, "run", complete_probe)
-    monkeypatch.setattr(cleanup_audit.time, "perf_counter", lambda: next(ticks))
+    monkeypatch.setattr(subprocess, "run", complete_probe)
+    monkeypatch.setattr(time, "perf_counter", lambda: next(ticks))
     assert cleanup_audit._timed(tmp_path, command) == 125.0
