@@ -17,17 +17,31 @@ from ai4binance.enterprise.resources import ResourcePolicy
     ("used", "discretionary", "blocker"),
     [
         (29.9, True, None),
-        (30.0, True, "RESOURCE_RAM_SOFT_LIMIT"),
+        (30.0, True, None),
         (30.0, False, None),
-        (36.0, False, "RESOURCE_RAM_HARD_LIMIT"),
+        (36.0, True, None),
+        (37.999, True, None),
+        (37.999, False, None),
+        (38.0, True, "RESOURCE_RAM_HARD_LIMIT"),
+        (38.0, False, "RESOURCE_RAM_HARD_LIMIT"),
+        (38.001, True, "RESOURCE_RAM_HARD_LIMIT"),
         (None, True, "RESOURCE_RAM_NOT_VERIFIED"),
         (float("nan"), False, "RESOURCE_RAM_NOT_VERIFIED"),
+        (float("inf"), True, "RESOURCE_RAM_NOT_VERIFIED"),
+        (-1.0, True, "RESOURCE_RAM_NOT_VERIFIED"),
     ],
 )
 def test_resource_ram_admission(
     used: float | None, discretionary: bool, blocker: str | None
 ) -> None:
     assert ResourcePolicy().memory_blocker(used, discretionary=discretionary) == blocker
+
+
+def test_resource_policy_preserves_stricter_discretionary_budget() -> None:
+    policy = ResourcePolicy(ram_soft_limit_gb=30)
+    assert policy.memory_blocker(30.0, discretionary=True) == "RESOURCE_RAM_SOFT_LIMIT"
+    assert policy.memory_blocker(30.0, discretionary=False) is None
+    assert policy.memory_blocker(38.0, discretionary=False) == "RESOURCE_RAM_HARD_LIMIT"
 
 
 def test_orchestrator_pool_obeys_resource_policy(
@@ -98,6 +112,8 @@ def test_resource_policy_matches_local_bounded_hardware_defaults() -> None:
     assert policy.cpu_heavy_processes == 2
     assert policy.llm_concurrency == 1
     assert policy.backtest_parallel_jobs == 2
+    assert policy.ram_soft_limit_gb == 38
+    assert policy.ram_hard_limit_gb == 38
     assert policy.exclusive_llm_lane is True
     assert policy.simultaneous_llm_and_training is False
     assert policy.live_eligibility_status == "LIVE_ORDER_BLOCKED"
@@ -128,4 +144,8 @@ def test_resource_policy_rejects_gpu_contention_and_execution_authority() -> Non
     with pytest.raises(ValueError, match="authorize"):
         replace(ResourcePolicy(), execution_allowed=True)
     with pytest.raises(ValueError, match="RAM policy"):
-        replace(ResourcePolicy(), ram_soft_limit_gb=36)
+        replace(ResourcePolicy(), ram_soft_limit_gb=39)
+    with pytest.raises(ValueError, match="RAM policy"):
+        replace(ResourcePolicy(), ram_hard_limit_gb=39)
+    with pytest.raises(ValueError, match="RAM policy"):
+        replace(ResourcePolicy(), ram_soft_limit_gb=38, ram_hard_limit_gb=37)

@@ -40,8 +40,8 @@ class ResourcePolicy:
     llm_concurrency: int = 1
     gpu_training_concurrency: int = 1
     backtest_parallel_jobs: int = 2
-    ram_soft_limit_gb: int = 30
-    ram_hard_limit_gb: int = 36
+    ram_soft_limit_gb: int = 38
+    ram_hard_limit_gb: int = 38
     exclusive_llm_lane: bool = True
     simultaneous_llm_and_training: bool = False
     execution_allowed: bool = False
@@ -54,7 +54,7 @@ class ResourcePolicy:
         _bounded("llm_concurrency", self.llm_concurrency, 1, 1)
         _bounded("gpu_training_concurrency", self.gpu_training_concurrency, 0, 1)
         _bounded("backtest_parallel_jobs", self.backtest_parallel_jobs, 1, 2)
-        if not 1 <= self.ram_soft_limit_gb < self.ram_hard_limit_gb <= 36:
+        if not 1 <= self.ram_soft_limit_gb <= self.ram_hard_limit_gb <= 38:
             raise ValueError("RAM policy must stay within the approved local budget")
         if not self.exclusive_llm_lane:
             raise ValueError("local LLM lane must remain exclusive")

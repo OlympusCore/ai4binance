@@ -8,10 +8,12 @@ from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
+from unittest.mock import patch
 
 import pytest
 
 from ai4binance.application import VirtualPortfolioState
+from ai4binance.ops.user_reports import write_user_report_files
 from ai4binance.virtual_wallet_journal import (
     VirtualWalletJournal,
     VirtualWalletJournalError,
@@ -52,6 +54,57 @@ def test_virtual_wallet_journal_initializes_independent_wallets_and_report(
     assert "Virtual_Spot_Wallet" in report
     assert "Virtual_Futures_Wallet" in report
     assert "2026-09-12T13:00:00+00:00" in report
+
+
+@pytest.mark.parametrize("mode", ["initial", "no_action", "movement", "replay"])
+def test_virtual_wallet_cycle_publishes_one_final_report(
+    tmp_path: Path, mode: str
+) -> None:
+    """Avoid duplicate durable report writes while preserving complete evidence."""
+    from ai4binance import virtual_wallet_journal as module
+
+    journal = _journal(tmp_path)
+    decision = None
+    if mode != "initial":
+        portfolios = journal.initialize(NOW)
+        if mode in {"movement", "replay"}:
+            decision = SimpleNamespace(
+                status=SimpleNamespace(value="CLOSED"),
+                trade_intent=None,
+                portfolio_before=portfolios.spot,
+                portfolio_after=replace(
+                    portfolios.spot,
+                    cash_usdt=Decimal("999"),
+                    equity_usdt=Decimal("999"),
+                    realized_pnl_usdt=Decimal("-1"),
+                ),
+            )
+        if mode == "replay":
+            journal.record_cycle(
+                snapshot_id="test-only-cycle", observed_at=NOW, decision=decision
+            )
+
+    with patch.object(
+        module, "write_user_report_files", wraps=write_user_report_files
+    ) as writer:
+        report = journal.record_cycle(
+            snapshot_id="test-only-cycle", observed_at=NOW, decision=decision
+        )
+
+    assert writer.call_count == 1
+    expected_movements = 3 if mode in {"movement", "replay"} else 2
+    assert report["movement_count"] == expected_movements
+    assert len(journal.ledger_path.read_text().splitlines()) == expected_movements
+    state = json.loads(journal.state_path.read_text())
+    latest = json.loads(
+        (
+            tmp_path / "runtime/artifacts/user_reports/virtual_wallets/latest.json"
+        ).read_text()
+    )
+    assert state["wallets"] == latest["wallets"] == report["wallets"]
+    assert latest["movement_count"] == expected_movements
+    assert latest["execution_allowed"] is False
+    assert latest["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
 
 
 def test_daily_loss_tuning_trigger_requires_three_losses_in_same_utc_day() -> None:

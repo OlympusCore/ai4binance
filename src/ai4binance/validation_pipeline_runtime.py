@@ -692,6 +692,13 @@ class HistoricalValidationRuntime:
         )
 
     @staticmethod
+    def playbook_preflight_blockers(playbook: str) -> tuple[str, ...]:
+        """Expose historical Spot capability limits to validation scheduling."""
+        if playbook == "resistance_rejection":
+            return ("HISTORICAL_SPOT_INVENTORY_SELL_NOT_SUPPORTED",)
+        return ()
+
+    @staticmethod
     def _preflight(
         playbook: str,
         candles: tuple[Any, ...],
@@ -699,8 +706,9 @@ class HistoricalValidationRuntime:
         blockers: list[str] = []
         if len(candles) < MINIMUM_VALIDATION_CANDLES:
             blockers.append("INSUFFICIENT_VALIDATION_CANDLES")
-        if playbook == "resistance_rejection":
-            blockers.append("HISTORICAL_SPOT_INVENTORY_SELL_NOT_SUPPORTED")
+        blockers.extend(
+            HistoricalValidationRuntime.playbook_preflight_blockers(playbook)
+        )
         return tuple(blockers)
 
     @staticmethod

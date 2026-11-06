@@ -1453,9 +1453,11 @@ def test_runtime_validation_covers_each_eligible_coin_without_btc_substitution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from ai4binance.agents.validation_gate import ValidationGate
+    from ai4binance.application.validation_pipeline import VALIDATED_PLAYBOOKS
     from ai4binance.cli import research as research_cli
     from ai4binance.enterprise import resources
     from ai4binance.validation import oos_maturity
+    from ai4binance.validation_pipeline_runtime import HistoricalValidationRuntime
 
     settings = Settings()
     calls: list[str | None] = []
@@ -1471,7 +1473,7 @@ def test_runtime_validation_covers_each_eligible_coin_without_btc_substitution(
             specification_path=Path("config/research/virtual_market_acceptance.yaml"),
             run_cards=tuple(
                 {
-                    "hypothesis_id": f"hyp:trend_continuation:{timeframe}",
+                    "hypothesis_id": f"hyp:{playbook}:{timeframe}",
                     "symbol": symbol,
                     "timeframe": timeframe,
                     "strategy_sha256": "c" * 64,
@@ -1483,6 +1485,8 @@ def test_runtime_validation_covers_each_eligible_coin_without_btc_substitution(
                     "execution_allowed": False,
                 }
                 for timeframe in current.timeframes
+                for playbook in VALIDATED_PLAYBOOKS
+                if not HistoricalValidationRuntime.playbook_preflight_blockers(playbook)
             ),
             observed_at=datetime.now(UTC),
         )
@@ -1512,7 +1516,7 @@ def test_runtime_validation_covers_each_eligible_coin_without_btc_substitution(
         as_of=datetime.now(UTC),
     )
     assert {s.promotion.symbol for s in gate.expected_subjects} == set(scope)
-    assert len(gate.expected_subjects) == 6
+    assert len(gate.expected_subjects) == 2 * 3 * (len(VALIDATED_PLAYBOOKS) - 1)
     assert all(
         not oos_maturity.OOSMaturityGate(settings.validation_artifact_directory)
         .evaluate(bundle)
@@ -2653,6 +2657,7 @@ def test_virtual_market_priority_revisits_preserve_discovery_and_restart_cursor(
                 max_cycles=count,
                 public_acquisition=cast(SnapshotAcquirer, object()),
                 sleeper=sleeps.append,
+                clock=lambda: datetime(2026, 11, 6, tzinfo=UTC),
             )
             == 0
         )
@@ -2669,7 +2674,8 @@ def test_virtual_market_priority_revisits_preserve_discovery_and_restart_cursor(
         "ETHUSDT",
     ]
     assert sleeps == [settings.virtual_market_cycle_interval_seconds] * 8
-    assert len(refresh_calls) == (4 if deferred else 2)
+    # Each process refreshes once; a deferred result waits for the retry cadence.
+    assert len(refresh_calls) == 2
     state = json.loads((tmp_path / "virtual-market.json").read_text(encoding="utf-8"))
     assert state["scan_sequence"] == 10
     assert state["universe_symbol_count"] == 4

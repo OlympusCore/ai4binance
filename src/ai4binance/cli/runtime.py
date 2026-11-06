@@ -670,6 +670,8 @@ def run_virtual_market_daemon(
     cycle_count = 0
     validation_refresh: dict[str, object] | None = None
     validation_scope: tuple[str, ...] | None = None
+    validation_refreshed_at: datetime | None = None
+    validation_refresh_count = 0
     with SingleInstanceLease(lock_path):
         while max_cycles is None or cycle_count < max_cycles:
             cycle_count += 1
@@ -743,19 +745,27 @@ def run_virtual_market_daemon(
                     if (
                         validation_refresh is None
                         or validation_scope != universe.spot_symbols
+                        or validation_refreshed_at is None
                         or validation_refresh.get("status")
-                        in {"BLOCKED", "DEFERRED", "PARTIAL_RESEARCH_COVERAGE"}
+                        == "PARTIAL_RESEARCH_COVERAGE"
+                        or not 0
+                        <= (clock() - validation_refreshed_at).total_seconds()
+                        < settings.runtime_cycle_interval_seconds
                     ):
                         from .research import refresh_runtime_validation
 
                         scope = universe.spot_symbols
-                        offset = (cycle_count - 1) % len(scope) if scope else 0
+                        offset = validation_refresh_count % len(scope) if scope else 0
                         validation_refresh = refresh_runtime_validation(
                             settings,
                             as_of=clock(),
                             symbols=scope[offset:] + scope[:offset],
                         )
                         validation_scope = universe.spot_symbols
+                        validation_refresh_count += 1
+                        # Bound expensive retries and periodically recheck successful
+                        # source bindings. Decision-time validation retains its veto.
+                        validation_refreshed_at = clock()
                     cycle_report["validation_refresh"] = validation_refresh
                     configured = tuple(
                         dict.fromkeys(

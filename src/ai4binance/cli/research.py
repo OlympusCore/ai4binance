@@ -117,23 +117,36 @@ def _pending_spot_validation_symbols(
     symbols: tuple[str, ...],
     timeframes: tuple[str, ...],
 ) -> tuple[str, ...]:
-    """Inventory exact Spot coverage without treating an inventory as approval."""
+    """Require supported Spot playbooks/timeframes without granting approval."""
     from ai4binance.application.validation_pipeline import VALIDATED_PLAYBOOKS
     from ai4binance.exchange.client import BinancePublicClient
 
+    playbooks = tuple(
+        playbook
+        for playbook in VALIDATED_PLAYBOOKS
+        if not HistoricalValidationRuntime.playbook_preflight_blockers(playbook)
+    )
     if not symbols or len(symbols) * len(timeframes) * len(VALIDATED_PLAYBOOKS) > 256:
         raise ValueError("VALIDATION_ELIGIBLE_SCOPE_INVALID_OR_EXCEEDS_BOUND")
     for symbol in symbols:
         BinancePublicClient._symbol(symbol)
     available = {
-        (subject.promotion.symbol, subject.promotion.timeframe)
+        (
+            subject.promotion.symbol,
+            subject.promotion.timeframe,
+            subject.promotion.strategy_id,
+        )
         for subject in subjects
         if subject.promotion.market_type == "SPOT"
     }
     return tuple(
         symbol
         for symbol in dict.fromkeys(symbols)
-        if any((symbol, timeframe) not in available for timeframe in timeframes)
+        if any(
+            (symbol, timeframe, playbook) not in available
+            for timeframe in timeframes
+            for playbook in playbooks
+        )
     )
 
 
@@ -142,10 +155,11 @@ def _validation_scope_result(
 ) -> dict[str, object]:
     if not remaining:
         return {"status": "REVALIDATED_RESEARCH_ONLY", "blockers": []}
-    if pending[0] in remaining:
+    if not pending or pending[0] in remaining:
+        symbol = pending[0] if pending else remaining[0]
         return {
             "status": "BLOCKED",
-            "blockers": [f"VALIDATION_SYMBOL_EVIDENCE_INCOMPLETE:{pending[0]}"],
+            "blockers": [f"VALIDATION_SYMBOL_EVIDENCE_INCOMPLETE:{symbol}"],
         }
     return {"status": "PARTIAL_RESEARCH_COVERAGE", "blockers": []}
 

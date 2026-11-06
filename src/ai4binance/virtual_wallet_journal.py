@@ -94,30 +94,7 @@ class VirtualWalletJournal:
 
         try:
             timestamp = _utc_timestamp(observed_at)
-            if self.state_path.exists() and not self.ledger_path.exists():
-                raise ValueError("VIRTUAL_WALLET_LEDGER_MISSING_FOR_EXISTING_STATE")
-            movements = self._read_movements()
-            portfolios = self._latest_portfolios(movements)
-            for market in _MARKETS:
-                if market not in portfolios:
-                    portfolio = _initial_portfolio(market)
-                    self._append_movement(
-                        event_type=_INITIAL_EVENT,
-                        movement=_movement_payload(
-                            movement_id=f"virtual-wallet:{market}:genesis",
-                            timestamp=timestamp,
-                            cycle_id="GENESIS",
-                            snapshot_id="GENESIS",
-                            market=market,
-                            movement_type="INITIAL_BALANCE",
-                            decision_status="INITIALIZED",
-                            trade_action=None,
-                            before=None,
-                            after=portfolio,
-                        ),
-                    )
-                    portfolios[market] = portfolio
-            result = _independent_portfolios(portfolios)
+            result = self._initialize_portfolios(timestamp)
             self._write_outputs(timestamp, result)
             return result
         except VirtualWalletJournalError:
@@ -130,6 +107,35 @@ class VirtualWalletJournal:
             json.JSONDecodeError,
         ) as error:
             raise VirtualWalletJournalError(str(error)) from error
+
+    def _initialize_portfolios(
+        self, timestamp: datetime
+    ) -> IndependentVirtualPortfolios:
+        """Recover verified balances before publishing the final cycle result."""
+        if self.state_path.exists() and not self.ledger_path.exists():
+            raise ValueError("VIRTUAL_WALLET_LEDGER_MISSING_FOR_EXISTING_STATE")
+        movements = self._read_movements()
+        portfolios = self._latest_portfolios(movements)
+        for market in _MARKETS:
+            if market not in portfolios:
+                portfolio = _initial_portfolio(market)
+                self._append_movement(
+                    event_type=_INITIAL_EVENT,
+                    movement=_movement_payload(
+                        movement_id=f"virtual-wallet:{market}:genesis",
+                        timestamp=timestamp,
+                        cycle_id="GENESIS",
+                        snapshot_id="GENESIS",
+                        market=market,
+                        movement_type="INITIAL_BALANCE",
+                        decision_status="INITIALIZED",
+                        trade_action=None,
+                        before=None,
+                        after=portfolio,
+                    ),
+                )
+                portfolios[market] = portfolio
+        return _independent_portfolios(portfolios)
 
     def analysis_snapshot(self, snapshot: MarketSnapshot) -> MarketSnapshot:
         """Bind journal-derived simulation capital before deterministic risk sizing."""
@@ -257,7 +263,7 @@ class VirtualWalletJournal:
 
         try:
             timestamp = _utc_timestamp(observed_at)
-            portfolios = self.initialize(timestamp)
+            portfolios = self._initialize_portfolios(timestamp)
             current = {
                 "SPOT": portfolios.spot,
                 "USD_M_FUTURES": portfolios.futures,

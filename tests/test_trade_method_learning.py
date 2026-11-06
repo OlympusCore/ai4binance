@@ -190,7 +190,7 @@ def test_virtual_market_learning_consumes_closures_and_defers_on_ram(
     assert first["application_state"] == "NOT_APPLIED"
     assert runtime._virtual_market_learning(settings, loop, observed)["saved"] is False
 
-    monkeypatch.setattr(runtime, "physical_ram_used_gb", lambda: 30.0)
+    monkeypatch.setattr(runtime, "physical_ram_used_gb", lambda: 38.0)
     monkeypatch.setattr(
         runtime,
         "_virtual_wallet_journal",
@@ -198,7 +198,7 @@ def test_virtual_market_learning_consumes_closures_and_defers_on_ram(
     )
     deferred = runtime._virtual_market_learning(settings, loop, observed)
     assert deferred["status"] == "DEFERRED"
-    assert deferred["blockers"] == ["RESOURCE_RAM_SOFT_LIMIT"]
+    assert deferred["blockers"] == ["RESOURCE_RAM_HARD_LIMIT"]
 
     def invalid_journal(settings: Settings) -> None:
         raise VirtualWalletJournalError("test-only invalid evidence")

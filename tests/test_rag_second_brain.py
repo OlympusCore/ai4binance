@@ -877,10 +877,10 @@ def test_llama_resource_pressure_prevents_http(monkeypatch: pytest.MonkeyPatch) 
             "resource-deferred inference must not call HTTP"
         ),
     )
-    result = LlamaCppAdvisoryRunner(memory_probe=lambda: 30.0).run(
+    result = LlamaCppAdvisoryRunner(memory_probe=lambda: 38.0).run(
         "test-only prompt", ()
     )
-    assert result.blockers == ("RESOURCE_RAM_SOFT_LIMIT", "ADVISORY_ONLY")
+    assert result.blockers == ("RESOURCE_RAM_HARD_LIMIT", "ADVISORY_ONLY")
     assert not result.execution_allowed
 
 
