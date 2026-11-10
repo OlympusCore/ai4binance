@@ -11,11 +11,12 @@ import re
 import sys
 import time
 from collections.abc import Callable, Mapping
-from concurrent.futures import Future, ThreadPoolExecutor, wait
+from concurrent.futures import Executor, Future, ProcessPoolExecutor, wait
 from contextvars import Context
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from multiprocessing import get_context
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlparse
@@ -607,11 +608,27 @@ def run_runtime_command(
         return 2
 
 
+def _runtime_validation_executor() -> ProcessPoolExecutor:
+    """Keep CPU-heavy validation off the observation interpreter, one worker only."""
+    return ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn"))
+
+
+def _refresh_runtime_validation_isolated(
+    settings: Settings, *, as_of: datetime, symbols: tuple[str, ...]
+) -> dict[str, object]:
+    """Invoke the canonical producer without inheriting a caller's observation."""
+    from .research import refresh_runtime_validation
+
+    return Context().run(
+        refresh_runtime_validation, settings, as_of=as_of, symbols=symbols
+    )
+
+
 @dataclass(slots=True)
 class _RuntimeValidationRefresh:
     """Run one canonical producer without blocking research observations."""
 
-    executor: ThreadPoolExecutor
+    executor: Executor
     pending: Future[dict[str, object]] | None = None
     result: dict[str, object] | None = None
     scope: tuple[str, ...] | None = None
@@ -625,8 +642,6 @@ class _RuntimeValidationRefresh:
         symbols: tuple[str, ...],
         clock: Callable[[], datetime],
     ) -> dict[str, object]:
-        from .research import refresh_runtime_validation
-
         now = clock()
         if self.pending is None and (
             self.result is None
@@ -639,8 +654,7 @@ class _RuntimeValidationRefresh:
         ):
             offset = self.refresh_count % len(symbols) if symbols else 0
             self.pending = self.executor.submit(
-                Context().run,
-                refresh_runtime_validation,
+                _refresh_runtime_validation_isolated,
                 settings,
                 as_of=now,
                 symbols=symbols[offset:] + symbols[:offset],
@@ -750,9 +764,7 @@ def run_virtual_market_daemon(
     cycle_count = 0
     with (
         SingleInstanceLease(lock_path),
-        ThreadPoolExecutor(
-            max_workers=1, thread_name_prefix="runtime-validation"
-        ) as validation_executor,
+        _runtime_validation_executor() as validation_executor,
     ):
         validation_refresh = _RuntimeValidationRefresh(validation_executor)
         while max_cycles is None or cycle_count < max_cycles:

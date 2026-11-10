@@ -8,6 +8,7 @@ import shutil
 import sys
 import tempfile
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -2616,6 +2617,12 @@ def test_virtual_market_priority_revisits_preserve_discovery_and_restart_cursor(
         }
 
     monkeypatch.setattr(research_cli, "refresh_runtime_validation", refresh)
+    # This fixture observes local test calls; real process IPC is tested separately.
+    monkeypatch.setattr(
+        runtime_cli,
+        "_runtime_validation_executor",
+        lambda: ThreadPoolExecutor(max_workers=1),
+    )
 
     output = BytesIO()
     stream = TextIOWrapper(output, encoding=console_encoding)

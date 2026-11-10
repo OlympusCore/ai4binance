@@ -1,6 +1,7 @@
 """Test-only validation refresh schedules; no exchange or wallet access."""
 
 import json
+import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import ContextVar
@@ -24,6 +25,46 @@ from ai4binance.integrations import research_market_universe
 from ai4binance.integrations.binance import BinanceEligibleMarketSnapshot
 from ai4binance.validation.oos_maturity import OOSValidationSubject
 from ai4binance.validation_pipeline_runtime import HistoricalValidationRuntime
+
+
+@pytest.fixture
+def local_validation_executor(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep patched test-only producers local; separately verify real spawn below."""
+    monkeypatch.setattr(
+        runtime_cli,
+        "_runtime_validation_executor",
+        lambda: ThreadPoolExecutor(max_workers=1),
+    )
+
+
+def test_spawned_validation_worker_preserves_malformed_evidence_denial(
+    tmp_path: Path,
+) -> None:
+    """Real child-process IPC preserves Settings and canonical fail-closed output."""
+    deployment = tmp_path / "deployment.json"
+    original = b"{}"
+    deployment.write_bytes(original)
+    settings = Settings(
+        validation_artifact_directory=tmp_path / "validation",
+        runtime_validation_deployment_path=deployment,
+    )
+    with runtime_cli._runtime_validation_executor() as executor:
+        identities = {executor.submit(os.getpid).result(timeout=30) for _ in range(4)}
+        assert len(identities) == 1
+        assert os.getpid() not in identities
+        result = executor.submit(
+            runtime_cli._refresh_runtime_validation_isolated,
+            settings,
+            as_of=datetime(2026, 11, 6, tzinfo=UTC),
+            symbols=("BTCUSDT",),
+        ).result(timeout=30)
+    assert result["status"] == "BLOCKED"
+    assert result["blockers"]
+    assert result["execution_allowed"] is False
+    assert result["promotion_status"] == "RESEARCH_ONLY"
+    assert result["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+    assert deployment.read_bytes() == original
+    assert not settings.validation_artifact_directory.exists()
 
 
 @pytest.mark.parametrize(
@@ -129,6 +170,7 @@ def test_refresh_stays_blocked_when_producer_omits_a_supported_playbook(
 def test_virtual_validation_refresh_is_bounded_and_periodically_rechecked(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    local_validation_executor: None,
     status: str,
     expected_seconds: list[int],
 ) -> None:
@@ -300,7 +342,7 @@ def test_validation_worker_failure_remains_blocked_and_bounds_retry(
 
 
 def test_virtual_observation_cycles_continue_while_validation_is_pending(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, local_validation_executor: None
 ) -> None:
     """Test-only blocked validation cannot stall observations or grant a trade."""
     now = datetime(2026, 11, 6, tzinfo=UTC)
