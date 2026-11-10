@@ -2,10 +2,15 @@ from __future__ import annotations
 
 # ruff: noqa: E501
 import json
+import os
 import shutil
 import subprocess
+from collections.abc import Iterator
+from contextlib import contextmanager
 from hashlib import sha256
+from io import BufferedReader
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -21,7 +26,7 @@ from tests.documentation_hygiene_helpers import stale_knowledge_template_offende
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.mark.parametrize("size", [0, 4096, 1_048_833])
+@pytest.mark.parametrize("size", [0, 4096, 1_048_833, 8_388_625, 16_777_249])
 def test_quality_attestation_hash_streams_exact_bytes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, size: int
 ) -> None:
@@ -37,6 +42,81 @@ def test_quality_attestation_hash_streams_exact_bytes(
     with monkeypatch.context() as patch:
         patch.setattr(Path, "read_bytes", reject_whole_file_buffering)
         assert constitution_sync_module._sha256(path) == sha256(content).hexdigest()
+
+
+def test_quality_attestation_hash_limits_buffer_memory_and_read_count(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test-only streams prove complete bytes with bounded I/O handoffs."""
+    content = bytes(range(256)) * 65_536 + b"TEST_ONLY_FINAL_BYTES"
+    path = tmp_path / "TEST_ONLY_BOUNDED_HASH.bin"
+    path.write_bytes(content)
+    original_open = Path.open
+    buffer_sizes: list[int] = []
+
+    class TestOnlyTrackedReader:
+        def __init__(self, stream: BufferedReader) -> None:
+            self.stream = stream
+
+        def readable(self) -> bool:
+            return self.stream.readable()
+
+        def readinto(self, buffer: bytearray) -> int:
+            buffer_sizes.append(len(buffer))
+            count = self.stream.readinto(buffer)
+            assert count is not None
+            return count
+
+    @contextmanager
+    def tracked_open(target: Path, mode: str = "r") -> Iterator[TestOnlyTrackedReader]:
+        assert target == path
+        assert mode == "rb"
+        with original_open(target, mode) as stream:
+            yield TestOnlyTrackedReader(cast(BufferedReader, stream))
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "open", tracked_open)
+        observed = constitution_sync_module._sha256(path)
+
+    assert observed == sha256(content).hexdigest()
+    assert buffer_sizes
+    assert max(buffer_sizes) <= 8_388_608
+    assert len(buffer_sizes) <= 6
+
+
+def test_quality_attestation_hash_rechecks_same_size_restored_mtime_changes(
+    tmp_path: Path,
+) -> None:
+    """Test-only tampering remains visible; no metadata-only cache is introduced."""
+    path = tmp_path / "TEST_ONLY_CHANGED_HASH.bin"
+    original = b"TEST_ONLY_ORIGINAL" * 4096
+    changed = original.replace(b"ORIGINAL", b"MODIFIED")
+    assert len(original) == len(changed)
+    path.write_bytes(original)
+    first = constitution_sync_module._sha256(path)
+    stat = path.stat()
+    path.write_bytes(changed)
+    os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    second = constitution_sync_module._sha256(path)
+    assert second == sha256(changed).hexdigest()
+    assert second != first
+
+
+def test_quality_attestation_hash_propagates_unreadable_input(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test-only denied reads must not produce a successful attestation."""
+    path = tmp_path / "TEST_ONLY_DENIED_HASH.bin"
+    path.write_bytes(b"TEST_ONLY_BYTES")
+
+    def denied_open(_path: Path, mode: str = "r") -> BufferedReader:
+        assert mode == "rb"
+        raise PermissionError("TEST_ONLY_READ_DENIED")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "open", denied_open)
+        with pytest.raises(PermissionError, match="TEST_ONLY_READ_DENIED"):
+            constitution_sync_module._sha256(path)
 
 
 def test_quality_attestation_hash_fails_closed_for_missing_bytes(

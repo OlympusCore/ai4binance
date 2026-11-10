@@ -2,7 +2,9 @@
 
 import json
 import os
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 from pathlib import Path
@@ -76,6 +78,27 @@ def build_events() -> tuple[DomainEvent, ...]:
     return submitted, accepted
 
 
+@pytest.mark.parametrize("failure", ["chain", "event_size", "journal_size"])
+def test_batch_rejects_invalid_suffix_without_writing(
+    tmp_path: Path, failure: str
+) -> None:
+    events = build_events()
+    path = tmp_path / "test-only-batch.jsonl"
+    journal = DiskEventJournal(path, durable=False)
+    pending: tuple[DomainEvent, ...]
+    if failure == "chain":
+        pending = (events[0], events[0])
+    else:
+        pending = events
+        if failure == "event_size":
+            journal.maximum_event_bytes = 256
+        else:
+            journal.maximum_journal_bytes = len(journal._encode_event(events[0])) + 1
+    with pytest.raises((ValueError, OverflowError)):
+        journal.append_batch(lambda _history: pending)
+    assert not path.exists()
+
+
 def test_journal_recovers_runtime_and_order_state_after_restart(tmp_path: Path) -> None:
     journal = DiskEventJournal(tmp_path / "events.jsonl")
     runtime = JournaledEventRuntime.open(journal)
@@ -135,12 +158,11 @@ def test_sequential_append_reuses_validated_tail_without_replaying_history(
     decoded_records = 0
 
     class TestOnlyStableSignatureJournal(DiskEventJournal):
-        def _file_signature_unlocked(
-            self,
-        ) -> tuple[int, int, int, int, int, int | None] | None:
-            if not self.path.exists():
-                return None
-            stat = self.path.stat()
+        @staticmethod
+        def _stream_signature(
+            stream: BinaryIO,
+        ) -> tuple[int, int, int, int, int, int | None]:
+            stat = os.fstat(stream.fileno())
             # Test-only evidence isolates the algorithm from delayed OS metadata.
             return stat.st_dev, stat.st_ino, stat.st_size, 0, 0, stat.st_size
 
@@ -294,6 +316,94 @@ def test_append_cache_revalidates_and_rejects_same_size_tampering(
         )
 
     assert path.read_bytes() == tampered_data
+
+
+def test_load_keeps_read_handle_open_across_signature_checks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test-only close tokens model delayed Windows file metadata updates."""
+    from ai4binance.events import journal as journal_module
+
+    path = tmp_path / "events.jsonl"
+    journal = DiskEventJournal(path, durable=False)
+    first = build_events()[0]
+    journal.append(first)
+    open_path = Path.open
+    close_token = 0
+
+    @contextmanager
+    def track_read_close(target: Path, mode: str = "r") -> Iterator[BinaryIO]:
+        nonlocal close_token
+        with open_path(target, mode) as stream:
+            yield cast(BinaryIO, stream)
+        if target == path and mode == "rb":
+            close_token += 1
+
+    monkeypatch.setattr(Path, "open", track_read_close)
+    monkeypatch.setattr(
+        journal_module, "_file_change_token", lambda _stream, _stat: close_token
+    )
+
+    assert journal.load() == (first,)
+    assert close_token == 2
+
+
+def test_load_rejects_changes_during_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test-only external writes must still invalidate the held-handle read."""
+    path = tmp_path / "events.jsonl"
+    journal = DiskEventJournal(path, durable=False)
+    first = build_events()[0]
+    journal.append(first)
+    signature = DiskEventJournal._stream_signature
+    checks = 0
+
+    def mutate_after_initial_signature(
+        stream: BinaryIO,
+    ) -> tuple[int, int, int, int, int, int | None]:
+        nonlocal checks
+        observed = signature(stream)
+        checks += 1
+        if checks == 1:
+            with path.open("ab") as writer:
+                writer.write(b"\n")
+        return observed
+
+    monkeypatch.setattr(
+        DiskEventJournal,
+        "_stream_signature",
+        staticmethod(mutate_after_initial_signature),
+    )
+    with pytest.raises(EventJournalCorruptionError, match="changed during validation"):
+        journal.load()
+
+
+def test_load_rejects_path_resolving_to_another_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test-only path redirection models replacement on a supporting filesystem."""
+    path = tmp_path / "events.jsonl"
+    journal = DiskEventJournal(path, durable=False)
+    journal.append(build_events()[0])
+    replacement = tmp_path / "replacement.jsonl"
+    replacement.write_bytes(path.read_bytes())
+    open_path = Path.open
+    reads = 0
+
+    @contextmanager
+    def redirect_second_open(target: Path, mode: str = "r") -> Iterator[BinaryIO]:
+        nonlocal reads
+        if target == path and mode == "rb":
+            reads += 1
+            if reads == 2:
+                target = replacement
+        with open_path(target, mode) as stream:
+            yield cast(BinaryIO, stream)
+
+    monkeypatch.setattr(Path, "open", redirect_second_open)
+    with pytest.raises(EventJournalCorruptionError, match="changed during validation"):
+        journal.load()
 
 
 def test_append_cache_falls_back_to_replay_without_change_token(

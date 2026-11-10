@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -22,6 +23,73 @@ from ai4binance.ops.system_report import (
 )
 
 NOW = datetime(2026, 8, 3, 10, 30, tzinfo=UTC)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        subprocess.TimeoutExpired(("TEST_ONLY_DIAGNOSTIC",), timeout=60),
+        subprocess.CalledProcessError(1, ("TEST_ONLY_DIAGNOSTIC",)),
+    ],
+)
+def test_system_report_isolates_failed_diagnostic_without_a_measurement(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    error: subprocess.SubprocessError,
+) -> None:
+    """Test-only diagnostic failures remain visible while other evidence persists."""
+    settings = _settings(monkeypatch, tmp_path)
+    _stub_components(monkeypatch)
+    monkeypatch.setattr(
+        GpuResourceGovernor,
+        "collect_telemetry",
+        lambda self: GpuTelemetrySnapshot.unavailable(source="unit-test"),
+    )
+    builders = system_report_module._load_cli_component_builders()
+
+    def failed_diagnostic() -> dict[str, object]:
+        raise error
+
+    monkeypatch.setattr(
+        system_report_module,
+        "_load_cli_component_builders",
+        lambda: (
+            builders[0],
+            builders[1],
+            builders[2],
+            builders[3],
+            failed_diagnostic,
+            builders[5],
+        ),
+    )
+    result = build_system_report(settings, observed_at=NOW, workspace_root=tmp_path)
+    components = result.payload["components"]
+    assert isinstance(components, dict)
+    diagnostic = components["repository_cleanup"]
+    assert isinstance(diagnostic, dict)
+    assert diagnostic["status"] == "DEGRADED"
+    assert diagnostic["blockers"] == ("REPOSITORY_CLEANUP_UNAVAILABLE",)
+    assert "python_startup_ms" not in diagnostic
+    assert "cleanup_dry_run_ms" not in diagnostic
+    assert components["qaqc"]["status"] == "PASSED"
+    assert result.payload["status"] == "DEGRADED"
+    blockers = result.payload["blockers"]
+    assert isinstance(blockers, tuple)
+    assert "repository_cleanup:REPOSITORY_CLEANUP_UNAVAILABLE" in blockers
+    assert result.payload["execution_allowed"] is False
+    assert result.payload["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+    assert result.json_path.exists()
+    assert result.markdown_path.exists()
+
+
+def test_system_report_does_not_swallow_operator_interrupt() -> None:
+    """A test-only interrupt must retain its normal termination semantics."""
+
+    def interrupted() -> object:
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        system_report_module._safe_component("TEST_ONLY_DIAGNOSTIC", interrupted)
 
 
 def test_startup_health_accepts_fresh_running_services(

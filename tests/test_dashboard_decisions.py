@@ -7,9 +7,11 @@ import hashlib
 import http.client
 import json
 import runpy
+import sys
+from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from threading import Thread
+from threading import Event, Thread
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -559,3 +561,194 @@ def test_loopback_response_preserves_complete_body_with_bounded_writes() -> None
         assert chunks == []
     finally:
         server.server_close()
+
+
+def test_stalled_snapshot_is_single_flight_and_health_stays_responsive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A test-only blocked producer cannot hang HTTP or create endless workers."""
+    entered, release = Event(), Event()
+    calls = []
+
+    def blocked(_config: dict[str, object]) -> dict[str, object]:
+        calls.append("TEST_ONLY")
+        entered.set()
+        assert release.wait(5)
+        return {"test_only": True}
+
+    namespace = SERVER["create_server"].__globals__
+    monkeypatch.setitem(namespace, "snapshot", blocked)
+    monkeypatch.setitem(namespace, "MAX_DASHBOARD_SNAPSHOT_SECONDS", 0.1)
+    server = SERVER["create_server"]({"port": 0, "installation_id": "TEST_ONLY"})
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    def get(path: str) -> tuple[int, dict[str, object]]:
+        with closing(
+            http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=2)
+        ) as connection:
+            connection.request("GET", path)
+            response = connection.getresponse()
+            return response.status, json.loads(response.read())
+
+    try:
+        assert get("/api/state") == (503, {"error": "DASHBOARD_SNAPSHOT_TIMEOUT"})
+        assert entered.is_set()
+        for _ in range(3):
+            assert get("/api/state")[0] == 503
+        assert len(calls) == 1
+        status, health = get("/health")
+        assert status == 200
+        assert health["status"] == "DEGRADED"
+        assert health["execution_allowed"] is False
+        release.set()
+    finally:
+        release.set()
+        server.shutdown()
+        thread.join(timeout=5)
+        server.server_close()
+
+
+def test_snapshot_failure_withholds_prior_payload_and_recovers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Successful, failed, and recovered test reads cannot share stale state."""
+    observations = iter(
+        [
+            {"test_only": "first"},
+            ValueError("TEST_ONLY_PRIVATE"),
+            {"test_only": "recovered"},
+        ]
+    )
+
+    def observe(_config: dict[str, object]) -> dict[str, object]:
+        result = next(observations)
+        if isinstance(result, Exception):
+            raise result
+        return cast(dict[str, object], result)
+
+    monkeypatch.setitem(SERVER["create_server"].__globals__, "snapshot", observe)
+    server = SERVER["create_server"]({"port": 0, "installation_id": "TEST_ONLY"})
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        for expected in [
+            (200, {"test_only": "first"}),
+            (503, {"error": "DASHBOARD_SNAPSHOT_UNAVAILABLE"}),
+            (200, {"test_only": "recovered"}),
+        ]:
+            with closing(
+                http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=2)
+            ) as connection:
+                connection.request("GET", "/api/state")
+                response = connection.getresponse()
+                assert (response.status, json.loads(response.read())) == expected
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+        server.server_close()
+
+
+def test_stalled_market_read_is_bounded_and_cannot_borrow_another_selection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A test-only stuck coin cannot block state reads or return a different coin."""
+    release = Event()
+    calls: list[tuple[str, str]] = []
+
+    def blocked(
+        _config: dict[str, object], market: str, symbol: str
+    ) -> dict[str, object]:
+        calls.append((market, symbol))
+        assert release.wait(5)
+        return {"market": market, "symbol": symbol, "test_only": True}
+
+    namespace = SERVER["create_server"].__globals__
+    monkeypatch.setitem(namespace, "MAX_DASHBOARD_SNAPSHOT_SECONDS", 0.05)
+    monkeypatch.setitem(namespace, "snapshot", lambda _: {"test_only": True})
+    monkeypatch.setitem(sys.modules, "market_views", SimpleNamespace(view=blocked))
+    server = SERVER["create_server"]({"port": 0, "installation_id": "TEST_ONLY"})
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    def get(path: str) -> tuple[int, dict[str, object]]:
+        with closing(
+            http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=2)
+        ) as connection:
+            connection.request("GET", path)
+            response = connection.getresponse()
+            return response.status, json.loads(response.read())
+
+    try:
+        assert get("/api/markets?market=SPOT&symbol=TEST_ONLY_A") == (
+            503,
+            {"error": "DASHBOARD_MARKET_TIMEOUT"},
+        )
+        assert get("/api/markets?market=USD_M_FUTURES&symbol=TEST_ONLY_B") == (
+            503,
+            {"error": "DASHBOARD_MARKET_BUSY"},
+        )
+        assert calls == [("SPOT", "TEST_ONLY_A")]
+        assert get("/api/state") == (200, {"test_only": True})
+        assert get("/health")[1]["status"] == "DEGRADED"
+    finally:
+        release.set()
+        server.shutdown()
+        thread.join(timeout=5)
+        server.server_close()
+
+
+def test_slow_service_health_keeps_other_sources_available_without_stale_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test-only delayed health stays unavailable and retains canonical vetoes."""
+    from ai4binance.ops import service_health
+
+    entered, release, finished = Event(), Event(), Event()
+    calls = []
+    spec = SimpleNamespace(service="TEST_ONLY", required=True, enabled=True)
+
+    def blocked(*_args: object, **_kwargs: object) -> dict[str, object]:
+        calls.append("TEST_ONLY")
+        entered.set()
+        assert release.wait(5)
+        return {"service": "TEST_ONLY", "status": "READY", "blockers": []}
+
+    namespace = SERVER["dashboard_services"].__globals__
+    monkeypatch.setitem(namespace, "SERVICE_READ_JOB", None)
+    monkeypatch.setitem(namespace, "MAX_DASHBOARD_SERVICE_READ_SECONDS", 0.05)
+    monkeypatch.setattr(service_health, "load_service_manifest", lambda _: [spec])
+    monkeypatch.setattr(service_health, "service_health_from_spec", blocked)
+    expected = [
+        {
+            "service": "TEST_ONLY",
+            "required": True,
+            "enabled": True,
+            "status": "UNAVAILABLE",
+            "blockers": ["SERVICE_HEALTH_READ_UNAVAILABLE"],
+        }
+    ]
+    try:
+        assert SERVER["dashboard_services"](ROOT, ROOT, NOW) == expected
+        assert entered.is_set()
+        assert SERVER["dashboard_services"](ROOT, ROOT, NOW) == expected
+        assert len(calls) == 1
+        job = namespace["SERVICE_READ_JOB"]
+        release.set()
+        assert job["done"].wait(2)
+
+        def fresh(*_args: object, **_kwargs: object) -> dict[str, object]:
+            finished.set()
+            return {
+                "service": "TEST_ONLY",
+                "status": "DEGRADED",
+                "blockers": ["TEST_ONLY_RISK_VETO"],
+            }
+
+        monkeypatch.setattr(service_health, "service_health_from_spec", fresh)
+        current = SERVER["dashboard_services"](ROOT, ROOT, NOW)
+        assert finished.is_set()
+        assert current[0]["status"] == "DEGRADED"
+        assert current[0]["blockers"] == ["TEST_ONLY_RISK_VETO"]
+    finally:
+        release.set()

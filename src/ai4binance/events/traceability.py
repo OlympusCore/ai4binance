@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
@@ -437,23 +438,47 @@ class CanonicalTraceJournal:
     durable: bool = False
 
     def append(self, record: CanonicalTraceRecord) -> DomainEvent:
-        journal = self._journal()
-        events = journal.load()
-        if any(
-            existing.payload_dict().get("trace_id") == record.trace_id
-            for existing in events
-        ):
-            raise ValueError("canonical trace_id already exists in journal")
-        event = journal.append_next(
-            lambda sequence, previous_hash: record.to_domain_event(
-                sequence=sequence,
-                previous_hash=previous_hash,
-            )
-        )
-        observed = self.records()
-        if not observed or observed[-1] != record:
-            raise ValueError("canonical trace journal destination verification failed")
-        return event
+        return self.append_batch((record,))[0]
+
+    def append_batch(
+        self, records: tuple[CanonicalTraceRecord, ...]
+    ) -> tuple[DomainEvent, ...]:
+        """Preserve every trace while validating history once per batch."""
+        return self.append_batch_factory(lambda _history: records)
+
+    def append_batch_factory(
+        self,
+        record_factory: Callable[
+            [tuple[CanonicalTraceRecord, ...]], tuple[CanonicalTraceRecord, ...]
+        ],
+    ) -> tuple[DomainEvent, ...]:
+        """Create records under the journal lock, then enforce all append checks."""
+
+        def build(history: tuple[DomainEvent, ...]) -> tuple[DomainEvent, ...]:
+            observed = tuple(CanonicalTraceRecord.from_domain_event(e) for e in history)
+            identities = {record.trace_id for record in observed}
+            if len(identities) != len(observed):
+                raise ValueError("canonical trace journal contains duplicate trace_ids")
+            records = record_factory(observed)
+            events: list[DomainEvent] = []
+            previous_hash = history[-1].event_hash if history else "GENESIS"
+            for record in records:
+                if record.trace_id in identities:
+                    raise ValueError("canonical trace_id already exists in journal")
+                identities.add(record.trace_id)
+                event = record.to_domain_event(
+                    sequence=len(history) + len(events) + 1,
+                    previous_hash=previous_hash,
+                )
+                if CanonicalTraceRecord.from_domain_event(event) != record:
+                    raise ValueError(
+                        "canonical trace journal destination verification failed"
+                    )
+                events.append(event)
+                previous_hash = event.event_hash
+            return tuple(events)
+
+        return self._journal().append_batch(build)
 
     def append_if_absent(self, record: CanonicalTraceRecord) -> bool:
         if any(existing.trace_id == record.trace_id for existing in self.records()):

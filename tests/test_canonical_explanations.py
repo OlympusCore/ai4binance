@@ -116,3 +116,17 @@ def test_store_rejects_other_artifact_kinds_and_outside_boundary(
     )
     with pytest.raises(ValueError, match="OUTSIDE_BOUNDARY"):
         outside.save(reference, body)
+
+
+def test_oversized_existing_explanation_is_rejected_without_repair(
+    tmp_path: Path,
+) -> None:
+    store = CanonicalExplanationStore(tmp_path / "explanations", boundary=tmp_path)
+    reference, body = explanation()
+    store.save(reference, body)
+    path = store.path_for(reference)
+    oversized = b" " * 16_002
+    path.write_bytes(oversized)
+    with pytest.raises(ValueError, match="CANONICAL_EXPLANATION_TOO_LARGE"):
+        store.read(reference)
+    assert path.read_bytes() == oversized

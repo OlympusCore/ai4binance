@@ -30,6 +30,7 @@ class EventJournalCorruptionError(RuntimeError):
 
 
 EventFactory = Callable[[int, str], DomainEvent]
+EventBatchFactory = Callable[[tuple[DomainEvent, ...]], tuple[DomainEvent, ...]]
 JournalFileSignature = tuple[int, int, int, int, int, int | None]
 
 _WINDOWS_FSCTL_READ_FILE_USN_DATA = 0x000900EB
@@ -151,6 +152,49 @@ class DiskEventJournal:
         with self._synchronized():
             return self._load_unlocked()
 
+    def append_batch(self, event_factory: EventBatchFactory) -> tuple[DomainEvent, ...]:
+        """Validate history and a complete batch under one cross-process lock.
+
+        Invalid input writes nothing. An interrupted write remains detectable as
+        corrupt history; successful return requires a verified durable readback.
+        """
+        with self._synchronized():
+            history = self._load_unlocked()
+            events = event_factory(history)
+            state = _JournalAppendState(
+                len(history),
+                {event.event_id for event in history},
+                history[-1] if history else None,
+                None,
+            )
+            encoded: list[bytes] = []
+            size = self.path.stat().st_size if self.path.exists() else 0
+            for event in events:
+                state.validate(event, capacity=self._capacity())
+                line = self._encode_event(event)
+                size += len(line)
+                if size > self.maximum_journal_bytes:
+                    raise OverflowError("event journal byte capacity exceeded")
+                encoded.append(line)
+                state.event_count += 1
+                state.event_ids.add(event.event_id)
+                state.latest_event = event
+            if not events:
+                return ()
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            # Invalidate cached tail state before any potentially partial write.
+            self._append_state = None
+            with self.path.open("ab") as stream:
+                stream.writelines(encoded)
+                stream.flush()
+                if self.durable:
+                    os.fsync(stream.fileno())
+            if self._load_unlocked() != history + events:
+                raise EventJournalCorruptionError(
+                    "event journal batch destination verification failed"
+                )
+            return events
+
     def recover(self) -> JournalRecovery:
         """Return validated events plus a verified checkpoint replay cursor."""
         with self._synchronized():
@@ -245,14 +289,25 @@ class DiskEventJournal:
 
     def _load_unlocked(self) -> tuple[DomainEvent, ...]:
         self._append_state = None
-        initial_signature = self._file_signature_unlocked()
-        if initial_signature is None:
+        try:
+            stream = self.path.open("rb")
+        except FileNotFoundError:
             self._append_state = _JournalAppendState(0, set(), None, None)
             return ()
-        data = self.path.read_bytes()
-        final_signature = self._file_signature_unlocked()
-        if final_signature != initial_signature:
-            raise EventJournalCorruptionError("event journal changed during validation")
+        with stream as reader:
+            # Keep one handle open so read-close metadata cannot split the check.
+            # Also verify the path still names this exact, unchanged file.
+            initial_signature = self._stream_signature(reader)
+            data = reader.read(self.maximum_journal_bytes + 1)
+            final_signature = self._stream_signature(reader)
+            path_signature = self._file_signature_unlocked()
+            if (
+                final_signature != initial_signature
+                or path_signature != final_signature
+            ):
+                raise EventJournalCorruptionError(
+                    "event journal changed during validation"
+                )
         if len(data) > self.maximum_journal_bytes:
             raise EventJournalCorruptionError("event journal exceeds byte capacity")
         if data and not data.endswith(b"\n"):
@@ -303,10 +358,14 @@ class DiskEventJournal:
     def _file_signature_unlocked(self) -> JournalFileSignature | None:
         try:
             with self.path.open("rb") as stream:
-                stat = os.fstat(stream.fileno())
-                change_token = _file_change_token(stream, stat)
+                return self._stream_signature(stream)
         except FileNotFoundError:
             return None
+
+    @staticmethod
+    def _stream_signature(stream: BinaryIO) -> JournalFileSignature:
+        stat = os.fstat(stream.fileno())
+        change_token = _file_change_token(stream, stat)
         return (
             stat.st_dev,
             stat.st_ino,

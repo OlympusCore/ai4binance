@@ -2,7 +2,7 @@
 document_id: AI4B-GOV-REG-MDL-001
 title: AI4BINANCE Model Registry
 document_type: REGISTRY
-version: 1.5.0
+version: 1.5.1
 status: ACTIVE
 owner: Model Governance
 authority_level: NORMATIVE
@@ -111,7 +111,7 @@ not model approval or runtime admission.
       "artifact": {
         "artifact_type": "SOURCE_CONTRACT",
         "artifact_uri": "scripts/start_llama_server.ps1",
-        "artifact_sha256": "7b2c8e6c9f66a8fe79ba83fc8150ca41302500ef275cefa77e3975710370382a",
+        "artifact_sha256": "0c470df730c38cbf7a8ab7fa3de53a64e4f16ba9ad85adac7c82c8f2d02cb251",
         "license_status": "VERIFIED",
         "rollback_binding": "STOP_LOCAL_LLAMA_CPP_ADVISORY"
       }

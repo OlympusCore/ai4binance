@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any, TextIO, cast
 
 import pytest
 
@@ -1376,7 +1376,9 @@ def test_runtime_validation_refresh_reuses_producer_and_preserves_maturity_vetoe
         )
     calls: list[tuple[str | None, tuple[str, ...]]] = []
 
-    def produce(current: Settings, symbol: str | None) -> int:
+    def produce(
+        current: Settings, symbol: str | None, *, output: TextIO | None = None
+    ) -> int:
         calls.append((symbol, current.timeframes))
         oos_maturity.prepare_spot_oos_deployment(
             artifact_root=current.validation_artifact_directory,
@@ -1398,7 +1400,7 @@ def test_runtime_validation_refresh_reuses_producer_and_preserves_maturity_vetoe
             ),
             observed_at=datetime.now(UTC),
         )
-        print("TEST_ONLY_PRODUCER_OUTPUT")
+        print("TEST_ONLY_PRODUCER_OUTPUT", file=output)
         return 0
 
     monkeypatch.setattr(research_cli, "_run_validate_research", produce)
@@ -1465,7 +1467,9 @@ def test_runtime_validation_covers_each_eligible_coin_without_btc_substitution(
     # TEST_ONLY producer bindings, not market observations or approvals.
     monkeypatch.setattr(oos_maturity, "runtime_source_sha256", lambda: "a" * 64)
 
-    def produce(current: Settings, symbol: str | None) -> int:
+    def produce(
+        current: Settings, symbol: str | None, *, output: TextIO | None = None
+    ) -> int:
         calls.append(symbol)
         oos_maturity.prepare_spot_oos_deployment(
             artifact_root=current.validation_artifact_directory,

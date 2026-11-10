@@ -7,6 +7,9 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+
+# Only the exception hierarchy is imported; this module launches no processes.
+from subprocess import SubprocessError  # nosec B404
 from typing import cast
 
 from ai4binance.config import Settings
@@ -481,7 +484,14 @@ def _safe_component(
 ) -> dict[str, object]:
     try:
         payload = builder()
-    except OSError, RuntimeError, ValueError, TypeError, json.JSONDecodeError:
+    except (
+        OSError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        json.JSONDecodeError,
+        SubprocessError,
+    ):
         return _blocked_component(
             command,
             "DEGRADED",

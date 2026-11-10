@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -22,6 +23,10 @@ MAX_AUTO_AUDIT_BYTES = 4_000_000
 MAX_DASHBOARD_DECISIONS = 32
 MAX_DASHBOARD_DECISION_BYTES = 512_000
 MAX_DASHBOARD_RESPONSE_CHUNK_BYTES = 32_768
+MAX_DASHBOARD_SNAPSHOT_SECONDS = 5
+MAX_DASHBOARD_SERVICE_READ_SECONDS = 1
+SERVICE_READ_LOCK = threading.Lock()
+SERVICE_READ_JOB = None
 PUBLIC_FILES = {
     "/": "index.html",
     "/index.html": "index.html",
@@ -59,10 +64,9 @@ GITHUB_RESEARCH_TOPIC_CAPABILITIES = (
 
 
 def load_json(path: Path, *, max_bytes: int = MAX_BYTES) -> dict:
-    with path.open("rb") as stream:
-        raw = stream.read(max_bytes + 1)
-    if len(raw) > max_bytes:
-        raise ValueError("SOURCE_TOO_LARGE")
+    from ai4binance.infrastructure.persistence.safe_json import read_shared_bytes
+
+    raw = read_shared_bytes(path, max_bytes=max_bytes)
     data = json.loads(raw.decode("utf-8-sig"))
     if not isinstance(data, dict):
         raise ValueError("SOURCE_INVALID_SHAPE")
@@ -1534,6 +1538,57 @@ def decision_history(root, now):
     return result
 
 
+def dashboard_services(root, state, now):
+    """Keep slow heartbeat files from withholding every other dashboard source."""
+    global SERVICE_READ_JOB
+    from ai4binance.ops.runtime import SingleInstanceLease
+    from ai4binance.ops.service_health import load_service_manifest, service_health_from_spec
+
+    specs = load_service_manifest(root / "config/operations/services.json")
+    with SERVICE_READ_LOCK:
+        if SERVICE_READ_JOB is None or SERVICE_READ_JOB["done"].is_set():
+            job = {"done": threading.Event(), "started": time.monotonic()}
+            SERVICE_READ_JOB = job
+
+            def work():
+                try:
+                    services = []
+                    for spec in specs:
+                        health = service_health_from_spec(spec, state, now, pid_is_alive=SingleInstanceLease._pid_is_alive)
+                        services.append({
+                            **fields(
+                                health,
+                                ("service", "status", "enabled", "updated_at", "last_success_at", "age_seconds", "pid", "child_pid"),
+                            ),
+                            "required": spec.required,
+                            "blockers": reasons(health.get("blockers")),
+                        })
+                    job["services"] = services
+                except Exception:
+                    job["error"] = True
+                finally:
+                    job["done"].set()
+
+            threading.Thread(target=work, daemon=True).start()
+        else:
+            # An earlier read is still blocked. Its eventual old timestamp is
+            # never accepted as a fresh observation for this request.
+            job = None
+    if job is not None and job["done"].wait(MAX_DASHBOARD_SERVICE_READ_SECONDS):
+        if "error" not in job:
+            return job["services"]
+    return [
+        {
+            "service": spec.service,
+            "required": spec.required,
+            "enabled": spec.enabled,
+            "status": "UNAVAILABLE" if spec.enabled else "DISABLED",
+            "blockers": ["SERVICE_HEALTH_READ_UNAVAILABLE"] if spec.enabled else [],
+        }
+        for spec in specs
+    ]
+
+
 def snapshot(config):
     from ai4binance.local_dashboard.contracts import SNAPSHOT_VERSION, validate_snapshot
 
@@ -1681,37 +1736,7 @@ def snapshot(config):
                 "blockers": reasons(data.get("blockers")),
             }
     try:
-        from ai4binance.ops.runtime import SingleInstanceLease
-        from ai4binance.ops.service_health import (
-            load_service_manifest,
-            service_health_from_spec,
-        )
-
-        for spec in load_service_manifest(
-            root / "config" / "operations" / "services.json"
-        ):
-            health = service_health_from_spec(
-                spec, state, now, pid_is_alive=SingleInstanceLease._pid_is_alive
-            )
-            result["services"].append(
-                {
-                    **fields(
-                        health,
-                        (
-                            "service",
-                            "status",
-                            "enabled",
-                            "updated_at",
-                            "last_success_at",
-                            "age_seconds",
-                            "pid",
-                            "child_pid",
-                        ),
-                    ),
-                    "required": spec.required,
-                    "blockers": reasons(health.get("blockers")),
-                }
-            )
+        result["services"] = dashboard_services(root, state, now)
     except Exception:
         result["service_status"] = "UNAVAILABLE"
     producer_services = {
@@ -1944,9 +1969,54 @@ def start_kaizen_action(config, request):
 def create_server(config, port=None):
     selected_port = config["port"] if port is None else port
     loaded_server_sha256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    snapshot_lock = threading.Lock()
+    projection_jobs = {}
+
+    def read_projection(key, identity, read):
+        """Share one bounded read; never return a previous snapshot after failure."""
+        prefix = "DASHBOARD_SNAPSHOT" if key == "state" else "DASHBOARD_MARKET"
+        with snapshot_lock:
+            job = projection_jobs.get(key)
+            if job is None or job["done"].is_set():
+                job = {"done": threading.Event(), "started": time.monotonic(), "identity": identity}
+                projection_jobs[key] = job
+
+                def work():
+                    try:
+                        job["payload"] = read()
+                    except Exception:
+                        job["error"] = prefix + "_UNAVAILABLE"
+                    finally:
+                        job["done"].set()
+
+                threading.Thread(target=work, daemon=True).start()
+            elif job["identity"] != identity:
+                raise ValueError(prefix + "_BUSY")
+        remaining = MAX_DASHBOARD_SNAPSHOT_SECONDS - (time.monotonic() - job["started"])
+        if not job["done"].wait(max(0, remaining)):
+            raise TimeoutError(prefix + "_TIMEOUT")
+        if "error" in job:
+            raise ValueError(job["error"])
+        return job["payload"]
+
+    def snapshot_stalled():
+        with snapshot_lock:
+            return (
+                any(
+                    not job["done"].is_set()
+                    and time.monotonic() - job["started"] >= MAX_DASHBOARD_SNAPSHOT_SECONDS
+                    for job in projection_jobs.values()
+                )
+            )
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "AI4BinanceDashboard/1"
+
+        def setup(self):
+            # Idle preconnections and interrupted clients must not retain a
+            # request thread or a blocked socket write indefinitely.
+            self.request.settimeout(10)
+            super().setup()
 
         def log_message(self, format, *args):
             pass  # Do not persist private URLs, payloads, or account data.
@@ -1993,12 +2063,16 @@ def create_server(config, port=None):
                 payload = {
                     "service": "AI4Binance-Dashboard",
                     "installation_id": config["installation_id"],
-                    "status": "RUNNING",
+                    "status": "DEGRADED" if snapshot_stalled() else "RUNNING",
                     "execution_allowed": False,
                     "loaded_server_sha256": loaded_server_sha256,
                 }
             elif path == "/api/state":
-                payload = snapshot(config)
+                try:
+                    payload = read_projection("state", None, lambda: snapshot(config))
+                except (TimeoutError, ValueError) as error:
+                    self.send_body(503, json.dumps({"error": str(error)}).encode("utf-8"))
+                    return
             elif path == "/api/markets":
                 import market_views
 
@@ -2008,13 +2082,17 @@ def create_server(config, port=None):
                         len(v) != 1 for v in query.values()
                     ):
                         raise ValueError("REQUEST_INVALID")
-                    payload = market_views.view(
-                        config,
-                        query.get("market", ["SPOT"])[0],
-                        query.get("symbol", [""])[0],
-                    )
+                    market = query.get("market", ["SPOT"])[0]
+                    symbol = query.get("symbol", [""])[0]
+                    if market not in {"SPOT", "USD_M_FUTURES"}:
+                        raise ValueError("REQUEST_INVALID")
                 except (ImportError, OSError, ValueError, KeyError, TypeError):
                     self.send_body(400, b'{"error":"MARKET_VIEW_UNAVAILABLE"}')
+                    return
+                try:
+                    payload = read_projection("market", (market, symbol), lambda: market_views.view(config, market, symbol))
+                except (TimeoutError, ValueError) as error:
+                    self.send_body(503, json.dumps({"error": str(error)}).encode("utf-8"))
                     return
             elif path == "/api/wallet/refresh":
                 payload = wallet_refresh_status(config)
@@ -2114,7 +2192,15 @@ def create_server(config, port=None):
 
 
 if __name__ == "__main__":
-    settings = load_json(APP / "config.json")
+    # This static installation configuration bootstraps the repository import
+    # path. Mutable source reads below use the shared, bounded persistence owner.
+    with (APP / "config.json").open("rb") as stream:
+        installation = stream.read(MAX_BYTES + 1)
+    if len(installation) > MAX_BYTES:
+        raise ValueError("SOURCE_TOO_LARGE")
+    settings = json.loads(installation.decode("utf-8-sig"))
+    if not isinstance(settings, dict):
+        raise ValueError("SOURCE_INVALID_SHAPE")
     sys.path.insert(0, str(Path(settings["repository_root"]) / "src"))
     try:
         warm_dashboard_dependencies()

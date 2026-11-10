@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
-from contextlib import nullcontext, redirect_stdout
+from contextlib import nullcontext
 from datetime import UTC, datetime
 from pathlib import Path
 from time import perf_counter_ns
-from typing import Any, cast
+from typing import Any, TextIO, cast
 from uuid import uuid4
 
 from ai4binance.agents.orchestrator import EnterpriseOrchestrator
@@ -91,7 +91,9 @@ from .opportunity_radar_persistence import write_opportunity_radar_snapshot
 from .status import build_public_acquisition, fusion_asset
 
 
-def run_validate_research(settings: Settings, symbol: str | None) -> int:
+def run_validate_research(
+    settings: Settings, symbol: str | None, *, output: TextIO | None = None
+) -> int:
     """Serialize the canonical validation producer; never rebind old evidence."""
     lease = SingleInstanceLease(
         settings.runtime_validation_deployment_path.with_suffix(".lock")
@@ -104,10 +106,14 @@ def run_validate_research(settings: Settings, symbol: str | None) -> int:
             if str(error) == "runtime instance is already active"
             else "VALIDATION_PRODUCER_LOCK_INVALID"
         )
-        print(json.dumps({"blockers": [blocker], "execution_allowed": False}))
+        print(
+            json.dumps({"blockers": [blocker], "execution_allowed": False}), file=output
+        )
         return 2
     try:
-        return _run_validate_research(settings, symbol)
+        if output is None:
+            return _run_validate_research(settings, symbol)
+        return _run_validate_research(settings, symbol, output=output)
     finally:
         lease.release()
 
@@ -235,10 +241,11 @@ def refresh_runtime_validation(
             update={"timeframes": tuple(cast(list[str], specification["timeframes"]))}
         )
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        with log_path.open("a", encoding="utf-8") as stream, redirect_stdout(stream):
+        with log_path.open("a", encoding="utf-8") as stream:
             exit_code = run_validate_research(
                 validation_settings,
                 pending[0] if pending else settings.validation_symbol,
+                output=stream,
             )
         refreshed = load()
         remaining = (
@@ -270,7 +277,9 @@ def refresh_runtime_validation(
     return result
 
 
-def _run_validate_research(settings: Settings, symbol: str | None) -> int:
+def _run_validate_research(
+    settings: Settings, symbol: str | None, *, output: TextIO | None = None
+) -> int:
     try:
         source_sha256 = runtime_source_sha256()
         validation_symbol = normalize_cli_symbol(symbol) or settings.validation_symbol
@@ -298,7 +307,8 @@ def _run_validate_research(settings: Settings, symbol: str | None) -> int:
                         "execution_allowed": False,
                         "live_eligibility_status": "LIVE_ORDER_BLOCKED",
                     }
-                )
+                ),
+                file=output,
             )
             return 2
         run_cards = tuple(
@@ -353,7 +363,10 @@ def _run_validate_research(settings: Settings, symbol: str | None) -> int:
             "live_eligibility_status": batch.live_eligibility_status,
             "oos_deployment": oos_deployment,
         }
-        print(json.dumps(to_primitive(payload), ensure_ascii=False, sort_keys=True))
+        print(
+            json.dumps(to_primitive(payload), ensure_ascii=False, sort_keys=True),
+            file=output,
+        )
         return 0
     except DatasetIntegrityError, FileNotFoundError, ValueError, OSError:
         validation_symbol = safe_validation_symbol(symbol, settings)
@@ -367,7 +380,8 @@ def _run_validate_research(settings: Settings, symbol: str | None) -> int:
         print(
             json.dumps(
                 to_primitive(blocked_payload), ensure_ascii=False, sort_keys=True
-            )
+            ),
+            file=output,
         )
         return 2
 

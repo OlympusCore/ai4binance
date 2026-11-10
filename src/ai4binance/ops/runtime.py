@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, cast
 
 from ai4binance.accounting import BinanceAccountLedger
 from ai4binance.application.runtime import DualMarketAdvisoryReport
+from ai4binance.infrastructure.persistence.safe_json import read_shared_bytes
 from ai4binance.portfolio.orders import AccountOpenOrder
 from ai4binance.portfolio.reconciliation import OpenOrderView, reconcile_open_orders
 from ai4binance.reporting import to_primitive
@@ -443,7 +444,7 @@ class SingleInstanceLease:
     @staticmethod
     def _read_lock_owner(path: Path) -> tuple[int, str | None]:
         try:
-            raw = path.read_text(encoding="ascii").strip()
+            raw = read_shared_bytes(path, max_bytes=16_384).decode("ascii").strip()
             try:
                 return int(raw), None
             except ValueError:

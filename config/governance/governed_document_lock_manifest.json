@@ -2842,13 +2842,13 @@
       "authority_scope": "model_registry",
       "canonical_path": "docs/registries/registry_model_registry.md",
       "document_status": "ACTIVE",
-      "expected_hash": "50d3a245a7741dcfea2dfd51e5f27268725be6a4c15ed2dd4a3e2ef8e12e4023",
+      "expected_hash": "21576a35e657f7e75a4e6cd7d2c859851bfbd794620894fcb124c295f51ccf83",
       "lock_state": "LOCKED",
       "path": "docs/registries/registry_model_registry.md",
-      "sha256": "50d3a245a7741dcfea2dfd51e5f27268725be6a4c15ed2dd4a3e2ef8e12e4023",
+      "sha256": "21576a35e657f7e75a4e6cd7d2c859851bfbd794620894fcb124c295f51ccf83",
       "source_of_truth": true,
       "supersedes": [],
-      "version": "1.5.0"
+      "version": "1.5.1"
     },
     {
       "allowed_change_process": "WRITTEN_OWNER_APPROVAL_REQUIRED",
@@ -3613,12 +3613,12 @@
   "prospective_lock_grant": {
     "contract_version": "DocumentLockRegistration/v3",
     "grant": {
-      "path": "runtime/analysis/twelve_core_20261017/receipt_rule_update/owner-application-grant.json",
-      "sha256": "94052c5b703f757ac41802522d47577a091c3085fb13f4146e1cce8b75590941"
+      "path": "runtime/quality/dashboard-registry-update/owner-application-grant.json",
+      "sha256": "1b7b2c9a1650b800429560d9ddf7e457e7987ce1eb675ebcc4a49b1b50419f10"
     },
     "predecessor": {
-      "path": "runtime/analysis/twelve_core_20261017/receipt_rule_update/predecessor-context.raw.json",
-      "sha256": "5893bb8765cb40796be06a4fd967ad3ba933e7e5b22e6a69b8b9c74f39226820"
+      "path": "runtime/quality/dashboard-registry-update/before/authority-context.json",
+      "sha256": "4a1b9a4d33b913d670eaedc09ff5fd94b8a12cfae605100296b77ba6c5d678a3"
     }
   },
   "schema_version": "1.0.0",

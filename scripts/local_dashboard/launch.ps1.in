@@ -2,10 +2,12 @@ param([switch]$NoWindow)
 $ErrorActionPreference = 'Stop'
 $appRoot = $PSScriptRoot
 $config = Get-Content -LiteralPath (Join-Path $appRoot 'config.json') -Raw | ConvertFrom-Json
+. (Join-Path $config.repository_root 'scripts/initialize_runtime_environment.ps1')
 $mutex = [Threading.Mutex]::new($false, 'Local\AI4Binance.Dashboard.Guardian')
 if (-not $mutex.WaitOne(0)) { exit 0 }
 $serverProcess = $null
 $browserProcess = $null
+$unhealthyChecks = 0
 $profile = Join-Path $appRoot 'browser-profile'
 $serverScript = Join-Path $appRoot 'server.py'
 $url = "http://127.0.0.1:$($config.port)/"
@@ -45,6 +47,7 @@ try {
             }
             $healthy = $health.status -eq 'RUNNING'
         } catch { $healthy = $false }
+        if ($healthy) { $unhealthyChecks = 0 } else { $unhealthyChecks++ }
         if ($healthy -and $null -eq $serverProcess) {
             $orphan = Get-NetTCPConnection -State Listen -LocalPort $config.port -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($orphan) {
@@ -55,6 +58,18 @@ try {
         }
         if (-not $healthy) {
             $listener = Get-NetTCPConnection -State Listen -LocalPort $config.port -ErrorAction SilentlyContinue
+            if ($unhealthyChecks -ge 3 -and $null -ne $serverProcess -and -not $serverProcess.HasExited) {
+                # Recover only the exact child tree owned by this guardian.
+                # A foreign listener is never terminated or adopted here.
+                $owned = Get-CimInstance Win32_Process -Filter "ProcessId=$($serverProcess.Id)" -ErrorAction SilentlyContinue
+                if ($owned -and $owned.ParentProcessId -eq $PID -and $owned.CommandLine -and $owned.CommandLine.Contains($serverScript)) {
+                    Stop-OrphanedDashboardServer -ListenerProcessId $owned.ProcessId
+                    Write-GuardianEvent 'UNRESPONSIVE_SERVER_STOPPED'
+                    $serverProcess = $null
+                    $unhealthyChecks = 0
+                    $listener = Get-NetTCPConnection -State Listen -LocalPort $config.port -ErrorAction SilentlyContinue
+                }
+            }
             if (-not $listener -and ($null -eq $serverProcess -or $serverProcess.HasExited)) {
                 $serverProcess = Start-Process -FilePath $config.python -ArgumentList @('-B', ('"' + (Join-Path $appRoot 'server.py') + '"')) -WorkingDirectory $appRoot -WindowStyle Hidden -PassThru
                 Write-GuardianEvent 'SERVER_STARTED'

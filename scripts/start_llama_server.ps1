@@ -169,37 +169,51 @@ $process = Start-Process `
     -RedirectStandardError $stderrPath `
     -PassThru
 
-$deadline = [DateTimeOffset]::UtcNow.AddSeconds(180)
-while ([DateTimeOffset]::UtcNow -lt $deadline) {
-    Start-Sleep -Seconds 2
-    if ($process.HasExited) {
-        Write-Error "llama-server exited early. Recent stderr lines:"
-        if (Test-Path -LiteralPath $stderrPath -PathType Leaf) {
-            Get-Content -LiteralPath $stderrPath -Tail 40 | ForEach-Object { Write-Error $_ }
+$started = $false
+try {
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(180)
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+        Start-Sleep -Seconds 2
+        if ($process.HasExited) {
+            Write-Error "llama-server exited early. Recent stderr lines:"
+            if (Test-Path -LiteralPath $stderrPath -PathType Leaf) {
+                Get-Content -LiteralPath $stderrPath -Tail 40 | ForEach-Object { Write-Error $_ }
+            }
+            exit 1
         }
+        try {
+            $client = [Net.Sockets.TcpClient]::new()
+            $async = $client.BeginConnect($HostName, $Port, $null, $null)
+            $ready = $async.AsyncWaitHandle.WaitOne(500, $false)
+            if ($ready) {
+                $client.EndConnect($async)
+                $client.Close()
+                break
+            }
+            $client.Close()
+        } catch {
+            continue
+        }
+    }
+
+    if ([DateTimeOffset]::UtcNow -ge $deadline) {
+        Write-Error "llama-server did not open the port before timeout: http://$HostName`:$Port"
         exit 1
     }
-    try {
-        $client = [Net.Sockets.TcpClient]::new()
-        $async = $client.BeginConnect($HostName, $Port, $null, $null)
-        $ready = $async.AsyncWaitHandle.WaitOne(500, $false)
-        if ($ready) {
-            $client.EndConnect($async)
-            $client.Close()
-            break
+
+    $started = $true
+    Write-Host "llama-server started: http://$HostName`:$Port/completion"
+    Write-Host "Model: $ModelPath"
+    Write-Host "Log: $stdoutPath"
+}
+finally {
+    if (-not $started -and -not $process.HasExited) {
+        # This handle belongs only to the process created above. A failed
+        # startup must not leave a loaded model behind for the next retry.
+        $process.Kill()
+        if (-not $process.WaitForExit(5000)) {
+            throw "Failed llama-server startup did not terminate within the cleanup deadline."
         }
-        $client.Close()
-    } catch {
-        continue
     }
 }
-
-if ([DateTimeOffset]::UtcNow -ge $deadline) {
-    Write-Error "llama-server did not open the port before timeout: http://$HostName`:$Port"
-    exit 1
-}
-
-Write-Host "llama-server started: http://$HostName`:$Port/completion"
-Write-Host "Model: $ModelPath"
-Write-Host "Log: $stdoutPath"
 

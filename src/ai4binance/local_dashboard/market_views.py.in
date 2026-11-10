@@ -26,6 +26,7 @@ from ai4binance.domain.opportunity_observation import (
     has_complete_measurable_opportunity,
 )
 from ai4binance.integrations.research_market_universe import manual_selection_digest
+from ai4binance.infrastructure.persistence.safe_json import read_shared_bytes
 from ai4binance.storage import write_json_object_verified
 from ai4binance.virtual_wallet_journal import (
     VirtualWalletJournal,
@@ -86,7 +87,7 @@ def queue_virtual_cycle(root, market, symbol, requested_at):
         try:
             if path.is_symlink() or path.stat().st_size > 16_384:
                 raise ValueError("REFRESH_REQUEST_INVALID")
-            value = json.loads(path.read_text(encoding="utf-8"))
+            value = json.loads(read_shared_bytes(path, max_bytes=16_384))
             if (
                 value.get("request_id") == request_id
                 and value.get("status") != "PENDING"
@@ -159,7 +160,7 @@ def refresh_view(root, market, symbol):
     try:
         if path.is_symlink() or path.stat().st_size > 65_536:
             raise ValueError("REFRESH_STATUS_INVALID")
-        value = json.loads(path.read_text(encoding="utf-8"))
+        value = json.loads(read_shared_bytes(path, max_bytes=65_536))
         if (
             not isinstance(value, dict)
             or value.get("market") != market
@@ -270,7 +271,7 @@ def universe_view(root, settings, market, symbols, now):
     try:
         if path.is_symlink() or path.stat().st_size > 1_000_000:
             raise ValueError("MARKET_HISTORY_STATE_INVALID")
-        state = json.loads(path.read_text(encoding="utf-8"))
+        state = json.loads(read_shared_bytes(path, max_bytes=1_000_000))
         if not isinstance(state, dict):
             raise ValueError("MARKET_HISTORY_STATE_INVALID")
     except (OSError, ValueError, TypeError, json.JSONDecodeError):

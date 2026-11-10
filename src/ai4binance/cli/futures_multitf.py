@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import time
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
@@ -85,13 +84,12 @@ def _load_mapping(path: Path) -> dict[str, object]:
 
 
 def _save(path: Path, payload: Mapping[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f"{path.name}.{os.getpid()}.tmp")
-    temporary.write_text(
-        json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+    write_json_object_verified(
+        path,
+        payload,
+        blocker="FUTURES_MULTITF_WRITE_FAILED",
+        durable=True,
     )
-    os.replace(temporary, path)
 
 
 def _failure_code(error: Exception) -> str:

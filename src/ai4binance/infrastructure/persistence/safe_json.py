@@ -53,6 +53,47 @@ _SAFE_TOKEN_METRIC_KEYS = frozenset(
 )
 
 
+def read_shared_bytes(path: Path, *, max_bytes: int) -> bytes:
+    """Read bounded bytes while permitting atomic replacement by Windows writers."""
+    if max_bytes < 1:
+        raise ValueError("shared read budget must be positive")
+    if os.name == "nt":
+        import ctypes
+        import msvcrt
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.CreateFileW.argtypes = (
+            ctypes.c_wchar_p,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ctypes.c_void_p,
+        )
+        kernel32.CreateFileW.restype = ctypes.c_void_p
+        kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
+        kernel32.CloseHandle.restype = ctypes.c_bool
+        # Share read/write/delete. WinDLL releases the GIL during native open,
+        # so a contended source cannot prevent caller deadlines from expiring.
+        handle = kernel32.CreateFileW(str(path), 0x80000000, 7, None, 3, 0x80, None)
+        if handle == ctypes.c_void_p(-1).value:
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            descriptor = msvcrt.open_osfhandle(handle, os.O_RDONLY | os.O_BINARY)
+        except OSError:
+            kernel32.CloseHandle(handle)
+            raise
+        with os.fdopen(descriptor, "rb") as stream:
+            raw = stream.read(max_bytes + 1)
+    else:
+        with path.open("rb") as stream:
+            raw = stream.read(max_bytes + 1)
+    if len(raw) > max_bytes:
+        raise ValueError("source exceeds its shared read budget")
+    return raw
+
+
 @dataclass(frozen=True, slots=True)
 class VerifiedWriteResult:
     destination: str
@@ -413,9 +454,34 @@ def _replace_with_retry(source: Path, destination: Path) -> None:
         try:
             os.replace(source, destination)
             return
-        except PermissionError:
+        except PermissionError as error:
+            if (
+                os.name == "nt"
+                and getattr(error, "winerror", None) in {5, 32}
+                and _replace_shared_windows(source, destination)
+            ):
+                return
             time.sleep(delay)
     os.replace(source, destination)
+
+
+def _replace_shared_windows(source: Path, destination: Path) -> bool:
+    """Preserve attributes and ACLs when a shared reader prevents MoveFileEx."""
+    import ctypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.ReplaceFileW.argtypes = (
+        ctypes.c_wchar_p,
+        ctypes.c_wchar_p,
+        ctypes.c_wchar_p,
+        ctypes.c_uint32,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+    )
+    kernel32.ReplaceFileW.restype = ctypes.c_bool
+    return bool(
+        kernel32.ReplaceFileW(str(destination), str(source), None, 0, None, None)
+    )
 
 
 def to_primitive(value: object) -> object:

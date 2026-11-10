@@ -1,10 +1,14 @@
 """Test-only validation refresh schedules; no exchange or wallet access."""
 
 import json
+import sys
+from concurrent.futures import ThreadPoolExecutor
+from contextvars import ContextVar
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from threading import Event
 from types import SimpleNamespace
-from typing import cast
+from typing import TextIO, cast
 
 import pytest
 
@@ -90,7 +94,9 @@ def test_refresh_stays_blocked_when_producer_omits_a_supported_playbook(
     monkeypatch.setattr(resources, "physical_ram_used_gb", lambda: 1.0)
     calls: list[str | None] = []
 
-    def produce(_settings: Settings, symbol: str | None) -> int:
+    def produce(
+        _settings: Settings, symbol: str | None, *, output: TextIO | None = None
+    ) -> int:
         calls.append(symbol)
         return 0
 
@@ -215,3 +221,197 @@ def test_validation_coverage_loss_without_pending_symbol_fails_closed() -> None:
         "status": "BLOCKED",
         "blockers": ["VALIDATION_SYMBOL_EVIDENCE_INCOMPLETE:BTCUSDT"],
     }
+
+
+def test_slow_validation_does_not_block_or_duplicate_and_cannot_cover_new_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test-only stalled work never becomes evidence or inherited caller context."""
+    now = datetime(2026, 11, 6, tzinfo=UTC)
+    release = Event()
+    started = Event()
+    marker = ContextVar("test_only_observer", default="isolated")
+    marker.set("caller")
+    scopes: list[tuple[str, ...]] = []
+
+    def refresh(
+        _settings: Settings, *, as_of: datetime, symbols: tuple[str, ...]
+    ) -> dict[str, object]:
+        assert marker.get() == "isolated"
+        assert as_of == now
+        scopes.append(symbols)
+        started.set()
+        assert release.wait(timeout=5)
+        return {
+            "status": "CURRENT_SOURCE_BINDING",
+            "execution_allowed": False,
+            "promotion_status": "RESEARCH_ONLY",
+            "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+        }
+
+    monkeypatch.setattr(research_cli, "refresh_runtime_validation", refresh)
+    settings = Settings(runtime_cycle_interval_seconds=60)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        worker = runtime_cli._RuntimeValidationRefresh(executor)
+        try:
+            for symbols in (("BTCUSDT",), ("BTCUSDT",), ("ETHUSDT",)):
+                result = worker.observe(settings, symbols=symbols, clock=lambda: now)
+                assert result["status"] == "IN_PROGRESS"
+                assert result["execution_allowed"] is False
+                assert result["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+                assert release.is_set() is False
+            assert started.is_set()
+            assert scopes == [("BTCUSDT",)]
+        finally:
+            release.set()
+        assert worker.pending is not None
+        worker.pending.result(timeout=5)
+        changed = worker.observe(settings, symbols=("ETHUSDT",), clock=lambda: now)
+        assert changed["status"] == "BLOCKED"
+        assert changed["blockers"] == ["VALIDATION_REFRESH_SCOPE_CHANGED"]
+        assert changed["execution_allowed"] is False
+        current = worker.observe(settings, symbols=("ETHUSDT",), clock=lambda: now)
+        assert current["status"] == "CURRENT_SOURCE_BINDING"
+        assert scopes == [("BTCUSDT",), ("ETHUSDT",)]
+
+
+def test_validation_worker_failure_remains_blocked_and_bounds_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime(2026, 11, 6, tzinfo=UTC)
+    calls = 0
+
+    def fail(*_args: object, **_kwargs: object) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        raise ValueError("TEST_ONLY_VALIDATION_FAILURE")
+
+    monkeypatch.setattr(research_cli, "refresh_runtime_validation", fail)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        worker = runtime_cli._RuntimeValidationRefresh(executor)
+        with pytest.raises(ValueError, match="TEST_ONLY_VALIDATION_FAILURE"):
+            worker.observe(Settings(), symbols=("BTCUSDT",), clock=lambda: now)
+        result = worker.observe(Settings(), symbols=("BTCUSDT",), clock=lambda: now)
+        assert calls == 1
+        assert result["status"] == "BLOCKED"
+        assert result["blockers"] == ["VALIDATION_REFRESH_FAILED"]
+        assert result["execution_allowed"] is False
+        assert result["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_virtual_observation_cycles_continue_while_validation_is_pending(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test-only blocked validation cannot stall observations or grant a trade."""
+    now = datetime(2026, 11, 6, tzinfo=UTC)
+    release = Event()
+    started = Event()
+    refresh_calls = 0
+    observed_cycles = 0
+    monkeypatch.setattr(runtime_cli, "physical_ram_used_gb", lambda: 0.0)
+    monkeypatch.setattr(
+        research_market_universe, "manual_selection_digest", lambda _path: "test-only"
+    )
+    monkeypatch.setattr(
+        market_history_sync,
+        "read_cached_market_universe",
+        lambda *_args, **_kwargs: BinanceEligibleMarketSnapshot(
+            spot_symbols=("BTCUSDT",), futures_symbols=()
+        ),
+    )
+    monkeypatch.setattr(
+        runtime_cli, "_virtual_market_priority_symbols", lambda *_args: ()
+    )
+    monkeypatch.setattr(
+        runtime_cli,
+        "_virtual_wallet_journal",
+        lambda _settings: SimpleNamespace(open_position_symbols=lambda **_kwargs: ()),
+    )
+    monkeypatch.setattr(
+        runtime_cli,
+        "_virtual_market_learning",
+        lambda *_args: {"execution_allowed": False},
+    )
+
+    def refresh(*_args: object, **_kwargs: object) -> dict[str, object]:
+        nonlocal refresh_calls
+        refresh_calls += 1
+        started.set()
+        assert release.wait(timeout=5)
+        return {"status": "BLOCKED", "execution_allowed": False}
+
+    def cycle(
+        _settings: Settings,
+        _source: SnapshotAcquirer,
+        *,
+        observed_at: datetime,
+        cycle_report: dict[str, object] | None = None,
+    ) -> int:
+        nonlocal observed_cycles
+        assert started.is_set()
+        assert release.is_set() is False
+        assert cycle_report is not None
+        refresh_state = cycle_report["validation_refresh"]
+        assert isinstance(refresh_state, dict)
+        assert refresh_state["status"] == "IN_PROGRESS"
+        assert refresh_state["execution_allowed"] is False
+        cycle_report.update(
+            virtual_order_ready=False, research_blockers=["OOS_APPROVAL_MISSING"]
+        )
+        observed_cycles += 1
+        if observed_cycles == 3:
+            release.set()
+        return 0
+
+    monkeypatch.setattr(research_cli, "refresh_runtime_validation", refresh)
+    monkeypatch.setattr(runtime_cli, "_run_virtual_market_research_cycle", cycle)
+    try:
+        assert (
+            runtime_cli.run_virtual_market_daemon(
+                Settings(runtime_state_path=tmp_path / "runtime.json"),
+                max_cycles=3,
+                public_acquisition=cast(SnapshotAcquirer, object()),
+                sleeper=lambda _seconds: None,
+                clock=lambda: now,
+            )
+            == 0
+        )
+    finally:
+        release.set()
+    assert observed_cycles == 3
+    assert refresh_calls == 1
+    state = json.loads((tmp_path / "virtual-market.json").read_text())
+    assert state["cycle_count"] == 3
+    assert state["last_success_at"] == now.isoformat()
+    assert state["research_blockers"] == ["OOS_APPROVAL_MISSING"]
+    assert state["virtual_order_ready"] is False
+    assert state["execution_allowed"] is False
+    assert state["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
+
+
+def test_refresh_log_output_does_not_redirect_other_threads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    gate = ValidationGate(expected_subjects=())
+    monkeypatch.setattr(ValidationGate, "from_deployment", lambda **_kwargs: gate)
+    monkeypatch.setattr(resources, "physical_ram_used_gb", lambda: 1.0)
+    original_stdout = sys.stdout
+
+    def produce(
+        _settings: Settings, _symbol: str | None, *, output: TextIO | None = None
+    ) -> int:
+        assert sys.stdout is original_stdout
+        print("TEST_ONLY_VALIDATION_LOG", file=output)
+        print("TEST_ONLY_OTHER_THREAD_OUTPUT")
+        return 0
+
+    monkeypatch.setattr(research_cli, "run_validate_research", produce)
+    research_cli.refresh_runtime_validation(
+        Settings(validation_artifact_directory=tmp_path),
+        as_of=datetime(2026, 11, 6, tzinfo=UTC),
+        symbols=("BTCUSDT",),
+    )
+    assert "TEST_ONLY_OTHER_THREAD_OUTPUT" in capsys.readouterr().out
+    log = (tmp_path / "runtime-validation-refresh.log").read_text()
+    assert "TEST_ONLY_VALIDATION_LOG" in log
+    assert "TEST_ONLY_OTHER_THREAD_OUTPUT" not in log

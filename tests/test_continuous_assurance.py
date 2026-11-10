@@ -12,6 +12,7 @@ import pytest
 
 from ai4binance.events import (
     CanonicalTraceJournal,
+    CanonicalTraceRecord,
     ConsequentialTraceKind,
     TraceabilityRequirement,
     TraceabilityStatus,
@@ -638,6 +639,62 @@ def test_tiaf_lite_payload_is_deterministic_for_same_plan(tmp_path: Path) -> Non
     )
 
     assert plan.trust_assurance_payload == plan.trust_assurance_payload
+
+
+@pytest.mark.parametrize("clock_offset", [2, 0])
+def test_delayed_assurance_records_use_actual_locked_recording_time(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, clock_offset: int
+) -> None:
+    import ai4binance.ops.continuous_assurance as assurance
+
+    class RecordingClock(datetime):
+        @classmethod
+        def now(cls, tz: object = None) -> RecordingClock:
+            return cls.fromtimestamp(
+                (NOW + timedelta(seconds=clock_offset)).timestamp(), UTC
+            )
+
+    monkeypatch.setattr(assurance, "datetime", RecordingClock)
+    plan = build_continuous_assurance_plan((_event(AuditTriggerType.DATA_QUALITY),))
+    journal = CanonicalTraceJournal(tmp_path / "test-only-delayed-traces.jsonl")
+    seed = CanonicalTraceRecord.create(
+        trace_id="trace:test-only-intervening-record",
+        trace_kind=ConsequentialTraceKind.DECISION,
+        subject_ref="test-only-intervening-decision",
+        subject_type="DECISION",
+        occurred_at=NOW + timedelta(seconds=1),
+        event_name="DECISION_RECORDED",
+        event_status="NO_TRADE",
+        evidence_refs=("test-only",),
+        subject_sha256="a" * 64,
+    )
+    journal.append(seed)
+    before = journal.path.read_bytes()
+    if clock_offset == 0:
+        # A real clock regression still trips the original journal veto.
+        with pytest.raises(ValueError, match="time cannot move backwards"):
+            build_trust_assurance_bundle(plan, trace_journal=journal)
+        assert journal.path.read_bytes() == before
+        return
+
+    bundle = build_trust_assurance_bundle(plan, trace_journal=journal)
+    records = journal.records()
+    assert records[0] == seed
+    assert len(records) == len(bundle.policy_evaluations) + 2
+    assert {record.occurred_at for record in records[1:]} == {
+        NOW + timedelta(seconds=2)
+    }
+    assert bundle.provenance.observed_at == plan.observed_at == NOW
+    assert (
+        records[-1].subject_sha256 == bundle.provenance.to_payload()["provenance_hash"]
+    )
+    assert all(record.execution_allowed is False for record in records)
+    assert all(
+        record.live_eligibility_status == "LIVE_ORDER_BLOCKED" for record in records
+    )
+    persisted = journal.path.read_bytes()
+    assert build_trust_assurance_bundle(plan, trace_journal=journal) == bundle
+    assert journal.path.read_bytes() == persisted
 
 
 def test_tiaf_lite_security_plan_includes_security_evidence_contract(

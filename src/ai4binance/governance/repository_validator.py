@@ -3573,6 +3573,63 @@ def _repository_named_files(root: Path, filename: str) -> tuple[Path, ...]:
     return tuple(matches)
 
 
+def _verified_document_snapshot_inputs(root: Path) -> dict[str, str]:
+    """Identify literal inputs to a verified transition, never active authority."""
+    from ai4binance.governance import document_lock_authority as authority
+    from ai4binance.governance import document_lock_review as review
+
+    try:
+        manifest = review._object(
+            root / "config/governance/governed_document_lock_manifest.json"
+        )
+        expected_root, context_path = authority._INPUT.get() or (
+            root.resolve(),
+            root / authority.CONTEXT_PATH,
+        )
+        if expected_root != root.resolve():
+            return {}
+        context = review._object(context_path)
+        approved, _ = authority._verify_update(
+            root, manifest, context, now=datetime.now(UTC)
+        )
+        if not approved:
+            return {}
+        snapshots: dict[str, str] = {}
+        seen: set[str] = set()
+        while context.get("contract_version") == authority.UPDATE_CONTEXT:
+            identity = context["grant"]["sha256"]
+            if identity in seen or len(seen) >= 32:
+                return {}
+            seen.add(identity)
+            grant = review._decode(review._bound_bytes(root, context["grant"]))
+            subject = grant["review_subject"]
+            sources = [
+                (document["path"], document[key])
+                for document in subject["documents"]
+                for key in ("before_payload", "payload")
+            ]
+            sources.extend(
+                (item["path"], item["source"]) for item in subject["procedure"]
+            )
+            for canonical, reference in sources:
+                relative = reference["path"]
+                if not relative.startswith("runtime/") or not relative.endswith(".md"):
+                    continue
+                review._bound_bytes(root, reference)
+                metadata = _frontmatter(root / relative)
+                if (
+                    canonical.startswith("runtime/")
+                    or metadata is None
+                    or metadata.get("canonical_path") != canonical
+                ):
+                    return {}
+                snapshots[relative] = reference["sha256"]
+            context = review._decode(review._bound_bytes(root, context["predecessor"]))
+        return snapshots
+    except OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError:
+        return {}
+
+
 def _runtime_markdown_authority_findings(
     root: Path,
 ) -> Iterable[RepositoryValidationFinding]:
@@ -3587,6 +3644,7 @@ def _runtime_markdown_authority_findings(
         KnowledgeAuthorityLevel.PROVIDER_ADAPTER.value,
         KnowledgeAuthorityLevel.EXTERNAL_AUTHORITY.value,
     }
+    frozen_inputs = _verified_document_snapshot_inputs(root)
     for path in _runtime_markdown_paths(root):
         if not path.is_file():
             continue
@@ -3602,6 +3660,24 @@ def _runtime_markdown_authority_findings(
                 RepositoryFindingKind.NON_CODE_CONTENT_LANGUAGE_VIOLATION,
                 relative,
                 "Non-code repository content must be UTF-8 English text.",
+            )
+            continue
+        frozen_sha256 = frozen_inputs.get(relative)
+        if frozen_sha256 is not None:
+            try:
+                # Recheck at consumption time; a changed copy loses recognition.
+                unchanged = (
+                    hashlib.sha256(path.read_bytes()).hexdigest() == frozen_sha256
+                )
+            except OSError:
+                unchanged = False
+            if unchanged:
+                continue
+            yield _blocker(
+                RepositoryFindingKind.RUNTIME_MARKDOWN_AUTHORITY_VIOLATION,
+                relative,
+                "A bound document input changed or became unavailable "
+                "after validation.",
             )
             continue
         metadata = _frontmatter(path)

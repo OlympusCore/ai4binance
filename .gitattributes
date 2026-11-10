@@ -26,3 +26,4 @@ factory/handoff.md -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,c
 factory/plan.md -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 factory/review.md -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 docs/standards/standard_terminology_governance.md -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+docs/registries/registry_model_registry.md -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

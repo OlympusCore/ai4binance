@@ -9,7 +9,7 @@ trading, promotion, or live execution.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 
@@ -902,21 +902,39 @@ def _record_trust_assurance_bundle(
     bundle: TrustAssuranceBundle,
     trace_journal: CanonicalTraceJournal,
 ) -> None:
-    for record in _trust_assurance_trace_records(bundle):
-        trace_journal.append_if_absent(record)
+    def pending_records(
+        history: tuple[CanonicalTraceRecord, ...],
+    ) -> tuple[CanonicalTraceRecord, ...]:
+        existing = {record.trace_id for record in history}
+        # Observation time stays in the hashed subject; this event records its
+        # actual persistence time, captured after acquiring the shared lock.
+        recorded_at = datetime.now(UTC)
+        return tuple(
+            record
+            for record in _trust_assurance_trace_records(
+                bundle, recorded_at=recorded_at
+            )
+            if record.trace_id not in existing
+        )
+
+    trace_journal.append_batch_factory(pending_records)
 
 
 def _trust_assurance_trace_records(
     bundle: TrustAssuranceBundle,
+    *,
+    recorded_at: datetime,
 ) -> tuple[CanonicalTraceRecord, ...]:
     records = [
         _policy_evaluation_trace_record(
             evaluation,
-            occurred_at=bundle.provenance.observed_at,
+            occurred_at=recorded_at,
         )
         for evaluation in bundle.policy_evaluations
     ]
-    records.append(_decision_provenance_trace_record(bundle.provenance))
+    records.append(
+        _decision_provenance_trace_record(bundle.provenance, recorded_at=recorded_at)
+    )
     return tuple(records)
 
 
@@ -947,6 +965,8 @@ def _policy_evaluation_trace_record(
 
 def _decision_provenance_trace_record(
     provenance: DecisionProvenanceRecord,
+    *,
+    recorded_at: datetime,
 ) -> CanonicalTraceRecord:
     payload = provenance.to_payload()
     return CanonicalTraceRecord.create(
@@ -954,7 +974,7 @@ def _decision_provenance_trace_record(
         trace_kind=ConsequentialTraceKind.DECISION,
         subject_ref=provenance.decision_id,
         subject_type="DECISION_PROVENANCE_RECORD",
-        occurred_at=provenance.observed_at,
+        occurred_at=recorded_at,
         event_name="DECISION_PROVENANCE_RECORDED",
         event_status=provenance.final_action,
         evidence_refs=provenance.evidence_refs,

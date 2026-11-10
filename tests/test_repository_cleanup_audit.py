@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import subprocess
 import time
 import tomllib
@@ -180,8 +181,28 @@ def test_repository_cleanup_audit_keeps_dynamic_usage_out_of_delete_claims() -> 
         reviews["src/ai4binance/events/delivery.py:288"]
         == "RETAINED_FAIL_CLOSED_BOUNDARY"
     )
+    journal_path = "src/ai4binance/events/journal.py"
+    journal_tree = ast.parse(Path(journal_path).read_text(encoding="utf-8"))
+    runtime_class = next(
+        node
+        for node in journal_tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "JournaledEventRuntime"
+    )
+    publish = next(
+        node
+        for node in runtime_class.body
+        if isinstance(node, ast.FunctionDef) and node.name == "publish"
+    )
+    subscriber_boundaries = [
+        node
+        for node in ast.walk(publish)
+        if isinstance(node, ast.ExceptHandler)
+        and isinstance(node.type, ast.Name)
+        and node.type.id == "Exception"
+    ]
+    assert len(subscriber_boundaries) == 1
     assert (
-        reviews["src/ai4binance/events/journal.py:456"]
+        reviews[f"{journal_path}:{subscriber_boundaries[0].lineno}"]
         == "RETAINED_FAIL_CLOSED_BOUNDARY"
     )
     assert not any(

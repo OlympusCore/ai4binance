@@ -4,6 +4,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "initialize_runtime_environment.ps1")
 $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 $python = Join-Path $repositoryRoot ".venv\Scripts\python.exe"
 $sourceRoot = Join-Path $repositoryRoot "src\ai4binance\local_dashboard"
@@ -86,6 +87,7 @@ $initialSources = @(
     Get-FileRecord -Path (Join-Path $repositoryRoot "frontend/tsconfig.json")
     Get-FileRecord -Path (Join-Path $repositoryRoot "config/interface/dashboard_toolchain.toml")
     Get-FileRecord -Path (Join-Path $PSScriptRoot "check_dashboard_types.py")
+    Get-FileRecord -Path (Join-Path $PSScriptRoot "initialize_runtime_environment.ps1")
     Get-FileRecord -Path $PSCommandPath
 )
 

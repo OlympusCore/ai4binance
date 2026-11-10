@@ -256,10 +256,20 @@ def test_registered_launcher_contract_survives_git_checkout(
     launcher = fixture / entry.artifact.artifact_uri
     launcher.parent.mkdir(parents=True)
     launcher.write_bytes((ROOT / entry.artifact.artifact_uri).read_bytes())
+    registry_relative = REGISTRY.relative_to(ROOT)
+    registry_copy = fixture / registry_relative
+    registry_copy.parent.mkdir(parents=True)
+    registry_copy.write_bytes(REGISTRY.read_bytes())
     commands = (
         ("init", "--quiet"),
         ("config", "core.autocrlf", autocrlf),
-        ("add", "--", ".gitattributes", entry.artifact.artifact_uri),
+        (
+            "add",
+            "--",
+            ".gitattributes",
+            entry.artifact.artifact_uri,
+            str(registry_relative),
+        ),
         ("checkout-index", "--all", "--prefix=checkout/"),
     )
     for command in commands:
@@ -272,6 +282,9 @@ def test_registered_launcher_contract_survives_git_checkout(
     assert (
         sha256(checked_out.read_bytes()).hexdigest() == entry.artifact.artifact_sha256
     )
+    assert (
+        fixture / "checkout" / registry_relative
+    ).read_bytes() == REGISTRY.read_bytes()
 
 
 def test_registry_detects_local_model_manifest_artifact_drift(tmp_path: Path) -> None:

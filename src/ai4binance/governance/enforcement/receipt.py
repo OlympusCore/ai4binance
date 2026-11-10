@@ -212,7 +212,7 @@ def persist_core_consumption_batch(
             )
         if dict(receipt.source_hashes) != fingerprints[module.core_id]:
             raise ValueError("CORE_CONSUMPTION_SOURCE_CHANGED_DURING_OPERATION")
-    paths = tuple(_persist_core_receipt(root, receipt, journal) for receipt in receipts)
+    paths = _persist_core_receipts(root, receipts, journal)
     if core_consumption_subject_sha256(root) != source_subject_sha256:
         raise ValueError("CORE_CONSUMPTION_SUBJECT_CHANGED_DURING_PERSISTENCE")
     return paths
@@ -223,45 +223,58 @@ def _persist_core_receipt(
     receipt: CoreConsumptionReceipt,
     journal: CanonicalTraceJournal | None,
 ) -> Path:
+    return _persist_core_receipts(root, (receipt,), journal)[0]
+
+
+def _persist_core_receipts(
+    root: Path,
+    receipts: Sequence[CoreConsumptionReceipt],
+    journal: CanonicalTraceJournal | None,
+) -> tuple[Path, ...]:
     from ai4binance.events.traceability import canonical_trace_journal_path
     from ai4binance.schema_validation import validate_local_definition
 
-    payload = receipt.to_payload()
-    validate_local_definition(
-        root / "schemas/governance/governed_object_enforcement.schema.json",
-        "CoreConsumptionReceipt",
-        payload,
-    )
-    _validate_core_resource_status(payload)
     selected = journal or CanonicalTraceJournal(
         canonical_trace_journal_path(root), durable=True
     )
-    digest = canonical_trace_sha256(payload)
-    path = selected.path.parent / "core_consumption_receipts" / f"{digest}.json"
-    write_json_object_verified(
-        path,
-        payload,
-        blocker="CORE_RECEIPT_PERSISTENCE_FAILED",
-        subject_id=receipt.cycle_id,
-        durable=True,
-    )
-    selected.append(
-        CanonicalTraceRecord.create(
-            trace_id=f"trace:core-consumption:{digest}",
-            trace_kind=ConsequentialTraceKind.GATE,
-            subject_ref=receipt.core_id,
-            subject_type="CORE_INTERFACE",
-            # The journal records when this fact is persisted. The immutable
-            # receipt retains the actual, possibly earlier, consumption time.
-            occurred_at=datetime.now(UTC),
-            event_name="CORE_OUTPUT_CONSUMED",
-            event_status=receipt.operation_status,
-            evidence_refs=(str(path.resolve()),),
-            related_refs=(receipt.interface_id, receipt.cycle_id),
-            subject_sha256=digest,
+    paths: list[Path] = []
+    records: list[CanonicalTraceRecord] = []
+    for receipt in receipts:
+        payload = receipt.to_payload()
+        validate_local_definition(
+            root / "schemas/governance/governed_object_enforcement.schema.json",
+            "CoreConsumptionReceipt",
+            payload,
         )
-    )
-    return path
+        _validate_core_resource_status(payload)
+        digest = canonical_trace_sha256(payload)
+        path = selected.path.parent / "core_consumption_receipts" / f"{digest}.json"
+        write_json_object_verified(
+            path,
+            payload,
+            blocker="CORE_RECEIPT_PERSISTENCE_FAILED",
+            subject_id=receipt.cycle_id,
+            durable=True,
+        )
+        paths.append(path)
+        records.append(
+            CanonicalTraceRecord.create(
+                trace_id=f"trace:core-consumption:{digest}",
+                trace_kind=ConsequentialTraceKind.GATE,
+                subject_ref=receipt.core_id,
+                subject_type="CORE_INTERFACE",
+                # The journal records when this fact is persisted. The immutable
+                # receipt retains the actual, possibly earlier, consumption time.
+                occurred_at=datetime.now(UTC),
+                event_name="CORE_OUTPUT_CONSUMED",
+                event_status=receipt.operation_status,
+                evidence_refs=(str(path.resolve()),),
+                related_refs=(receipt.interface_id, receipt.cycle_id),
+                subject_sha256=digest,
+            )
+        )
+    selected.append_batch(tuple(records))
+    return tuple(paths)
 
 
 def load_core_consumption_batch(

@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+import os
+import shutil
+import subprocess
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import cast
+from typing import BinaryIO, cast
 
 import pytest
 
@@ -19,6 +23,114 @@ from ai4binance.ops.service_health import (
 )
 
 NOW = datetime(2026, 8, 8, 18, 0, tzinfo=UTC)
+
+
+@pytest.mark.parametrize(
+    "content", [b"4" * 16_385, b"\xff"], ids=["oversized", "non-ascii"]
+)
+def test_invalid_lock_content_fails_closed(tmp_path: Path, content: bytes) -> None:
+    from ai4binance.ops.runtime import SingleInstanceLease
+
+    path = tmp_path / "test-only.lock"
+    path.write_bytes(content)
+    with pytest.raises(RuntimeError, match="runtime lock is invalid"):
+        SingleInstanceLease.lock_owner_is_active(path)
+    assert path.read_bytes() == content
+
+
+@pytest.mark.parametrize("timed_out", [True, False])
+def test_model_startup_cleans_only_failed_owned_process(
+    tmp_path: Path,
+    timed_out: bool,
+) -> None:
+    """The test runs the startup tail with a fake handle, never a model server."""
+    shell = shutil.which("pwsh") or shutil.which("powershell")
+    assert shell is not None
+    source = (
+        Path(__file__).resolve().parents[1] / "scripts/start_llama_server.ps1"
+    ).read_text(encoding="utf-8")
+    tail = source[source.index("$started = $false") :]
+    if timed_out:
+        tail = tail.replace("AddSeconds(180)", "AddSeconds(-1)")
+    else:
+        tail = tail.replace(
+            "while ([DateTimeOffset]::UtcNow -lt $deadline)", "while ($false)"
+        )
+    prefix = """
+$ErrorActionPreference='Stop'
+$HostName='127.0.0.1';$Port=0;$ModelPath='TEST_ONLY';$stdoutPath='TEST_ONLY'
+$process=[pscustomobject]@{HasExited=$false;Killed=0;Waited=0}
+$process | Add-Member ScriptMethod Kill { $this.Killed++;$this.HasExited=$true }
+$process | Add-Member ScriptMethod WaitForExit {
+    param($Milliseconds) $this.Waited++;return $true
+}
+try { & {
+"""
+    suffix = """
+} } catch { $testFailure=$_.Exception.Message }
+@{killed=$process.Killed;waited=$process.Waited;failure=$testFailure} |
+    ConvertTo-Json -Compress
+"""
+    path = tmp_path / "test-only-model-startup.ps1"
+    path.write_text(prefix + tail + suffix, encoding="utf-8-sig")
+    result = subprocess.run(  # noqa: S603 - fixed fixture-only PowerShell code.
+        [shell, "-NoProfile", "-File", str(path)],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=20,
+    )
+    assert result.returncode == 0, result.stderr
+    observed = json.loads(result.stdout.splitlines()[-1])
+    assert observed["killed"] == int(timed_out)
+    assert observed["waited"] == int(timed_out)
+    assert bool(observed["failure"]) is timed_out
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows file-sharing contract")
+def test_status_reader_permits_atomic_replacement_while_reading(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An open test-only status must not lock out its heartbeat writer."""
+    from ai4binance.infrastructure.persistence.safe_json import _replace_with_retry
+    from ai4binance.ops import service_health
+
+    path = tmp_path / "test-only-health.json"
+    replacement = tmp_path / "test-only-replacement.json"
+    path.write_bytes(b'\xef\xbb\xbf{"test_only":"original"}')
+    replacement.write_bytes(b'{"test_only":"replacement"}')
+    fdopen = os.fdopen
+
+    @contextmanager
+    def replace_during_read(descriptor: int, mode: str) -> Iterator[BinaryIO]:
+        with fdopen(descriptor, mode) as stream:
+            _replace_with_retry(replacement, path)
+            yield cast(BinaryIO, stream)
+
+    monkeypatch.setattr(os, "fdopen", replace_during_read)
+    assert json.loads(service_health._read_status_text(path)) == {
+        "test_only": "original"
+    }
+    assert json.loads(path.read_bytes()) == {"test_only": "replacement"}
+
+
+@pytest.mark.parametrize(
+    "invalid", [b"\xff", b"x" * 1_048_577], ids=["invalid_utf8", "oversized"]
+)
+def test_unreadable_service_status_is_bounded_and_fails_closed(
+    tmp_path: Path,
+    invalid: bytes,
+) -> None:
+    spec = load_service_manifest()[0]
+    (tmp_path / spec.health_file).write_bytes(invalid)
+    result = service_health_from_spec(spec, tmp_path, NOW, pid_is_alive=lambda _: True)
+    assert result["status"] == "DEGRADED"
+    blockers = result["blockers"]
+    assert isinstance(blockers, tuple)
+    assert f"{spec.label}_STATE_INVALID" in blockers
+    assert result["execution_allowed"] is False
+    assert result["live_eligibility_status"] == "LIVE_ORDER_BLOCKED"
 
 
 def test_fresh_heartbeat_cannot_hide_failed_useful_cycle(tmp_path: Path) -> None:

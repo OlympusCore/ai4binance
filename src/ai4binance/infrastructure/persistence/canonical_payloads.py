@@ -12,7 +12,10 @@ from ai4binance.domain.research.canonical_cycle import (
     CycleArtifactKind,
     CycleArtifactRef,
 )
-from ai4binance.infrastructure.persistence.safe_json import write_json_object_verified
+from ai4binance.infrastructure.persistence.safe_json import (
+    read_shared_bytes,
+    write_json_object_verified,
+)
 
 MAX_EXPLANATION_BYTES = 16_000
 _EXPLANATION_KINDS = frozenset(
@@ -72,10 +75,10 @@ class CanonicalExplanationStore:
         path = self.path_for(reference)
         if not path.exists():
             return None
-        with path.open("rb") as stream:
-            raw = stream.read(MAX_EXPLANATION_BYTES + 2)
-        if len(raw) > MAX_EXPLANATION_BYTES + 1:
-            raise ValueError("CANONICAL_EXPLANATION_TOO_LARGE")
+        try:
+            raw = read_shared_bytes(path, max_bytes=MAX_EXPLANATION_BYTES + 1)
+        except ValueError:
+            raise ValueError("CANONICAL_EXPLANATION_TOO_LARGE") from None
         body = json.loads(raw)
         if not isinstance(body, dict):
             raise ValueError("CANONICAL_EXPLANATION_OBJECT_REQUIRED")

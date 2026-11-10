@@ -95,6 +95,81 @@ def test_dashboard_deployer_preserves_machine_state_and_private_profile() -> Non
     assert 'live_eligibility_status = "LIVE_ORDER_BLOCKED"' in deployer
 
 
+@pytest.mark.parametrize("owned", [True, False])
+def test_guardian_recovers_only_its_unresponsive_child(
+    tmp_path: Path,
+    owned: bool,
+) -> None:
+    """Run three fixture-only health failures; all process operations are mocked."""
+    shell = shutil.which("pwsh") or shutil.which("powershell")
+    assert shell is not None
+    source = (ROOT / "scripts/local_dashboard/launch.ps1.in").read_text(
+        encoding="utf-8"
+    )
+    (tmp_path / "config.json").write_text(
+        json.dumps(
+            {
+                "port": 0,
+                "python": "TEST_ONLY",
+                "installation_id": "TEST_ONLY",
+                "repository_root": str(ROOT),
+            }
+        ),
+        encoding="utf-8",
+    )
+    mocks = """
+$script:testStops = 0; $script:testStarts = 0; $script:testAlive = $true
+function Invoke-RestMethod { throw 'TEST_ONLY_UNRESPONSIVE' }
+function Get-NetTCPConnection {
+    if ($script:testAlive) { [pscustomobject]@{OwningProcess=4242} }
+}
+function Get-CimInstance {
+    [pscustomobject]@{ProcessId=4242;ParentProcessId=TEST_ONLY_PARENT;CommandLine=$serverScript}
+}
+function Start-Process {
+    $script:testStarts++; [pscustomobject]@{Id=4243;HasExited=$true}
+}
+""".replace("TEST_ONLY_PARENT", "$PID" if owned else "($PID + 1)")
+    source = source.replace(
+        "$ErrorActionPreference = 'Stop'", "$ErrorActionPreference = 'Stop'\n" + mocks
+    )
+    source = source.replace(
+        "Local\\AI4Binance.Dashboard.Guardian", "Local\\TEST_ONLY_" + tmp_path.name
+    )
+    source = source.replace(
+        "Write-GuardianEvent 'GUARDIAN_STARTED'",
+        """
+$serverProcess = [pscustomobject]@{Id=4242;HasExited=$false}
+function Stop-OrphanedDashboardServer {
+    param([int]$ListenerProcessId)
+    if ($ListenerProcessId -ne 4242) { throw 'TEST_ONLY_WRONG_PROCESS' }
+    $script:testStops++; $script:testAlive=$false
+}
+""",
+    )
+    source = source.replace(
+        "Start-Sleep -Seconds 10",
+        """
+$testLoops++; if ($testLoops -eq 3) { $serverProcess=$null; break }
+""",
+    )
+    source += (
+        "\n@{stops=$script:testStops;starts=$script:testStarts}"
+        " | ConvertTo-Json -Compress\n"
+    )
+    script = tmp_path / "test-only-guardian.ps1"
+    script.write_text(source, encoding="utf-8-sig")
+    completed = subprocess.run(  # noqa: S603 - all process operations use local test mocks.
+        [shell, "-NoProfile", "-File", str(script), "-NoWindow"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=20,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {"stops": int(owned), "starts": int(owned)}
+
+
 def test_dashboard_packaging_reads_operations_from_canonical_owner(
     tmp_path: Path,
 ) -> None:
@@ -124,6 +199,8 @@ def test_dashboard_packaging_reads_operations_from_canonical_owner(
     assert payload["verification_status"] == "BUILT_NOT_DEPLOYED"
     assert isinstance(payload["restart_required_if_applied"], bool)
     records = {item["path"]: item["sha256"] for item in payload["source_files"]}
+    bootstrap = ROOT / "scripts/initialize_runtime_environment.ps1"
+    assert records[bootstrap.relative_to(ROOT).as_posix()] == _sha256(bootstrap)
     for name in ("install.ps1.in", "launch.ps1.in"):
         path = ROOT / "scripts/local_dashboard" / name
         assert records[path.relative_to(ROOT).as_posix()] == _sha256(path)

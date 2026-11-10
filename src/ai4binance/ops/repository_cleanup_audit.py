@@ -1364,8 +1364,8 @@ def _broad_exception_reviews(
                 "consumer progress; do not catch BaseException."
             ),
         ),
-        "src/ai4binance/events/journal.py:456": BroadExceptionReview(
-            "src/ai4binance/events/journal.py:456",
+        "src/ai4binance/events/journal.py:515": BroadExceptionReview(
+            "src/ai4binance/events/journal.py:515",
             "RETAINED_FAIL_CLOSED_BOUNDARY",
             ("Exception",),
             (

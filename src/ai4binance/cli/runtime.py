@@ -11,6 +11,8 @@ import re
 import sys
 import time
 from collections.abc import Callable, Mapping
+from concurrent.futures import Future, ThreadPoolExecutor, wait
+from contextvars import Context
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -605,6 +607,84 @@ def run_runtime_command(
         return 2
 
 
+@dataclass(slots=True)
+class _RuntimeValidationRefresh:
+    """Run one canonical producer without blocking research observations."""
+
+    executor: ThreadPoolExecutor
+    pending: Future[dict[str, object]] | None = None
+    result: dict[str, object] | None = None
+    scope: tuple[str, ...] | None = None
+    refreshed_at: datetime | None = None
+    refresh_count: int = 0
+
+    def observe(
+        self,
+        settings: Settings,
+        *,
+        symbols: tuple[str, ...],
+        clock: Callable[[], datetime],
+    ) -> dict[str, object]:
+        from .research import refresh_runtime_validation
+
+        now = clock()
+        if self.pending is None and (
+            self.result is None
+            or self.scope != symbols
+            or self.refreshed_at is None
+            or self.result.get("status") == "PARTIAL_RESEARCH_COVERAGE"
+            or not 0
+            <= (now - self.refreshed_at).total_seconds()
+            < settings.runtime_cycle_interval_seconds
+        ):
+            offset = self.refresh_count % len(symbols) if symbols else 0
+            self.pending = self.executor.submit(
+                Context().run,
+                refresh_runtime_validation,
+                settings,
+                as_of=now,
+                symbols=symbols[offset:] + symbols[:offset],
+            )
+            self.scope = symbols
+            self.refresh_count += 1
+        if self.pending is not None:
+            completed, _ = wait((self.pending,), timeout=0.05)
+            if not completed:
+                # This is progress, never validation evidence or permission.
+                return {
+                    "status": "IN_PROGRESS",
+                    "blockers": ["VALIDATION_REFRESH_IN_PROGRESS"],
+                    "execution_allowed": False,
+                    "promotion_status": "RESEARCH_ONLY",
+                    "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+                }
+            pending, self.pending = self.pending, None
+            self.refreshed_at = clock()
+            try:
+                self.result = pending.result()
+            except Exception:
+                self.result = {
+                    "status": "BLOCKED",
+                    "blockers": ["VALIDATION_REFRESH_FAILED"],
+                    "execution_allowed": False,
+                    "promotion_status": "RESEARCH_ONLY",
+                    "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+                }
+                raise
+            if self.scope != symbols:
+                self.result = None
+                return {
+                    "status": "BLOCKED",
+                    "blockers": ["VALIDATION_REFRESH_SCOPE_CHANGED"],
+                    "execution_allowed": False,
+                    "promotion_status": "RESEARCH_ONLY",
+                    "live_eligibility_status": "LIVE_ORDER_BLOCKED",
+                }
+        if self.result is None:
+            raise RuntimeError("validation refresh observation is unavailable")
+        return self.result
+
+
 def run_virtual_market_daemon(
     settings: Settings,
     *,
@@ -668,11 +748,13 @@ def run_virtual_market_daemon(
     )
     consecutive_failures = 0
     cycle_count = 0
-    validation_refresh: dict[str, object] | None = None
-    validation_scope: tuple[str, ...] | None = None
-    validation_refreshed_at: datetime | None = None
-    validation_refresh_count = 0
-    with SingleInstanceLease(lock_path):
+    with (
+        SingleInstanceLease(lock_path),
+        ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="runtime-validation"
+        ) as validation_executor,
+    ):
+        validation_refresh = _RuntimeValidationRefresh(validation_executor)
         while max_cycles is None or cycle_count < max_cycles:
             cycle_count += 1
             cycle_report: dict[str, object] = {
@@ -742,31 +824,9 @@ def run_virtual_market_daemon(
                             ),
                         )
                         raise ValueError("VIRTUAL_MARKET_UNIVERSE_UNAVAILABLE_OR_STALE")
-                    if (
-                        validation_refresh is None
-                        or validation_scope != universe.spot_symbols
-                        or validation_refreshed_at is None
-                        or validation_refresh.get("status")
-                        == "PARTIAL_RESEARCH_COVERAGE"
-                        or not 0
-                        <= (clock() - validation_refreshed_at).total_seconds()
-                        < settings.runtime_cycle_interval_seconds
-                    ):
-                        from .research import refresh_runtime_validation
-
-                        scope = universe.spot_symbols
-                        offset = validation_refresh_count % len(scope) if scope else 0
-                        validation_refresh = refresh_runtime_validation(
-                            settings,
-                            as_of=clock(),
-                            symbols=scope[offset:] + scope[:offset],
-                        )
-                        validation_scope = universe.spot_symbols
-                        validation_refresh_count += 1
-                        # Bound expensive retries and periodically recheck successful
-                        # source bindings. Decision-time validation retains its veto.
-                        validation_refreshed_at = clock()
-                    cycle_report["validation_refresh"] = validation_refresh
+                    cycle_report["validation_refresh"] = validation_refresh.observe(
+                        settings, symbols=universe.spot_symbols, clock=clock
+                    )
                     configured = tuple(
                         dict.fromkeys(
                             (

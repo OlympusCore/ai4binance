@@ -9,13 +9,15 @@ import os
 import shutil
 import subprocess
 from datetime import datetime, timedelta, tzinfo
+from inspect import unwrap
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, Self, cast
 
 import pytest
 
 from ai4binance.governance import document_lock_authority as authority
 from ai4binance.governance import document_lock_review as review
+from ai4binance.governance import repository_validator as validator
 from tests.test_document_lock_authority import (
     _complete_chain,
     consume,
@@ -635,3 +637,168 @@ finally {
         b"TEST_ONLY original bytes\n" if fail else b"TEST_ONLY approved replacement"
     )
     assert all(p.read_bytes() == expected for p in files)
+
+
+@pytest.fixture
+def markdown_installed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[Path, dict[str, Any], dict[str, bytes]]:
+    """Seed real metadata before any TEST_ONLY hashes or decisions are made."""
+    original = Path.write_text
+
+    def write(
+        path: Path,
+        data: str,
+        encoding: str | None = None,
+        errors: str | None = None,
+        newline: str | None = None,
+    ) -> int:
+        if path == tmp_path / "AGENTS.md" and "document_id: TEST_ONLY_DOC" in data:
+            data = data.replace(
+                "document_id: TEST_ONLY_DOC\n",
+                "document_id: TEST_ONLY_DOC\ncanonical_path: AGENTS.md\n"
+                "source_of_truth: true\n",
+            )
+        return original(path, data, encoding=encoding, errors=errors, newline=newline)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "write_text", write)
+        seeded = unwrap(chain)(tmp_path, monkeypatch)
+    result = cast(
+        tuple[Path, dict[str, Any], dict[str, bytes]],
+        unwrap(installed)(seeded, monkeypatch),
+    )
+    # Share the existing TEST_ONLY transition clock with its validator caller.
+    monkeypatch.setattr(validator, "datetime", vars(authority)["datetime"])
+    return result
+
+
+def _markdown_snapshot_inputs_for_test(
+    root: Path, context: dict[str, Any]
+) -> list[str]:
+    """Bind literal Markdown before completing a TEST_ONLY update."""
+    grant = json.loads((root / context["grant"]["path"]).read_bytes())
+    paths = []
+    for document in grant["review_subject"]["documents"]:
+        for key in ("before_payload", "payload"):
+            reference = document[key]
+            path = reference["path"] + ".md"
+            document[key] = raw(root, path, (root / reference["path"]).read_bytes())
+            paths.append(path)
+    rebind_update(root, context, grant)
+    assert consume(root)[2] is None
+    return paths
+
+
+def test_verified_literal_inputs_never_admit_an_unrelated_runtime_claim(
+    markdown_installed: tuple[Path, dict[str, Any], dict[str, bytes]],
+) -> None:
+    root, original, _ = markdown_installed
+    context = update(root, original, number=1)
+    paths = _markdown_snapshot_inputs_for_test(root, context)
+    inputs = validator._verified_document_snapshot_inputs(root)
+    assert set(paths) <= set(inputs)
+    active = root / "runtime/TEST_ONLY_ACTIVE_CLAIM.md"
+    active.write_bytes((root / paths[0]).read_bytes())
+    findings = tuple(validator._runtime_markdown_authority_findings(root))
+    observed = {finding.path for finding in findings}
+    assert active.relative_to(root).as_posix() in observed
+    assert not set(paths) & observed
+    assert all(finding.blocker for finding in findings)
+
+
+@pytest.mark.parametrize("invalid", ["tampered", "missing_grant", "revoked"])
+def test_invalid_authority_or_bytes_preserve_the_original_runtime_veto(
+    markdown_installed: tuple[Path, dict[str, Any], dict[str, bytes]], invalid: str
+) -> None:
+    root, original, _ = markdown_installed
+    context = update(root, original, number=1)
+    paths = _markdown_snapshot_inputs_for_test(root, context)
+    if invalid == "tampered":
+        path = root / paths[0]
+        path.write_bytes(path.read_bytes() + b"\nTEST_ONLY_TAMPERING\n")
+    elif invalid == "missing_grant":
+        (root / context["grant"]["path"]).unlink()
+    else:
+        revocations = json.loads((root / context["revocations"]["path"]).read_bytes())
+        revocations["revoked_decision_ids"] = ["TEST_ONLY_GRANT_1"]
+        context["revocations"] = save(root, context["revocations"]["path"], revocations)
+        save(root, authority.CONTEXT_PATH, context)
+    assert validator._verified_document_snapshot_inputs(root) == {}
+    findings = tuple(validator._runtime_markdown_authority_findings(root))
+    assert set(paths) <= {finding.path for finding in findings}
+
+
+@pytest.mark.parametrize("remove_metadata", [False, True])
+def test_snapshot_consumption_rechecks_its_hash(
+    markdown_installed: tuple[Path, dict[str, Any], dict[str, bytes]],
+    monkeypatch: pytest.MonkeyPatch,
+    remove_metadata: bool,
+) -> None:
+    root, original, _ = markdown_installed
+    context = update(root, original, number=1)
+    paths = _markdown_snapshot_inputs_for_test(root, context)
+    inputs = validator._verified_document_snapshot_inputs(root)
+    path = root / paths[0]
+    path.write_bytes(
+        b"TEST_ONLY_REMOVED_METADATA\n"
+        if remove_metadata
+        else path.read_bytes() + b"\nTEST_ONLY_LATE_CHANGE\n"
+    )
+    monkeypatch.setattr(
+        validator, "_verified_document_snapshot_inputs", lambda _root: inputs
+    )
+    findings = tuple(validator._runtime_markdown_authority_findings(root))
+    assert paths[0] in {finding.path for finding in findings}
+
+
+def test_snapshot_recognition_uses_the_same_context_that_was_verified(
+    markdown_installed: tuple[Path, dict[str, Any], dict[str, bytes]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, original, _ = markdown_installed
+    context = update(root, original, number=1)
+    paths = _markdown_snapshot_inputs_for_test(root, context)
+    original_verify = authority._verify_update
+    forged_path = "runtime/TEST_ONLY_UNVERIFIED_SOURCE.md"
+    raw(root, forged_path, (root / paths[0]).read_bytes())
+
+    def verify(
+        repository_root: Path,
+        payload: dict[str, Any],
+        selected: dict[str, Any],
+        *,
+        now: datetime,
+        seen: frozenset[str] = frozenset(),
+        current: bool = True,
+    ) -> tuple[frozenset[tuple[str, str]], datetime]:
+        result = original_verify(
+            repository_root, payload, selected, now=now, seen=seen, current=current
+        )
+        forged = copy.deepcopy(context)
+        grant = json.loads((root / forged["grant"]["path"]).read_bytes())
+        grant["review_subject"]["documents"][0]["before_payload"] = raw(
+            root, forged_path, (root / paths[0]).read_bytes()
+        )
+        forged["grant"] = save(root, "runtime/TEST_ONLY_FORGED_GRANT.json", grant)
+        save(root, authority.CONTEXT_PATH, forged)
+        return result
+
+    monkeypatch.setattr(authority, "_verify_update", verify)
+    inputs = validator._verified_document_snapshot_inputs(root)
+    assert set(paths) <= set(inputs)
+    assert forged_path not in inputs
+
+
+def test_verified_predecessor_inputs_remain_literal_evidence(
+    markdown_installed: tuple[Path, dict[str, Any], dict[str, bytes]],
+) -> None:
+    root, original, _ = markdown_installed
+    first = update(root, original, number=1)
+    previous_paths = _markdown_snapshot_inputs_for_test(root, first)
+    second = update(root, first, number=2)
+    current_paths = _markdown_snapshot_inputs_for_test(root, second)
+    assert set(previous_paths + current_paths) <= set(
+        validator._verified_document_snapshot_inputs(root)
+    )
+    assert not tuple(validator._runtime_markdown_authority_findings(root))

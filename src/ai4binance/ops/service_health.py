@@ -10,9 +10,18 @@ from pathlib import Path
 from typing import cast
 
 from ai4binance.config import Settings
+from ai4binance.infrastructure.persistence.safe_json import read_shared_bytes
 from ai4binance.ops.runtime import SingleInstanceLease
 
 DEFAULT_SERVICE_MANIFEST_PATH = Path("config/operations/services.json")
+MAX_SERVICE_STATUS_BYTES = 1_048_576
+
+
+def _read_status_text(path: Path) -> str:
+    """Read a bounded status without blocking atomic Windows replacement."""
+    return read_shared_bytes(path, max_bytes=MAX_SERVICE_STATUS_BYTES).decode(
+        "utf-8-sig"
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,14 +154,14 @@ def service_health_from_spec(
     blockers: list[str] = []
     payload: dict[str, object] = {}
     try:
-        loaded = json.loads(path.read_text(encoding="utf-8-sig"))
+        loaded = json.loads(_read_status_text(path))
         if isinstance(loaded, dict):
             payload = cast(dict[str, object], loaded)
         else:
             blockers.append(f"{label}_STATE_INVALID")
     except FileNotFoundError:
         blockers.append(f"{label}_STATE_MISSING")
-    except OSError, json.JSONDecodeError:
+    except OSError, ValueError:
         blockers.append(f"{label}_STATE_INVALID")
 
     updated_at = _parse_datetime(payload.get("updated_at"))
@@ -369,11 +378,11 @@ def _useful_cycle_timestamp(
         return None
     useful_path = state_dir / spec.useful_state_file
     try:
-        loaded = json.loads(useful_path.read_text(encoding="utf-8-sig"))
+        loaded = json.loads(_read_status_text(useful_path))
     except FileNotFoundError:
         blockers.append(f"{spec.label}_USEFUL_CYCLE_STATE_MISSING")
         return None
-    except OSError, json.JSONDecodeError:
+    except OSError, ValueError:
         blockers.append(f"{spec.label}_USEFUL_CYCLE_STATE_INVALID")
         return None
     if not isinstance(loaded, dict):
